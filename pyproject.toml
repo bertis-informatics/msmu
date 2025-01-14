@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "msmu"
+authors = [
+    {name = "Hyunguk Choi", email = "hyunguk.choi@bertis.com"},
+    {name = "Byeongchan Lee", email = "byeongchan.lee@bertis.com"},
+]
+license = {file = "LICENSE"}
+description = "BERTIS LC/MS analysis library through MuData"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["LCMS", "Protein", "Peptide", "Mass Spectrometry"]
+dependencies = [
+    "mudata",
+    "biopython",
+    "plotly",
+    "pymzml",
+    "statsmodels",
+]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://bitbucket.org/bertis/msmu"
+
+[tool.setuptools]
+packages = ["msmu"]
