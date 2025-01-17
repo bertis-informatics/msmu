@@ -74,7 +74,7 @@ def add_decoy_filter(
     proteins = _get_column(adata, "proteins", "search_result")
 
     # Remove decoy from proteins column
-    adata.var["proteins_no_decoy"] = proteins.astype(str).apply(lambda x: _remove_decoy(x, decoy_prefix))
+    adata.var["proteins_no_decoy"] = proteins.apply(lambda x: _remove_decoy(x, decoy_prefix))
 
     # Create filter result
     filter_df = pd.DataFrame(columns=["not_decoy"])
@@ -95,8 +95,8 @@ def add_decoy_filter(
     return mdata
 
 
-def _remove_decoy(row: pd.Series[str], decoy_prefix: str) -> pd.Series:
-    return ";".join([x for x in row if not x.startswith(decoy_prefix)])
+def _remove_decoy(row: pd.Series, decoy_prefix: str) -> pd.Series:
+    return ";".join([str(x) for x in row if not str(x).startswith(decoy_prefix)])
 
 
 def add_precursor_purity_filter(
