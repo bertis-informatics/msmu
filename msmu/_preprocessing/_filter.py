@@ -43,77 +43,105 @@ def _get_column(adata: AnnData, colname: str, key: str) -> str:
 
 
 @check_type
-def add_q_value_filter(mdata: MuData, q_value: float | list[float] | dict[str, float]) -> MuData:
+def add_q_value_filter(
+    mdata: MuData,
+    level: str,
+    threshold: float | list[float] | dict[str, float],
+) -> MuData:
     mdata = mdata.copy()
+    adata = mdata[level]
 
-    if isinstance(q_value, (float, int)):
-        q_value = {"spectrum": q_value, "peptide": q_value, "protein": q_value}
-    elif isinstance(q_value, list):
-        q_value = {"spectrum": q_value[0], "peptide": q_value[1], "protein": q_value[2]}
+    # Format threshold
+    if isinstance(threshold, (float, int)):
+        threshold = {"spectrum": threshold, "peptide": threshold, "protein": threshold}
+    elif isinstance(threshold, list):
+        threshold = {"spectrum": threshold[0], "peptide": threshold[1], "protein": threshold[2]}
 
-    print(f"Filtering by q-value: {q_value}")
+    # Get q values
+    spectrum_q = _get_column(adata, "spectrum_q", "search_result")
+    peptide_q = _get_column(adata, "peptide_q", "search_result")
+    protein_q = _get_column(adata, "protein_q", "search_result")
 
-    spectrum_q = _get_column(mdata["psm"], "spectrum_q", "search_result")
-    peptide_q = _get_column(mdata["psm"], "peptide_q", "search_result")
-    protein_q = _get_column(mdata["psm"], "protein_q", "search_result")
-
+    # Create filter result
     filter_df = pd.DataFrame(columns=["spectrum_q", "peptide_q", "protein_q"])
-    filter_df["spectrum_q"] = spectrum_q < q_value["spectrum"]
-    filter_df["peptide_q"] = peptide_q < q_value["peptide"]
-    filter_df["protein_q"] = protein_q < q_value["protein"]
+    filter_df["spectrum_q"] = spectrum_q < threshold["spectrum"]
+    filter_df["peptide_q"] = peptide_q < threshold["peptide"]
+    filter_df["protein_q"] = protein_q < threshold["protein"]
 
-    if "filter" not in mdata["psm"].varm_keys():
-        mdata["psm"].varm["filter"] = filter_df
+    # Store filter result
+    if "filter" not in adata.varm_keys():
+        adata.varm["filter"] = filter_df
     else:
-        mdata["psm"].varm["filter"] = pd.concat([mdata["psm"].varm["filter"], filter_df], axis=1)
+        adata.varm["filter"]["spectrum_q"] = filter_df["spectrum_q"]
+        adata.varm["filter"]["peptide_q"] = filter_df["peptide_q"]
+        adata.varm["filter"]["protein_q"] = filter_df["protein_q"]
 
-    if "filter" not in mdata["psm"].uns_keys():
-        mdata["psm"].uns["filter"] = {"q_value": q_value}
+    # Store filter threshold
+    if "filter" not in adata.uns_keys():
+        adata.uns["filter"] = {"q_value": threshold}
     else:
-        mdata["psm"].uns["filter"]["q_value"] = q_value
+        adata.uns["filter"]["q_value"] = threshold
 
     return mdata
 
 
 @check_type
-def add_decoy_filter(mdata: MuData) -> MuData:
+def add_decoy_filter(
+    mdata: MuData,
+    level: str,
+) -> MuData:
     mdata = mdata.copy()
+    adata = mdata[level]
 
     return mdata
 
 
 @check_type
-def add_precursor_purity_filter(mdata: MuData, purity_cutoff: float | list[float] | dict[str, float | int]) -> MuData:
+def add_precursor_purity_filter(
+    mdata: MuData,
+    level: str,
+    threshold: float | list[float] | dict[str, float | int],
+    mzml_files: list[str | Path] = None,
+) -> MuData:
     mdata = mdata.copy()
+    adata = mdata[level]
 
-    if isinstance(purity_cutoff, (float, int)):
-        purity_cutoff = {"min": purity_cutoff, "max": 1.0}
-    elif isinstance(purity_cutoff, list):
-        purity_cutoff = {"min": purity_cutoff[0], "max": purity_cutoff[1]}
+    # Check if the argument is provided
+    if mzml_files is None:
+        if "mzml_files" in adata.uns:
+            mzml_files: list[str | Path] = adata.uns["mzml_files"]
+        else:
+            raise ValueError("mzml_files should be provided or stored in mdata.uns['mzml_files']")
 
-    mdata["psm"].var["purity"] = calculate_precursor_purity(mdata, "psm")["purity"]
+    # Format threshold
+    if isinstance(threshold, (float, int)):
+        threshold = {"min": threshold, "max": 1.0}
+    elif isinstance(threshold, list):
+        threshold = {"min": threshold[0], "max": threshold[1]}
 
+    # Get precursor purity
+    adata.var["purity"] = calculate_precursor_purity(
+        adata=adata,
+        mzml_files=mzml_files,
+    )
+
+    # Create filter result
     filter_df = pd.DataFrame(columns=["purity"])
-    filter_df["purity"] = calculate_precursor_purity(mdata, "psm")["purity"]
+    filter_df["purity"] = adata.var["purity"].between(threshold["min"], threshold["max"])
 
-    if "filter" not in mdata["psm"].varm_keys():
-        mdata["psm"].varm["filter"] = filter_df
+    # Store filter result
+    if "filter" not in adata.varm_keys():
+        adata.varm["filter"] = filter_df
     else:
-        mdata["psm"].varm["filter"] = pd.concat([mdata["psm"].varm["filter"], filter_df], axis=1)
+        adata.varm["filter"]["purity"] = filter_df["purity"]
 
-    if "filter" not in mdata["psm"].uns_keys():
-        mdata["psm"].uns["filter"] = {"purity_cutoff": purity_cutoff}
+    # Store filter threshold
+    if "filter" not in adata.uns_keys():
+        adata.uns["filter"] = {"purity": threshold}
     else:
-        mdata["psm"].uns["filter"]["purity_cutoff"] = purity_cutoff
+        adata.uns["filter"]["purity"] = threshold
 
     return mdata
-
-
-# @check_type
-# def calculate_precursor_purity(mdata: MuData, mzml_folder: str | Path) -> MuData:
-#     mdata = mdata.copy()
-
-#     return mdata
 
 
 @check_type
