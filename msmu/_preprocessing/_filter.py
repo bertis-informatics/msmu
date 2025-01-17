@@ -22,11 +22,11 @@ def _get_column(
 
 def add_q_value_filter(
     mdata: MuData,
-    level: str,
+    modality: str,
     threshold: float | list[float] | dict[str, float],
 ) -> MuData:
     mdata = mdata.copy()
-    adata = mdata[level]
+    adata = mdata[modality]
 
     # Format threshold
     if isinstance(threshold, (float, int)):
@@ -64,11 +64,11 @@ def add_q_value_filter(
 
 def add_decoy_filter(
     mdata: MuData,
-    level: str,
+    modality: str,
     decoy_prefix: str = "rev",
 ) -> MuData:
     mdata = mdata.copy()
-    adata = mdata[level]
+    adata = mdata[modality]
 
     # Get protein columns
     proteins = _get_column(adata, "proteins", "search_result")
@@ -101,12 +101,12 @@ def _remove_decoy(row: pd.Series, decoy_prefix: str) -> pd.Series:
 
 def add_precursor_purity_filter(
     mdata: MuData,
-    level: str,
+    modality: str,
     threshold: float | list[float] | dict[str, float | int],
     mzml_files: list[str | Path] = None,
 ) -> MuData:
     mdata = mdata.copy()
-    adata = mdata[level]
+    adata = mdata[modality]
 
     # Check if the argument is provided
     if mzml_files is None:
