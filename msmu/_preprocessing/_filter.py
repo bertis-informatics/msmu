@@ -96,7 +96,7 @@ def add_decoy_filter(
 
 
 def _remove_decoy(row: pd.Series, decoy_prefix: str) -> pd.Series:
-    return ";".join([str(x) for x in row if not str(x).startswith(decoy_prefix)])
+    return ";".join([str(x) for x in row.split(";") if not str(x).startswith(decoy_prefix)])
 
 
 def add_precursor_purity_filter(
