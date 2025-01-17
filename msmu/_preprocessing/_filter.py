@@ -151,7 +151,23 @@ def add_precursor_purity_filter(
     return mdata
 
 
-def apply_filter(mdata: MuData) -> MuData:
+def apply_filter(
+    mdata: MuData,
+    modality: str,
+) -> MuData:
     mdata = mdata.copy()
+    adata = mdata[modality]
+
+    # Get filter result
+    if "filter" not in adata.varm_keys():
+        raise ValueError("Filter result is not found in the data")
+    filter_df = adata.varm["filter"]
+
+    # Apply filter
+    filtered_adata = adata[:, filter_df.all(axis=1)].copy()
+
+    # Store filter result
+    mdata.mod[modality] = filtered_adata
+    mdata.update_var()
 
     return mdata
