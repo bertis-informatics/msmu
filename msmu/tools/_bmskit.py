@@ -1,3 +1,6 @@
+import numpy as np
+import re
+
 from bmskit.composition.averagine import Averagine
 from bmskit.composition.composition import Composition
 from bmskit.sequence.sequence import Sequence
@@ -11,7 +14,7 @@ from pymzml.file_classes import standardMzml as StandardMzml
 
 def get_spectrum(mzml: MzmlReader, scan_id: int) -> StandardMzml:
     frame = mzml[scan_id]
-    return Spectrum(mz_arr=frame.mz, ab_array=frame.i)
+    return Spectrum(mz_array=np.array(frame.mz), ab_array=np.array(frame.i))
 
 
 def get_composition(pep_seq):
