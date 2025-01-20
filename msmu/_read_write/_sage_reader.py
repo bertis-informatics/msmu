@@ -105,7 +105,6 @@ class SageReader(Reader):
         mdata: md.MuData = self._sage2mdata(
             sage_result_df=sage_result_df, sage_quant_df=sage_quant_df
         )
-        #        mdata.pull_var()
 
         return mdata
 
@@ -128,8 +127,6 @@ class TmtSageReader(SageReader):
 
         self._get_sage_outputs()
         self._validate_sage_outputs()
-
-    def _sage2adata(self) -> ad.AnnData: ...
 
     def _normalise_columns(self, sage_result_df) -> pd.DataFrame:
         return super()._normalise_columns(sage_result_df=sage_result_df)
@@ -278,9 +275,7 @@ class LfqSageReader(SageReader):
         adata_psm.varm["search_result"] = sage_result_df
         adata_psm.uns["level"] = "psm"
         adata_psm.uns["label"] = self._label
-        adata_psm.uns["filenames"] = (
-            adata_psm.var["filename"].drop_duplicates().sort_values().tolist()
-        )
+        adata_psm.uns["search_output_dir"] = self._sage_output_dir
 
         adata_peptide = ad.AnnData(sage_quant_df.T)
         adata_peptide.uns["level"] = "peptide"
