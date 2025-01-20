@@ -6,20 +6,6 @@ import pandas as pd
 from ._calculate_precursor_purity import calculate_precursor_purity
 
 
-def _get_column(
-    adata: AnnData,
-    colname: str,
-    key: str,
-) -> pd.Series:
-    # Check if the column is in the var or varm
-    if colname in adata.var.columns:
-        return adata.var[colname]
-    elif colname in adata.varm[key].columns:
-        return adata.varm[key][colname]
-    else:
-        raise ValueError(f"{colname} not found in the data")
-
-
 def add_q_value_filter(
     mdata: MuData,
     modality: str,
@@ -74,17 +60,17 @@ def add_decoy_filter(
     proteins = _get_column(adata, "proteins", "search_result")
 
     # Remove decoy from proteins column
-    adata.var["proteins_no_decoy"] = proteins.apply(lambda x: _remove_decoy(x, decoy_prefix))
+    adata.var["proteins_wo_decoy"] = proteins.apply(lambda x: _remove_decoy(x, decoy_prefix))
 
     # Create filter result
-    filter_df = pd.DataFrame(columns=["not_decoy"])
-    filter_df["not_decoy"] = adata.var["proteins_no_decoy"].notna()
+    filter_df = pd.DataFrame(columns=["not_only_decoy"])
+    filter_df["not_only_decoy"] = adata.var["proteins_wo_decoy"].notna()
 
     # Store filter result
     if "filter" not in adata.varm_keys():
         adata.varm["filter"] = filter_df
     else:
-        adata.varm["filter"]["not_decoy"] = filter_df["not_decoy"]
+        adata.varm["filter"]["not_only_decoy"] = filter_df["not_only_decoy"]
 
     # Store filter prefix
     if "filter" not in adata.uns_keys():
@@ -93,10 +79,6 @@ def add_decoy_filter(
         adata.uns["filter"]["decoy"] = decoy_prefix
 
     return mdata
-
-
-def _remove_decoy(row: pd.Series, decoy_prefix: str) -> pd.Series:
-    return ";".join([str(x) for x in row.split(";") if not str(x).startswith(decoy_prefix)])
 
 
 def add_precursor_purity_filter(
@@ -123,10 +105,10 @@ def add_precursor_purity_filter(
 
     # Get precursor purity
     if "purity" not in adata.var_keys():
-        adata.var["purity"] = calculate_precursor_purity(
-            adata=adata,
-            mzml_files=mzml_files,
-        )
+        purity_df = calculate_precursor_purity(adata=adata, mzml_files=mzml_files)
+        adata.var = adata.var.join(purity_df)
+    else:
+        raise ValueError("Precursor purity is already calculated. Please remove it before recalculating.")
 
     # Create filter result
     filter_df = pd.DataFrame(columns=["high_purity"])
@@ -171,3 +153,21 @@ def apply_filter(
     mdata.update_var()
 
     return mdata
+
+
+def _get_column(
+    adata: AnnData,
+    colname: str,
+    key: str,
+) -> pd.Series:
+    # Check if the column is in the var or varm
+    if colname in adata.var.columns:
+        return adata.var[colname]
+    elif colname in adata.varm[key].columns:
+        return adata.varm[key][colname]
+    else:
+        raise ValueError(f"{colname} not found in the data")
+
+
+def _remove_decoy(row: pd.Series, decoy_prefix: str) -> pd.Series:
+    return ";".join([str(x) for x in row.split(";") if not str(x).startswith(decoy_prefix)])

@@ -14,7 +14,7 @@ def calculate_precursor_purity(
     adata: AnnData,
     mzml_files: list[str | Path],
 ) -> pd.DataFrame:
-    psm_df: pd.DataFrame = adata.varm["search_result"]  # SHOULD CHANGE TO VAR
+    psm_df: pd.DataFrame = adata.var.copy()
 
     purities: list[pd.DataFrame] = []
     for mzml_file in mzml_files:
@@ -36,19 +36,17 @@ def _calculate_precursor_purity_by_file(
     psm_df_by_file: pd.DataFrame,
 ) -> pd.DataFrame:
     purity_colname = "purity"
-    purity_df_by_file = pd.DataFrame(columns=["psm_id", "filename", purity_colname])
-    purity_df_by_file["psm_id"] = psm_df_by_file["psm_id"]
-    purity_df_by_file["filename"] = psm_df_by_file["filename"]
+    purity_df_by_file = pd.DataFrame(columns=[purity_colname])
 
     for row_idx, psm_row in psm_df_by_file.iterrows():
-        ms2_scan_id: list[int] = [s for s in psm_row["scannr"].split(" ") if "scan=" in s][0].split("=")[1]
+        ms2_scan_id: int = int(psm_row["scan_num"])
         charge = psm_row["charge"]
-        pep_seq = _get_peptide(psm_row)  # NOT NEEDED FOR FUTURE VERSION
-        modif_info = _get_modifications(psm_row)  # NOT NEEDED FOR FUTURE VERSION
+        pep_seq = psm_row["stripped_peptide"]
+        modif_info = psm_row["modifications"]
 
-        ms1_scan_id: int = frame_df.loc[frame_df["ID"].astype(int) == int(ms2_scan_id), "ms1_scan_id"].values[0]
+        ms1_scan_id: int = frame_df.loc[frame_df["ID"].astype(int) == ms2_scan_id, "ms1_scan_id"].values[0]
         ms1_spectrum = get_spectrum(mzml, ms1_scan_id)
-        ms2_frame = mzml[int(ms2_scan_id)]
+        ms2_frame = mzml[ms2_scan_id]
         isolation_window = get_ms2_isolation_window(ms2_frame)
 
         composition = get_composition(pep_seq)
@@ -72,45 +70,13 @@ def _calculate_precursor_purity_by_file(
     return purity_df_by_file
 
 
-def _get_peptide(psm_row):
-    peptide_with_modi = psm_row["peptide"]
-    pattern = r"([A-Z]+)|(\[\+\d+\.\d+\])"
-    result = re.findall(pattern, peptide_with_modi)
-
-    # 대문자와 숫자를 분리하여 각각 리스트로 저장
-    peptide = [item[0] for item in result if item[0]]
-
-    return "".join(peptide)
-
-
-def _get_modifications(psm_row):
-    pattern = r"([A-Z]+)|(\[\+\d+\.\d+\])"
-    result = re.findall(pattern, psm_row["peptide"])
-
-    # label modified AA & position
-    mod_pos = 0
-    mod_pos_AA = "N-term"
-    modified_peptide = []
-    for item in result:
-        if item[1]:
-            pos = mod_pos if mod_pos > 0 else ""
-            mod_mass = float(item[1][1:-1])
-            mod = f"{pos}{mod_pos_AA}({mod_mass})"
-            modified_peptide.append(mod)
-        else:
-            mod_pos += len(item[0])
-            mod_pos_AA = item[0][-1]
-
-    return ", ".join(modified_peptide)
-
-
 def _calculate_precursor_purity_by_psm(
-    ms1_spectrum,
-    isotope_peaks,
-    isolation_window,
+    ms1_spectrum: MzmlReader,
+    isotope_peaks: pd.DataFrame,
+    isolation_window: tuple[float, float],
 ) -> float:
     if isotope_peaks is None:  # No isotope peak in ms1 spectrum
-        purity = -1.0
+        purity: float = -1.0
     else:
         iso_min, iso_max = isolation_window
         isotype_peak_condition = (isotope_peaks.mz_array >= iso_min) & (isotope_peaks.mz_array <= iso_max)
@@ -123,9 +89,9 @@ def _calculate_precursor_purity_by_psm(
         all_peaks_sum = all_isolation_peaks_ab.sum()
 
         if all_peaks_sum == 0:  # zero division # No isolation peak in isolation window
-            purity = -2.0
+            purity: float = -2.0
 
         else:
-            purity = (isotope_peaks_sum / all_peaks_sum).round(4)
+            purity: float = (isotope_peaks_sum / all_peaks_sum).round(4)
 
     return purity
