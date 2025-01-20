@@ -1,5 +1,7 @@
 from pathlib import Path
+from types import NoneType
 
+import anndata as ad
 import mudata as md
 import pandas as pd
 
@@ -19,7 +21,7 @@ def read_sage(
     elif label == "lfq":
         reader_cls = LfqSageReader
     else:
-        raise ValueError("Argument label should be one of 'Tmt', 'lfq'.")
+        raise ValueError("Argument label should be one of 'tmt', 'lfq'.")
 
     reader = reader_cls(
         sage_output_dir=sage_output_dir,
@@ -36,10 +38,82 @@ def read_diann():
     return NotImplementedError
 
 
-def merge_mudata(): ...
+def read_comet():
+    return NotImplementedError
 
 
-def make_sample_annotation(): ...
+def read_protdiscov():
+    return NotImplementedError
 
 
-# TODO: MARK IS_BLANK and IS_IRS function for TMT
+def read_maxquant():
+    return NotImplementedError
+
+
+def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
+    adata_dict: dict = dict()
+    peptide_list: list = list()
+    #    protein_list: list = list() # for further feature
+    #    ptm_list: list = list() # for further feature
+
+    obs_ident: list = list()
+    for name_, mdata in mdatas.items():
+        for mod in mdata.mod_names:
+            adata = mdata[mod].copy()
+            if adata.uns["level"] == "psm":
+                psm_prefix: str = "psm"
+                psm_name: str = f"{psm_prefix}_{name_}"
+                adata_dict[psm_name] = adata
+
+                obs_ident_df = adata.obs.copy()
+                obs_ident_df["set"] = name_
+                obs_ident.append(obs_ident_df)
+
+            elif adata.uns["level"] == "peptide":
+                peptide_list.append(adata)
+
+    if len(peptide_list) > 0:
+        adata_pep = ad.concat(peptide_list, uns_merge="unique", join="outer")
+        adata_dict["peptide"] = adata_pep
+
+    obs_ident_df: pd.DataFrame = pd.concat(obs_ident)
+
+    merged_mdata: md.MuData = md.MuData(adata_dict)
+    merged_mdata.obs["set"] = obs_ident_df["set"]
+    merged_mdata.push_obs()
+
+    return merged_mdata
+
+
+def mask_obs(
+    mdata: md.MuData,
+    mask_type: str,
+    prefix: str | None = None,
+    suffix: str | None = None,
+    masking_list: list[str] | None = None,
+) -> md.MuData:
+
+    assert mask_type in [
+        "blank",
+        "IRS",
+    ], 'Argument "type" must one of "blank", "IRS (Internal Reference Standard)"'
+
+    obs_df = mdata.obs.copy()
+    obs_df["_obs"] = obs_df.index
+
+    mask_column_name = f"is_{mask_type}"
+    obs_df[mask_column_name] = False
+
+    if isinstance(prefix, NoneType) == False:
+        obs_df.loc[obs_df["_obs"].str.startswith(prefix), mask_column_name] = True
+    elif isinstance(suffix, NoneType) == False:
+        obs_df.loc[obs_df["_obs"].str.endswith(suffix), mask_column_name] = True
+    elif isinstance(masking_list, NoneType) == False:
+        for mask in masking_list:
+            obs_df.loc[obs_df["_obs"] == mask, mask_column_name] = True
+
+    obs_df = obs_df.drop("_obs", axis=1)
+
+    mdata.obs[mask_column_name] = obs_df[mask_column_name]
+
+    return mdata
