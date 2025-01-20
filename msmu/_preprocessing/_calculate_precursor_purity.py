@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-import re
+import concurrent.futures
 
 from anndata import AnnData
 from pymzml.run import Reader as MzmlReader
@@ -13,21 +13,26 @@ from ..tools._bmskit import get_spectrum, get_composition, get_envelope, get_pep
 def calculate_precursor_purity(
     adata: AnnData,
     mzml_files: list[str | Path],
+    n_cores: int = 1,
 ) -> pd.DataFrame:
     psm_df: pd.DataFrame = adata.var.copy()
 
-    purities: list[pd.DataFrame] = []
-    for mzml_file in mzml_files:
-        mzml_file_name: str = Path(mzml_file).name
-        psm_df_by_file: pd.DataFrame = psm_df.loc[psm_df["filename"] == mzml_file_name]
+    with concurrent.futures.ProcessPoolExecutor(max_workers=n_cores) as executor:
+        futures = [executor.submit(_calculate_precursor_purity_worker, mzml_file, psm_df) for mzml_file in mzml_files]
+        purities = [future.result() for future in concurrent.futures.as_completed(futures)]
 
-        mzml: MzmlReader = read_mzml(mzml_file)
-        frame_df: pd.DataFrame = get_frame_df(mzml)
+    return pd.concat(purities)["purity"].astype(float)
 
-        purities_by_file: pd.DataFrame = _calculate_precursor_purity_by_file(mzml, frame_df, psm_df_by_file)
-        purities.append(purities_by_file)
 
-    return pd.concat(purities)["purity"]
+def _calculate_precursor_purity_worker(mzml_file, psm_df):
+    mzml_file_name: str = Path(mzml_file).name
+    psm_df_by_file: pd.DataFrame = psm_df.loc[psm_df["filename"] == mzml_file_name]
+
+    mzml: MzmlReader = read_mzml(mzml_file)
+    frame_df: pd.DataFrame = get_frame_df(mzml)
+
+    purities_by_file: pd.DataFrame = _calculate_precursor_purity_by_file(mzml, frame_df, psm_df_by_file)
+    return purities_by_file
 
 
 def _calculate_precursor_purity_by_file(
