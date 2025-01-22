@@ -64,7 +64,7 @@ def add_decoy_filter(
 
     # Create filter result
     filter_df = pd.DataFrame(columns=["not_only_decoy"])
-    filter_df["not_only_decoy"] = adata.var["proteins_wo_decoy"].notna()
+    filter_df["not_only_decoy"] = adata.var["proteins_wo_decoy"] != ""
 
     # Store filter result
     if "filter" not in adata.varm_keys():
