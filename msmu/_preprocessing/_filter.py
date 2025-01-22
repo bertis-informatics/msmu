@@ -86,6 +86,7 @@ def add_precursor_purity_filter(
     modality: str,
     threshold: float | list[float] | dict[str, float | int],
     mzml_files: list[str | Path] = None,
+    n_cores: int = 1,
 ) -> MuData:
     mdata = mdata.copy()
     adata = mdata[modality]
@@ -105,7 +106,7 @@ def add_precursor_purity_filter(
 
     # Get precursor purity
     if "purity" not in adata.var_keys():
-        purity_df = calculate_precursor_purity(adata=adata, mzml_files=mzml_files)
+        purity_df = calculate_precursor_purity(adata=adata, mzml_files=mzml_files, n_cores=n_cores)
         adata.var = adata.var.join(purity_df)
     else:
         raise ValueError("Precursor purity is already calculated. Please remove it before recalculating.")
