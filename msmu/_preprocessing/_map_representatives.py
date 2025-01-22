@@ -5,7 +5,7 @@ import scipy.sparse as sp
 from typing import Tuple
 
 
-def map_protein(
+def map_representatives(
     mdata: md.MuData,
     modality: str,
     peptide_colname: str = "stripped_peptide",
