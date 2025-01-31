@@ -9,7 +9,7 @@ from ._read_write._readers import mask_obs, merge_mudata, read_sage
 __version__ = "0.1.0_dev"
 
 mudata.set_options(pull_on_update=False)
-pl._set_template()
+pl._set_templates()
 
 __all__ = [
     "rw",

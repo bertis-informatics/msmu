@@ -2,7 +2,16 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 
-def _set_template():
+DEFAULT_TEMPLATE = "msmu"
+
+
+def _set_templates():
+    _add_msmu_template()
+    _add_msmu_pastel_template()
+    _set_default_template(DEFAULT_TEMPLATE)
+
+
+def _add_msmu_template():
     pio.templates["msmu"] = go.layout.Template(
         layout={
             "annotationdefaults": {"arrowhead": 0, "arrowwidth": 1},
@@ -95,6 +104,8 @@ def _set_template():
         }
     )
 
+
+def _add_msmu_pastel_template():
     pio.templates["msmu_pastel"] = pio.templates["msmu"]
     pio.templates["msmu_pastel"].layout.colorway = [
         "#A6CEE3",
@@ -109,4 +120,6 @@ def _set_template():
         "#D9D9D9",
     ]
 
-    pio.templates.default = "msmu"
+
+def _set_default_template(template_name: str):
+    pio.templates.default = template_name
