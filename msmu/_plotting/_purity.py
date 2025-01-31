@@ -8,12 +8,13 @@ def plot_purity(
     mdata: md.MuData,
     modality: str = "psm",
     groupby: str = None,
-    binsize: float = 0.01,
     plot: str = "hist",
+    binsize: float = 0.01,
+    bandwidth: float = 0.01,
     **kwargs,
 ) -> go.Figure:
     # Prepare dataset
-    dataset = _prep_purity(
+    dataset = _prep_purity_data(
         data_var=mdata[modality].var,
         groupby=groupby,
     )
@@ -21,7 +22,7 @@ def plot_purity(
     if plot == "hist":
         fig = draw_purity_hist(dataset=dataset, binsize=binsize)
     elif plot in ["dist", "density", "violin"]:
-        fig = draw_purity_density(dataset=dataset)
+        fig = draw_purity_density(dataset=dataset, bandwidth=bandwidth)
     elif plot == "box":
         fig = draw_purity_box(dataset=dataset)
     else:
@@ -34,7 +35,10 @@ def plot_purity(
         line_dash="dash",
         line_color="red",
         line_width=1,
-        annotation_text=" > Purity threshold",
+        annotation=dict(
+            text=f"Purity threshold : {threshold["min"]}",
+            yanchor="bottom",
+        ),
     )
 
     # Update layout
@@ -54,7 +58,7 @@ def plot_purity(
     return fig
 
 
-def _prep_purity(
+def _prep_purity_data(
     data_var: pd.DataFrame,
     groupby: str = None,
 ) -> dict:
@@ -74,7 +78,7 @@ def _prep_purity(
 
 def draw_purity_hist(
     dataset: dict,
-    binsize: float = 0.04,
+    binsize: float,
 ) -> go.Figure:
     fig = go.Figure()
     for category, data in dataset.items():
@@ -97,6 +101,7 @@ def draw_purity_hist(
 
 def draw_purity_density(
     dataset: dict,
+    bandwidth: float,
 ) -> go.Figure:
     fig = go.Figure()
     for category, data in dataset.items():
@@ -109,9 +114,9 @@ def draw_purity_density(
                 points=False,
                 hoveron="points",
                 orientation="h",
-                side="positive",
+                side="negative",
                 line=dict(width=1),
-                bandwidth=0.01,
+                bandwidth=bandwidth,
                 spanmode="hard",
                 box=dict(
                     visible=True,
@@ -120,6 +125,8 @@ def draw_purity_density(
                 ),
             )
         )
+
+    fig.update_yaxes(autorange="reversed")
 
     return fig
 
@@ -139,6 +146,8 @@ def draw_purity_box(
                 showlegend=False,
             )
         )
+
+    fig.update_yaxes(autorange="reversed")
 
     return fig
 
