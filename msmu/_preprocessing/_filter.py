@@ -48,10 +48,10 @@ def add_q_value_filter(
     return mdata
 
 
-def add_decoy_filter(
+def add_prefix_filter(
     mdata: MuData,
     modality: str,
-    decoy_prefix: str = "rev",
+    prefix: str | tuple = ("rev_", "contam_"),
 ) -> MuData:
     mdata = mdata.copy()
     adata = mdata[modality]
@@ -59,25 +59,24 @@ def add_decoy_filter(
     # Get protein columns
     proteins = _get_column(adata, "proteins", "search_result")
 
-    # Remove decoy from proteins column
-    adata.var["proteins_wo_decoy"] = proteins.apply(lambda x: _remove_decoy(x, decoy_prefix))
+    # Remove prefix matched from proteins column
+    adata.var["proteins_wo_prefix"] = proteins.apply(lambda x: _remove_prefix_matched(x, prefix))
 
     # Create filter result
-    filter_df = pd.DataFrame(columns=["not_only_decoy"])
-    filter_df["not_only_decoy"] = adata.var["proteins_wo_decoy"] != ""
+    filter_df = pd.DataFrame(columns=["prefix"])
+    filter_df["prefix"] = adata.var["proteins_wo_prefix"] != ""
 
     # Store filter result
     if "filter" not in adata.varm_keys():
         adata.varm["filter"] = filter_df
     else:
-        adata.varm["filter"]["not_only_decoy"] = filter_df["not_only_decoy"]
+        adata.varm["filter"]["prefix"] = filter_df["prefix"]
 
     # Store filter prefix
     if "filter" not in adata.uns_keys():
-        adata.uns["filter"] = {"decoy": decoy_prefix}
+        adata.uns["filter"] = {"prefix": prefix}
     else:
-        adata.uns["filter"]["decoy"] = decoy_prefix
-
+        adata.uns["filter"]["prefix"] = prefix
     return mdata
 
 
@@ -170,5 +169,5 @@ def _get_column(
         raise ValueError(f"{colname} not found in the data")
 
 
-def _remove_decoy(row: pd.Series, decoy_prefix: str) -> pd.Series:
-    return ";".join([str(x) for x in row.split(";") if not str(x).startswith(decoy_prefix)])
+def _remove_prefix_matched(row: pd.Series, prefix: str | tuple) -> pd.Series:
+    return ";".join([str(x) for x in row.split(";") if not str(x).startswith(prefix)])
