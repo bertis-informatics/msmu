@@ -1,2 +1,3 @@
-from ._set_template import _set_template
+from ._template import _set_templates
 from ._purity import plot_purity, plot_purity_metrics
+from ._intensity import plot_intensity
