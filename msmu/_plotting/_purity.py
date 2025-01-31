@@ -3,6 +3,9 @@ import pandas as pd
 import mudata as md
 import plotly.graph_objects as go
 
+from ._common import _draw_histogram, _draw_density, _draw_box
+from ._utils import _get_traces
+
 
 def plot_purity(
     mdata: md.MuData,
@@ -14,19 +17,40 @@ def plot_purity(
     **kwargs,
 ) -> go.Figure:
     # Prepare dataset
-    dataset = _prep_purity_data(
-        data_var=mdata[modality].var,
-        groupby=groupby,
-    )
+    data = _prep_purity_data(mdata, modality, groupby)
 
-    if plot == "hist":
-        fig = draw_purity_hist(dataset=dataset, binsize=binsize)
-    elif plot in ["dist", "density", "violin"]:
-        fig = draw_purity_density(dataset=dataset, bandwidth=bandwidth)
+    # Get traceset
+    traces = _get_traces(data)
+
+    # Set titles
+    title_text = "Precursor purity distribution"
+    xaxis_title = "Precursor purity"
+    yaxis_title = "Number of PSMs"
+
+    # Draw plot
+    if plot in ["hist", "histogram"]:
+        fig: go.Figure = _draw_histogram(
+            traces=traces,
+            binsize=binsize,
+            title_text=title_text,
+            xaxis_title=xaxis_title,
+            yaxis_title=yaxis_title,
+        )
+    elif plot in ["density", "violin"]:
+        fig: go.Figure = _draw_density(
+            traces=traces,
+            bandwidth=bandwidth,
+            title_text=title_text,
+            xaxis_title=xaxis_title,
+        )
     elif plot == "box":
-        fig = draw_purity_box(dataset=dataset)
+        fig: go.Figure = _draw_box(
+            traces=traces,
+            title_text=title_text,
+            xaxis_title=xaxis_title,
+        )
     else:
-        raise ValueError(f"Unknown plot type: {plot}, choose from 'hist', 'dist|density|violin', 'box'")
+        raise ValueError(f"Unknown plot type: {plot}, choose from 'hist|histogram', 'density|violin', 'box'")
 
     # Add threshold line
     threshold = mdata[modality].uns["filter"]["purity"]
@@ -41,15 +65,6 @@ def plot_purity(
         ),
     )
 
-    # Update layout
-    fig.update_layout(
-        width=800,
-        height=400,
-        title_text="Precursor purity distribution",
-        xaxis_title="Precursor purity",
-        xaxis_tickformat=".2f",
-    )
-
     # Update layout with kwargs
     fig.update_layout(
         **kwargs,
@@ -59,97 +74,22 @@ def plot_purity(
 
 
 def _prep_purity_data(
-    data_var: pd.DataFrame,
+    mdata: md.MuData,
+    modality: str = "psm",
     groupby: str = None,
-) -> dict:
+) -> pd.DataFrame:
+    data_var = mdata[modality].var
 
     # Treat groupby
     if groupby:
-        categories = data_var[groupby].cat.categories
-        dataset = {c: data_var.loc[data_var[groupby] == c, "purity"] for c in categories}
+        data = data_var.pivot_table(index=data_var.index, columns=groupby, values="purity", observed=True)
     else:
-        dataset = {"MuData": data_var["purity"]}
+        data = data_var[["purity"]]
 
     # Filter out zero purity values less than 0
-    dataset = {k: v[v >= 0] for k, v in dataset.items()}
+    data = data[data >= 0]
 
-    return dataset
-
-
-def draw_purity_hist(
-    dataset: dict,
-    binsize: float,
-) -> go.Figure:
-    fig = go.Figure()
-    for category, data in dataset.items():
-        fig.add_trace(
-            go.Histogram(
-                x=data,
-                xbins=dict(size=binsize),
-                name=category,
-                hovertemplate="Purity: %{x}<br>Count: %{y:.0f}<extra></extra>",
-            )
-        )
-
-    fig.update_layout(
-        yaxis_title="Number of PSMs",
-        yaxis_tickformat=".0f",
-    )
-
-    return fig
-
-
-def draw_purity_density(
-    dataset: dict,
-    bandwidth: float,
-) -> go.Figure:
-    fig = go.Figure()
-    for category, data in dataset.items():
-        fig.add_trace(
-            go.Violin(
-                x=data,
-                name=category,
-                showlegend=False,
-                width=1.8,
-                points=False,
-                hoveron="points",
-                orientation="h",
-                side="negative",
-                line=dict(width=1),
-                bandwidth=bandwidth,
-                spanmode="hard",
-                box=dict(
-                    visible=True,
-                    fillcolor="white",
-                    line=dict(width=1),
-                ),
-            )
-        )
-
-    fig.update_yaxes(autorange="reversed")
-
-    return fig
-
-
-def draw_purity_box(
-    dataset: dict,
-) -> go.Figure:
-    fig = go.Figure()
-    for category, data in dataset.items():
-        fig.add_trace(
-            go.Box(
-                x=data,
-                name=category,
-                boxpoints=False,
-                hoverinfo="x",
-                orientation="h",
-                showlegend=False,
-            )
-        )
-
-    fig.update_yaxes(autorange="reversed")
-
-    return fig
+    return data.T
 
 
 def plot_purity_metrics(
