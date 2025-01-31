@@ -19,7 +19,7 @@ def plot_intensity(
     **kwargs,
 ) -> go.Figure:
     # Prepare data
-    data = prepare_intensity_data(mdata, modality, groupby)
+    data = _prep_intensity_data(mdata, modality, groupby)
 
     # Get traceset
     traces = _get_traces(data)
@@ -66,7 +66,7 @@ def plot_intensity(
     return fig
 
 
-def prepare_intensity_data(
+def _prep_intensity_data(
     mdata: md.MuData,
     modality: str = "psm",
     groupby: str = None,
