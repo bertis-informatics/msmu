@@ -104,3 +104,34 @@ def _draw_box(
     )
 
     return fig
+
+
+def _draw_bar(
+    traces: list[dict],
+    title_text: str,
+    xaxis_title: str,
+    yaxis_title: str,
+):
+    # Create figure
+    fig = go.Figure()
+
+    # Add traces
+    hovertemplate = xaxis_title + ": %{x}<br>" + yaxis_title + ": %{y:2,d}<extra></extra>"
+    for trace in traces:
+        fig.add_trace(
+            go.Bar(
+                **trace,
+                hovertemplate=hovertemplate,
+                texttemplate="%{y:,d}",
+            )
+        )
+
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+        legend_title_text=xaxis_title,
+    )
+
+    return fig

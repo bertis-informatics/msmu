@@ -9,12 +9,17 @@ def _get_traces(data: pd.DataFrame) -> list[dict]:
 
     # Get traces
     for idx, row in data.iterrows():
-        traces.append(
-            dict(
-                x=row,
-                name=idx,
-            )
-        )
+        traces.append(dict(x=row, name=idx))
+
+    return traces
+
+
+def _get_2d_traces(data: pd.DataFrame, colname: str) -> list[dict]:
+    traces: list[dict] = []
+
+    # Get traces
+    for idx, row in data.iterrows():
+        traces.append(dict(x=[idx], y=[row[colname]], name=idx))
 
     return traces
 
