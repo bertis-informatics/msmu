@@ -133,6 +133,33 @@ def add_precursor_purity_filter(
     return mdata
 
 
+def add_all_nan_filter(
+    mdata: MuData,
+    modality: str,
+) -> MuData:
+    mdata = mdata.copy()
+    adata = mdata[modality]
+
+    # Create filter result
+    filter_df = pd.DataFrame(columns=["not_all_nan"])
+    filter_df["not_all_nan"] = ~adata.to_df().isna().all(axis=0)
+
+    # Store filter result
+    if "filter" not in adata.varm_keys():
+        adata.varm["filter"] = filter_df
+    else:
+        adata.varm["filter"]["not_all_nan"] = filter_df["not_all_nan"]
+
+    # Store filter prefix
+    if "filter" not in adata.uns_keys():
+        adata.uns["filter"] = {"all_nan": True}
+    else:
+        adata.uns["filter"]["all_nan"] = True
+    return mdata
+
+    return mdata
+
+
 def apply_filter(
     mdata: MuData,
     modality: str,
