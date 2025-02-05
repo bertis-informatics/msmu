@@ -53,14 +53,14 @@ def plot_purity(
         raise ValueError(f"Unknown plot type: {plot}, choose from 'hist|histogram', 'density|violin', 'box'")
 
     # Add threshold line
-    threshold = mdata[modality].uns["filter"]["purity"]
+    threshold = mdata[modality].uns["filter"]["filter_purity"]
     fig.add_vline(
-        x=threshold["min"],
+        x=threshold,
         line_dash="dash",
         line_color="red",
         line_width=1,
         annotation=dict(
-            text=f"Purity threshold : {threshold["min"]}",
+            text=f"Purity threshold : {threshold}",
             yanchor="bottom",
         ),
     )
@@ -142,12 +142,12 @@ def _prep_purity_metrics(
     groupby: str = None,
     normalize: bool = True,
 ):
-    data = pd.concat([data_var, data_varm["filter"]["high_purity"]], axis=1)
+    data = pd.concat([data_var, data_varm["filter"]["filter_purity"]], axis=1)
 
     # Define conditions and choices for purity_result
     conditions = [
-        data["high_purity"] == True,
-        (data["high_purity"] == False) & (data["purity"] >= 0),
+        data["filter_purity"] == True,
+        (data["filter_purity"] == False) & (data["purity"] >= 0),
         data["purity"] == -1,
         data["purity"] == -2,
     ]
