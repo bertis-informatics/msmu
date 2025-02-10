@@ -6,8 +6,8 @@ import concurrent.futures
 from anndata import AnnData
 from pymzml.run import Reader as MzmlReader
 
-from ..tools._mzml import read_mzml, get_frame_df, get_ms2_isolation_window
-from ..tools._bmskit import get_spectrum, get_composition, get_envelope, get_peptide_mass, get_isotope_peak
+from .._tools._mzml import read_mzml, get_frame_df, get_ms2_isolation_window
+from .._tools._bmskit import get_spectrum, get_composition, get_envelope, get_peptide_mass, get_isotope_peak
 
 
 def calculate_precursor_purity(
