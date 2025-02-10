@@ -9,7 +9,8 @@ def map_representatives(
     mdata: md.MuData,
     modality: str,
     peptide_colname: str = "stripped_peptide",
-    protein_colname: str = "proteins_wo_decoy",
+    protein_colname: str = "proteins_filtered",
+    remove_subsumable: bool = True,
 ) -> md.MuData:
     """
     Map protein information to peptides.
@@ -17,6 +18,9 @@ def map_representatives(
     Args:
         mdata (MuData): MuData object
         modality (str): modality
+        peptide_colname (str): column name for peptide information
+        protein_colname (str): column name for protein information
+        remove_subsumable (bool): whether to remove subsumable proteins
 
     Returns:
         mdata (MuData): MuData object
@@ -24,11 +28,16 @@ def map_representatives(
     peptide_map, protein_map, protein_info = get_protein_mapping(
         peptides=mdata[modality].var[peptide_colname],
         proteins=mdata[modality].var[protein_colname],
+        remove_subsumable=remove_subsumable,
     )
 
     mdata[modality].uns["peptide_map"] = peptide_map
     mdata[modality].uns["protein_map"] = protein_map
     mdata[modality].uns["protein_info"] = protein_info
+
+    mdata[modality].var["proteins_remapped"] = (
+        mdata[modality].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["repr_protein"])
+    )
 
     return mdata
 
@@ -36,6 +45,7 @@ def map_representatives(
 def get_protein_mapping(
     peptides: pd.Series,
     proteins: pd.Series,
+    remove_subsumable: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Infer protein grouping information.
@@ -43,6 +53,7 @@ def get_protein_mapping(
     Args:
         peptides (pd.Series): peptide information
         proteins (pd.Series): protein information
+        remove_subsumable (bool): whether to remove subsumable proteins
 
     Returns:
         peptide_map (pd.DataFrame): peptide mapping information
@@ -51,44 +62,32 @@ def get_protein_mapping(
     """
     # Initial load
     map_df = _get_map_df(peptides, proteins)
-    peptide_df, protein_df = _get_df(map_df, canonical=True)
+    peptide_df, protein_df = _get_df(map_df)
     initial_protein_df = protein_df.copy()
 
-    # Remove subsumables
-    map_df, subsum_map = _remove_subsumables(map_df, protein_df)
-    peptide_df, protein_df = _get_df(map_df, canonical=True)
-
     # Calculate inclusion, remove subsets and duplicates
-    identical_mat, subset_mat = _calculate_inclusion(map_df, peptide_df, protein_df)
-    map_df, subset_map = _remove_subsets(map_df, protein_df, subset_mat)
-    map_df, duplicate_map, unique_cnt = _remove_duplicates(map_df, protein_df, identical_mat, subset_map)
+    indist_mat, subset_mat = _calculate_inclusion(map_df, peptide_df, protein_df)
+    map_df, subset_map = _get_subset_proteins(map_df, protein_df, subset_mat)
+    map_df, indist_map = _get_indist_proteins(map_df, protein_df, indist_mat, subset_map)
 
-    # Update peptide & protein
-    peptide_df, protein_df = _get_df(map_df, canonical=False)
-    assert unique_cnt == len(protein_df), f"Filtered protein count does not match."
+    # Update protein
+    _, protein_df = _get_df(map_df)
 
     # Map protein groups
-    protein_df["protein_identical"] = protein_df["protein"].map(duplicate_map["memb"])
-    distinct_prots, distinguishable_prots, identical_prots, others_prots = _group_protein(protein_df)
+    _, _, subsumable_prots = _group_protein(protein_df)
 
     # Map protein group members
-    protein_group_map = {**subsum_map["memb"], **duplicate_map["memb"]}
-    map_df["protein_group"] = map_df["protein"].map(protein_group_map)
+    map_df["protein_group"] = map_df["protein"].map(indist_map["memb"])
 
     # Get final output
     peptide_map, protein_map, protein_info = _get_final_output(
         map_df=map_df,
-        protein_df=initial_protein_df,
-        subsum_repr_map=subsum_map["repr"],
-        subset_memb_map=subset_map["memb"],
-        identical_repr_map=duplicate_map["repr"],
-        identical_prots=identical_prots,
-        others_prots=others_prots,
+        initial_protein_df=initial_protein_df,
+        subset_repr_map=subset_map["repr"],
+        indist_repr_map=indist_map["repr"],
+        subsumable_prots=subsumable_prots,
+        remove_subsumable=remove_subsumable,
     )
-
-    assert len(peptide_df) == len(peptide_map), "Peptide mapping count does not match."
-    assert len(protein_info) == len(protein_df), "Protein information count does not match."
-    assert len(peptide_map) == len(peptide_df), "Peptide mapping count does not match."
 
     return peptide_map, protein_map, protein_info
 
@@ -118,16 +117,12 @@ def _get_map_df(
     return map_df.sort_values("protein").reset_index(drop=True)
 
 
-def _get_peptide_df(
-    map_df: pd.DataFrame,
-    canonical: bool,
-) -> pd.DataFrame:
+def _get_peptide_df(map_df: pd.DataFrame) -> pd.DataFrame:
     """
     Returns peptide information.
 
     Args:
         map_df (pd.DataFrame): mapping information
-        canonical (bool): whether to include canonical uniqueness
 
     Returns:
         peptide_df (pd.DataFrame): peptide information
@@ -137,36 +132,22 @@ def _get_peptide_df(
     peptide_df = peptide_df.groupby("peptide", as_index=False, observed=False).count()
     peptide_df["is_unique"] = peptide_df["protein"] == 1
 
-    if canonical:
-        peptide_canonical_df = map_df[["protein_canonical", "peptide"]].drop_duplicates()
-        peptide_canonical_df = peptide_canonical_df.groupby("peptide", as_index=False, observed=False).count()
-        peptide_df["is_unique_canonical"] = peptide_canonical_df["protein_canonical"] == 1
-
     return peptide_df
 
 
-def _get_protein_df(
-    map_df: pd.DataFrame,
-    peptide_df: pd.DataFrame,
-    canonical: bool,
-) -> pd.DataFrame:
+def _get_protein_df(map_df: pd.DataFrame, peptide_df: pd.DataFrame) -> pd.DataFrame:
     """
     Returns protein information.
 
     Args:
         map_df (pd.DataFrame): mapping information
         peptide_df (pd.DataFrame): peptide information
-        canonical (bool): whether to include canonical uniqueness
 
     Returns:
         protein_df (pd.DataFrame): protein information
     """
-    if canonical:
-        PEP_COLS = ["peptide", "is_unique", "is_unique_canonical"]
-        GROUP_COLS = ["protein", "protein_canonical"]
-    else:
-        PEP_COLS = ["peptide", "is_unique"]
-        GROUP_COLS = ["protein"]
+    PEP_COLS = ["peptide", "is_unique"]
+    GROUP_COLS = ["protein"]
 
     data = map_df.merge(peptide_df[PEP_COLS], on="peptide", how="left")
 
@@ -177,95 +158,24 @@ def _get_protein_df(
         .reset_index()
     )
 
-    # Count shared & unique peptides for each canonical protein
-    if canonical:
-        protein_canonical_df = (
-            data.groupby("protein", observed=False)
-            .agg(
-                shared_peptides_canonical=("is_unique_canonical", lambda x: (~x).sum()),
-                unique_peptides_canonical=("is_unique_canonical", "sum"),
-            )
-            .reset_index()
-        )
-        protein_df = protein_df.merge(protein_canonical_df, on="protein", how="left", validate="one_to_one")
-
     return protein_df
 
 
-def _get_df(
-    map_df: pd.DataFrame,
-    canonical: bool,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def _get_df(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Returns peptide and protein information.
 
     Args:
         map_df (pd.DataFrame): mapping information
-        canonical (bool): whether to include canonical uniqueness
 
     Returns:
         peptide_df (pd.DataFrame): peptide information
         protein_df (pd.DataFrame): protein
     """
-    peptide_df = _get_peptide_df(map_df=map_df, canonical=canonical)
-    protein_df = _get_protein_df(map_df=map_df, peptide_df=peptide_df, canonical=canonical)
+    peptide_df = _get_peptide_df(map_df=map_df)
+    protein_df = _get_protein_df(map_df=map_df, peptide_df=peptide_df)
 
     return peptide_df, protein_df
-
-
-def _remove_subsumables(
-    map_df: pd.DataFrame,
-    protein_df: pd.DataFrame,
-) -> Tuple[pd.DataFrame, dict]:
-    """
-    Remove subsumable groups.
-
-    Args:
-        map_df (pd.DataFrame): mapping information
-        protein_df (pd.DataFrame): protein information
-
-    Returns:
-        map_df (pd.DataFrame): filtered mapping information
-        subsum_map (dict): subsumable map[representative, member]
-
-    """
-    subsum_repr_map, subsum_memb_map = _get_subsumable_canonicals(protein_df)
-
-    map_df = map_df.copy()
-    map_df["protein"] = map_df["protein"].map(subsum_repr_map).fillna(map_df["protein"])
-    map_df = map_df.drop_duplicates().reset_index(drop=True)
-    print(f"Removed subsumables:", len(subsum_repr_map) - len(subsum_memb_map), flush=True)
-
-    return map_df, {"repr": subsum_repr_map, "memb": subsum_memb_map}
-
-
-def _get_subsumable_canonicals(protein_df: pd.DataFrame) -> Tuple[dict, dict]:
-    """
-    Returns subsumable group information.
-
-    Args:
-        protein_df (pd.DataFrame): protein information
-
-    Returns:
-        subsum_repr_map (dict): subsumable representative protein map
-        subsum_memb_map (dict): subsumable member proteins map
-    """
-    subsumable_index = (protein_df["unique_peptides"] == 0) & (protein_df["unique_peptides_canonical"] != 0)
-
-    subsum_repr_map = {}
-    subsum_memb_map = {}
-    subsumable_df = protein_df[subsumable_index]
-
-    for protein_canonical, data in subsumable_df.groupby("protein_canonical", observed=False):
-        protein_list = data["protein"].tolist()
-        canonicals = [prot for prot in protein_list if "-" not in prot]
-        repr_prots = canonicals[0] if len(canonicals) == 1 else ";".join(protein_list)
-
-        # Push to member map and representative map
-        subsum_memb_map[repr_prots] = ";".join(protein_list)
-        subsum_repr_map.update({prot: repr_prots for prot in protein_list})
-
-    return subsum_repr_map, subsum_memb_map
 
 
 def _calculate_inclusion(
@@ -277,12 +187,12 @@ def _calculate_inclusion(
     Calculate protein group inclusion relationship.
 
     Args:
-        new_map_df (pd.DataFrame): mapping information
+        map_df (pd.DataFrame): mapping information
         peptide_df (pd.DataFrame): peptide information
         protein_df (pd.DataFrame): protein information
 
     Returns:
-        identical_mat (np.ndarray): identical protein matrix
+        indist_mat (np.ndarray): identical protein matrix
         subset_mat (np.ndarray): subset protein matrix
     """
     peptide_index = {pep: idx for idx, pep in enumerate(peptide_df["peptide"])}
@@ -295,29 +205,29 @@ def _calculate_inclusion(
         dtype=int,
     )
 
-    # peptide-protein mapping matrix
+    # Get inclusion matrix
     matrix = sp.lil_matrix((len(protein_df), len(peptide_df)), dtype=float)
     matrix[coordinates[0], coordinates[1]] = 1
     matrix = matrix.tocsr()
 
-    # get inclusion matrix
+    # Get protein matrix
     prot_mat = matrix.dot(matrix.T).toarray()
 
-    # inclusion solution
+    # Get indistinguishable and subset matrix
     inclusion_mat = prot_mat == prot_mat.max(axis=0)
-    identical_mat = inclusion_mat & (inclusion_mat.T == inclusion_mat)
-    subset_mat = inclusion_mat & ~identical_mat
+    indist_mat = inclusion_mat & (inclusion_mat.T == inclusion_mat)
+    subset_mat = inclusion_mat & ~indist_mat
 
-    return identical_mat, subset_mat
+    return indist_mat, subset_mat
 
 
-def _remove_subsets(
+def _get_subset_proteins(
     map_df: pd.DataFrame,
     protein_df: pd.DataFrame,
     subset_mat: np.ndarray,
 ) -> Tuple[pd.DataFrame, dict]:
     """
-    Remove subset groups.
+    Get subset group information.
 
     Args:
         map_df (pd.DataFrame): mapping information
@@ -326,13 +236,12 @@ def _remove_subsets(
 
     Returns:
         map_df (pd.DataFrame): filtered mapping information
-        subset_map (dict): subset map[representative, member, index]
+        subset_map (dict): subset map[repr, memb, index]
     """
-    map_df = map_df.copy()
     subset_repr_map, subset_memb_map, subset_indexset = _get_subset_map(subset_mat, protein_df)
     subset_proteins = protein_df.loc[subset_indexset, "protein"].tolist()
     map_df = map_df[~map_df["protein"].isin(subset_proteins)].copy()
-    print(f"Removed subsets:", len(subset_proteins), flush=True)
+    print(f"Merged subsets:", len(subset_proteins), flush=True)
 
     return map_df, {"repr": subset_repr_map, "memb": subset_memb_map, "index": subset_indexset}
 
@@ -357,131 +266,134 @@ def _get_subset_map(
 
     subset_repr_map = {}
     subset_memb_map = {}
-    # for index, value in enumerate(parent_index):
+
+    # get subset members
     for parent_idx, offspring_idx in zip(parent_index, offspring_index):
         offspring = protein_df.loc[offspring_idx, "protein"]
         parent = protein_df.loc[parent_idx, "protein"]
 
-        subset = subset_repr_map.get(parent)
-        if subset is None:
-            subset = ""
+        if subset_memb_map.get(parent):
+            subset_memb_map[parent] += ";" + offspring
         else:
-            subset += ";"
+            subset_memb_map[parent] = offspring
 
-        superset = subset_memb_map.get(offspring)
-        if superset is None:
-            superset = ""
-        else:
-            superset += ";"
-        subset_repr_map[parent] = subset + offspring
-        subset_memb_map[offspring] = superset + parent
+    # get subset representative
+    for repr, memb in subset_memb_map.items():
+        for m in memb.split(";"):
+            if subset_memb_map.get(m):
+                if len(subset_memb_map[m].split(";")) < len(memb.split(";")):
+                    subset_repr_map[m] = repr
+                elif len(subset_memb_map[m].split(";")) == len(memb.split(";")):
+                    raise AssertionError(f"The length cannot be the same. {repr} vs {subset_repr_map[m]}")
+            else:
+                subset_repr_map[m] = repr
+
+    # remove members that are also representatives
+    subset_memb_map = {k: subset_memb_map[k] for k in pd.Series(subset_repr_map).unique()}
 
     return subset_repr_map, subset_memb_map, list(set(offspring_index))
 
 
-def _remove_duplicates(
+def _get_indist_proteins(
     map_df: pd.DataFrame,
     protein_df: pd.DataFrame,
-    identical_mat: np.ndarray,
+    indist_mat: np.ndarray,
     subset_map: dict,
 ) -> Tuple[pd.DataFrame, dict, int]:
     """
-    Remove duplicate groups.
+    Get indistinguishable group information.
 
     Args:
         map_df (pd.DataFrame): mapping information
         protein_df (pd.DataFrame): protein information
-        subset_map (dict): subset map
-        identical_mat (np.ndarray): identical matrix
+        indist_mat (np.ndarray): indistinguishable matrix
+        subset_map (dict): subset map[repr, memb, index]
 
     Returns:
         map_df (pd.DataFrame): filtered mapping information
-        duplicate_map (dict): duplicate map[representative, member]
-        unique_count (int): number of unique groups
+        indist_map (dict): indistinguishable map[repr, memb, index]
     """
-    identical_repr_map, identical_memb_map, identical_indexset, unique_count = _get_identical_map(
-        identical_mat, subset_map["index"], protein_df
-    )
+    indist_repr_map, indist_memb_map, indist_indexset = _get_indist_map(indist_mat, subset_map["index"], protein_df)
     map_df = map_df.copy()
-    map_df["protein"] = map_df["protein"].map(identical_repr_map).fillna(map_df["protein"])
+    map_df["protein"] = map_df["protein"].map(indist_repr_map).fillna(map_df["protein"])
     map_df = map_df[["protein", "peptide"]].drop_duplicates().reset_index(drop=True)
-    print(f"Removed duplicates:", len(identical_repr_map) - len(identical_memb_map), flush=True)
+    print(f"Merged indistinguishables:", len(indist_repr_map) - len(indist_memb_map), flush=True)
 
-    return map_df, {"repr": identical_repr_map, "memb": identical_memb_map, "index": identical_indexset}, unique_count
+    return map_df, {"repr": indist_repr_map, "memb": indist_memb_map, "index": indist_indexset}
 
 
-def _get_identical_map(
-    identical_mat: np.ndarray,
+def _get_indist_map(
+    indist_mat: np.ndarray,
     subset_indexset: list,
     protein_df: pd.DataFrame,
 ) -> Tuple[dict, dict, list, int]:
     """
-    Returns identical group information.
+    Returns indistinguishable group information.
 
     Args:
-        identical_mat (np.ndarray): identical matrix
+        indist_mat (np.ndarray): indistinguishable matrix
         subset_indexset (list): subset index set
         protein_df (pd.DataFrame): protein information
 
     Returns:
-        identical_repr_map (dict): identical representative map
-        identical_memb_map (dict): identical member map
-        identical_indexset (list): identical index set
+        indist_repr_map (dict): indistinguishable representative map
+        indist_memb_map (dict): indistinguishable member map
+        indist_indexset (list): indistinguishable index set
         unique_count (int): number of unique groups
     """
-    nonsubset_indexset = [idx for idx in range(len(identical_mat)) if idx not in subset_indexset]
-    identical_mat = np.delete(identical_mat, subset_indexset, axis=0)
-    identical_mat = np.delete(identical_mat, subset_indexset, axis=1)
+    nonsubset_indexset = [idx for idx in range(len(indist_mat)) if idx not in subset_indexset]
+    indist_mat = np.delete(indist_mat, subset_indexset, axis=0)
+    indist_mat = np.delete(indist_mat, subset_indexset, axis=1)
 
     # mappings
-    identical_repr_map = {}
-    identical_memb_map = {}
+    indist_repr_map = {}
+    indist_memb_map = {}
 
-    unique_groups = np.unique(identical_mat, axis=0)
+    unique_groups = np.unique(indist_mat, axis=0)
     identical_groups = unique_groups[unique_groups.sum(axis=1) > 1]
-    identical_indexset = []
+    indist_indexset = []
 
     for group in identical_groups:
         memb_index = np.take(nonsubset_indexset, np.where(group)[0])
         memb_entry = protein_df.loc[memb_index, "protein"].to_list()
 
-        rep_protein = select_canon_prot(memb_entry)
+        rep_protein = _select_canon_prot(memb_entry)
 
         for memb in memb_entry:
-            identical_repr_map[memb] = rep_protein
+            indist_repr_map[memb] = rep_protein
 
-        identical_indexset += list(memb_index)
-        identical_memb_map[rep_protein] = ";".join(memb_entry)
+        indist_memb_map[rep_protein] = ";".join(memb_entry)
+        indist_indexset += list(memb_index)
 
-    return identical_repr_map, identical_memb_map, identical_indexset, len(unique_groups)
+    return indist_repr_map, indist_memb_map, indist_indexset
 
 
-def select_canon_prot(prot_ls: list) -> str:
+def _select_canon_prot(protein_list: list[str]) -> str:
     """
     Select canonical protein from protein list based on priority.
     canonical > swissprot > trembl > contam
 
     Args:
-        prot_ls (list): list of proteins (uniprot entry)
+        protein_list (list[str]): list of proteins (uniprot entry)
 
     Returns:
         protein_group (str): canonical protein group
     """
-    swissprot_canon_ls = [prot for prot in prot_ls if prot.startswith("sp") and "-" not in prot]
+    swissprot_canon_ls = [prot for prot in protein_list if prot.startswith("sp") and "-" not in prot]
     if swissprot_canon_ls:
-        return ";".join(swissprot_canon_ls)
+        return ",".join(swissprot_canon_ls)
 
-    swissprot_ls = [prot for prot in prot_ls if prot.startswith("sp")]
+    swissprot_ls = [prot for prot in protein_list if prot.startswith("sp")]
     if swissprot_ls:
-        return ";".join(swissprot_ls)
+        return ",".join(swissprot_ls)
 
-    trembl_ls = [prot for prot in prot_ls if prot.startswith("tr")]
+    trembl_ls = [prot for prot in protein_list if prot.startswith("tr")]
     if trembl_ls:
-        return ";".join(trembl_ls)
+        return ",".join(trembl_ls)
 
-    contam_ls = [prot for prot in prot_ls if prot.startswith("contam")]
+    contam_ls = [prot for prot in protein_list if prot.startswith("contam")]
     if contam_ls:
-        return ";".join(contam_ls)
+        return ",".join(contam_ls)
 
     return ""
 
@@ -496,53 +408,46 @@ def _group_protein(protein_df: pd.DataFrame) -> Tuple[list, list, list, list]:
     Returns:
         distinct_prots (list): list of distinct proteins
         distinguishable_prots (list): list of distinguishable proteins
-        identical_prots (list): list of identical proteins
-        others_prots (list): list of other proteins
+        subsumable_prots (list): list of other proteins
     """
     distinct_prots = []
     distinguishable_prots = []
-    identical_prots = []
-    others_prots = []
+    subsumable_prots = []
 
     for _, row in protein_df.iterrows():
         if row["shared_peptides"] == 0:
             distinct_prots.append(row["protein"])
         elif row["unique_peptides"] > 0:
             distinguishable_prots.append(row["protein"])
-        elif pd.notna(row["protein_identical"]):
-            identical_prots.append(row["protein"])
         else:
-            others_prots.append(row["protein"])
+            subsumable_prots.append(row["protein"])
 
-    print(f"Mapped proteins", flush=True)
+    print(f"\nMapped proteins", flush=True)
     print(f"- distinct:", len(distinct_prots), flush=True)
     print(f"- distinguishable:", len(distinguishable_prots), flush=True)
-    print(f"- identical:", len(identical_prots), flush=True)
-    print(f"- others:", len(others_prots), flush=True)
+    print(f"- subsumable:", len(subsumable_prots), flush=True)
 
-    return distinct_prots, distinguishable_prots, identical_prots, others_prots
+    return distinct_prots, distinguishable_prots, subsumable_prots
 
 
 def _get_final_output(
     map_df: pd.DataFrame,
-    protein_df: pd.DataFrame,
-    subsum_repr_map: dict,
-    subset_memb_map: dict,
-    identical_repr_map: dict,
-    identical_prots: list,
-    others_prots: list,
+    initial_protein_df: pd.DataFrame,
+    subset_repr_map: dict,
+    indist_repr_map: dict,
+    subsumable_prots: list,
+    remove_subsumable: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Returns final output dataframes.
 
     Args:
         map_df (pd.DataFrame): mapping information
-        protein_df (pd.DataFrame): protein information
-        subsum_repr_map (dict): subsumable representative map
-        subset_memb_map (dict): subset member map
-        identical_repr_map (dict): identical representative map
-        identical_prots (list): list of identical proteins
-        others_prots (list): list of other proteins
+        initial_protein_df (pd.DataFrame): protein information
+        subset_repr_map (dict): subset member map
+        indist_repr_map (dict): identical representative map
+        subsumable_prots (list): list of other proteins
+        remove_subsumable (bool): whether to remove subsumable proteins
 
     Returns:
         peptide_map (pd.DataFrame): peptide mapping information
@@ -554,48 +459,47 @@ def _get_final_output(
         map_df[["peptide", "protein"]]
         .drop_duplicates()
         .groupby("peptide", as_index=False, observed=False)["protein"]
-        .agg(lambda x: ",".join(x))
+        .agg(lambda x: ";".join(x))
+        .rename(columns={"protein": "repr_protein"})
     )
 
     # Get protein mapping
-    grouped_prot = protein_df["protein"].map(subsum_repr_map).fillna(protein_df["protein"])  # Canonical
-    subset_prot = grouped_prot.map(subset_memb_map)  # Expand to subset members
-    identical_prot = grouped_prot.map(identical_repr_map)  # Expand to identical members
-    final_prot = identical_prot.fillna(subset_prot).fillna(grouped_prot)
+    subset_prot = initial_protein_df["protein"].map(subset_repr_map)
+    indist_prot = initial_protein_df["protein"].map(indist_repr_map)
+    repr_prot = indist_prot.fillna(subset_prot).fillna(initial_protein_df["protein"])
 
+    # Get protein type
+    type_colnames = [
+        "subsetted",
+        "indistinguishable",
+        "subsumable",
+    ]
     protein_map = pd.DataFrame(
         {
-            "uniProt_entry": protein_df["protein"],
-            "protein": final_prot,
-            "is_subset": subset_prot.notna(),
-            "is_identical": identical_prot.notna(),
+            "uniprot_entry": initial_protein_df["protein"],
+            "repr_protein": repr_prot,
+            "subsetted": subset_prot.notna(),
+            "indistinguishable": indist_prot.notna(),
         }
     ).drop_duplicates()
+    protein_map["subsumable"] = protein_map["repr_protein"].isin(subsumable_prots)
+
+    protein_map["type"] = (
+        protein_map[type_colnames]
+        .apply(lambda x: [type_colnames[i] if value else None for i, value in enumerate(x)], axis=1)
+        .apply(lambda x: "|".join(filter(None, x)))
+    )
+    protein_map = protein_map.drop(columns=type_colnames)
 
     # Get protein information
-    protein_info = map_df[["protein", "protein_group"]].drop_duplicates()
-    protein_info["is_identical"] = protein_info["protein"].isin(identical_prots)
-    protein_info["is_subsumable"] = protein_info["protein"].isin(others_prots)
+    protein_info = map_df[["protein", "protein_group"]].drop_duplicates().rename(columns={"protein": "repr_protein"})
+    protein_info["protein_group"] = protein_info["protein_group"].fillna(protein_info["repr_protein"])
+
+    # Remove subsumable proteins
+    if remove_subsumable:
+        peptide_map["repr_protein"] = peptide_map["repr_protein"].apply(
+            lambda x: ";".join([prot for prot in x.split(";") if prot not in subsumable_prots])
+        )
+        protein_info = protein_info[~protein_info["repr_protein"].isin(subsumable_prots)]
 
     return peptide_map, protein_map, protein_info
-
-
-def map_protein_info(rep_prot: str, fasta_dict: dict) -> str:
-    """
-    Map protein information from the FASTA data.
-
-    Args:
-        rep_prot (str): Representative protein string.
-        fasta_dict (dict): Dictionary containing protein information.
-
-    Returns:
-        mapped_protein (str): Mapped protein information.
-    """
-    result = set()
-    for prot in rep_prot.split(";"):
-        prot_id = prot.split("|")[1]
-        prot_info = fasta_dict.get(prot_id)
-        if prot_info:
-            result.add(prot_info)
-
-    return ";".join(result)
