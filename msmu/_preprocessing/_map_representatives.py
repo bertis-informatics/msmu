@@ -38,6 +38,9 @@ def map_representatives(
     mdata[modality].var["proteins_remapped"] = (
         mdata[modality].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["repr_protein"])
     )
+    mdata[modality].var["peptide_type"] = [
+        "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[modality].var["proteins_remapped"]
+    ]
 
     return mdata
 
