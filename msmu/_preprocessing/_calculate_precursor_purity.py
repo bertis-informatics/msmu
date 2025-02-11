@@ -6,8 +6,8 @@ import concurrent.futures
 from anndata import AnnData
 from pymzml.run import Reader as MzmlReader
 
-from ..tools._mzml import read_mzml, get_frame_df, get_ms2_isolation_window
-from ..tools._bmskit import get_spectrum, get_composition, get_envelope, get_peptide_mass, get_isotope_peak
+from .._tools._mzml import read_mzml, get_frame_df, get_ms2_isolation_window
+from .._tools._bmskit import get_spectrum, get_composition, get_envelope, get_peptide_mass, get_isotope_peak
 
 
 def calculate_precursor_purity(
@@ -27,6 +27,8 @@ def calculate_precursor_purity(
 def _calculate_precursor_purity_worker(mzml_file, psm_df):
     mzml_file_name: str = Path(mzml_file).name
     psm_df_by_file: pd.DataFrame = psm_df.loc[psm_df["filename"] == mzml_file_name]
+    if psm_df_by_file.empty:
+        return pd.DataFrame(columns=["purity"])
 
     mzml: MzmlReader = read_mzml(mzml_file)
     frame_df: pd.DataFrame = get_frame_df(mzml)

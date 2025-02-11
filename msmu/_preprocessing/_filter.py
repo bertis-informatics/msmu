@@ -25,33 +25,23 @@ def add_q_value_filter(
     peptide_q = _get_column(adata, "peptide_q", "search_result")
     protein_q = _get_column(adata, "protein_q", "search_result")
 
-    # Create filter result
-    filter_df = pd.DataFrame(columns=["low_spectrum_q", "low_peptide_q", "low_protein_q"])
-    filter_df["low_spectrum_q"] = spectrum_q < threshold["spectrum"]
-    filter_df["low_peptide_q"] = peptide_q < threshold["peptide"]
-    filter_df["low_protein_q"] = protein_q < threshold["protein"]
+    # Get filter result
+    filter_result_spectrum = spectrum_q < threshold["spectrum"]
+    filter_result_peptide = peptide_q < threshold["peptide"]
+    filter_result_protein = protein_q < threshold["protein"]
 
-    # Store filter result
-    if "filter" not in adata.varm_keys():
-        adata.varm["filter"] = filter_df
-    else:
-        adata.varm["filter"]["low_spectrum_q"] = filter_df["low_spectrum_q"]
-        adata.varm["filter"]["low_peptide_q"] = filter_df["low_peptide_q"]
-        adata.varm["filter"]["low_protein_q"] = filter_df["low_protein_q"]
-
-    # Store filter threshold
-    if "filter" not in adata.uns_keys():
-        adata.uns["filter"] = {"q_value": threshold}
-    else:
-        adata.uns["filter"]["q_value"] = threshold
+    # Save filter
+    _save_filter(adata, "q_value_spectrum", filter_result_spectrum, threshold["spectrum"])
+    _save_filter(adata, "q_value_peptide", filter_result_peptide, threshold["peptide"])
+    _save_filter(adata, "q_value_protein", filter_result_protein, threshold["protein"])
 
     return mdata
 
 
-def add_decoy_filter(
+def add_prefix_filter(
     mdata: MuData,
     modality: str,
-    decoy_prefix: str = "rev",
+    prefix: str | tuple = ("rev_", "contam_"),
 ) -> MuData:
     mdata = mdata.copy()
     adata = mdata[modality]
@@ -59,24 +49,14 @@ def add_decoy_filter(
     # Get protein columns
     proteins = _get_column(adata, "proteins", "search_result")
 
-    # Remove decoy from proteins column
-    adata.var["proteins_wo_decoy"] = proteins.apply(lambda x: _remove_decoy(x, decoy_prefix))
+    # Remove prefix matched from proteins column
+    adata.var["proteins_filtered"] = proteins.apply(lambda x: _remove_prefix_matched(x, prefix))
 
-    # Create filter result
-    filter_df = pd.DataFrame(columns=["not_only_decoy"])
-    filter_df["not_only_decoy"] = adata.var["proteins_wo_decoy"].notna()
+    # Get filter result
+    filter_result = adata.var["proteins_filtered"] != ""
 
-    # Store filter result
-    if "filter" not in adata.varm_keys():
-        adata.varm["filter"] = filter_df
-    else:
-        adata.varm["filter"]["not_only_decoy"] = filter_df["not_only_decoy"]
-
-    # Store filter prefix
-    if "filter" not in adata.uns_keys():
-        adata.uns["filter"] = {"decoy": decoy_prefix}
-    else:
-        adata.uns["filter"]["decoy"] = decoy_prefix
+    # Save filter
+    _save_filter(adata, "prefix", filter_result, list(prefix))
 
     return mdata
 
@@ -84,8 +64,9 @@ def add_decoy_filter(
 def add_precursor_purity_filter(
     mdata: MuData,
     modality: str,
-    threshold: float | list[float] | dict[str, float | int],
+    threshold: float,
     mzml_files: list[str | Path] = None,
+    n_cores: int = 1,
 ) -> MuData:
     mdata = mdata.copy()
     adata = mdata[modality]
@@ -97,38 +78,34 @@ def add_precursor_purity_filter(
         else:
             raise ValueError("mzml_files should be provided or stored in mdata.uns['mzml_files']")
 
-    # Format threshold
-    if isinstance(threshold, (float, int)):
-        threshold = {"min": threshold, "max": 1.0}
-    elif isinstance(threshold, list):
-        threshold = {"min": threshold[0], "max": threshold[1]}
-
     # Get precursor purity
     if "purity" not in adata.var_keys():
-        purity_df = calculate_precursor_purity(adata=adata, mzml_files=mzml_files)
+        purity_df = calculate_precursor_purity(adata=adata, mzml_files=mzml_files, n_cores=n_cores)
         adata.var = adata.var.join(purity_df)
     else:
         raise ValueError("Precursor purity is already calculated. Please remove it before recalculating.")
 
-    # Create filter result
-    filter_df = pd.DataFrame(columns=["high_purity"])
-    filter_df["high_purity"] = adata.var["purity"].between(
-        left=threshold["min"],
-        right=threshold["max"],
-        inclusive="right",
-    )
+    # Get filter result
+    filter_result = adata.var["purity"] > threshold
 
-    # Store filter result
-    if "filter" not in adata.varm_keys():
-        adata.varm["filter"] = filter_df
-    else:
-        adata.varm["filter"]["high_purity"] = filter_df["high_purity"]
+    # Save filter
+    _save_filter(adata, "purity", filter_result, threshold)
 
-    # Store filter threshold
-    if "filter" not in adata.uns_keys():
-        adata.uns["filter"] = {"purity": threshold}
-    else:
-        adata.uns["filter"]["purity"] = threshold
+    return mdata
+
+
+def add_all_nan_filter(
+    mdata: MuData,
+    modality: str,
+) -> MuData:
+    mdata = mdata.copy()
+    adata = mdata[modality]
+
+    # Get filter result
+    filter_result = ~adata.to_df().isna().all(axis=0)
+
+    # Save filter
+    _save_filter(adata, "nan", filter_result, True)
 
     return mdata
 
@@ -169,5 +146,42 @@ def _get_column(
         raise ValueError(f"{colname} not found in the data")
 
 
-def _remove_decoy(row: pd.Series, decoy_prefix: str) -> pd.Series:
-    return ";".join([str(x) for x in row.split(";") if not str(x).startswith(decoy_prefix)])
+def _remove_prefix_matched(row: pd.Series, prefix: str | tuple) -> pd.Series:
+    return ";".join([str(x) for x in row.split(";") if not str(x).startswith(prefix)])
+
+
+def _save_filter(
+    adata: AnnData,
+    key: str,
+    filter_result: pd.Series,
+    content: str | list | tuple | dict,
+) -> None:
+    key = f"filter_{key}"
+
+    _save_filter_result(adata, key, filter_result)
+    _save_filter_content(adata, key, content)
+    return None
+
+
+def _save_filter_result(
+    adata: AnnData,
+    key: str,
+    filter_result: pd.Series,
+) -> None:
+    if "filter" not in adata.varm_keys():
+        adata.varm["filter"] = pd.DataFrame(columns=[key], index=adata.var.index, data=filter_result)
+    else:
+        adata.varm["filter"][key] = filter_result
+    return None
+
+
+def _save_filter_content(
+    adata: AnnData,
+    key: str,
+    content: dict,
+) -> None:
+    if "filter" not in adata.uns_keys():
+        adata.uns["filter"] = {key: content}
+    else:
+        adata.uns["filter"][key] = content
+    return None
