@@ -95,7 +95,7 @@ def mask_obs(
 
     assert mask_type in [
         "blank",
-        "IRS",
+        "gis",
     ], 'Argument "type" must one of "blank", "IRS (Internal Reference Standard)"'
 
     obs_df = mdata.obs.copy()
