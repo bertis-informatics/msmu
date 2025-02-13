@@ -41,6 +41,12 @@ def plot_pca(
         yaxis_title=yaxis_title,
     )
 
+    # Update axis
+    fig.update_yaxes(
+        scaleanchor="x",
+        scaleratio=1,
+    )
+
     # Update layout with kwargs
     fig.update_layout(
         **kwargs,
@@ -80,9 +86,9 @@ def _get_pc_cols(
     pc_columns = [f"PC_{pc}" for pc in pcs]
 
     if pc_columns[0] not in mdata[modality].obsm["X_pca"].columns:
-        raise ValueError(f"PC_{pcs[0]} not found in {modality}")
+        raise ValueError(f"{pc_columns[0]} not found in {modality}")
     if pc_columns[1] not in mdata[modality].obsm["X_pca"].columns:
-        raise ValueError(f"PC_{pcs[1]} not found in {modality}")
+        raise ValueError(f"{pc_columns[1]} not found in {modality}")
 
     return pcs, pc_columns
 
