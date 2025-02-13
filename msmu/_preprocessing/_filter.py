@@ -1,9 +1,10 @@
-from mudata import MuData
-from anndata import AnnData
-from pathlib import Path
 import pandas as pd
+from pathlib import Path
+from anndata import AnnData
+from mudata import MuData
 
 from ._calculate_precursor_purity import calculate_precursor_purity
+from .._utils import subset
 
 
 def add_q_value_filter(
@@ -112,22 +113,35 @@ def add_all_nan_filter(
 
 def apply_filter(
     mdata: MuData,
-    modality: str,
+    modality: str | list,
 ) -> MuData:
-    mdata = mdata.copy()
-    adata = mdata[modality]
-
-    # Get filter result
-    if "filter" not in adata.varm_keys():
-        raise ValueError("Filter result is not found in the data")
-    filter_df = adata.varm["filter"]
+    # Check modality
+    if isinstance(modality, str):
+        modality = [modality]
 
     # Apply filter
-    filtered_adata = adata[:, filter_df.all(axis=1)].copy()
+    for mod in modality:
+        mdata = _apply_filter(mdata, mod)
 
-    # Store filter result
-    mdata.mod[modality] = filtered_adata
-    mdata.update_var()
+    return mdata
+
+
+def _apply_filter(
+    mdata: MuData,
+    modality: str,
+) -> MuData:
+
+    mdata = mdata.copy()
+    # Get filter result
+    if "filter" not in mdata[modality].varm_keys():
+        raise ValueError("Filter result is not found in the data")
+    filter_df = mdata[modality].varm["filter"]
+
+    mdata = subset(
+        mdata=mdata,
+        modality=modality,
+        cond_var=filter_df.all(axis=1),
+    )
 
     return mdata
 
