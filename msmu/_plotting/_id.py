@@ -19,7 +19,7 @@ def plot_id(
     data = _prep_id_data(mdata, modality, groupby)
 
     # Get traceset
-    traces = _get_2d_traces(data, "count")
+    traces = _get_2d_traces(data, x="idx", y="count")
 
     # Set titles
     title_text = "Number of PSMs"

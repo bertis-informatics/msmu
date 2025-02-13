@@ -4,22 +4,49 @@ import plotly.io as pio
 import plotly.graph_objects as go
 
 
-def _get_traces(data: pd.DataFrame) -> list[dict]:
+def _get_traces(
+    data: pd.DataFrame,
+) -> list[dict]:
     traces: list[dict] = []
 
     # Get traces
     for idx, row in data.iterrows():
-        traces.append(dict(x=row, name=idx))
+        traces.append(
+            dict(
+                x=row,
+                name=idx,
+                text=idx,
+            )
+        )
 
     return traces
 
 
-def _get_2d_traces(data: pd.DataFrame, colname: str) -> list[dict]:
+def _get_2d_traces(
+    data: pd.DataFrame,
+    x: str,
+    y: str,
+    name: str | None = None,
+) -> list[dict]:
     traces: list[dict] = []
 
+    # Get name
+    if name is None:
+        data = data.copy()
+        name = "idx"
+        data["idx"] = data.index
+
     # Get traces
-    for idx, row in data.iterrows():
-        traces.append(dict(x=[idx], y=[row[colname]], name=idx))
+    for n in data[name].unique():
+        data_name: pd.DataFrame = data[data[name] == n]
+        traces.append(
+            dict(
+                x=data_name[x].values,
+                y=data_name[y].values,
+                name=n,
+                text=data_name.index,
+            )
+        )
 
     return traces
 

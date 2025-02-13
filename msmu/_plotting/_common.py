@@ -37,7 +37,7 @@ def _draw_density(
     title_text: str,
     xaxis_title: str,
     bandwidth: float = 0.1,
-):
+) -> go.Figure:
     # Create figure
     fig = go.Figure()
 
@@ -78,7 +78,7 @@ def _draw_box(
     traces: list[dict],
     title_text: str,
     xaxis_title: str,
-):
+) -> go.Figure:
     # Create figure
     fig = go.Figure()
 
@@ -111,7 +111,7 @@ def _draw_bar(
     title_text: str,
     xaxis_title: str,
     yaxis_title: str,
-):
+) -> go.Figure:
     # Create figure
     fig = go.Figure()
 
@@ -132,6 +132,37 @@ def _draw_bar(
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         legend_title_text=xaxis_title,
+    )
+
+    return fig
+
+
+def _draw_scatter(
+    traces: list[dict],
+    title_text: str,
+    xaxis_title: str,
+    yaxis_title: str,
+) -> go.Figure:
+    # Create figure
+    fig = go.Figure()
+
+    # Add traces
+    for trace in traces:
+        # idx = trace.pop("idx")
+        hovertemplate = "<b>%{text}</b><br>" + xaxis_title + ": %{x}<br>" + yaxis_title + ": %{y}<extra></extra>"
+        fig.add_trace(
+            go.Scatter(
+                **trace,
+                hovertemplate=hovertemplate,
+                mode="markers",
+            )
+        )
+
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
     )
 
     return fig
