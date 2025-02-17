@@ -78,14 +78,10 @@ def normalise_quantile(arr: np.ndarray) -> np.ndarray:
 
 def normalise_median_center(arr: np.ndarray) -> np.ndarray:
     """Median centering of data"""
+    raw_arr = arr.copy()
+    median_data = np.nanmedian(raw_arr, axis=0)
 
-    median_data = np.nanmedian(arr, axis=0)
-    print("median_data")
-    print(median_data)
-
-    median_centered_data = arr - median_data
-    print("median_centered_data")
-    print(median_centered_data)
+    median_centered_data = raw_arr - median_data
 
     return median_centered_data
 
