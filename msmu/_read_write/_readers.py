@@ -3,6 +3,7 @@ from types import NoneType
 
 import anndata as ad
 import mudata as md
+import numpy as np
 import pandas as pd
 
 from ._diann_reader import DiannReader
@@ -49,6 +50,10 @@ def read_protdiscov():
 def read_maxquant():
     return NotImplementedError
 
+def read_h5mu(h5mu_file: str | Path) -> md.MuData:
+    mdata: md.MuData = md.read_h5mu(h5mu_file)
+
+    return mdata
 
 def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     adata_dict: dict = dict()
@@ -81,6 +86,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     merged_mdata: md.MuData = md.MuData(adata_dict)
     merged_mdata.obs["set"] = obs_ident_df["set"]
     merged_mdata.push_obs()
+    merged_mdata.update_var()
 
     return merged_mdata
 
@@ -95,7 +101,7 @@ def mask_obs(
 
     assert mask_type in [
         "blank",
-        "IRS",
+        "gis",
     ], 'Argument "type" must one of "blank", "IRS (Internal Reference Standard)"'
 
     obs_df = mdata.obs.copy()
@@ -115,5 +121,32 @@ def mask_obs(
     obs_df = obs_df.drop("_obs", axis=1)
 
     mdata.obs[mask_column_name] = obs_df[mask_column_name]
+    mdata.push_obs()
+
+    return mdata
+
+
+def add_modality(
+    mdata: md.MuData, adata: ad.AnnData, mod_name: str, parent_mods: list[str]
+) -> md.MuData:
+    mdata.mod[mod_name] = adata
+
+    if parent_mods:
+        obsmap_list: list = list()
+        for parent_mod in parent_mods:
+            obsmap: np.array[int] = mdata.obsmap[parent_mod]
+            obsmap_list.append(obsmap)
+        merged_obsmap: np.array[int] = sum(obsmap_list)
+        zero_indices: np.array[bool] = merged_obsmap == 0
+        merged_obsmap: np.array[int] = np.arange(1, len(merged_obsmap) + 1, dtype=int)
+        merged_obsmap[zero_indices] = 0
+
+        mdata.obsmap[mod_name] = merged_obsmap
+
+    else:
+        raise ValueError("parent_mods should not be empty.")
+
+    mdata.push_obs()
+    mdata.update_var()
 
     return mdata
