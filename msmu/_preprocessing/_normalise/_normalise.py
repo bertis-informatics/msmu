@@ -5,11 +5,8 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
-from .normalisation_methods import (
-    normalise_median_center,
-    normalise_quantile,
-    normalise_total_sum,
-)
+from .normalisation_methods import (normalise_median_center,
+                                    normalise_quantile, normalise_total_sum)
 
 
 def log2_transform(
@@ -27,37 +24,30 @@ def log2_transform(
 def normalise(
     mdata: md.MuData,
     method: str,
-    modality: str,
     level: str,
+    modality: str | None = None,
     axis: str = "obs",
     fraction: bool = False,
-    ignore_blank: bool = True,
-    ignore_gis: bool = True,
 ):
 
     mod_dict = get_modality_dict(mdata=mdata, level=level, modality=modality)
     norm_cls = Normalisation(method=method, axis=axis)
 
     for mod_name, mod in mod_dict.items():
+        normalised_arr = np.full_like(mod.X, np.nan, dtype=float)
         if fraction:
             for fraction in np.unique(mod.var["filename"]):
                 fraction_idx = mod.var["filename"] == fraction
-                trimmed_arr, valid_idx = _trim_blank_gis(
-                    adata=mod[:, fraction_idx],
-                    ignore_blank=ignore_blank,
-                    ignore_gis=ignore_gis,
-                )
 
-                normalised_data = norm_cls.normalise(arr=trimmed_arr)
-                mdata.mod[mod_name].X[np.ix_(valid_idx, fraction_idx)] = normalised_data
+                arr = mod.X[:, fraction_idx].copy()
+                normalised_data = norm_cls.normalise(arr=arr)
+                normalised_arr[:, fraction_idx] = normalised_data
 
         else:
-            trimmed_arr, valid_idx = _trim_blank_gis(
-                adata=mod, ignore_blank=ignore_blank, ignore_gis=ignore_gis
-            )
-            normalised_data = norm_cls.normalise(arr=trimmed_arr)
+            arr = mod.X.copy()
+            normalised_data = norm_cls.normalise(arr=arr)
 
-            mdata[mod_name].X[valid_idx] = normalised_data
+        mdata[mod_name].X = normalised_arr
 
     return mdata
 
@@ -69,12 +59,21 @@ def correct_batch_effect(
 
 
 def scale_data(
-    mdata: md.MuData, method: str, modality: str | None = None, level: str | None = None
+    mdata: md.MuData, method: str, modality: str | None = None, level: str | None = None, gis_prefix: str | None= None, gis_col: list[str] | None = None
 ) -> md.MuData:
     mod_dict = get_modality_dict(mdata=mdata, level=level, modality=modality)
     for mod_name, mod in mod_dict.items():
         if method == "gis":
-            gis_idx: np.array[bool] = mod.obs["is_gis"] == True
+            if (gis_prefix is None) & (gis_col is None):
+                raise ValueError("Please provide either a GIS prefix or GIS column name")
+            
+            if gis_col is not None:
+                gis_idx: np.array[bool] = mod.obs[gis_col] == True
+            else:
+                gis_idx: np.array[bool] = mod.obs_names.str.startswith(gis_prefix) == True
+
+            if gis_idx.sum() == 0:
+                raise ValueError(f"No GIS samples found in {mod_name}")
 
             gis_normalised_data: np.array[float] = normalise_gis(
                 arr=mod.X, gis_idx=gis_idx
@@ -92,7 +91,9 @@ def scale_data(
             mdata[mod_name].X = median_centered_data
 
         else:
-            raise ValueError(f"Method {method} not recognised. Please choose from 'gis' or 'median_center'")
+            raise ValueError(
+                f"Method {method} not recognised. Please choose from 'gis' or 'median_center'"
+            )
 
     mdata.update_obs()
 
@@ -178,6 +179,11 @@ class Normalisation:
 
         elif self._axis == "var":
             normalised_arr = self._method_call(arr=arr)
+
+        else:
+            raise ValueError(
+                f"Axis {self._axis} not recognised. Please choose from 'obs' or 'var'"
+            )
 
         normalised_arr[na_idx] = np.nan
 
