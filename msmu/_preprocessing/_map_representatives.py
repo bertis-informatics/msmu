@@ -1,10 +1,12 @@
-from typing import Tuple, TypedDict
+from typing import Tuple, TypedDict, Union
 from collections import deque
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 import mudata as md
+
+from .._utils import get_modality_dict
 
 
 class Mapping(TypedDict):
@@ -14,7 +16,8 @@ class Mapping(TypedDict):
 
 def map_representatives(
     mdata: md.MuData,
-    modality: str,
+    modality: Union[str, None] = None,
+    level: Union[str, None] = "psm",
     peptide_colname: str = "stripped_peptide",
     protein_colname: str = "proteins_filtered",
 ) -> md.MuData:
@@ -30,11 +33,13 @@ def map_representatives(
     Returns:
         mdata (MuData): MuData object with updated protein mappings
     """
+
+    mod_dict = get_modality_dict(mdata, level=level, modality=modality)
+    peptides = [peptide for mod in mod_dict.values() for peptide in mod.var[peptide_colname]]
+    proteins = [protein for mod in mod_dict.values() for protein in mod.var[protein_colname]]
+
     # Get protein mapping information
-    peptide_map, protein_map, protein_info = get_protein_mapping(
-        peptides=mdata[modality].var[peptide_colname],
-        proteins=mdata[modality].var[protein_colname],
-    )
+    peptide_map, protein_map, protein_info = get_protein_mapping(peptides, proteins)
 
     # Store mapping information in MuData object
     mdata.uns["peptide_map"] = peptide_map
@@ -42,12 +47,13 @@ def map_representatives(
     mdata.uns["protein_info"] = protein_info
 
     # Remap proteins and classify peptides
-    mdata[modality].var["proteins_remapped"] = (
-        mdata[modality].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein"])
-    )
-    mdata.var["peptide_type"] = [
-        "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[modality].var["proteins_remapped"]
-    ]
+    for mod_name, _ in mod_dict.items():
+        mdata[mod_name].var["proteins_remapped"] = (
+            mdata[mod_name].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein"])
+        )
+        mdata[mod_name].var["peptide_type"] = [
+            "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[mod_name].var["proteins_remapped"]
+        ]
 
     return mdata
 
