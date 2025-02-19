@@ -1,9 +1,10 @@
-import mudata as md
+from typing import Tuple, TypedDict
+from collections import deque
+
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-from typing import Tuple, TypedDict
-from collections import deque
+import mudata as md
 
 
 class Mapping(TypedDict):
@@ -25,20 +26,22 @@ def map_representatives(
         modality (str): modality
         peptide_colname (str): column name for peptide information
         protein_colname (str): column name for protein information
-        remove_subsumable (bool): whether to remove subsumable proteins
 
     Returns:
-        mdata (MuData): MuData object
+        mdata (MuData): MuData object with updated protein mappings
     """
+    # Get protein mapping information
     peptide_map, protein_map, protein_info = get_protein_mapping(
         peptides=mdata[modality].var[peptide_colname],
         proteins=mdata[modality].var[protein_colname],
     )
 
+    # Store mapping information in MuData object
     mdata.uns["peptide_map"] = peptide_map
     mdata.uns["protein_map"] = protein_map
     mdata.uns["protein_info"] = protein_info
 
+    # Remap proteins and classify peptides
     mdata[modality].var["proteins_remapped"] = (
         mdata[modality].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein"])
     )
@@ -59,14 +62,12 @@ def get_protein_mapping(
     Args:
         peptides (pd.Series): peptide information
         proteins (pd.Series): protein information
-        remove_subsumable (bool): whether to remove subsumable proteins
 
     Returns:
         peptide_map (pd.DataFrame): peptide mapping information
         protein_map (pd.DataFrame): protein mapping information
         protein_info (pd.DataFrame): protein information
     """
-
     # Initial load
     map_df = _get_map_df(peptides, proteins)
     _, initial_protein_df = _get_df(map_df)
@@ -168,7 +169,7 @@ def _get_df(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     Returns:
         peptide_df (pd.DataFrame): peptide information
-        protein_df (pd.DataFrame): protein
+        protein_df (pd.DataFrame): protein information
     """
     peptide_df = _get_peptide_df(map_df=map_df)
     protein_df = _get_protein_df(map_df=map_df, peptide_df=peptide_df)
@@ -180,7 +181,7 @@ def _get_matrix(
     map_df: pd.DataFrame,
     peptide_df: pd.DataFrame,
     protein_df: pd.DataFrame,
-) -> Tuple[sp.csr_array, np.ndarray]:
+) -> Tuple[sp.csr_matrix, np.ndarray]:
     """
     Calculate protein group inclusion relationship.
 
@@ -190,8 +191,8 @@ def _get_matrix(
         protein_df (pd.DataFrame): protein information
 
     Returns:
-        indist_mat (np.ndarray): identical protein matrix
-        subset_mat (np.ndarray): subset protein matrix
+        peptide_mat (sp.csr_matrix): peptide-protein matrix
+        protein_mat (np.ndarray): protein-protein matrix
     """
     peptide_index = {pep: idx for idx, pep in enumerate(peptide_df["peptide"])}
     protein_index = {prot: idx for idx, prot in enumerate(protein_df["protein"])}
@@ -214,18 +215,136 @@ def _get_matrix(
     return peptide_mat, protein_mat
 
 
+def _find_indistinguisable(
+    map_df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, Mapping]:
+    """
+    Get indistinguishable group information.
+
+    Args:
+        map_df (pd.DataFrame): mapping information
+
+    Returns:
+        map_df (pd.DataFrame): filtered mapping information
+        indist_map (Mapping): indistinguishable mapping information
+    """
+    # Prepare dataframe and matrix
+    peptide_df, protein_df = _get_df(map_df)
+    _, protein_mat = _get_matrix(map_df, peptide_df, protein_df)
+
+    # Get indistinguishable matrix
+    inclusion_mat = protein_mat == protein_mat.max(axis=0)
+    indist_mat = inclusion_mat & (inclusion_mat.T == inclusion_mat)
+
+    # Get indistinguishable mappings
+    indist_map = _get_indist_map(indist_mat, protein_df)
+
+    # Update protein
+    map_df["protein"] = map_df["protein"].map(indist_map["repr"]).fillna(map_df["protein"])
+    map_df = map_df.drop_duplicates().reset_index(drop=True)
+    peptide_df, protein_df = _get_df(map_df)
+
+    print(f"- Removed indistinguishable: {len(indist_map["repr"]) - len(indist_map["memb"])}", flush=True)
+
+    return map_df, indist_map
+
+
+def _get_indist_map(
+    indist_mat: np.ndarray,
+    protein_df: pd.DataFrame,
+) -> Mapping:
+    """
+    Returns indistinguishable group information.
+
+    Args:
+        indist_mat (np.ndarray): indistinguishable matrix
+        protein_df (pd.DataFrame): protein information
+
+    Returns:
+        indist_map (Mapping): indistinguishable mapping information
+    """
+    # Initialize mappings
+    indist_repr_map = {}
+    indist_memb_map = {}
+
+    # Get Groups
+    graph = _build_graph(indist_mat)
+    groups = _find_groups(graph)
+
+    # Get mappings
+    for group in groups:
+        memb_prot = protein_df.iloc[group]["protein"].values
+        repr_prot = ",".join(memb_prot)
+
+        for memb in memb_prot:
+            indist_repr_map[memb] = repr_prot
+
+        indist_memb_map[repr_prot] = ";".join(memb_prot)
+
+    return Mapping(repr=indist_repr_map, memb=indist_memb_map)
+
+
+def _build_graph(indist_mat: np.ndarray) -> dict[int, list[int]]:
+    """
+    Build graph from indistinguishable matrix.
+
+    Args:
+        indist_mat (np.ndarray): indistinguishable matrix
+
+    Returns:
+        graph (dict[int, list[int]]): graph representation
+    """
+    x_idx, y_idx = np.where(indist_mat)
+    graph: dict[int, list[int]] = {}
+    for x, y in zip(x_idx, y_idx):
+        if x >= y:
+            continue
+        graph.setdefault(x, []).append(y)
+        graph.setdefault(y, []).append(x)
+    return graph
+
+
+def _find_groups(graph: dict[int, list[int]]) -> list[list[int]]:
+    """
+    Find groups in the graph.
+
+    Args:
+        graph (dict[int, list[int]]): graph representation
+
+    Returns:
+        groups (list[list[int]]): list of groups
+    """
+    visited = set()
+    groups = []
+
+    for node in graph:
+        if node not in visited:
+            stack = deque([node])
+            group = []
+
+            while stack:
+                n = stack.pop()
+                if n in visited:
+                    continue
+                visited.add(n)
+                group.append(n)
+                stack.extend(graph.get(n, []))
+
+            groups.append(sorted(group))
+
+    return groups
+
+
 def _find_subsettable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
     """
     Get subset group information.
 
     Args:
         map_df (pd.DataFrame): mapping information
-        protein_df (pd.DataFrame): protein information
-        subset_mat (np.ndarray): subset matrix
 
     Returns:
         map_df (pd.DataFrame): filtered mapping information
-        subset_map (dict): subset mappping information
+        subset_map (Mapping): subset mapping information
     """
     # Prepare dataframe and matrix
     peptide_df, protein_df = _get_df(map_df)
@@ -260,9 +379,7 @@ def _get_subset_map(
         protein_df (pd.DataFrame): protein information
 
     Returns:
-        subset_repr_map (dict): subset representative map
-        subset_memb_map (dict): subset member map
-        subset_indexset (list): subset
+        subset_map (Mapping): subset mapping information
     """
     # Initialize mappings
     subset_repr_map = {}
@@ -284,7 +401,16 @@ def _get_subset_map(
     return Mapping(repr=subset_repr_map, memb=subset_memb_map)
 
 
-def _build_hierarchy(matrix):
+def _build_hierarchy(matrix: np.ndarray) -> dict[int, np.ndarray]:
+    """
+    Build hierarchy from subset matrix.
+
+    Args:
+        matrix (np.ndarray): subset matrix
+
+    Returns:
+        hierarchy (dict[int, np.ndarray]): hierarchy mapping
+    """
     p_idx, c_idx = np.where(matrix)
 
     # Get unique parents & children
@@ -296,118 +422,124 @@ def _build_hierarchy(matrix):
     root_nodes = parents[root_mask]
 
     # Store children for each parent
-    result = {}
+    hierarchy = {}
     for parent in root_nodes:
-        result[parent] = np.sort(c_idx[p_idx == parent])
+        hierarchy[parent] = np.sort(c_idx[p_idx == parent])
 
-    return result
+    return hierarchy
 
 
-def _find_indistinguisable(
-    map_df: pd.DataFrame,
-) -> Tuple[pd.DataFrame, Mapping]:
+def _find_subsumable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
     """
-    Get indistinguishable group information.
+    Get subsumable protein information.
 
     Args:
         map_df (pd.DataFrame): mapping information
-        protein_df (pd.DataFrame): protein information
-        indist_mat (np.ndarray): indistinguishable matrix
-        subset_map (dict): subset map[repr, memb, index]
 
     Returns:
         map_df (pd.DataFrame): filtered mapping information
-        indist_map (dict): indistinguishable map[repr, memb]
+        subsum_map (Mapping): subsum mapping information
     """
     # Prepare dataframe and matrix
     peptide_df, protein_df = _get_df(map_df)
-    _, protein_mat = _get_matrix(map_df, peptide_df, protein_df)
+    peptide_mat, _ = _get_matrix(map_df, peptide_df, protein_df)
 
-    # Get indistinguishable matrix
-    inclusion_mat = protein_mat == protein_mat.max(axis=0)
-    indist_mat = inclusion_mat & (inclusion_mat.T == inclusion_mat)
-
-    # Get indistinguishable mappings
-    indist_map = _get_indist_map(indist_mat, protein_df)
+    # Get subsum mappings
+    subsum_map = _get_subsum_map(peptide_mat, protein_df)
 
     # Update protein
-    map_df["protein"] = map_df["protein"].map(indist_map["repr"]).fillna(map_df["protein"])
+    map_df["protein"] = map_df["protein"].map(subsum_map["repr"]).fillna(map_df["protein"])
     map_df = map_df.drop_duplicates().reset_index(drop=True)
-    peptide_df, protein_df = _get_df(map_df)
 
-    print(f"- Removed indistinguishable: {len(indist_map["repr"]) - len(indist_map["memb"])}", flush=True)
+    print(f"- Removed subsumable: {len(subsum_map["repr"]) - len(subsum_map["memb"])}", flush=True)
 
-    return map_df, indist_map
-
-
-def _build_graph(indist_mat: np.ndarray) -> dict:
-    x_idx, y_idx = np.where(indist_mat)
-    graph: dict[str, list[str]] = {}
-    for x, y in zip(x_idx, y_idx):
-        if x >= y:
-            continue
-        graph.setdefault(x, []).append(y)
-        graph.setdefault(y, []).append(x)
-    return graph
+    return map_df, subsum_map
 
 
-def _find_groups(graph: dict) -> list[list[str]]:
-    visited = set()
-    groups = []
-
-    for node in graph:
-        if node not in visited:
-            stack = deque([node])
-            group = []
-
-            while stack:
-                n = stack.pop()
-                if n in visited:
-                    continue
-                visited.add(n)
-                group.append(n)
-                stack.extend(graph.get(n, []))
-
-            groups.append(sorted(group))
-
-    return groups
-
-
-def _get_indist_map(
-    indist_mat: np.ndarray,
+def _get_subsum_map(
+    peptide_map: np.ndarray,
     protein_df: pd.DataFrame,
 ) -> Mapping:
     """
-    Returns indistinguishable group information.
+    Returns subsumable group information.
 
     Args:
-        indist_mat (np.ndarray): indistinguishable matrix
-        subset_indexset (list): subset index set
+        peptide_map (np.ndarray): peptide-protein matrix
         protein_df (pd.DataFrame): protein information
 
     Returns:
-        indist_repr_map (dict): indistinguishable representative map
-        indist_memb_map (dict): indistinguishable member map
+        subsum_map (Mapping): subsumable mapping information
     """
     # Initialize mappings
-    indist_repr_map = {}
-    indist_memb_map = {}
+    subsum_repr_map = {}
+    subsum_memb_map = {}
+    peptide_map = peptide_map.toarray()
 
-    # Get Groups
-    graph = _build_graph(indist_mat)
-    groups = _find_groups(graph)
+    # Get connections
+    subsum_indices = protein_df.loc[protein_df["unique_peptides"] == 0].index
+    connections = _build_connection(peptide_map, subsum_indices)
+    visited_protein = set()
 
     # Get mappings
-    for group in groups:
-        memb_prot = protein_df.iloc[group]["protein"].values
-        repr_prot = ",".join(memb_prot)
+    for idx in range(len(connections)):
+        protein_idx = np.array(connections[idx][0])
+        protein_names = protein_df.loc[protein_idx, "protein"].values
 
-        for memb in memb_prot:
-            indist_repr_map[memb] = repr_prot
+        if any([prot in visited_protein for prot in protein_names]):
+            continue
+        visited_protein.update(protein_names)
 
-        indist_memb_map[repr_prot] = ";".join(memb_prot)
+        # Boolean mask for proteins with unique peptides
+        has_unique_peptide = np.array([i not in subsum_indices for i in protein_idx])
 
-    return Mapping(repr=indist_repr_map, memb=indist_memb_map)
+        # If all proteins have shared peptides each other
+        subsum_group = protein_names[~has_unique_peptide]
+        subsum_group_name = ",".join(subsum_group)
+        for protein in subsum_group:
+            subsum_repr_map[protein] = subsum_group_name
+
+        subsum_memb_map[subsum_group_name] = ";".join(protein_names)
+
+    return Mapping(repr=subsum_repr_map, memb=subsum_memb_map)
+
+
+def _build_connection(array: np.ndarray, indices: list[int]) -> list[Tuple[list[int], list[int]]]:
+    """
+    Build connections from peptide-protein matrix.
+
+    Args:
+        array (np.ndarray): peptide-protein matrix
+        indices (list[int]): list of indices
+
+    Returns:
+        connections (list[Tuple[list[int], list[int]]]): list of connections
+    """
+    row_visited = set()
+    connections = []
+
+    def add_row_indices(array, row_idx):
+        if row_idx not in row_indices:
+            row_visited.add(np.int64(row_idx))
+            row_indices.append(np.int64(row_idx))
+            for col_idx in np.where(array[row_idx, :] == 1)[0]:
+                add_col_indices(array, col_idx)
+
+    def add_col_indices(array, col_idx):
+        if col_idx not in col_indices:
+            col_indices.append(np.int64(col_idx))
+            for row_idx in np.where(array[:, col_idx] == 1)[0]:
+                add_row_indices(array, row_idx)
+
+    for row_idx in indices:
+        row_indices = []
+        col_indices = []
+
+        if row_idx not in row_indices:
+            add_row_indices(array, row_idx)
+
+        connections.append((row_indices, col_indices))
+
+    return connections
 
 
 def _select_canon_prot(protein_list: list[str]) -> str:
@@ -447,7 +579,7 @@ def _classify_protein(
     Group proteins into distinct, distinguishable, identical, and others.
 
     Args:
-        protein_df (pd.DataFrame): DataFrame containing protein information.
+        map_df (pd.DataFrame): mapping information
 
     Returns:
         distinct_prots (list[str]): list of distinct proteins
@@ -472,123 +604,52 @@ def _classify_protein(
     return distinct_prots, distinguishable_prots, subsumable_prots
 
 
-def _find_subsumable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
+def _make_peptide_map(map_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Get subsumable protein information.
+    Create peptide mapping.
 
     Args:
         map_df (pd.DataFrame): mapping information
-        protein_df (pd.DataFrame): protein information
-        subsum_mat (np.ndarray): subsum matrix
 
     Returns:
-        map_df (pd.DataFrame): filtered mapping information
-        subsum_map (dict): subsum map[repr, memb, index]
+        peptide_map (pd.DataFrame): peptide mapping information
     """
-    # Prepare dataframe and matrix
-    peptide_df, protein_df = _get_df(map_df)
-    peptide_mat, _ = _get_matrix(map_df, peptide_df, protein_df)
-
-    # Get subsum mappings
-    subsum_map = _get_subsum_map(peptide_mat, protein_df)
-
-    # Update protein
-    map_df["protein"] = map_df["protein"].map(subsum_map["repr"]).fillna(map_df["protein"])
-    map_df = map_df.drop_duplicates().reset_index(drop=True)
-
-    print(f"- Removed subsumable: {len(subsum_map["repr"]) - len(subsum_map["memb"])}", flush=True)
-
-    return map_df, subsum_map
-
-
-def _build_connection(array: np.ndarray, indices: list[int]) -> list:
-    row_visited = set()
-    connections = []
-
-    def add_row_indices(array, row_idx):
-        if row_idx not in row_indices:
-            row_visited.add(np.int64(row_idx))
-            row_indices.append(np.int64(row_idx))
-            for col_idx in np.where(array[row_idx, :] == 1)[0]:
-                add_col_indices(array, col_idx)
-
-    def add_col_indices(array, col_idx):
-        if col_idx not in col_indices:
-            col_indices.append(np.int64(col_idx))
-            for row_idx in np.where(array[:, col_idx] == 1)[0]:
-                add_row_indices(array, row_idx)
-
-    for row_idx in indices:
-        row_indices = []
-        col_indices = []
-
-        if row_idx not in row_indices:
-            add_row_indices(array, row_idx)
-
-        connections.append((row_indices, col_indices))
-
-    return connections
-
-
-def _get_subsum_map(
-    peptide_map: np.ndarray,
-    protein_df: pd.DataFrame,
-) -> Mapping:
-    # Initialize mappings
-    subsum_repr_map = {}
-    subsum_memb_map = {}
-    peptide_map = peptide_map.toarray()
-
-    # Get connections
-    subsum_indices = protein_df.loc[protein_df["unique_peptides"] == 0].index
-    connections = _build_connection(peptide_map, subsum_indices)
-    visited_protein = set()
-
-    # Get mappings
-    for idx in range(len(connections)):
-        protein_idx = np.array(connections[idx][0])
-        protein_names = protein_df.loc[protein_idx, "protein"].values
-
-        if any([prot in visited_protein for prot in protein_names]):
-            continue
-        visited_protein.update(protein_names)
-
-        # Boolean mask for proteins with unique peptides
-        has_unique_peptide = np.array([i not in subsum_indices for i in protein_idx])
-
-        # If all proteins have shared peptides each other
-        subsum_group = protein_names[~has_unique_peptide]
-        subsum_group_name = ",".join(subsum_group)
-        for protein in subsum_group:
-            subsum_repr_map[protein] = subsum_group_name
-
-        subsum_memb_map[subsum_group_name] = ";".join(protein_names)
-
-    return Mapping(repr=subsum_repr_map, memb=subsum_memb_map)
-
-
-def _make_peptide_map(map_df: pd.DataFrame) -> pd.DataFrame:
-    return (
+    # Make peptide mapping
+    peptide_map = (
         map_df[["peptide", "protein"]]
         .drop_duplicates()
         .groupby("peptide", as_index=False, observed=False)["protein"]
         .agg(lambda x: ";".join(x))
     )
 
+    return peptide_map
+
 
 def _make_protein_map(
     initial_protein_df: pd.DataFrame,
-    subset_repr_map: dict,
-    indist_repr_map: dict,
-    subsum_repr_map: dict,
+    subset_repr_map: dict[str, str],
+    indist_repr_map: dict[str, str],
+    subsum_repr_map: dict[str, str],
 ) -> pd.DataFrame:
+    """
+    Create protein mapping.
+
+    Args:
+        initial_protein_df (pd.DataFrame): initial protein information
+        subset_repr_map (dict[str, str]): subset representative map
+        indist_repr_map (dict[str, str]): indistinguishable representative map
+        subsum_repr_map (dict[str, str]): subsumable representative map
+
+    Returns:
+        protein_map (pd.DataFrame): protein mapping information
+    """
     # Map protein groups
     protein_indist = initial_protein_df["protein"].map(indist_repr_map).fillna(initial_protein_df["protein"])
     protein_subset = protein_indist.map(subset_repr_map).fillna(protein_indist)
     protein_subsum = protein_subset.map(subsum_repr_map).fillna(protein_subset)
 
-    # Return protein_map
-    return pd.DataFrame(
+    # Make protein mapping
+    protein_map = pd.DataFrame(
         {
             "initial_protein": initial_protein_df["protein"],
             "protein_group": protein_subsum,
@@ -598,16 +659,27 @@ def _make_protein_map(
         }
     ).drop_duplicates()
 
+    # Return protein_map
+    return protein_map
+
 
 def _make_protein_info(map_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Create protein information.
+
+    Args:
+        map_df (pd.DataFrame): mapping information
+
+    Returns:
+        protein_info (pd.DataFrame): protein information
+    """
     # Classify proteins
     distinct_prots, distinguishable_prots, subsumable_prots = _classify_protein(map_df)
 
     # Make protein information
     protein = map_df["protein"].unique()
 
-    # Return protein_info
-    return pd.DataFrame(
+    protein_info = pd.DataFrame(
         {
             "protein": protein,
             "distinct": [p in distinct_prots for p in protein],
@@ -616,13 +688,16 @@ def _make_protein_info(map_df: pd.DataFrame) -> pd.DataFrame:
         }
     )
 
+    # Return protein_info
+    return protein_info
+
 
 def _get_final_output(
     map_df: pd.DataFrame,
     initial_protein_df: pd.DataFrame,
-    subset_repr_map: dict,
-    indist_repr_map: dict,
-    subsum_repr_map: dict,
+    subset_repr_map: dict[str, str],
+    indist_repr_map: dict[str, str],
+    subsum_repr_map: dict[str, str],
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Returns final output dataframes.
@@ -630,10 +705,9 @@ def _get_final_output(
     Args:
         map_df (pd.DataFrame): mapping information
         initial_protein_df (pd.DataFrame): protein information
-        subset_repr_map (dict): subset member map
-        indist_repr_map (dict): identical representative map
-        subsumable_prots (list): list of other proteins
-        remove_subsumable (bool): whether to remove subsumable proteins
+        subset_repr_map (dict[str, str]): subset member map
+        indist_repr_map (dict[str, str]): identical representative map
+        subsum_repr_map (dict[str, str]): subsumable representative map
 
     Returns:
         peptide_map (pd.DataFrame): peptide mapping information
