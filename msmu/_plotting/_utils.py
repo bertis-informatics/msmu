@@ -54,12 +54,12 @@ def _get_2d_traces(
 def _set_color(
     fig: go.Figure,
     mdata: md.MuData,
-    modality: str,
+    mods: list[str],
     colorby: str,
     template: str = None,
 ):
     # Get categories
-    categories = mdata[modality].obs[colorby]
+    categories = pd.concat([mdata[modality].obs[colorby] for modality in mods])
 
     # Get colors
     colors = pio.templates[template].layout["colorway"]

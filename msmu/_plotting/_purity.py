@@ -5,19 +5,22 @@ import plotly.graph_objects as go
 
 from ._common import _draw_histogram, _draw_density, _draw_box
 from ._utils import _get_traces
+from .._utils import get_modality_dict
 
 
 def plot_purity(
     mdata: md.MuData,
-    modality: str = "psm",
+    level: str = None,
+    modality: str = None,
     groupby: str = None,
     plot: str = "hist",
     binsize: float = 0.01,
     bandwidth: float = 0.01,
     **kwargs,
 ) -> go.Figure:
-    # Prepare dataset
-    data = _prep_purity_data(mdata, modality, groupby)
+    # Prepare data
+    mods = list(get_modality_dict(mdata, level=level, modality=modality).keys())
+    data = _prep_purity_data(mdata, groupby, mods=mods)
 
     # Get traceset
     traces = _get_traces(data)
@@ -53,7 +56,7 @@ def plot_purity(
         raise ValueError(f"Unknown plot type: {plot}, choose from 'hist|histogram', 'density|violin', 'box'")
 
     # Add threshold line
-    threshold = mdata[modality].uns["filter"]["filter_purity"]
+    threshold = mdata[mods[0]].uns["filter"]["filter_purity"]
     fig.add_vline(
         x=threshold,
         line_dash="dash",
@@ -75,10 +78,11 @@ def plot_purity(
 
 def _prep_purity_data(
     mdata: md.MuData,
-    modality: str = "psm",
     groupby: str = None,
+    mods: list[str] = None,
 ) -> pd.DataFrame:
-    data_var = mdata[modality].var
+    # Prepare data
+    data_var = pd.concat([mdata[mod].var for mod in mods])
 
     # Treat groupby
     if groupby:

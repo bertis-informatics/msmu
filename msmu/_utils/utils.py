@@ -12,6 +12,9 @@ def get_modality_dict(
     if (level == None) & (modality == None):
         level = "psm"
 
+    if (level != None) & (modality != None):
+        print("Both level and modality are provided. Using level prior to modality.")
+
     mod_dict: dict = dict()
     if level != None:
         for mod_name in mdata.mod_names:

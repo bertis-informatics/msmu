@@ -5,11 +5,13 @@ import plotly.graph_objects as go
 from ._common import _draw_histogram, _draw_density, _draw_box
 from ._template import DEFAULT_TEMPLATE
 from ._utils import _get_traces, _set_color
+from .._utils import get_modality_dict
 
 
 def plot_intensity(
     mdata: md.MuData,
-    modality: str = "psm",
+    level: str = None,
+    modality: str = None,
     groupby: str = None,
     colorby: str = None,
     plot: str = "hist",
@@ -19,7 +21,8 @@ def plot_intensity(
     **kwargs,
 ) -> go.Figure:
     # Prepare data
-    data = _prep_intensity_data(mdata, modality, groupby)
+    mods = list(get_modality_dict(mdata, level=level, modality=modality).keys())
+    data = _prep_intensity_data(mdata, groupby, mods=mods)
 
     # Get traceset
     traces = _get_traces(data)
@@ -61,20 +64,22 @@ def plot_intensity(
 
     # Set color
     if (colorby is not None) & (groupby is None):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+        fig = _set_color(fig, mdata, mods, colorby, template)
 
     return fig
 
 
 def _prep_intensity_data(
     mdata: md.MuData,
-    modality: str = "psm",
     groupby: str = None,
+    mods: list[str] = None,
 ) -> pd.DataFrame:
     # Prepare data
-    data = mdata[modality].to_df()
+    data = pd.concat([mdata[mod].to_df() for mod in mods])
+
+    # Treat groupby
     if groupby is not None:
-        data["_groupby"] = mdata[modality].obs[groupby]
+        data["_groupby"] = pd.concat([mdata[mod].obs[groupby] for mod in mods])
         data = data.groupby("_groupby", observed=True).mean()
 
     return data

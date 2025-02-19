@@ -5,18 +5,21 @@ import plotly.graph_objects as go
 from ._common import _draw_bar
 from ._template import DEFAULT_TEMPLATE
 from ._utils import _get_2d_traces, _set_color
+from .._utils import get_modality_dict
 
 
 def plot_id(
     mdata: md.MuData,
-    modality: str = "psm",
+    level: str = None,
+    modality: str = None,
     groupby: str = None,
     colorby: str = None,
     template: str = DEFAULT_TEMPLATE,
     **kwargs,
 ) -> go.Figure:
     # Prepare data
-    data = _prep_id_data(mdata, modality, groupby)
+    mods = list(get_modality_dict(mdata, level=level, modality=modality).keys())
+    data = _prep_id_data(mdata, groupby, mods=mods)
 
     # Get traceset
     traces = _get_2d_traces(data, x="idx", y="count")
@@ -45,22 +48,24 @@ def plot_id(
 
     # Set color
     if (colorby is not None) & (groupby is None):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+        fig = _set_color(fig, mdata, mods, colorby, template)
 
     return fig
 
 
 def _prep_id_data(
     mdata: md.MuData,
-    modality: str,
-    groupby: str,
+    groupby: str = None,
+    mods: list[str] = None,
 ) -> pd.DataFrame:
-    # Get data
-    data = mdata[modality].to_df().T.count()
+    # Prepare data
+    data = pd.concat([mdata[mod].to_df() for mod in mods]).T.count()
     data = pd.DataFrame(data, columns=["count"])
 
     # Groupby
     if groupby is not None:
-        data = pd.concat([mdata[modality].obs, data], axis=1).groupby(groupby, observed=True).mean()
+        obs = pd.concat([mdata[mod].obs for mod in mods])
+        data = pd.concat([obs, data], axis=1).groupby(groupby, observed=True)["count"].mean()
+        data = pd.DataFrame(data, columns=["count"])
 
     return data
