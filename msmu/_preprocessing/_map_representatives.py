@@ -250,7 +250,7 @@ def _find_indistinguisable(
     map_df = map_df.drop_duplicates().reset_index(drop=True)
     peptide_df, protein_df = _get_df(map_df)
 
-    print(f"- Removed indistinguishable: {len(indist_map["repr"]) - len(indist_map["memb"])}", flush=True)
+    print(f"- Removed indistinguishable: {len(indist_map['repr']) - len(indist_map['memb'])}", flush=True)
 
     return map_df, indist_map
 
@@ -368,7 +368,7 @@ def _find_subsettable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
     map_df = map_df.drop_duplicates().reset_index(drop=True)
     peptide_df, protein_df = _get_df(map_df)
 
-    print(f"- Removed subsettable: {len(subset_map["repr"])}", flush=True)
+    print(f"- Removed subsettable: {len(subset_map['repr'])}", flush=True)
 
     return map_df, subset_map
 
@@ -457,7 +457,7 @@ def _find_subsumable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
     map_df["protein"] = map_df["protein"].map(subsum_map["repr"]).fillna(map_df["protein"])
     map_df = map_df.drop_duplicates().reset_index(drop=True)
 
-    print(f"- Removed subsumable: {len(subsum_map["repr"]) - len(subsum_map["memb"])}", flush=True)
+    print(f"- Removed subsumable: {len(subsum_map['repr']) - len(subsum_map['memb'])}", flush=True)
 
     return map_df, subsum_map
 
