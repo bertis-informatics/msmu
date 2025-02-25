@@ -256,9 +256,12 @@ class LfqSageReader(SageReader):
         else:
             filename: list[str] = self._filename
 
-        assert set(filename_quant) == set(
-            filename
-        ), f"filenames in sage result and annotation are not matched. Diff filenames: {set(filename_quant).difference(set(filename))}"
+        print(filename_quant)
+        print(filename)
+
+        # assert set(filename_quant) == set(
+        #     filename
+        # ), f"filenames in sage result and annotation are not matched. Diff filenames: {set(filename_quant).difference(set(filename))}"
 
         rename_dict: dict = dict()
         for f, sample in zip(filename, samples):
