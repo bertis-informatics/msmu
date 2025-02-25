@@ -30,8 +30,8 @@ def plot_pca(
 
     # Set titles
     title_text = "PCA"
-    xaxis_title = f"{pc_columns[0]} ({mdata[modality].uns["pca"]["variance_ratio"][pcs[0] - 1] * 100:.2f}%)"
-    yaxis_title = f"{pc_columns[1]} ({mdata[modality].uns["pca"]["variance_ratio"][pcs[1] - 1] * 100:.2f}%)"
+    xaxis_title = f"{pc_columns[0]} ({mdata[modality].uns['pca']['variance_ratio'][pcs[0] - 1] * 100:.2f}%)"
+    yaxis_title = f"{pc_columns[1]} ({mdata[modality].uns['pca']['variance_ratio'][pcs[1] - 1] * 100:.2f}%)"
 
     # Draw plot
     fig: go.Figure = _draw_scatter(
