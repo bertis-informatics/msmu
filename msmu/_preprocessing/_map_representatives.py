@@ -49,13 +49,13 @@ def map_representatives(
 
     # Remap proteins and classify peptides
     for mod_name, _ in mod_dict.items():
-        mdata[mod_name].var["proteins"] = (
+        mdata[mod_name].var[protein_colname] = (
             mdata[mod_name].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein"])
         )
         mdata[mod_name].var["peptide_type"] = [
             "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[mod_name].var["proteins"]
         ]
-        mdata[mod_name].var = mdata[mod_name].var.rename(columns={"proteins": "protein_group"})
+        mdata[mod_name].var = mdata[mod_name].var.rename(columns={protein_colname: "protein_group"})
 
         mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(_select_canon_prot)
 
