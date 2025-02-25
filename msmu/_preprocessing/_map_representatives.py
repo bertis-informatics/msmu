@@ -1,6 +1,7 @@
 from typing import Tuple, TypedDict, Union
 from collections import deque
 
+import re
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -55,6 +56,8 @@ def map_representatives(
             "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[mod_name].var["proteins"]
         ]
         mdata[mod_name].var = mdata[mod_name].var.rename(columns={"proteins": "protein_group"})
+
+        mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(_select_canon_prot)
 
     return mdata
 
@@ -549,7 +552,7 @@ def _build_connection(array: np.ndarray, indices: list[int]) -> list[Tuple[list[
     return connections
 
 
-def _select_canon_prot(protein_list: list[str]) -> str:
+def _select_canon_prot(protein_group: str) -> str:
     """
     Select canonical protein from protein list based on priority.
     canonical > swissprot > trembl > contam
@@ -560,6 +563,8 @@ def _select_canon_prot(protein_list: list[str]) -> str:
     Returns:
         protein_group (str): canonical protein group
     """
+    protein_list = re.split(";|,| ", protein_group)
+
     swissprot_canon_ls = [prot for prot in protein_list if prot.startswith("sp") and "-" not in prot]
     if swissprot_canon_ls:
         return ",".join(swissprot_canon_ls)
