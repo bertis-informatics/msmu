@@ -464,7 +464,11 @@ def _find_subsumable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
     map_df["protein"] = map_df["protein"].map(subsum_map["repr"]).fillna(map_df["protein"])
     map_df = map_df.drop_duplicates().reset_index(drop=True)
 
-    print(f"- Removed subsumable: {len(subsum_map['repr']) - len(subsum_map['memb'])}", flush=True)
+    print(
+        f"- Removed subsumable: {len(subsum_map['repr']) - len(subsum_map['memb']) + len(removed_proteins)
+          }",
+        flush=True,
+    )
 
     return map_df, subsum_map
 
@@ -577,7 +581,7 @@ def _select_canon_prot(protein_group: str) -> str:
     Returns:
         protein_group (str): canonical protein group
     """
-    protein_list = re.split(";|,| ", protein_group)
+    protein_list = re.split(";|,", protein_group)
 
     swissprot_canon_ls = [prot for prot in protein_list if prot.startswith("sp") and "-" not in prot]
     if swissprot_canon_ls:
