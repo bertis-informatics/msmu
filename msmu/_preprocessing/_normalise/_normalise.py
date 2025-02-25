@@ -34,18 +34,18 @@ def normalise(
     norm_cls = Normalisation(method=method, axis=axis)
 
     for mod_name, mod in mod_dict.items():
-        normalised_arr = np.full_like(mod.X, np.nan, dtype=float)
         if fraction:
+            normalised_arr = np.full_like(mod.X, np.nan, dtype=float)
             for fraction in np.unique(mod.var["filename"]):
                 fraction_idx = mod.var["filename"] == fraction
 
                 arr = mod.X[:, fraction_idx].copy()
-                normalised_data = norm_cls.normalise(arr=arr)
-                normalised_arr[:, fraction_idx] = normalised_data
+                fraction_normalised_data = norm_cls.normalise(arr=arr)
+                normalised_arr[:, fraction_idx] = fraction_normalised_data
 
         else:
             arr = mod.X.copy()
-            normalised_data = norm_cls.normalise(arr=arr)
+            normalised_arr = norm_cls.normalise(arr=arr)
 
         mdata[mod_name].X = normalised_arr
 
