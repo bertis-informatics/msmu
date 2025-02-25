@@ -51,10 +51,10 @@ def add_prefix_filter(
     proteins = _get_column(adata, "proteins", "search_result")
 
     # Remove prefix matched from proteins column
-    adata.var["proteins_filtered"] = proteins.apply(lambda x: _remove_prefix_matched(x, prefix))
+    adata.var["proteins"] = proteins.apply(lambda x: _remove_prefix_matched(x, prefix))
 
     # Get filter result
-    filter_result = adata.var["proteins_filtered"] != ""
+    filter_result = adata.var["proteins"] != ""
 
     # Save filter
     _save_filter(adata, "prefix", filter_result, list(prefix))

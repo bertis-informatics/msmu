@@ -19,7 +19,7 @@ def map_representatives(
     modality: Union[str, None] = None,
     level: Union[str, None] = "psm",
     peptide_colname: str = "stripped_peptide",
-    protein_colname: str = "proteins_filtered",
+    protein_colname: str = "proteins",
 ) -> md.MuData:
     """
     Map protein information to peptides.
@@ -48,12 +48,13 @@ def map_representatives(
 
     # Remap proteins and classify peptides
     for mod_name, _ in mod_dict.items():
-        mdata[mod_name].var["proteins_remapped"] = (
+        mdata[mod_name].var["proteins"] = (
             mdata[mod_name].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein"])
         )
         mdata[mod_name].var["peptide_type"] = [
-            "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[mod_name].var["proteins_remapped"]
+            "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[mod_name].var["proteins"]
         ]
+        mdata[mod_name].var = mdata[mod_name].var.rename(columns={"proteins": "protein_group"})
 
     return mdata
 
