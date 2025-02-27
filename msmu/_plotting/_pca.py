@@ -4,36 +4,30 @@ import plotly.graph_objects as go
 
 from ._common import _draw_scatter
 from ._template import DEFAULT_TEMPLATE
-from ._utils import _get_2d_traces, _set_color
+from ._utils import _get_traces, _set_color
+
+
+DEFAULT_COLUMN = "obs"
 
 
 def plot_pca(
     mdata: md.MuData,
-    modality: str = "psm",
-    groupby: str = None,
+    modality: str = "peptide",
+    groupby: str = DEFAULT_COLUMN,
     colorby: str = None,
     template: str = DEFAULT_TEMPLATE,
     pcs: tuple[int, int] | list[int] = (1, 2),
     **kwargs,
 ) -> go.Figure:
-    # Prepare data
-    pcs, pc_columns = _get_pc_cols(mdata, modality, pcs)
-    data = _prep_pca_data(mdata, modality, groupby, pc_columns)
-
-    # Get traceset
-    traces: list[dict] = _get_2d_traces(
-        data=data,
-        x=pc_columns[0],
-        y=pc_columns[1],
-        name=groupby,
-    )
-
     # Set titles
     title_text = "PCA"
     xaxis_title = f"{pc_columns[0]} ({mdata[modality].uns['pca']['variance_ratio'][pcs[0] - 1] * 100:.2f}%)"
     yaxis_title = f"{pc_columns[1]} ({mdata[modality].uns['pca']['variance_ratio'][pcs[1] - 1] * 100:.2f}%)"
 
     # Draw plot
+    pcs, pc_columns = _get_pc_cols(mdata, modality, pcs)
+    data = _prep_pca_data(mdata, modality, pc_columns)
+    traces: list[dict] = _get_traces(data, pc_columns[0], pc_columns[1], groupby)
     fig: go.Figure = _draw_scatter(
         traces=traces,
         title_text=title_text,
@@ -53,7 +47,7 @@ def plot_pca(
     )
 
     # Set color
-    if (colorby is not None) & (groupby is None):
+    if (colorby is not None) & (groupby == DEFAULT_COLUMN):
         fig = _set_color(fig, mdata, modality, colorby, template)
 
     return fig
@@ -96,14 +90,13 @@ def _get_pc_cols(
 def _prep_pca_data(
     mdata: md.MuData,
     modality: str,
-    groupby: str,
     pc_columns: list[str],
 ) -> pd.DataFrame:
-    # Get data
-    data = mdata[modality].obsm["X_pca"][pc_columns]
+    obs = mdata.obs.copy()
+    obs[DEFAULT_COLUMN] = obs.index
 
-    # Groupby
-    if groupby is not None:
-        data = data.join(mdata[modality].obs[groupby])
+    # Prepare data
+    orig_df = mdata[modality].obsm["X_pca"][pc_columns].reset_index(names="_obs")
+    join_df = orig_df.join(obs, on="_obs", how="left")
 
-    return data
+    return join_df

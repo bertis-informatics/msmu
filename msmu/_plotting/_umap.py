@@ -4,35 +4,28 @@ import plotly.graph_objects as go
 
 from ._common import _draw_scatter
 from ._template import DEFAULT_TEMPLATE
-from ._utils import _get_2d_traces, _set_color
+from ._utils import _get_traces, _set_color
+
+DEFAULT_COLUMN = "obs"
 
 
 def plot_umap(
     mdata: md.MuData,
     modality: str = "psm",
-    groupby: str = None,
+    groupby: str = DEFAULT_COLUMN,
     colorby: str = None,
     template: str = DEFAULT_TEMPLATE,
     **kwargs,
 ) -> go.Figure:
-    # Prepare data
-    umap_columns = _get_umap_cols(mdata, modality)
-    data = _prep_umap_data(mdata, modality, groupby, umap_columns)
-
-    # Get traceset
-    traces: list[dict] = _get_2d_traces(
-        data=data,
-        x=umap_columns[0],
-        y=umap_columns[1],
-        name=groupby,
-    )
-
     # Set titles
     title_text = "UMAP"
     xaxis_title = umap_columns[0]
     yaxis_title = umap_columns[1]
 
     # Draw plot
+    umap_columns = _get_umap_cols(mdata, modality)
+    data = _prep_umap_data(mdata, modality, umap_columns)
+    traces: list[dict] = _get_traces(data, umap_columns[0], umap_columns[1], groupby)
     fig: go.Figure = _draw_scatter(
         traces=traces,
         title_text=title_text,
@@ -52,7 +45,7 @@ def plot_umap(
     )
 
     # Set color
-    if (colorby is not None) & (groupby is None):
+    if (colorby is not None) & (groupby == DEFAULT_COLUMN):
         fig = _set_color(fig, mdata, modality, colorby, template)
 
     return fig
@@ -80,14 +73,13 @@ def _get_umap_cols(
 def _prep_umap_data(
     mdata: md.MuData,
     modality: str,
-    groupby: str,
     umap_columns: list[str],
 ) -> pd.DataFrame:
-    # Get data
-    data = mdata[modality].obsm["X_umap"][umap_columns]
+    obs = mdata.obs.copy()
+    obs[DEFAULT_COLUMN] = obs.index
 
-    # Groupby
-    if groupby is not None:
-        data = data.join(mdata[modality].obs[groupby])
+    # Prepare data
+    orig_df = mdata[modality].obsm["X_umap"][umap_columns].reset_index(names="_obs")
+    join_df = orig_df.join(obs, on="_obs", how="left")
 
-    return data
+    return join_df
