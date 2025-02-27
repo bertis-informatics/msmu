@@ -123,7 +123,7 @@ def apply_filter(
     for mod in modality:
         mdata = _apply_filter(mdata, mod)
 
-    return mdata
+    return mdata.copy()
 
 
 def _apply_filter(
