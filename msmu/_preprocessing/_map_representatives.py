@@ -522,7 +522,7 @@ def _get_subsum_map(
         for protein in subsum_group:
             subsum_repr_map[protein] = subsum_group_name
 
-        subsum_memb_map[subsum_group_name] = ";".join(protein_names)
+        subsum_memb_map[subsum_group_name] = ";".join(subsum_group)
 
     return Mapping(repr=subsum_repr_map, memb=subsum_memb_map), removed_proteins
 
