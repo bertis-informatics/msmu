@@ -616,6 +616,7 @@ def _make_peptide_map(map_df: pd.DataFrame) -> pd.DataFrame:
         .drop_duplicates()
         .groupby("peptide", as_index=False, observed=False)["protein"]
         .agg(lambda x: ";".join(x))
+        .rename(columns={"protein": "protein_group"})
     )
 
     return peptide_map
