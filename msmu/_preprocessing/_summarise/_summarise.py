@@ -48,7 +48,9 @@ def to_peptide(
     merged_peptide_adata.var = merged_var.loc[merged_peptide_adata.var_names]
     merged_peptide_adata.uns["level"] = "peptide"
 
-    mdata:md.MuData = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=modality_dict.keys())
+    print(merged_peptide_adata)
+
+    mdata:md.MuData = add_modality(mdata=mdata, adata=merged_peptide_adata, mod_name="peptide", parent_mods=modality_dict.keys())
     mdata.push_obs()
     mdata.update_var()
 
