@@ -14,7 +14,7 @@ def _draw_histogram(
     fig = go.Figure()
 
     # Set options
-    hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info["width"] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
+    hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
     options = {
         "hovertemplate": hovertemplate,
         "text": None,
