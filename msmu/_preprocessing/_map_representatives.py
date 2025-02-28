@@ -40,12 +40,11 @@ def map_representatives(
     proteins = [protein for mod in mod_dict.values() for protein in mod.var[protein_colname]]
 
     # Get protein mapping information
-    peptide_map, protein_map, protein_info = get_protein_mapping(peptides, proteins)
+    peptide_map, protein_map = get_protein_mapping(peptides, proteins)
 
     # Store mapping information in MuData object
     mdata.uns["peptide_map"] = peptide_map
     mdata.uns["protein_map"] = protein_map
-    mdata.uns["protein_info"] = protein_info
 
     # Remap proteins and classify peptides
     for mod_name, _ in mod_dict.items():
@@ -93,7 +92,7 @@ def get_protein_mapping(
     map_df, subsum_map = _find_subsumable(map_df)
 
     # Get final output
-    peptide_map, protein_map, protein_info = _get_final_output(
+    peptide_map, protein_map = _get_final_output(
         map_df=map_df,
         initial_protein_df=initial_protein_df,
         indist_repr_map=indist_map["repr"],
@@ -101,7 +100,7 @@ def get_protein_mapping(
         subsum_repr_map=subsum_map["repr"],
     )
 
-    return peptide_map, protein_map, protein_info
+    return peptide_map, protein_map
 
 
 def _get_map_df(
@@ -601,34 +600,6 @@ def _select_canon_prot(protein_group: str) -> str:
     return ""
 
 
-def _classify_protein(
-    map_df: pd.DataFrame,
-) -> Tuple[list[str], list[str], list[str]]:
-    """
-    Group proteins into distinct, distinguishable, identical, and others.
-
-    Args:
-        map_df (pd.DataFrame): mapping information
-
-    Returns:
-        distinct_prots (list[str]): list of distinct proteins
-        distinguishable_prots (list[str]): list of distinguishable proteins
-    """
-    _, protein_df = _get_df(map_df)
-
-    distinct_mask = protein_df["shared_peptides"] == 0
-    distinguishable_mask = (protein_df["shared_peptides"] > 0) & (protein_df["unique_peptides"] > 0)
-
-    distinct_prots = protein_df.loc[distinct_mask, "protein"].tolist()
-    distinguishable_prots = protein_df.loc[distinguishable_mask, "protein"].tolist()
-
-    print(f"- Mapped proteins: {len(protein_df)}", flush=True)
-    print(f"  - Mapped distinct: {len(distinct_prots)}", flush=True)
-    print(f"  - Mapped distinguishable: {len(distinguishable_prots)}", flush=True)
-
-    return distinct_prots, distinguishable_prots
-
-
 def _make_peptide_map(map_df: pd.DataFrame) -> pd.DataFrame:
     """
     Create peptide mapping.
@@ -688,34 +659,6 @@ def _make_protein_map(
     return protein_map
 
 
-def _make_protein_info(map_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Create protein information.
-
-    Args:
-        map_df (pd.DataFrame): mapping information
-
-    Returns:
-        protein_info (pd.DataFrame): protein information
-    """
-    # Classify proteins
-    distinct_prots, distinguishable_prots = _classify_protein(map_df)
-
-    # Make protein information
-    protein = map_df["protein"].unique()
-
-    protein_info = pd.DataFrame(
-        {
-            "protein": protein,
-            "distinct": [p in distinct_prots for p in protein],
-            "distinguishable": [p in distinguishable_prots for p in protein],
-        }
-    )
-
-    # Return protein_info
-    return protein_info
-
-
 def _get_final_output(
     map_df: pd.DataFrame,
     initial_protein_df: pd.DataFrame,
@@ -749,7 +692,6 @@ def _get_final_output(
         subsum_repr_map=subsum_repr_map,
     )
 
-    # Get protein information
-    protein_info = _make_protein_info(map_df)
+    print("- Total protein groups:", map_df["protein"].nunique(), flush=True)
 
-    return peptide_map, protein_map, protein_info
+    return peptide_map, protein_map
