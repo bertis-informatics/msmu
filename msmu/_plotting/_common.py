@@ -106,6 +106,42 @@ def _draw_bar(
     return fig
 
 
+def _draw_stacked_bar(
+    traces: list[dict],
+    title_text: str,
+    xaxis_title: str,
+    yaxis_title: str,
+    legend_title_text: str = None,
+) -> go.Figure:
+    # Create figure
+    fig = go.Figure()
+
+    # Set hovertemplate
+    hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
+
+    # Set options
+    options = {
+        "hovertemplate": hovertemplate,
+    }
+
+    traces = _merge_traces(traces, options)
+
+    # Add traces
+    fig.add_traces([go.Bar(**trace) for trace in traces])
+
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+        legend=dict(traceorder="normal"),
+        legend_title_text=legend_title_text,
+        barmode="stack",
+    )
+
+    return fig
+
+
 def _draw_scatter(
     traces: list[dict],
     title_text: str,

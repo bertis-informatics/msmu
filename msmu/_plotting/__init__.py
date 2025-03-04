@@ -5,3 +5,4 @@ from ._id import plot_id
 from ._pca import plot_pca
 from ._umap import plot_umap
 from ._missingness import plot_missingness
+from ._charge import plot_charge
