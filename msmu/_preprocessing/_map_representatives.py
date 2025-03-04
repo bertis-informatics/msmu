@@ -49,7 +49,7 @@ def map_representatives(
     # Remap proteins and classify peptides
     for mod_name, _ in mod_dict.items():
         mdata[mod_name].var[protein_colname] = (
-            mdata[mod_name].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein"])
+            mdata[mod_name].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein_group"])
         )
         mdata[mod_name].var["peptide_type"] = [
             "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[mod_name].var["proteins"]
@@ -453,10 +453,10 @@ def _find_subsumable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
     """
     # Prepare dataframe and matrix
     peptide_df, protein_df = _get_df(map_df)
-    peptide_mat, _ = _get_matrix(map_df, peptide_df, protein_df)
+    peptide_mat, protein_mat = _get_matrix(map_df, peptide_df, protein_df)
 
     # Get subsum mappings
-    subsum_map, removed_proteins = _get_subsum_map(peptide_mat, protein_df)
+    subsum_map, removed_proteins = _get_subsum_map(peptide_mat, protein_mat, protein_df)
 
     # Remove subsumable proteins
     map_df = map_df[~map_df["protein"].isin(removed_proteins)].reset_index(drop=True)
@@ -473,6 +473,7 @@ def _find_subsumable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
 
 def _get_subsum_map(
     peptide_mat: np.ndarray,
+    protein_mat: np.ndarray,
     protein_df: pd.DataFrame,
 ) -> Mapping:
     """
@@ -493,14 +494,14 @@ def _get_subsum_map(
 
     # Get connections
     subsum_indices = protein_df.loc[protein_df["unique_peptides"] == 0].index
-    connections = _build_connection(peptide_mat, subsum_indices)
+    connections = _build_connection(protein_mat, subsum_indices)
 
     # Get mappings
-    for idx in range(len(connections)):
+    for protein_idx in connections:
         # Make a connection dataframe
-        protein_idx = np.array(connections[idx][0])
         protein_names = protein_df.loc[protein_idx, "protein"].values
-        connection_mat = peptide_mat[np.ix_(connections[idx][0], connections[idx][1])]
+        connection_mat = peptide_mat[protein_idx, :]
+        connection_mat = connection_mat[:, np.sum(connection_mat, axis=0) > 0]
 
         # Boolean mask that are subsumable
         is_subsumable = np.array([i in subsum_indices for i in protein_idx])
@@ -526,46 +527,25 @@ def _get_subsum_map(
     return Mapping(repr=subsum_repr_map, memb=subsum_memb_map), removed_proteins
 
 
-def _build_connection(array: np.ndarray, indices: list[int]) -> list[Tuple[list[int], list[int]]]:
+def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[Tuple[list[int], list[int]]]:
     """
     Build connections from peptide-protein matrix.
 
     Args:
-        array (np.ndarray): peptide-protein matrix
+        protein_mat (np.ndarray): protein-protein matrix
         indices (list[int]): list of indices
 
     Returns:
         connections (list[Tuple[list[int], list[int]]]): list of connections
     """
-    row_visited = set()
-    connections = []
+    np.fill_diagonal(protein_mat, 0)
+    protein_mat = protein_mat.astype(bool)
+    protein_mat_csr = sp.csr_matrix(protein_mat)
+    n_components, labels = sp.csgraph.connected_components(csgraph=protein_mat_csr, directed=False, return_labels=True)
+    components = [np.where(labels == i)[0].tolist() for i in range(n_components)]
+    connections = [comp for comp in components if (len(comp) > 1) & (any([i in indices for i in comp]))]
 
-    def add_row_indices(array, row_idx):
-        row_idx = np.int64(row_idx)
-
-        if row_idx not in row_visited:
-            row_visited.add(row_idx)
-            row_indices.append(row_idx)
-            for col_idx in np.where(array[row_idx, :] == 1)[0]:
-                add_col_indices(array, col_idx)
-
-    def add_col_indices(array, col_idx):
-        col_idx = np.int64(col_idx)
-        if col_idx not in col_indices:
-            col_indices.append(col_idx)
-            for row_idx in np.where(array[:, col_idx] == 1)[0]:
-                add_row_indices(array, row_idx)
-
-    for row_idx in indices:
-        row_indices = []
-        col_indices = []
-
-        if row_idx not in row_indices:
-            add_row_indices(array, row_idx)
-
-        connections.append((row_indices, col_indices))
-
-    return list(filter(lambda x: len(x[0]) > 1, connections))
+    return connections
 
 
 def _select_canon_prot(protein_group: str) -> str:
