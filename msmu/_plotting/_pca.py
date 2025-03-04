@@ -21,13 +21,14 @@ def plot_pca(
 ) -> go.Figure:
     # Set titles
     title_text = "PCA"
+    pcs, pc_columns = _get_pc_cols(mdata, modality, pcs)
     xaxis_title = f"{pc_columns[0]} ({mdata[modality].uns['pca']['variance_ratio'][pcs[0] - 1] * 100:.2f}%)"
     yaxis_title = f"{pc_columns[1]} ({mdata[modality].uns['pca']['variance_ratio'][pcs[1] - 1] * 100:.2f}%)"
 
     # Draw plot
-    pcs, pc_columns = _get_pc_cols(mdata, modality, pcs)
     data = _prep_pca_data(mdata, modality, pc_columns)
     traces: list[dict] = _get_traces(data, pc_columns[0], pc_columns[1], groupby)
+
     fig: go.Figure = _draw_scatter(
         traces=traces,
         title_text=title_text,
