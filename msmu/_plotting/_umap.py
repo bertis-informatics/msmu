@@ -1,12 +1,12 @@
-import pandas as pd
 import mudata as md
 import plotly.graph_objects as go
 
-from ._common import _draw_scatter
+from .__pdata import PlotData
+from .__ptypes import PlotScatter
 from ._template import DEFAULT_TEMPLATE
-from ._utils import _get_traces, _set_color
+from ._utils import _set_color
 
-DEFAULT_COLUMN = "obs"
+DEFAULT_COLUMN = "_obs_"
 
 
 def plot_umap(
@@ -17,26 +17,37 @@ def plot_umap(
     template: str = DEFAULT_TEMPLATE,
     **kwargs,
 ) -> go.Figure:
+    # Get required data
+    umap_columns = _get_umap_cols(mdata, modality)
+
     # Set titles
     title_text = "UMAP"
     xaxis_title = umap_columns[0]
     yaxis_title = umap_columns[1]
+    hovertemplate = "<b>%{meta}</b><br>" + xaxis_title + ": %{x}<br>" + yaxis_title + ": %{y}<extra></extra>"
 
     # Draw plot
-    umap_columns = _get_umap_cols(mdata, modality)
-    data = _prep_umap_data(mdata, modality, umap_columns)
-    traces: list[dict] = _get_traces(data, umap_columns[0], umap_columns[1], groupby)
-    fig: go.Figure = _draw_scatter(
-        traces=traces,
-        title_text=title_text,
-        xaxis_title=xaxis_title,
-        yaxis_title=yaxis_title,
+    data = PlotData(mdata, mods=[modality])
+    plot = PlotScatter(
+        data=data._prep_umap_data(modality, umap_columns),
+        x=umap_columns[0],
+        y=umap_columns[1],
+        name=groupby,
+        hovertemplate=hovertemplate,
     )
+    fig = plot.figure(mode="markers")
 
     # Update axis
     fig.update_yaxes(
         scaleanchor="x",
         scaleratio=1,
+    )
+
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
     )
 
     # Update layout with kwargs
@@ -68,18 +79,3 @@ def _get_umap_cols(
         raise ValueError(f"{umap_columns[1]} not found in {modality}")
 
     return umap_columns
-
-
-def _prep_umap_data(
-    mdata: md.MuData,
-    modality: str,
-    umap_columns: list[str],
-) -> pd.DataFrame:
-    obs = mdata.obs.copy()
-    obs[DEFAULT_COLUMN] = obs.index
-
-    # Prepare data
-    orig_df = mdata[modality].obsm["X_umap"][umap_columns].reset_index(names="_obs")
-    join_df = orig_df.join(obs, on="_obs", how="left")
-
-    return join_df

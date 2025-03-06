@@ -3,12 +3,12 @@ import pandas as pd
 import mudata as md
 import plotly.graph_objects as go
 
-from ._common import _draw_scatter
-from ._utils import _get_traces
+from .__pdata import PlotData
+from .__ptypes import PlotScatter
 from .._utils import get_modality_dict
 
 
-DEFAULT_COLUMN = "obs"
+DEFAULT_COLUMN = "_obs_"
 
 
 def plot_missingness(
@@ -20,31 +20,30 @@ def plot_missingness(
     # Set mods
     mods = list(get_modality_dict(mdata, level, modality).keys())
 
-    # Prepare data
-    data = _prep_missingness_data(mdata, mods)
-
-    # Get traceset
-    traces = _get_traces(data, "missingness", "ratio", "name", meta="count")
-
     # Set titles
-    mod_names = level.capitalize() if level is not None else modality.capitalize()
+    mod_names = (level or modality).capitalize()
     title_text = f"Missingness Inspection of {mod_names}"
     xaxis_title = "Missing value (%)"
     yaxis_title = f"Number of {mod_names} (%)"
+    hovertemplate = f"Missing value ≤ %{{x:.2f}}%<br>{yaxis_title} : %{{y:.2f}}% (%{{meta}})<extra></extra>"
 
     # Draw plot
-    fig: go.Figure = _draw_scatter(
-        traces=traces,
-        title_text=title_text,
-        xaxis_title=xaxis_title,
-        yaxis_title=yaxis_title,
-        mode="lines+markers",
-        hovertemplate=f"Missing value ≤ %{{x:.2f}}%<br>{yaxis_title} : %{{y:.2f}}% (%{{meta}})<extra></extra>",
-        line=dict(shape="hv"),
+    data = PlotData(mdata, mods=mods)
+    plot = PlotScatter(
+        data=data._prep_missingness_data(),
+        x="missingness",
+        y="ratio",
+        name="name",
+        meta="count",
+        hovertemplate=hovertemplate,
     )
+    fig = plot.figure(mode="lines+markers", line=dict(shape="hv"))
 
     # Update layout
     fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
         xaxis_range=[-2.5, 102.5],
         xaxis_tickvals=[0, 20, 40, 60, 80, 100],
         yaxis_range=[-2.5, 102.5],

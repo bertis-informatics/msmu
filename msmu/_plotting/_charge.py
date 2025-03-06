@@ -1,13 +1,12 @@
-import pandas as pd
 import mudata as md
 import plotly.graph_objects as go
 
-from ._common import _draw_stacked_bar
-from ._utils import _get_traces
+from .__pdata import PlotData
+from .__ptypes import PlotStackedBar
 from .._utils import get_modality_dict
 
 
-DEFAULT_COLUMN = "obs"
+DEFAULT_COLUMN = "_obs_"
 
 
 def plot_charge(
@@ -24,16 +23,25 @@ def plot_charge(
     title_text = "Number of PSMs by charge state"
     xaxis_title = "Samples"
     yaxis_title = "Number of PSMs"
+    hovertemplate = "Charge: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
     # Draw plot
-    data = _prep_charge_data(mdata, mods, groupby, "charge")
-    traces = _get_traces(data, groupby, "count", name="charge", meta="charge")
-    fig: go.Figure = _draw_stacked_bar(
-        traces=traces,
+    data = PlotData(mdata, mods=mods)
+    plot = PlotStackedBar(
+        data=data._prep_charge_data(groupby, "charge"),
+        x=groupby,
+        y="count",
+        name="charge",
+        meta="charge",
+        hovertemplate=hovertemplate,
+    )
+    fig = plot.figure()
+
+    # Update layout
+    fig.update_layout(
         title_text=title_text,
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
-        legend_title_text="Charge",
     )
 
     # Update layout with kwargs
@@ -42,29 +50,3 @@ def plot_charge(
     )
 
     return fig
-
-
-def _prep_charge_data(
-    mdata: md.MuData,
-    mods: list[str],
-    groupby: str,
-    name: str,
-) -> pd.DataFrame:
-    obs_df = mdata.obs.copy()
-    obs_df[DEFAULT_COLUMN] = obs_df.index
-
-    orig_df = pd.concat([mdata[mod].to_df() for mod in mods])
-    orig_var_df = pd.concat([mdata[mod].var for mod in mods])
-
-    merged_df = orig_df.notna().join(obs_df[groupby], how="left")
-    merged_df = merged_df.groupby(groupby, observed=True).any()
-
-    melt_df = merged_df.stack().reset_index()
-    melt_df.columns = [groupby, "_var", "_exists"]
-
-    prep_df = melt_df.merge(orig_var_df[[name]], left_on="_var", right_index=True)
-    prep_df = prep_df[prep_df["_exists"] > 0]
-    prep_df = prep_df.drop(["_var", "_exists"], axis=1)
-    prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
-
-    return prep_df

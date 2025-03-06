@@ -3,8 +3,8 @@ import pandas as pd
 import mudata as md
 import plotly.graph_objects as go
 
-from ._common import _draw_histogram, _draw_box
-from ._utils import _get_traces, _get_bin_info
+from .__pdata import PlotData
+from .__ptypes import PlotHistogram, PlotBox
 from .._utils import get_modality_dict
 
 
@@ -13,7 +13,7 @@ def plot_purity(
     level: str = None,
     modality: str = None,
     groupby: str = "filename",
-    plot: str = "hist",
+    ptype: str = "hist",
     bins: int = 50,
     **kwargs,
 ) -> go.Figure:
@@ -26,26 +26,25 @@ def plot_purity(
     yaxis_title = "Number of PSMs"
 
     # Draw plot
-    if plot in ["hist", "histogram"]:
-        data, bin_info = _prep_purity_data_hist(mdata, groupby, mods, bins)
-        traces = _get_traces(data, "center", "count", "name")
-        fig: go.Figure = _draw_histogram(
-            traces=traces,
-            title_text=title_text,
-            xaxis_title=xaxis_title,
-            yaxis_title=yaxis_title,
-            bin_info=bin_info,
+    if ptype in ["hist", "histogram"]:
+        data = PlotData(mdata, mods=mods)
+        data._prep_purity_data(groupby)
+        bin_info = data._get_bin_info(data.X["purity"], bins)
+        hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
+        plot = PlotHistogram(
+            data=data._prep_purity_data_hist(groupby, bins),
+            x="center",
+            y="count",
+            name="name",
+            hovertemplate=hovertemplate,
         )
-    elif plot == "box":
-        data = _prep_purity_data_box(mdata, groupby, mods)
-        traces = _get_traces(data)
-        fig: go.Figure = _draw_box(
-            traces=traces,
-            title_text=title_text,
-            xaxis_title=xaxis_title,
-        )
+        fig = plot.figure()
+    elif ptype == "box":
+        data = PlotData(mdata, mods=mods)
+        plot = PlotBox(data=data._prep_purity_data_box(groupby))
+        fig = plot.figure()
     else:
-        raise ValueError(f"Unknown plot type: {plot}, choose from 'hist|histogram', 'box'")
+        raise ValueError(f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'")
 
     # Add threshold line
     threshold = mdata[mods[0]].uns["filter"]["filter_purity"]
@@ -60,81 +59,19 @@ def plot_purity(
         ),
     )
 
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+    )
+
     # Update layout with kwargs
     fig.update_layout(
         **kwargs,
     )
 
     return fig
-
-
-def _prep_purity_data_hist(
-    mdata: md.MuData,
-    groupby: str = None,
-    mods: list[str] = None,
-    bins: int = 100,
-) -> pd.DataFrame:
-    # Prepare data
-    data = pd.concat([mdata[mod].var for mod in mods])
-    if groupby is not None:
-        data = data[[groupby, "purity"]]
-    else:
-        data = data[["purity"]]
-    data = data[data["purity"] >= 0]
-
-    # get bin data
-    bin_info = _get_bin_info(data["purity"], bins)
-
-    # Treat groupby
-    data["bin"] = pd.cut(data["purity"], bins=bin_info["edges"], labels=bin_info["labels"], include_lowest=True)
-    if groupby is not None:
-        grouped = data.groupby([groupby, "bin"], observed=True).size().unstack(fill_value=0)
-        bin_counts = grouped.values.flatten()
-        bin_frequencies = bin_counts / data.shape[0]
-        bin_names = grouped.index.get_level_values(0).repeat(bins).tolist()
-
-        # make dataframe
-        prepped = pd.DataFrame(
-            {
-                "center": bin_info["centers"] * len(grouped),
-                "label": bin_info["labels"] * len(grouped),
-                "count": bin_counts,
-                "frequency": bin_frequencies,
-                "name": bin_names,
-            }
-        )
-    else:
-        bin_counts = data["bin"].value_counts(sort=False).values
-        bin_frequencies = bin_counts / data.shape[0]
-
-        # make dataframe
-        prepped = pd.DataFrame(
-            {
-                "center": bin_info["centers"],
-                "label": bin_info["labels"],
-                "count": bin_counts,
-                "frequency": bin_frequencies,
-                "name": "Purity",
-            }
-        )
-    return prepped, bin_info
-
-
-def _prep_purity_data_box(
-    mdata: md.MuData,
-    groupby: str,
-    mods: list[str],
-) -> pd.DataFrame:
-    if groupby not in mdata[mods[0]].var.columns:
-        raise ValueError(f"{groupby} not in var columns")
-
-    # Prepare data
-    orig_df = pd.concat([mdata[mod].var for mod in mods])[[groupby, "purity"]]
-    orig_df[["purity"]] = orig_df[["purity"]][orig_df[["purity"]] >= 0]
-
-    prep_df = orig_df.groupby(groupby, observed=True).describe().droplevel(0, axis=1)
-
-    return prep_df
 
 
 def plot_purity_metrics(

@@ -1,13 +1,13 @@
-import pandas as pd
 import mudata as md
 import plotly.graph_objects as go
 
-from ._common import _draw_scatter
+from .__pdata import PlotData
+from .__ptypes import PlotScatter
 from ._template import DEFAULT_TEMPLATE
-from ._utils import _get_traces, _set_color
+from ._utils import _set_color
 
 
-DEFAULT_COLUMN = "obs"
+DEFAULT_COLUMN = "_obs_"
 
 
 def plot_pca(
@@ -19,27 +19,38 @@ def plot_pca(
     pcs: tuple[int, int] | list[int] = (1, 2),
     **kwargs,
 ) -> go.Figure:
+    # Get required data
+    pcs, pc_columns = _get_pc_cols(mdata, modality, pcs)
+    variances = mdata[modality].uns["pca"]["variance_ratio"]
+
     # Set titles
     title_text = "PCA"
-    pcs, pc_columns = _get_pc_cols(mdata, modality, pcs)
-    xaxis_title = f"{pc_columns[0]} ({mdata[modality].uns['pca']['variance_ratio'][pcs[0] - 1] * 100:.2f}%)"
-    yaxis_title = f"{pc_columns[1]} ({mdata[modality].uns['pca']['variance_ratio'][pcs[1] - 1] * 100:.2f}%)"
+    xaxis_title = f"{pc_columns[0]} ({variances[pcs[0] - 1] * 100:.2f}%)"
+    yaxis_title = f"{pc_columns[1]} ({variances[pcs[1] - 1] * 100:.2f}%)"
+    hovertemplate = "<b>%{meta}</b><br>" + xaxis_title + ": %{x}<br>" + yaxis_title + ": %{y}<extra></extra>"
 
     # Draw plot
-    data = _prep_pca_data(mdata, modality, pc_columns)
-    traces: list[dict] = _get_traces(data, pc_columns[0], pc_columns[1], groupby)
-
-    fig: go.Figure = _draw_scatter(
-        traces=traces,
-        title_text=title_text,
-        xaxis_title=xaxis_title,
-        yaxis_title=yaxis_title,
+    data = PlotData(mdata, mods=[modality])
+    plot = PlotScatter(
+        data=data._prep_pca_data(modality, pc_columns),
+        x=pc_columns[0],
+        y=pc_columns[1],
+        name=groupby,
+        hovertemplate=hovertemplate,
     )
+    fig = plot.figure(mode="markers")
 
     # Update axis
     fig.update_yaxes(
         scaleanchor="x",
         scaleratio=1,
+    )
+
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
     )
 
     # Update layout with kwargs
@@ -86,18 +97,3 @@ def _get_pc_cols(
         raise ValueError(f"{pc_columns[1]} not found in {modality}")
 
     return pcs, pc_columns
-
-
-def _prep_pca_data(
-    mdata: md.MuData,
-    modality: str,
-    pc_columns: list[str],
-) -> pd.DataFrame:
-    obs = mdata.obs.copy()
-    obs[DEFAULT_COLUMN] = obs.index
-
-    # Prepare data
-    orig_df = mdata[modality].obsm["X_pca"][pc_columns].reset_index(names="_obs")
-    join_df = orig_df.join(obs, on="_obs", how="left")
-
-    return join_df
