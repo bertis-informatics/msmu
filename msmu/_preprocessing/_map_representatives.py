@@ -490,7 +490,6 @@ def _get_subsum_map(
     subsum_repr_map = {}
     subsum_memb_map = {}
     removed_proteins = []
-    peptide_mat = peptide_mat.toarray()
 
     # Get connections
     subsum_indices = protein_df.loc[protein_df["unique_peptides"] == 0].index
@@ -500,7 +499,7 @@ def _get_subsum_map(
     for protein_idx in connections:
         # Make a connection dataframe
         protein_names = protein_df.loc[protein_idx, "protein"].values
-        connection_mat = peptide_mat[protein_idx, :]
+        connection_mat = peptide_mat[protein_idx, :].toarray()
         connection_mat = connection_mat[:, np.sum(connection_mat, axis=0) > 0]
 
         # Boolean mask that are subsumable
@@ -512,7 +511,7 @@ def _get_subsum_map(
         connection_mat = np.vstack([connection_mat_subsum, connection_mat_unique])
 
         # If there is no unique peptide, remove the protein
-        if np.all(np.sum(connection_mat[:, connection_mat[0] == 1], axis=0) != 1):
+        if np.all(connection_mat[:, connection_mat_subsum].sum(axis=0) != 1):
             [removed_proteins.append(p) for p in protein_names[is_subsumable]]
             continue
 
