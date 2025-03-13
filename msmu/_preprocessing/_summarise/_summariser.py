@@ -1,50 +1,60 @@
+import re
+from pathlib import Path
+
 import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
-import re
-from pathlib import Path
 from Bio import SeqIO
 
 
 class Summariser:
     def __init__(self, adata: ad.AnnData, from_: str, to_: str) -> None:
-        self._agg_dict: dict = dict()
         self._from: str = from_
         self._to: str = to_
         self._adata: ad.AnnData = adata.copy()
         self._obs: list[str] = adata.obs.index.tolist()
 
-    def summarise_data(self, data:pd.DataFrame, sum_method:str) -> pd.DataFrame:
-        concated_agg_dict:dict = self._concat_agg_dict_w_obs(sum_method=sum_method)
+        self._agg_dict: dict = dict()
+        self._rename_dict: dict[str, str] = dict()
+        self._col_to_groupby: str = ""
 
-        summarised_data:pd.DataFrame = data.groupby(self._col_to_groupby, observed=False).agg(concated_agg_dict)
+    def summarise_data(self, data: pd.DataFrame, sum_method: str) -> pd.DataFrame:
+        concated_agg_dict: dict = self._concat_agg_dict_w_obs(sum_method=sum_method)
 
-        summarised_data:pd.DataFrame = summarised_data.rename_axis(index=None)
-        summarised_data:pd.DataFrame = summarised_data.rename(columns=self._rename_dict)
+        summarised_data: pd.DataFrame = data.groupby(
+            self._col_to_groupby, observed=False
+        ).agg(concated_agg_dict)
+
+        summarised_data: pd.DataFrame = summarised_data.rename_axis(index=None)
+        summarised_data: pd.DataFrame = summarised_data.rename(
+            columns=self._rename_dict
+        )
 
         return summarised_data
 
-    def _concat_agg_dict_w_obs(self, sum_method:str) -> dict:
-        concat_agg_dict:dict = self._agg_dict.copy()
-        value_agg_dict:dict = {k: sum_method for k in self._obs}
+    def _concat_agg_dict_w_obs(self, sum_method: str) -> dict:
+        concat_agg_dict: dict = self._agg_dict.copy()
+        value_agg_dict: dict = {k: sum_method for k in self._obs}
         concat_agg_dict.update(value_agg_dict)
 
         return concat_agg_dict
 
-    def data2adata(self, data:pd.DataFrame) -> ad.AnnData:
-        var_cols:list[str] = [x for x in data.columns if x not in self._obs]
-        var_data:pd.DataFrame = data[var_cols]
-        arr_data:pd.DataFrame = data[self._obs].transpose()
+    def data2adata(self, data: pd.DataFrame) -> ad.AnnData:
+        var_cols: list[str] = [x for x in data.columns if x not in self._obs]
+        var_data: pd.DataFrame = data[var_cols]
+        arr_data: pd.DataFrame = data[self._obs].transpose()
 
-        adata:ad.AnnData = ad.AnnData(X=arr_data, var=var_data)
+        adata: ad.AnnData = ad.AnnData(X=arr_data, var=var_data)
         adata.uns["level"] = self._to
 
         return adata
 
 
 class PeptideSummariser(Summariser):
-    def __init__(self, adata:ad.AnnData, peptide_col:str, protein_col:str, from_:str) -> None:
+    def __init__(
+        self, adata: ad.AnnData, peptide_col: str, protein_col: str, from_: str
+    ) -> None:
         super().__init__(adata=adata, from_=from_, to_="peptide")
 
         self._col_to_groupby: str = peptide_col
@@ -82,18 +92,26 @@ class PeptideSummariser(Summariser):
             if col in adata.var.columns:
                 data[col] = adata.var[col]
 
-        peptide_count: pd.DataFrame = data[self._col_to_groupby].value_counts().to_frame("total_psm")
+        peptide_count: pd.DataFrame = (
+            data[self._col_to_groupby].value_counts().to_frame("total_psm")
+        )
 
-        data: pd.DataFrame = data.merge(peptide_count, left_on=self._col_to_groupby, right_index=True)
+        data: pd.DataFrame = data.merge(
+            peptide_count, left_on=self._col_to_groupby, right_index=True
+        )
 
         return data
 
     def rank_psm(self, data: pd.DataFrame, rank_method: str) -> pd.DataFrame:
         if rank_method == "max_intensity":
             data.loc[:, "max_intensity"] = data[self._obs].max(axis=1)
-            data.loc[:, "rank"] = data.groupby(self._col_to_groupby)["max_intensity"].rank(ascending=False)
+            data.loc[:, "rank"] = data.groupby(self._col_to_groupby)[
+                "max_intensity"
+            ].rank(ascending=False)
         else:
-            raise ValueError(f"Unknown rank method: {rank_method}. Please choose from ['max_intensity']")
+            raise ValueError(
+                f"Unknown rank method: {rank_method}. Please choose from ['max_intensity']"
+            )
 
         return data
 
@@ -120,7 +138,7 @@ class ProteinSummariser(Summariser):
         self._rename_dict: dict[str, str] = {"stripped_peptide": "num_peptides"}
 
     def get_data(self) -> pd.DataFrame:
-        adata:ad.AnnData = self._adata
+        adata: ad.AnnData = self._adata
         data: pd.DataFrame = adata.to_df().transpose()
 
         data[self._col_to_groupby] = adata.var[self._col_to_groupby]
@@ -141,103 +159,224 @@ class ProteinSummariser(Summariser):
         if "peptide_type" in data.columns:
             unique_data: pd.DataFrame = data[data["peptide_type"] == "unique"]
         else:
-            unique_data: pd.DataFrame = data[len(data["num_used_psm"].str.split(";")) == 1]
+            unique_data: pd.DataFrame = data[
+                len(data["num_used_psm"].str.split(";")) == 1
+            ]
 
         return unique_data
 
-    def filter_n_min_peptides(self, data: pd.DataFrame, min_n_peptides: int) -> pd.DataFrame:
+    def filter_n_min_peptides(
+        self, data: pd.DataFrame, min_n_peptides: int
+    ) -> pd.DataFrame:
         data = data[data["num_peptides"] >= min_n_peptides]
 
         return data
 
 
 class PtmSummariser(Summariser):
-    def __init__(self, mdata) -> None:
-        super().__init__(mdata=mdata)
-        self.agg_dict: dict[str, str|callable] = {
-            "protein_group": "first",
-            "stripped_peptide": "first",
+    def __init__(self, adata: ad.AnnData, protein_col: str = "protein_group") -> None:
+        super().__init__(adata=adata, from_="peptide", to_="ptm")
+
+        self._col_to_groupby: str = "protein_site"
+        self._col_to_label: str = protein_col
+
+        self._agg_dict: dict[str, str | Callable] = {
+            # self._col_to_label: "first",
+            "peptide": "nunique",
+            "num_used_psm": "sum",
+            "_prot_gr": "first",
         }
 
-        self.data: pd.DataFrame = self.mdata.mod["peptide"].var
-        self.arr = self.mdata.mod["peptide"].X.T
+        self._rename_dict: dict[str, str] = {
+            "peptide": "num_peptides",
+            # "_prot_gr": "protein_group",
+        }
 
-    def label_ptm_site(self, modification_mass: float, fasta_file: str | Path) -> pd.DataFrame:
-        fasta_dict:dict = self._read_fasta_seq(file=fasta_file)
+    def get_data(self) -> pd.DataFrame:
+        adata: ad.AnnData = self._adata
+        data: pd.DataFrame = adata.to_df().transpose()
 
-        mod_identifier = f"[+{modification_mass}]"
+        data[self._col_to_label] = adata.var[self._col_to_label]
+        data["stripped_peptide"] = adata.var["stripped_peptide"]
 
-        ptm_list:list = []
-        for idx, row in self.data.iterrows():
-            pep:str = idx
-            prot:list = row["protein_group"].split(";")
+        for col in ["repr_protein", "peptide_type"]:
+            if col in adata.var.columns:
+                data[col] = adata.var[col]
 
-            mod_sites:list = pep.split(mod_identifier)
-            mod_sites:list = mod_sites[:-1]
+        data["peptide"] = adata.var.index
+        data["total_psm"] = adata.var["total_psm"]
+        data["num_used_psm"] = adata.var["num_used_psm"]
 
-            sites:dict = dict()
-            site_pos:int = 0
-            for mod in mod_sites:
-                mod = "".join(filter(str.isalpha, mod))
-                site_pos = site_pos + len(mod)
-                sites[f"{mod[-1]}{site_pos}"] = []
+        return data
 
-            if len(sites) < 1:
-                continue
+    def label_ptm_site(
+        self, data: pd.DataFrame, modification_mass: float, fasta_file: str | Path
+    ) -> pd.DataFrame:
+        modi_identifier: str = f"[+{modification_mass}]"
 
-            stripped_peptide = "".join(filter(str.isalpha, pep))
-            for site, ls in sites.items():
-                aa:str = site[0]
-                pos:int = int(site[1:])
-                group:list = []
+        data = self._filter_modified(data=data, modi_identifier=modi_identifier)
 
-                for p in prot:
-                    res:list = []
-                    for pr in self._split_protein_group(p):
-                        if pr not in fasta_dict:
-                            continue
+        info_cols: list[str] = [x for x in data.columns if x not in self._obs]
+        ptm_info: pd.DataFrame = data[info_cols].copy()
+        ptm_info["peptide_site"] = ptm_info["peptide"].apply(
+            lambda x: self._get_mod_sites(x, modi_identifier)
+        )
 
-                        refseq:str = fasta_dict[pr]
-                        for match in re.finditer(stripped_peptide, refseq):
-                            res.append(f"{pr}|{aa}{pos + match.span()[0]}")
+        ptm_info["peptide_site"] = ptm_info["peptide_site"].apply(
+            lambda x: self._label_peptide_site(x)
+        )
+        ptm_info = self._explode_mod_site(ptm_info)
+        ptm_info = self._explode_protein_groups(ptm_info)
+        ptm_info = self._explode_protein_group(ptm_info)
 
-                    res:str = ";".join(res)
-                    if res:
-                        ls.append(res)
-                        group.append(p)
+        fasta_dict: dict = self._read_fasta_seq(file=fasta_file)
+        ptm_info["protein_site"] = ptm_info.apply(
+            lambda x: self._label_protein_site(
+                protein=x._prots,
+                peptide=x.stripped_peptide,
+                pep_site=x.peptide_site,
+                fasta_dict=fasta_dict,
+            ),
+            axis=1,
+        )
 
-                assert len(ls) == len(group), "Length does not match!"
+        ptm_info.to_csv(
+            "/Users/wook/Desktop/bertis/test/msm_norm_test/labeled.tsv", sep="\t"
+        )
 
-                ls:str = ",".join(ls)
-                group:str = ",".join(group)
+        ptm_info = self._implode_protein_group(ptm_info)
 
-                if ls:
-                    ptm_list.append(dict(Peptide=pep, Peptide_site=site, Phosphosite=ls, Phosphoprotein=group))
+        ptm_info.to_csv(
+            "/Users/wook/Desktop/bertis/test/msm_norm_test/imploded.tsv", sep="\t"
+        )
 
-        ptm_df:pd.DataFrame = pd.DataFrame(ptm_list)
+        peptide_value: pd.DataFrame = data[self._obs].copy()
+        peptide_value["peptide"] = peptide_value.index
+        ptm_data = pd.merge(ptm_info, peptide_value, how="left", on="peptide")
 
-        return ptm_df
+        ptm_data.to_csv(
+            "/Users/wook/Desktop/bertis/test/msm_norm_test/merged.tsv", sep="\t"
+        )
 
-    def _read_fasta_seq(self, file: Path) -> dict[str, str]:
-        result:dict[str, str] = dict()
+        # return ptm_info
+        return ptm_data
+
+    def _filter_modified(
+        self, data: pd.DataFrame, modi_identifier: str
+    ) -> pd.DataFrame:
+        regex_modi_identifier: str = re.escape(modi_identifier)
+
+        print(f"Total peptides: {len(data)}")
+        print(f"Modi identifier: {modi_identifier}")
+        data = data.loc[data["peptide"].str.contains(regex_modi_identifier)].copy()
+        print(f"Modified peptides: {len(data)}")
+
+        return data
+
+    def _get_mod_sites(self, pep: str, modi_identifier) -> list:
+        mod_sites: list = pep.split(modi_identifier)
+        mod_sites: list = mod_sites[:-1]
+
+        return mod_sites
+
+    def _label_peptide_site(self, mod_sites: list) -> list:
+        sites = list()
+        site_pos: int = 0
+        for mod in mod_sites:
+            mod = "".join(filter(str.isalpha, mod))
+            site_pos = site_pos + len(mod)
+            site = f"{mod[-1]}{site_pos}"
+            sites.append(site)
+
+        return sites
+
+    def _explode_mod_site(self, pep_labed_data: pd.DataFrame) -> pd.DataFrame:
+        pep_labed_data = pep_labed_data.explode("peptide_site", ignore_index=True)
+
+        return pep_labed_data
+
+    def _explode_protein_groups(self, pep_labed_data: pd.DataFrame) -> pd.DataFrame:
+        pep_labed_data["_prot_gr"] = pep_labed_data["protein_group"]
+        pep_labed_data["_prot_gr"] = pep_labed_data["_prot_gr"].str.split(";")
+        exploded_data = pep_labed_data.explode("_prot_gr", ignore_index=True)
+
+        return exploded_data
+
+    def _explode_protein_group(self, data) -> pd.DataFrame:
+        data["_prots"] = data["_prot_gr"]
+        data["_prots"] = data["_prots"].str.split(",")
+        exploded_data = data.explode("_prots", ignore_index=True)
+
+        return exploded_data
+
+    def _label_protein_site(
+        self, protein: str, peptide: str, pep_site: str, fasta_dict: dict
+    ) -> str:
+        aa: str = pep_site[0]
+        pos: int = int(pep_site[1:])
+        prot_site: str | None = None
+
+        res: list = list()
+        prot_split = self._get_uniprot(protein)
+
+        if prot_split in fasta_dict.keys():
+            refseq: str = fasta_dict[prot_split]
+            for match in re.finditer(peptide, refseq):
+                matched = f"{prot_split}|{aa}{pos + match.span()[0]}"
+                res.append(matched)
+            prot_site = "/".join(res)
+
+        return prot_site
+
+    def _implode_protein_group(self, data) -> pd.DataFrame:
+        data = (
+            data.groupby(["peptide", "peptide_site", "_prot_gr"], as_index=False)
+            .agg(
+                {
+                    "protein_group": "first",
+                    "stripped_peptide": "first",
+                    "total_psm": "sum",
+                    "num_used_psm": "sum",
+                    "protein_site": self._join_protein_group,
+                }
+            )
+            .copy()
+        )
+
+        return data
+
+    def _join_protein_group(self, protein_sites: pd.Series) -> str:
+        protein_sites: list = [x for x in protein_sites if x.strip()]
+        protein_sites_concated: str = ",".join(protein_sites)
+
+        return protein_sites_concated
+
+    def _implode_protein_groups(self, data) -> pd.DataFrame:
+        data = data.groupby(
+            ["peptide", "peptide_site", "protein_group"], as_index=False
+        ).agg(
+            {
+                "stripped_peptide": "first",
+                "total_psm": "sum",
+                "num_used_psm": "sum",
+                "protein_site": ";".join,
+                "repr_protein": "first",
+            }
+        )
+
+        return data
+
+    def _read_fasta_seq(self, file: str | Path) -> dict[str, str]:
+        result: dict[str, str] = dict()
         for record in SeqIO.parse(file, "fasta"):
-            ref_uniprot:list[str] = record.id.split("|")[1]
-            ref_seq:str= str(record.seq)
+            ref_uniprot: list[str] = record.id.split("|")[1]
+            ref_seq: str = str(record.seq)
             if ref_uniprot in result:
-                print("skipping:", record.description)
+                # print("skipping:", record.description)
                 continue
             result[ref_uniprot] = ref_seq
 
         return result
 
-    def _split_protein_group(self, protein_group: str) -> list[str]:
-        result:list[str] = protein_group.split(";")
-        for index, prot in enumerate(result):
-            result[index] = prot.split("|")[1]
-        return result
-
-    def summarise(self, ptm_data: pd.DataFrame, arr: np.ndarray, sum_method: str) -> pd.DataFrame:
-        pass
-
-    def _summarise_arr(self, arr: np.ndarray, sum_method: str) -> np.ndarray:
-        pass
+    def _get_uniprot(self, protein: str) -> str:
+        return protein.split("|")[1]
