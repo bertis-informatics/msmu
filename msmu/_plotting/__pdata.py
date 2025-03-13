@@ -17,10 +17,10 @@ class PlotData:
         self.kwargs = kwargs
 
     def _get_data(self):
-        return pd.concat([self.mdata[mod].to_df() for mod in self.mods])
+        return pd.concat([self.mdata[mod].to_df() for mod in self.mods]).copy()
 
     def _get_var(self):
-        return pd.concat([self.mdata[mod].var for mod in self.mods])
+        return pd.concat([self.mdata[mod].var for mod in self.mods]).copy()
 
     def _get_obs(self):
         obs_df = self.mdata.obs.copy()
@@ -258,3 +258,64 @@ class PlotData:
         prep_df = orig_df.groupby(groupby, observed=True).describe().droplevel(0, axis=1)
 
         return prep_df
+
+    def _prep_peptide_length_data(
+        self,
+        groupby: str,
+    ):
+        obs_df = self._get_obs()
+        var_df = self._get_var()
+        orig_df = self._get_data()
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        var_df["peptide_length"] = var_df["stripped_peptide"].str.len()
+        prep_df = melt_df.merge(var_df[["peptide_length"]], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+        prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
+
+        return prep_df
+
+    def _prep_missed_cleavage(
+        self,
+        groupby: str,
+    ):
+        obs_df = self._get_obs()
+        var_df = self._get_var()
+        orig_df = self._get_data()
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        var_df["missed_cleavage"] = var_df["missed_cleavages"]
+        prep_df = melt_df.merge(var_df[["missed_cleavage"]], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+        prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
+
+        return prep_df
+
+    def _prep_upset_data(
+        self,
+    ):
+        orig_df = self._get_data().T
+
+        # Get the binary representation of the sets
+        orig_df[orig_df.notna()] = 1
+        orig_df[orig_df.isna()] = 0
+        orig_df = orig_df.astype(int)
+        df_binary = orig_df.apply(lambda row: "".join(row.astype(str)), axis=1)
+
+        combination_counts = df_binary.sort_values(ascending=False).value_counts(sort=False).reset_index()
+        combination_counts.columns = ["combination", "count"]
+        item_counts = orig_df.sum()
+
+        return combination_counts, item_counts

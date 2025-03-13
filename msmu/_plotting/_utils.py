@@ -58,3 +58,56 @@ def _get_bin_info(data: pd.DataFrame, bins: int) -> dict:
         "centers": bin_centers,
         "labels": bin_labels,
     }
+
+
+def _get_pc_cols(
+    mdata: md.MuData,
+    modality: str,
+    pcs: tuple[int, int],
+) -> list[str]:
+    # Check pcs length
+    if len(pcs) != 2:
+        raise ValueError("Only 2 PCs are allowed")
+
+    # Check if pcs are integers
+    if not all(isinstance(pc, int) for pc in pcs):
+        raise ValueError("PCs must be integers")
+
+    # Sort pcs
+    if pcs[0] == pcs[1]:
+        pcs[1] += 1
+    elif pcs[0] > pcs[1]:
+        pcs = (pcs[1], pcs[0])
+
+    # Check if PCs exist
+    if "X_pca" not in mdata[modality].obsm:
+        raise ValueError(f"No PCA found in {modality}")
+
+    # Get PC columns
+    pc_columns = [f"PC_{pc}" for pc in pcs]
+
+    if pc_columns[0] not in mdata[modality].obsm["X_pca"].columns:
+        raise ValueError(f"{pc_columns[0]} not found in {modality}")
+    if pc_columns[1] not in mdata[modality].obsm["X_pca"].columns:
+        raise ValueError(f"{pc_columns[1]} not found in {modality}")
+
+    return pcs, pc_columns
+
+
+def _get_umap_cols(
+    mdata: md.MuData,
+    modality: str,
+) -> list[str]:
+    # Check if UMAP exist
+    if "X_umap" not in mdata[modality].obsm:
+        raise ValueError(f"No UMAP found in {modality}")
+
+    # Get UMAP columns
+    umap_columns = [f"UMAP_{pc}" for pc in [1, 2]]
+
+    if umap_columns[0] not in mdata[modality].obsm["X_umap"].columns:
+        raise ValueError(f"{umap_columns[0]} not found in {modality}")
+    if umap_columns[1] not in mdata[modality].obsm["X_umap"].columns:
+        raise ValueError(f"{umap_columns[1]} not found in {modality}")
+
+    return umap_columns

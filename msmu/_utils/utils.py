@@ -10,7 +10,7 @@ def get_modality_dict(
     """Get modality data from MuData object"""
 
     if (level == None) & (modality == None):
-        level = "psm"
+        raise ValueError("Either level or modality must be provided")
 
     if (level != None) & (modality != None):
         print("Both level and modality are provided. Using level prior to modality.")

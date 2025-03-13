@@ -71,6 +71,7 @@ def _add_msmu_template():
             "font": {"color": "rgb(36,36,36)"},
             "hoverlabel": {"align": "left"},
             "hovermode": "closest",
+            "margin": {"l": 20, "r": 20, "t": 60, "b": 20},
             "mapbox": {"style": "light"},
             "paper_bgcolor": "white",
             "plot_bgcolor": "white",
