@@ -6,7 +6,7 @@ from ._filter import (
     apply_filter,
 )
 from ._calculate_precursor_purity import calculate_precursor_purity
-from ._map_representatives import map_representatives, get_protein_mapping
+from ._map_representatives import map_representatives, get_protein_mapping, select_canon_prot
 
 from ._normalise._normalise import log2_transform, normalise, scale_data
 from ._summarise._summarise import to_peptide, to_protein, to_ptm_site
@@ -26,4 +26,5 @@ __all__ = [
     "to_ptm_site",
     "map_representatives",
     "get_protein_mapping",
+    "select_canon_prot",
 ]

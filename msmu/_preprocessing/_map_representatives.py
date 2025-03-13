@@ -56,7 +56,7 @@ def map_representatives(
         ]
         mdata[mod_name].var = mdata[mod_name].var.rename(columns={protein_colname: "protein_group"})
 
-        mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(_select_canon_prot)
+        mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(select_canon_prot)
 
     return mdata
 
@@ -547,7 +547,7 @@ def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[Tuple
     return connections
 
 
-def _select_canon_prot(protein_group: str) -> str:
+def select_canon_prot(protein_group: str) -> str:
     """
     Select canonical protein from protein list based on priority.
     canonical > swissprot > trembl > contam
