@@ -83,5 +83,7 @@ class TraceHistogram(Trace):
                 "x": self.data.columns,
                 "y": self.data.index,
                 "z": self.data.values,
+                "zmin": 0,
+                "zmax": 1,
             }
         ]
