@@ -505,7 +505,7 @@ def plot_upset(
 
     # Draw plot
     data = PlotData(mdata, mods=mods)
-    plot = PlotHeatmap(
+    plot = PlotUpset(
         data=data._prep_upset_data(),
     )
     fig = plot.figure()
