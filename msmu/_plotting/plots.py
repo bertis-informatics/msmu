@@ -254,6 +254,13 @@ def plot_pca(
         title_text=title_text,
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
+        legend=dict(
+            orientation="h",
+            xanchor="right",
+            yanchor="bottom",
+            x=1,
+            y=1,
+        ),
     )
 
     # Update layout with kwargs
@@ -373,8 +380,14 @@ def plot_umap(
         title_text=title_text,
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
+        legend=dict(
+            orientation="h",
+            xanchor="right",
+            yanchor="bottom",
+            x=1,
+            y=1,
+        ),
     )
-
     # Update layout with kwargs
     fig.update_layout(
         **kwargs,
