@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import mudata as md
+import itertools
 
 DEFAULT_COLUMN = "_obs_"
 
@@ -319,3 +320,18 @@ class PlotData:
         item_counts = orig_df.sum()
 
         return combination_counts, item_counts
+
+    def _prep_correlation_data(
+        self,
+    ):
+        corrs = []
+        orig_df = self._get_data().T
+
+        for x, y in itertools.combinations(orig_df.columns, 2):
+            corrs.append((x, y, (orig_df[x].corr(orig_df[y])) ** 2))
+
+        corrs_df = pd.DataFrame(corrs, columns=["x", "y", "corr"])
+        corrs_df = corrs_df.set_index(["y", "x"]).unstack()
+        corrs_df = corrs_df.droplevel(0, axis=1)
+
+        return corrs_df

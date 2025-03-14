@@ -505,10 +505,39 @@ def plot_upset(
 
     # Draw plot
     data = PlotData(mdata, mods=mods)
-
-    plot = PlotUpset(
+    plot = PlotHeatmap(
         data=data._prep_upset_data(),
     )
+    fig = plot.figure()
+
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+    )
+
+    # Update layout with kwargs
+    fig.update_layout(
+        **kwargs,
+    )
+
+    return fig
+
+
+def plot_correlation(
+    mdata: md.MuData,
+    level: str = "protein",
+    modality: str = None,
+    **kwargs,
+):
+    # Set mods
+    mods = list(get_modality_dict(mdata, level, modality).keys())
+
+    # Set titles
+    title_text = "Correlation Plot"
+
+    # Draw plot
+    data = PlotData(mdata, mods=mods)
+    plot = PlotHeatmap(data=data._prep_correlation_data())
     fig = plot.figure()
 
     # Update layout

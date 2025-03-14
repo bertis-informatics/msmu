@@ -67,3 +67,21 @@ class TraceDescribed(Trace):
             }
             for idx, row in self.data.iterrows()
         ]
+
+
+class TraceHistogram(Trace):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+    ):
+        self.data = data.copy()
+        self.traces = self._get_traces()
+
+    def _get_traces(self):
+        return [
+            {
+                "x": self.data.columns,
+                "y": self.data.index,
+                "z": self.data.values,
+            }
+        ]

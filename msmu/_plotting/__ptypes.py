@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from .__trace import Trace, TraceDescribed
+from .__trace import *
 
 
 class PlotTypes:
@@ -75,6 +75,22 @@ class PlotStackedBar(PlotTypes):
     def figure(self, **kwargs):
         self.layouts.update(dict(legend=dict(traceorder="normal"), barmode="stack"))
         return super().figure(go.Bar, **kwargs)
+
+
+class PlotHeatmap(PlotTypes):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+    ):
+        super().__init__(data)
+
+    def figure(self, **kwargs):
+        self.layouts.update(dict(yaxis=dict(autorange="reversed"))),
+        return super().figure(go.Heatmap, **kwargs)
+
+    def trace(self):
+        traces = TraceHistogram(data=self.data)
+        self.fig.add_traces([self.ptype(**trace) for trace in traces()])
 
 
 class PlotUpset(PlotTypes):
