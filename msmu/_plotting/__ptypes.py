@@ -121,9 +121,9 @@ class PlotUpset(PlotTypes):
     def trace(self):
         self.fig.add_trace(
             go.Bar(
-                x=self.combination_counts["combination"],
-                y=self.combination_counts["count"],
-                text=self.combination_counts["count"],
+                x=self.combination_counts["combination"].tolist(),
+                y=self.combination_counts["count"].tolist(),
+                text=self.combination_counts["count"].tolist(),
                 textposition="auto",
                 name="combination",
                 showlegend=False,

@@ -313,7 +313,7 @@ class PlotData:
         orig_df[orig_df.notna()] = 1
         orig_df[orig_df.isna()] = 0
         orig_df = orig_df.astype(int)
-        df_binary = orig_df.apply(lambda row: "".join(row.astype(str)), axis=1)
+        df_binary = orig_df.apply(lambda row: "".join(row.astype(str)), axis=0)
 
         combination_counts = df_binary.sort_values(ascending=False).value_counts(sort=False).reset_index()
         combination_counts.columns = ["combination", "count"]
