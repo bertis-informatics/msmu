@@ -19,6 +19,8 @@ dependencies = [
     "plotly",
     "pymzml",
     "statsmodels",
+    "scikit-learn",
+    "umap-learn",
 ]
 dynamic = ["version"]
 
