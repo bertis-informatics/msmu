@@ -1,3 +1,4 @@
+import json
 import mudata as md
 import plotly.graph_objects as go
 
@@ -10,6 +11,14 @@ from .._utils import get_modality_dict
 
 
 DEFAULT_COLUMN = "_obs_"
+
+
+def save_figure_data(fig: go.Figure, path: str) -> None:
+    data = fig.to_dict()
+    data.pop("layout")
+    with open(path, "w") as f:
+        json.dump(data, f, indent=4)
+    print(f"Data saved to {path}")
 
 
 def plot_charge(

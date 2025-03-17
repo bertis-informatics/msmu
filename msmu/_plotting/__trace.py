@@ -34,8 +34,8 @@ class Trace:
                 "x": group[self.x].values,
                 "y": group[self.y].values,
                 "name": name,
-                "meta": group[self.meta].values if self.meta is not None else name,
-                "text": group[self.text].values if self.text is not None else None,
+                "meta": group[self.meta].values.tolist() if self.meta is not None else name,
+                "text": group[self.text].values.tolist() if self.text is not None else None,
             }
             for name, group in grouped
         ]
