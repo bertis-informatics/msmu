@@ -31,8 +31,8 @@ class Trace:
         grouped = self.data.groupby(self.name, observed=True)
         return [
             {
-                "x": group[self.x].values,
-                "y": group[self.y].values,
+                "x": group[self.x].values.tolist(),
+                "y": group[self.y].values.tolist(),
                 "name": name,
                 "meta": group[self.meta].values.tolist() if self.meta is not None else name,
                 "text": group[self.text].values.tolist() if self.text is not None else None,
