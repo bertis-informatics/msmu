@@ -307,7 +307,7 @@ class PlotData:
     def _prep_upset_data(
         self,
     ):
-        orig_df = self._get_data().T
+        orig_df = self._get_data()
 
         # Get the binary representation of the sets
         orig_df[orig_df.notna()] = 1
