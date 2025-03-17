@@ -326,6 +326,7 @@ class PlotData:
     ):
         corrs = []
         orig_df = self._get_data().T
+        obs_df = self._get_obs()
 
         for x, y in itertools.combinations(orig_df.columns, 2):
             corrs.append((x, y, (orig_df[x].corr(orig_df[y])) ** 2))
@@ -333,5 +334,9 @@ class PlotData:
         corrs_df = pd.DataFrame(corrs, columns=["x", "y", "corr"])
         corrs_df = corrs_df.set_index(["y", "x"]).unstack()
         corrs_df = corrs_df.droplevel(0, axis=1)
+
+        corrs_df.columns = pd.CategoricalIndex(corrs_df.columns, categories=obs_df.index, ordered=False)
+        corrs_df.index = pd.CategoricalIndex(corrs_df.index, categories=obs_df.index, ordered=False)
+        corrs_df = corrs_df.sort_index(axis=0).sort_index(axis=1)
 
         return corrs_df
