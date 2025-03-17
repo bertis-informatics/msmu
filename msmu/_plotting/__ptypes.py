@@ -142,7 +142,7 @@ class PlotUpset(PlotTypes):
             for j, set_name in enumerate(sets):
                 self.fig.add_trace(
                     go.Scatter(
-                        x=[combination],
+                        x=[f"{combination}"],
                         y=[set_name],
                         mode="markers",
                         marker=dict(
@@ -159,9 +159,9 @@ class PlotUpset(PlotTypes):
 
         self.fig.add_trace(
             go.Bar(
-                x=self.item_counts,
-                y=self.item_counts.index,
-                text=self.item_counts,
+                x=self.item_counts.values.tolist(),
+                y=self.item_counts.index.tolist(),
+                text=self.item_counts.values.tolist(),
                 textposition="auto",
                 orientation="h",
                 showlegend=False,
