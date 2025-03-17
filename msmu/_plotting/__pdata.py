@@ -317,7 +317,7 @@ class PlotData:
 
         combination_counts = df_binary.sort_values(ascending=False).value_counts(sort=False).reset_index()
         combination_counts.columns = ["combination", "count"]
-        item_counts = orig_df.sum()
+        item_counts = orig_df.sum(axis=1)
 
         return combination_counts, item_counts
 
