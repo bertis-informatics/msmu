@@ -89,7 +89,7 @@ class PlotHeatmap(PlotTypes):
         return super().figure(go.Heatmap, **kwargs)
 
     def trace(self):
-        traces = TraceHistogram(data=self.data)
+        traces = TraceHeatmap(data=self.data)
         self.fig.add_traces([self.ptype(**trace) for trace in traces()])
 
 

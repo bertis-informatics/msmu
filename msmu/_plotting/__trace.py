@@ -69,7 +69,7 @@ class TraceDescribed(Trace):
         ]
 
 
-class TraceHistogram(Trace):
+class TraceHeatmap(Trace):
     def __init__(
         self,
         data: pd.DataFrame,
@@ -80,9 +80,9 @@ class TraceHistogram(Trace):
     def _get_traces(self):
         return [
             {
-                "x": self.data.columns,
-                "y": self.data.index,
-                "z": self.data.values,
+                "x": self.data.columns.tolist(),
+                "y": self.data.index.tolist(),
+                "z": self.data.values.tolist(),
                 "zmin": 0,
                 "zmax": 1,
             }
