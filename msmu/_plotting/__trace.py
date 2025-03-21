@@ -58,12 +58,13 @@ class TraceDescribed(Trace):
     def _get_traces(self):
         return [
             {
-                "y": [idx],
+                "x": [idx],
                 "lowerfence": [row["min"]],
                 "q1": [row["25%"]],
                 "median": [row["50%"]],
                 "q3": [row["75%"]],
                 "upperfence": [row["max"]],
+                "name": idx,
             }
             for idx, row in self.data.iterrows()
         ]
@@ -83,7 +84,24 @@ class TraceHeatmap(Trace):
                 "x": self.data.columns.tolist(),
                 "y": self.data.index.tolist(),
                 "z": self.data.values.tolist(),
-                "zmin": 0,
+                "zmin": -1,
                 "zmax": 1,
+            }
+        ]
+
+
+class TracePie(Trace):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+    ):
+        self.data = data.copy()
+        self.traces = self._get_traces()
+
+    def _get_traces(self):
+        return [
+            {
+                "labels": self.data.index.tolist(),
+                "values": self.data.values.tolist(),
             }
         ]

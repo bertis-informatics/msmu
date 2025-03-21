@@ -14,6 +14,7 @@ def _set_templates():
 def _add_msmu_template():
     pio.templates["msmu"] = go.layout.Template(
         layout={
+            "autotypenumbers": "strict",
             "colorway": [
                 "#4E79A7",
                 "#F28E2B",
@@ -26,14 +27,14 @@ def _add_msmu_template():
                 "#9C755F",
                 "#BAB0AC",
             ],
-            "font": {"color": "rgb(36,36,36)", "family": "Pretendard Variable, Arial, sans-serif"},
+            "font": {"color": "rgb(36,36,36)"},
             "hoverlabel": {"align": "left"},
             "hovermode": "closest",
             "margin": {"l": 20, "r": 20, "t": 60, "b": 20},
             "mapbox": {"style": "light"},
             "paper_bgcolor": "white",
             "plot_bgcolor": "white",
-            "title": {"x": 0.05},
+            "title": {"x": 0, "xanchor": "left", "xref": "container", "pad": {"l": 16}},
             "xaxis": {
                 "automargin": True,
                 "gridcolor": None,

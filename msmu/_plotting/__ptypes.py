@@ -53,12 +53,13 @@ class PlotBar(PlotTypes):
 
 class PlotBox(PlotTypes):
     def figure(self, **kwargs):
+        self.layouts.update(dict(xaxis=dict(showticklabels=False)))
         return super().figure(go.Box, **kwargs)
 
     def trace(self):
         traces = TraceDescribed(data=self.data)
         self.fig.add_traces([self.ptype(**trace) for trace in traces()])
-        self.fig.update_traces(boxpoints=False, orientation="h", hoverinfo="x", showlegend=False)
+        self.fig.update_traces(boxpoints=False, hoverinfo="y")
 
 
 class PlotHistogram(PlotTypes):
@@ -182,3 +183,13 @@ class PlotUpset(PlotTypes):
         self.fig.update_yaxes(side="right", showticklabels=True, row=2, col=2)
 
         self.fig.update_layout(**kwargs)
+
+
+class PlotPie(PlotTypes):
+    def figure(self, **kwargs):
+        return super().figure(go.Pie, **kwargs)
+
+    def trace(self):
+        traces = TracePie(data=self.data)
+        self.fig.add_traces([self.ptype(**trace) for trace in traces()])
+        self.fig.update_traces(hoverinfo="label+percent+name", textinfo="percent", textposition="inside")

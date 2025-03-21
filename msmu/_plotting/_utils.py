@@ -28,6 +28,16 @@ def _set_color(
         if hasattr(trace, "line"):
             trace.line.color = colormap[trace.name]
 
+    order_dict = {value: index for index, value in enumerate(mdata.obs[colorby].unique())}
+    fig.data = tuple(
+        sorted(
+            fig.data,
+            key=lambda trace: order_dict.get(
+                mdata.obs.loc[mdata.obs["sample"] == trace.name][colorby].values[0], float("inf")
+            ),
+        )
+    )
+
     return fig
 
 
