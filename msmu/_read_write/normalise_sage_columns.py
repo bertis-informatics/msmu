@@ -26,6 +26,7 @@ def normalise_sage_columns(sage_result_df):
         "filename",
         "scan_num",
         "charge",
+        "missed_cleavages",
         "spectrum_q",
         "peptide_q",
         "protein_q",
@@ -37,9 +38,7 @@ def normalise_sage_columns(sage_result_df):
         normalised_sage_result_df["modifications"],
     ) = zip(*sage_result_df["peptide"].apply(lambda x: make_peptide(x)))
 
-    normalised_sage_result_df["observed_mz"] = (
-        sage_result_df["expmass"] / sage_result_df["charge"]
-    )
+    normalised_sage_result_df["observed_mz"] = sage_result_df["expmass"] / sage_result_df["charge"]
 
     return normalised_sage_result_df
 
