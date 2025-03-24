@@ -21,6 +21,11 @@ class PlotData:
     def _get_var(self):
         return pd.concat([self.mdata[mod].var for mod in self.mods]).copy()
 
+    def _get_varm(self, column: str):
+        var_df = self._get_var()
+        varm_df = pd.concat([self.mdata[mod].varm[column] for mod in self.mods]).copy()
+        return pd.concat([var_df, varm_df], axis=1)
+
     def _get_obs(self):
         obs_df = self.mdata.obs.copy()
         obs_df = obs_df.sort_values(["condition", "sample"])
@@ -369,11 +374,28 @@ class PlotData:
 
         return corrs_df
 
-    def _prep_filter_metrics_data(
+    def _prep_purity_metrics_data(
         self,
     ):
-        metrics = self.mdata.filter_metrics
-        metrics_df = pd.DataFrame(metrics).T
-        metrics_df = metrics_df.reset_index().rename(columns={"index": "metric"})
+        varm_df = self._get_varm("filter")
 
-        return metrics_df
+        # Define conditions and choices for purity_result
+        conditions = [
+            varm_df["filter_purity"] == True,
+            (varm_df["filter_purity"] == False) & (varm_df["purity"] >= 0),
+            varm_df["purity"] == -1,
+            varm_df["purity"] == -2,
+        ]
+        choices = [
+            "High purity",
+            "Low purity",
+            "No isotope peak",
+            "No isolation peak",
+        ]
+        varm_df["purity_metrics"] = np.select(condlist=conditions, choicelist=choices, default="Unknown")
+
+        df = varm_df.groupby(["purity_metrics", "filename"]).size().reset_index(name="count")
+        df["purity_metrics"] = pd.Categorical(df["purity_metrics"], categories=choices)
+        df = df.sort_values(["filename", "purity_metrics"]).reset_index(drop=True)
+
+        return df

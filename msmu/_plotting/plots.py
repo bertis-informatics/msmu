@@ -589,31 +589,44 @@ def plot_correlation(
     return fig
 
 
-def plot_filter_metrics(
+def plot_purity_metrics(
     mdata: md.MuData,
-    level: str = "protein",
     **kwargs,
 ):
     # Set mods
+    level: str = "psm"
     mods = list(get_modality_dict(mdata, level).keys())
 
     # Set titles
-    title_text = "Filtered PSMs"
+    title_text = "Precursor Isolation Purity Metrics"
+    xaxis_title = "Raw Filenames"
+    yaxis_title = "Number of PSMs"
 
     # Draw plot
+    hovertemplate = "<b>%{x}</b><br>Category: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
     data = PlotData(mdata, mods=mods)
-    plot = PlotHeatmap(data=data._prep_filter_metrics_data())
-    fig = plot.figure()
-
-    fig.update_traces(
-        dict(
-            colorbar_title_text="Filters",
-        )
+    plot = PlotStackedBar(
+        data=data._prep_purity_metrics_data(),
+        x="filename",
+        y="count",
+        name="purity_metrics",
+        meta="purity_metrics",
+        hovertemplate=hovertemplate,
     )
+    fig = plot.figure()
 
     # Update layout
     fig.update_layout(
         title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+        legend=dict(
+            orientation="h",
+            xanchor="right",
+            yanchor="bottom",
+            x=1,
+            y=1,
+        ),
     )
 
     # Update layout with kwargs
