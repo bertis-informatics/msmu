@@ -199,7 +199,7 @@ def plot_missingness(
     # Set titles
     title_text = f"{format_level(level)} Level"
     xaxis_title = "Data Completeness (%)"
-    yaxis_title = f"Proportion of {format_level(level)} (%)"
+    yaxis_title = f"Cumulative proportion of {format_level(level)} (%)"
     hovertemplate = f"Data Completeness ≤ %{{x:.2f}}%<br>{yaxis_title} : %{{y:.2f}}% (%{{meta}})<extra></extra>"
 
     # Draw plot
@@ -259,6 +259,7 @@ def plot_pca(
         x=pc_columns[0],
         y=pc_columns[1],
         name=groupby,
+        meta=DEFAULT_COLUMN,
         hovertemplate=hovertemplate,
     )
     fig = plot.figure(mode="markers")
