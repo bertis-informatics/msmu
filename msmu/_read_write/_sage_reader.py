@@ -1,6 +1,7 @@
 import warnings
 from pathlib import Path
 from types import NoneType
+import json
 
 import anndata as ad
 import mudata as md
@@ -56,6 +57,11 @@ class SageReader(Reader):
 
         return sage_quant_df
 
+    def _read_sage_config(self) -> dict:
+        sage_config = json.load(open(self._sage_json, "r"))
+
+        return sage_config
+
     def _make_psm_index(self, data: pd.DataFrame) -> pd.DataFrame:
         df = data.copy()
 
@@ -79,12 +85,14 @@ class SageReader(Reader):
         return renamed_sage_quant_df
 
     def _validate_sage_outputs(self) -> None:
-        assert Path.exists(self._sage_result), f"{self._sage_result} is not exists!"
-        assert Path.exists(self._sage_quant), f"{self._sage_quant} is not exists!"
+        assert Path.exists(self._sage_result), f"{self._sage_result} does not exist!"
+        assert Path.exists(self._sage_quant), f"{self._sage_quant} does not exist!"
+        assert Path.exists(self._sage_json), f"{self._sage_json} does not exist!"
 
     def _get_sage_outputs(self) -> None:
         self._sage_result: Path = self._sage_output_dir / "results.sage.tsv"
         self._sage_quant: Path = self._sage_output_dir / f"{self._label}.tsv"
+        self._sage_json: Path = self._sage_output_dir / "results.json"
 
     def _make_raname_dict(self, sage_quant_df) -> dict: ...
 
@@ -92,18 +100,16 @@ class SageReader(Reader):
         return pd.DataFrame(), pd.DataFrame()
 
     def _normalise_columns(self, sage_result_df):
-        normalised_sage_result_df = normalise_sage_columns(
-            sage_result_df=sage_result_df
-        )
+        normalised_sage_result_df = normalise_sage_columns(sage_result_df=sage_result_df)
 
         return normalised_sage_result_df
 
-    def _sage2mdata(self, sage_result_df, sage_quant_df) -> md.MuData: ...
+    def _sage2mdata(self, sage_result_df, sage_quant_df, sage_config) -> md.MuData: ...
 
     def read(self) -> md.MuData:
-        sage_result_df, sage_quant_df = self._import_sage()
+        sage_result_df, sage_quant_df, sage_config = self._import_sage()
         mdata: md.MuData = self._sage2mdata(
-            sage_result_df=sage_result_df, sage_quant_df=sage_quant_df
+            sage_result_df=sage_result_df, sage_quant_df=sage_quant_df, sage_config=sage_config
         )
 
         return mdata
@@ -137,9 +143,7 @@ class TmtSageReader(SageReader):
     def _read_sage_quant(self) -> pd.DataFrame:
         sage_quant_df = super()._read_sage_quant()
         sage_quant_df = self._make_psm_index(data=sage_quant_df)
-        sage_quant_df = sage_quant_df.drop(
-            ["filename", "scannr", "ion_injection_time", "scan_num"], axis=1
-        )
+        sage_quant_df = sage_quant_df.drop(["filename", "scannr", "ion_injection_time", "scan_num"], axis=1)
 
         return sage_quant_df
 
@@ -158,7 +162,7 @@ class TmtSageReader(SageReader):
         annotation_dict: dict = dict()
         if isinstance(self._channel, NoneType):
             print(
-                '[WARNING] TMT Channels are not provied as argument "channel". Quantifiation columns will be renamed with in an order of sample_name list.'
+                '[WARNING] TMT Channels are not provied as argument "channel". Quantifiation columns will be renamed as an order of sample_name list.'
             )
             channel_list: list = tmt_labels
         else:
@@ -185,11 +189,11 @@ class TmtSageReader(SageReader):
         sage_quant_df = sage_quant_df.loc[sage_result_df.index,]
         sage_quant_df = self._rename_samples(sage_quant_df=sage_quant_df)
 
-        return sage_result_df, sage_quant_df
+        sage_config = self._read_sage_config()
 
-    def _sage2mdata(
-        self, sage_result_df: pd.DataFrame, sage_quant_df: pd.DataFrame
-    ) -> md.MuData:
+        return sage_result_df, sage_quant_df, sage_config
+
+    def _sage2mdata(self, sage_result_df: pd.DataFrame, sage_quant_df: pd.DataFrame, sage_config: dict) -> md.MuData:
         adata = ad.AnnData(sage_quant_df.T)
         adata.var = self._normalise_columns(sage_result_df=sage_result_df)
 
@@ -197,6 +201,7 @@ class TmtSageReader(SageReader):
         adata.uns["level"] = "psm"
         adata.uns["label"] = self._label
         adata.uns["sage_output_dir"] = str(self._sage_output_dir)
+        adata.uns["sage_config"] = sage_config
 
         mdata = md.MuData({"psm": adata})
 
@@ -222,9 +227,7 @@ class LfqSageReader(SageReader):
     def _read_sage_quant(self) -> pd.DataFrame:
         sage_quant_df = super()._read_sage_quant()
         sage_quant_df = sage_quant_df.set_index("peptide", drop=True)
-        sage_quant_df = sage_quant_df.drop(
-            ["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1
-        )
+        sage_quant_df = sage_quant_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)
 
         return sage_quant_df
 
@@ -239,7 +242,9 @@ class LfqSageReader(SageReader):
         sage_quant_df = self._read_sage_quant()
         sage_quant_df = self._rename_samples(sage_quant_df=sage_quant_df)
 
-        return column_normalised_sage_result_df, sage_quant_df
+        sage_config = self._read_sage_config()
+
+        return column_normalised_sage_result_df, sage_quant_df, sage_config
 
     def _rename_samples(self, sage_quant_df) -> pd.DataFrame:
         return super()._rename_samples(sage_quant_df)
@@ -269,16 +274,15 @@ class LfqSageReader(SageReader):
 
         return rename_dict
 
-    def _sage2mdata(self, sage_result_df, sage_quant_df) -> md.MuData:
-        empty_psm_mtx = pd.DataFrame(
-            index=sage_result_df.index, columns=sage_quant_df.columns
-        )
+    def _sage2mdata(self, sage_result_df, sage_quant_df, sage_config) -> md.MuData:
+        empty_psm_mtx = pd.DataFrame(index=sage_result_df.index, columns=sage_quant_df.columns)
         adata_psm = ad.AnnData(empty_psm_mtx.T)
         adata_psm.var = self._normalise_columns(sage_result_df=sage_result_df)
         adata_psm.varm["search_result"] = sage_result_df
         adata_psm.uns["level"] = "psm"
         adata_psm.uns["label"] = self._label
         adata_psm.uns["search_output_dir"] = self._sage_output_dir
+        adata_psm.uns["sage_config"] = sage_config
 
         adata_peptide = ad.AnnData(sage_quant_df.T)
         adata_peptide.uns["level"] = "peptide"
