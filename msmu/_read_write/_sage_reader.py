@@ -36,20 +36,20 @@ class SageReader(Reader):
         label: str | None = None,
     ) -> None:
         super().__init__()
-        self._search_engine: str = "Sage"
-        self._label: str | None = label
-        self._sage_output_dir: Path = Path(sage_output_dir).absolute()
-        self._sample_name: list[str] = sample_name
-        self._channel: list[str] | None = channel
-        self._filename: list[str] | None = filename
+        self._search_engine = "Sage"
+        self._label = label
+        self._sage_output_dir = Path(sage_output_dir).absolute()
+        self._sample_name = sample_name
+        self._channel = channel
+        self._filename = filename
 
         self._get_sage_outputs()
         self._validate_sage_outputs()
 
     def _get_sage_outputs(self) -> None:
-        self._sage_result: Path = self._sage_output_dir / "results.sage.tsv"
-        self._sage_quant: Path = self._sage_output_dir / f"{self._label}.tsv"
-        self._sage_json: Path = self._sage_output_dir / "results.json"
+        self._sage_result = self._sage_output_dir / "results.sage.tsv"
+        self._sage_quant = self._sage_output_dir / f"{self._label}.tsv"
+        self._sage_json = self._sage_output_dir / "results.json"
 
     def _validate_sage_outputs(self) -> None:
         for file_path in [self._sage_result, self._sage_quant, self._sage_json]:
@@ -146,7 +146,6 @@ class TmtSageReader(SageReader):
 
         sage_quant_df = self._read_sage_quant()
         sage_quant_df = sage_quant_df.loc[sage_result_df.index,]
-        sage_quant_df = self._rename_samples(sage_quant_df)
 
         sage_config = self._read_sage_config()
 
@@ -158,7 +157,8 @@ class TmtSageReader(SageReader):
         sage_quant_df: pd.DataFrame,
         sage_config: dict,
     ) -> md.MuData:
-        adata = ad.AnnData(sage_quant_df.T)
+        rename_dict = self._make_rename_dict(sage_quant_df)
+        adata = ad.AnnData(sage_quant_df.rename(columns=rename_dict).T)
         adata.var = self._normalise_columns(sage_result_df)
         adata.varm["search_result"] = sage_result_df
         adata.uns.update(
