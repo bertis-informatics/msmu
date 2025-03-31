@@ -31,11 +31,11 @@ class Trace:
         grouped = self.data.groupby(self.name, observed=True)
         return [
             {
-                "x": group[self.x].values,
-                "y": group[self.y].values,
+                "x": group[self.x].values.tolist(),
+                "y": group[self.y].values.tolist(),
                 "name": name,
-                "meta": group[self.meta].values if self.meta is not None else name,
-                "text": group[self.text].values if self.text is not None else None,
+                "meta": group[self.meta].values.tolist() if self.meta is not None else name,
+                "text": group[self.text].values.tolist() if self.text is not None else None,
             }
             for name, group in grouped
         ]
@@ -58,12 +58,50 @@ class TraceDescribed(Trace):
     def _get_traces(self):
         return [
             {
-                "y": [idx],
+                "x": [idx],
                 "lowerfence": [row["min"]],
                 "q1": [row["25%"]],
                 "median": [row["50%"]],
                 "q3": [row["75%"]],
                 "upperfence": [row["max"]],
+                "name": idx,
             }
             for idx, row in self.data.iterrows()
+        ]
+
+
+class TraceHeatmap(Trace):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+    ):
+        self.data = data.copy()
+        self.traces = self._get_traces()
+
+    def _get_traces(self):
+        return [
+            {
+                "x": self.data.columns.tolist(),
+                "y": self.data.index.tolist(),
+                "z": self.data.values.tolist(),
+                "zmin": -1,
+                "zmax": 1,
+            }
+        ]
+
+
+class TracePie(Trace):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+    ):
+        self.data = data.copy()
+        self.traces = self._get_traces()
+
+    def _get_traces(self):
+        return [
+            {
+                "labels": self.data.index.tolist(),
+                "values": self.data.values.tolist(),
+            }
         ]

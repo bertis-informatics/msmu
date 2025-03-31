@@ -89,7 +89,11 @@ def get_protein_mapping(
     map_df, subset_map = _find_subsettable(map_df)
 
     # Find subsumable proteins
-    map_df, subsum_map = _find_subsumable(map_df)
+    map_df, subsum_map, removed_proteins = _find_subsumable(map_df)
+    removed_proteins = [p for p2 in removed_proteins for p in p2.split(",")]
+    initial_protein_df = initial_protein_df[~initial_protein_df["protein"].isin(removed_proteins)].reset_index(
+        drop=True
+    )
 
     # Get final output
     peptide_map, protein_map = _get_final_output(
@@ -468,7 +472,7 @@ def _find_subsumable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
     removed_subsumables = len(subsum_map["repr"]) - len(subsum_map["memb"]) + len(removed_proteins)
     print(f"- Removed subsumable: {removed_subsumables}", flush=True)
 
-    return map_df, subsum_map
+    return map_df, subsum_map, removed_proteins
 
 
 def _get_subsum_map(

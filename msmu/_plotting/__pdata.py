@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 import mudata as md
-
-DEFAULT_COLUMN = "_obs_"
+import itertools
 
 
 class PlotData:
@@ -22,12 +21,20 @@ class PlotData:
     def _get_var(self):
         return pd.concat([self.mdata[mod].var for mod in self.mods]).copy()
 
+    def _get_varm(self, column: str):
+        var_df = self._get_var()
+        varm_df = pd.concat([self.mdata[mod].varm[column] for mod in self.mods]).copy()
+        return pd.concat([var_df, varm_df], axis=1)
+
     def _get_obs(self):
         obs_df = self.mdata.obs.copy()
-        obs_df[DEFAULT_COLUMN] = obs_df.index
+        obs_df = obs_df.sort_values(["condition", "sample"])
+        obs_df["sample"] = obs_df["sample"].cat.remove_unused_categories()
+        obs_df["sample"] = obs_df["sample"].cat.reorder_categories(obs_df["sample"].values.tolist())
+
         return obs_df
 
-    def _prep_charge_data(
+    def _prep_var_data(
         self,
         groupby: str,
         name: str,
@@ -46,7 +53,12 @@ class PlotData:
         prep_df = melt_df.merge(var_df[[name]], left_on="_var", right_index=True)
         prep_df = prep_df[prep_df["_exists"] > 0]
         prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+
         prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
+        prep_df[groupby] = prep_df[groupby].values.tolist()
+
+        prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
+        prep_df = prep_df.sort_values(groupby)
 
         return prep_df
 
@@ -62,6 +74,8 @@ class PlotData:
 
         prep_df = pd.DataFrame(melt_df.groupby(groupby, observed=True)["_count"].mean(), columns=["_count"]).T
         prep_df = prep_df.melt(var_name=groupby, value_name="_count").dropna()
+        prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
+        prep_df = prep_df.sort_index(axis=0)
 
         return prep_df
 
@@ -76,8 +90,6 @@ class PlotData:
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         melt_df = melt_df.join(obs_df, on="_obs", how="left")
 
-        # self.bin_info = self._get_bin_info(melt_df["_value"], bins)
-
         melt_df["_bin_"] = pd.cut(
             melt_df["_value"],
             bins=self.bin_info["edges"],
@@ -87,6 +99,8 @@ class PlotData:
 
         grouped = melt_df.groupby([groupby, "_bin_"], observed=False).size().unstack(fill_value=0)
         grouped = grouped[grouped.sum(axis=1) > 0]
+        grouped.index = pd.CategoricalIndex(grouped.index, categories=obs_df[groupby].unique())
+        grouped = grouped.sort_index(axis=0)
 
         bin_counts = grouped.values.flatten()
         bin_freqs = bin_counts / melt_df.shape[0]
@@ -102,6 +116,7 @@ class PlotData:
                 "name": bin_names,
             }
         )
+        prepped["name"] = pd.Categorical(prepped["name"], categories=obs_df[groupby].unique())
 
         return prepped
 
@@ -130,10 +145,13 @@ class PlotData:
     ) -> pd.DataFrame:
         obs_df = self._get_obs()
         orig_df = pd.concat([self.mdata[mod].to_df() for mod in self.mods]).T
+
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         join_df = melt_df.join(obs_df, on="_obs", how="left")
 
         prep_df = join_df[[groupby, "_value"]].groupby(groupby, observed=True).describe().droplevel(level=0, axis=1)
+        prep_df.index = pd.CategoricalIndex(prep_df.index, categories=obs_df[groupby].unique())
+        prep_df = prep_df.sort_index(axis=0)
 
         return prep_df
 
@@ -162,26 +180,30 @@ class PlotData:
     def _prep_pca_data(
         self,
         modality: str,
+        groupby: str,
         pc_columns: list[str],
     ) -> pd.DataFrame:
         obs = self._get_obs()
 
         # Prepare data
-        orig_df = self.mdata[modality].obsm["X_pca"][pc_columns].reset_index(names="_obs")
-        join_df = orig_df.join(obs, on="_obs", how="left")
+        orig_df = self.mdata[modality].obsm["X_pca"][pc_columns]
+        join_df = orig_df.join(obs, how="left")
+        join_df[groupby] = pd.Categorical(join_df[groupby], categories=obs[groupby].unique())
 
         return join_df
 
     def _prep_umap_data(
         self,
         modality: str,
+        groupby: str,
         umap_columns: list[str],
     ) -> pd.DataFrame:
         obs = self._get_obs()
 
         # Prepare data
-        orig_df = self.mdata[modality].obsm["X_umap"][umap_columns].reset_index(names="_obs")
-        join_df = orig_df.join(obs, on="_obs", how="left")
+        orig_df = self.mdata[modality].obsm["X_umap"][umap_columns]
+        join_df = orig_df.join(obs, how="left")
+        join_df[groupby] = pd.Categorical(join_df[groupby], categories=obs[groupby].unique())
 
         return join_df
 
@@ -266,6 +288,7 @@ class PlotData:
         obs_df = self._get_obs()
         var_df = self._get_var()
         orig_df = self._get_data()
+        var_df["peptide_length"] = var_df["stripped_peptide"].str.len()
 
         merged_df = orig_df.notna().join(obs_df[groupby], how="left")
         merged_df = merged_df.groupby(groupby, observed=True).any()
@@ -273,11 +296,12 @@ class PlotData:
         melt_df = merged_df.stack().reset_index()
         melt_df.columns = [groupby, "_var", "_exists"]
 
-        var_df["peptide_length"] = var_df["stripped_peptide"].str.len()
         prep_df = melt_df.merge(var_df[["peptide_length"]], left_on="_var", right_index=True)
         prep_df = prep_df[prep_df["_exists"] > 0]
         prep_df = prep_df.drop(["_var", "_exists"], axis=1)
-        prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
+        prep_df = prep_df.groupby(groupby, observed=True).describe().droplevel(0, axis=1)
+        prep_df.index = pd.CategoricalIndex(prep_df.index, categories=obs_df[groupby].unique())
+        prep_df = prep_df.sort_index(axis=0)
 
         return prep_df
 
@@ -300,22 +324,78 @@ class PlotData:
         prep_df = prep_df[prep_df["_exists"] > 0]
         prep_df = prep_df.drop(["_var", "_exists"], axis=1)
         prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
+        prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
+        prep_df = prep_df.sort_index(axis=0)
 
         return prep_df
 
     def _prep_upset_data(
         self,
     ):
-        orig_df = self._get_data().T
+        orig_df = self._get_data()
+        obs_df = self._get_obs()
+
+        orig_df.index = pd.CategoricalIndex(orig_df.index, categories=obs_df.index)
+        orig_df = orig_df.sort_index(axis=0)
 
         # Get the binary representation of the sets
         orig_df[orig_df.notna()] = 1
         orig_df[orig_df.isna()] = 0
         orig_df = orig_df.astype(int)
-        df_binary = orig_df.apply(lambda row: "".join(row.astype(str)), axis=1)
+        df_binary = orig_df.apply(lambda row: "".join(row.astype(str)), axis=0)
 
         combination_counts = df_binary.sort_values(ascending=False).value_counts(sort=False).reset_index()
         combination_counts.columns = ["combination", "count"]
-        item_counts = orig_df.sum()
+        combination_counts = combination_counts.sort_values(by="count", ascending=False)
+        item_counts = orig_df.sum(axis=1)
 
         return combination_counts, item_counts
+
+    def _prep_correlation_data(
+        self,
+    ):
+        corrs = []
+        orig_df = self._get_data().T
+        obs_df = self._get_obs()
+
+        for x, y in itertools.combinations(obs_df.index, 2):
+            corrs.append((x, y, orig_df[x].corr(orig_df[y])))
+
+        for x in orig_df.columns:
+            corrs.append((x, x, orig_df[x].corr(orig_df[x])))
+
+        corrs_df = pd.DataFrame(corrs, columns=["x", "y", "corr"])
+        corrs_df = corrs_df.set_index(["y", "x"]).unstack()
+        corrs_df = corrs_df.droplevel(0, axis=1)
+
+        corrs_df.columns = pd.CategoricalIndex(corrs_df.columns, categories=obs_df.index)
+        corrs_df.index = pd.CategoricalIndex(corrs_df.index, categories=obs_df.index)
+        corrs_df = corrs_df.sort_index(axis=0).sort_index(axis=1)
+
+        return corrs_df
+
+    def _prep_purity_metrics_data(
+        self,
+    ):
+        varm_df = self._get_varm("filter")
+
+        # Define conditions and choices for purity_result
+        conditions = [
+            varm_df["filter_purity"] == True,
+            (varm_df["filter_purity"] == False) & (varm_df["purity"] >= 0),
+            varm_df["purity"] == -1,
+            varm_df["purity"] == -2,
+        ]
+        choices = [
+            "High purity",
+            "Low purity",
+            "No isotope peak",
+            "No isolation peak",
+        ]
+        varm_df["purity_metrics"] = np.select(condlist=conditions, choicelist=choices, default="Unknown")
+
+        df = varm_df.groupby(["purity_metrics", "filename"]).size().reset_index(name="count")
+        df["purity_metrics"] = pd.Categorical(df["purity_metrics"], categories=choices)
+        df = df.sort_values(["filename", "purity_metrics"]).reset_index(drop=True)
+
+        return df

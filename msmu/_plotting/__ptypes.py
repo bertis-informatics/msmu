@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from .__trace import Trace, TraceDescribed
+from .__trace import *
 
 
 class PlotTypes:
@@ -53,12 +53,13 @@ class PlotBar(PlotTypes):
 
 class PlotBox(PlotTypes):
     def figure(self, **kwargs):
+        self.layouts.update(dict(xaxis=dict(showticklabels=False)))
         return super().figure(go.Box, **kwargs)
 
     def trace(self):
         traces = TraceDescribed(data=self.data)
         self.fig.add_traces([self.ptype(**trace) for trace in traces()])
-        self.fig.update_traces(boxpoints=False, orientation="h", hoverinfo="x", showlegend=False)
+        self.fig.update_traces(boxpoints=False, hoverinfo="y")
 
 
 class PlotHistogram(PlotTypes):
@@ -75,6 +76,22 @@ class PlotStackedBar(PlotTypes):
     def figure(self, **kwargs):
         self.layouts.update(dict(legend=dict(traceorder="normal"), barmode="stack"))
         return super().figure(go.Bar, **kwargs)
+
+
+class PlotHeatmap(PlotTypes):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+    ):
+        super().__init__(data)
+
+    def figure(self, **kwargs):
+        self.layouts.update(dict(yaxis=dict(autorange="reversed"))),
+        return super().figure(go.Heatmap, **kwargs)
+
+    def trace(self):
+        traces = TraceHeatmap(data=self.data)
+        self.fig.add_traces([self.ptype(**trace) for trace in traces()])
 
 
 class PlotUpset(PlotTypes):
@@ -105,9 +122,9 @@ class PlotUpset(PlotTypes):
     def trace(self):
         self.fig.add_trace(
             go.Bar(
-                x=self.combination_counts["combination"],
-                y=self.combination_counts["count"],
-                text=self.combination_counts["count"],
+                x=self.combination_counts["combination"].tolist(),
+                y=self.combination_counts["count"].tolist(),
+                text=self.combination_counts["count"].tolist(),
                 textposition="auto",
                 name="combination",
                 showlegend=False,
@@ -126,7 +143,7 @@ class PlotUpset(PlotTypes):
             for j, set_name in enumerate(sets):
                 self.fig.add_trace(
                     go.Scatter(
-                        x=[combination],
+                        x=[f"{combination}"],
                         y=[set_name],
                         mode="markers",
                         marker=dict(
@@ -143,9 +160,9 @@ class PlotUpset(PlotTypes):
 
         self.fig.add_trace(
             go.Bar(
-                x=self.item_counts,
-                y=self.item_counts.index,
-                text=self.item_counts,
+                x=self.item_counts.values.tolist(),
+                y=self.item_counts.index.tolist(),
+                text=self.item_counts.values.tolist(),
                 textposition="auto",
                 orientation="h",
                 showlegend=False,
@@ -166,3 +183,13 @@ class PlotUpset(PlotTypes):
         self.fig.update_yaxes(side="right", showticklabels=True, row=2, col=2)
 
         self.fig.update_layout(**kwargs)
+
+
+class PlotPie(PlotTypes):
+    def figure(self, **kwargs):
+        return super().figure(go.Pie, **kwargs)
+
+    def trace(self):
+        traces = TracePie(data=self.data)
+        self.fig.add_traces([self.ptype(**trace) for trace in traces()])
+        self.fig.update_traces(hoverinfo="label+percent+name", textinfo="percent", textposition="inside")

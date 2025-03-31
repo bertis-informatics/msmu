@@ -14,48 +14,7 @@ def _set_templates():
 def _add_msmu_template():
     pio.templates["msmu"] = go.layout.Template(
         layout={
-            "annotationdefaults": {"arrowhead": 0, "arrowwidth": 1},
             "autotypenumbers": "strict",
-            "coloraxis": {"colorbar": {"outlinewidth": 1, "tickcolor": "rgb(36,36,36)", "ticks": "outside"}},
-            "colorscale": {
-                "diverging": [
-                    [0, "#8e0152"],
-                    [0.1, "#c51b7d"],
-                    [0.2, "#de77ae"],
-                    [0.3, "#f1b6da"],
-                    [0.4, "#fde0ef"],
-                    [0.5, "#f7f7f7"],
-                    [0.6, "#e6f5d0"],
-                    [0.7, "#b8e186"],
-                    [0.8, "#7fbc41"],
-                    [0.9, "#4d9221"],
-                    [1, "#276419"],
-                ],
-                "sequential": [
-                    [0.0, "#0d0887"],
-                    [0.1111111111111111, "#46039f"],
-                    [0.2222222222222222, "#7201a8"],
-                    [0.3333333333333333, "#9c179e"],
-                    [0.4444444444444444, "#bd3786"],
-                    [0.5555555555555556, "#d8576b"],
-                    [0.6666666666666666, "#ed7953"],
-                    [0.7777777777777778, "#fb9f3a"],
-                    [0.8888888888888888, "#fdca26"],
-                    [1.0, "#f0f921"],
-                ],
-                "sequentialminus": [
-                    [0.0, "#0d0887"],
-                    [0.1111111111111111, "#46039f"],
-                    [0.2222222222222222, "#7201a8"],
-                    [0.3333333333333333, "#9c179e"],
-                    [0.4444444444444444, "#bd3786"],
-                    [0.5555555555555556, "#d8576b"],
-                    [0.6666666666666666, "#ed7953"],
-                    [0.7777777777777778, "#fb9f3a"],
-                    [0.8888888888888888, "#fdca26"],
-                    [1.0, "#f0f921"],
-                ],
-            },
             "colorway": [
                 "#4E79A7",
                 "#F28E2B",
@@ -75,7 +34,7 @@ def _add_msmu_template():
             "mapbox": {"style": "light"},
             "paper_bgcolor": "white",
             "plot_bgcolor": "white",
-            "title": {"x": 0.05},
+            "title": {"x": 0, "xanchor": "left", "xref": "container", "pad": {"l": 16}},
             "xaxis": {
                 "automargin": True,
                 "gridcolor": None,
