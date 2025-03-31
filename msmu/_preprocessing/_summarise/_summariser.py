@@ -180,16 +180,16 @@ class PtmSummariser(Summariser):
         self._col_to_groupby: str = "protein_site"
         self._col_to_label: str = protein_col
 
-        self._agg_dict: dict[str, str | Callable] = {
-            # self._col_to_label: "first",
+        self._agg_dict: dict[str, str] = {
+            "modified_protein": "first",
+            "_prot_gr": "first",
             "peptide": "nunique",
             "num_used_psm": "sum",
-            "_prot_gr": "first",
         }
 
         self._rename_dict: dict[str, str] = {
             "peptide": "num_peptides",
-            # "_prot_gr": "protein_group",
+            "_prot_gr": "protein_group",
         }
 
     def get_data(self) -> pd.DataFrame:
@@ -212,23 +212,48 @@ class PtmSummariser(Summariser):
     def label_ptm_site(
         self, data: pd.DataFrame, modification_mass: float, fasta_file: str | Path
     ) -> pd.DataFrame:
+        """
+        Label PTM site to each single protein and get data arranged by peptide - peptide site
+        1. Filter data with only modified peptides with modi_identifier
+        2. Get modified sites from peptide
+        3. Label peptide site
+        4. Explode data to single protein for labeling protein site
+        5. Label protein site to each single protein
+        6. Wrap up single protein to single protein group
+        7. Group by modified peptide and its peptide site
+        8. Merge data with peptide value indexed by peptide
+
+        Args:
+            data (pd.DataFrame): Peptide data from msmu mudata['peptide']
+            modification_mass (float): Modification mass (as modification identifier to split peptide)
+            fasta_file (str | Path): Fasta file
+        output:
+            ptm_data (pd.DataFrame): PTM data arranged by peptide - peptide site
+        """
         modi_identifier: str = f"[+{modification_mass}]"
 
-        data = self._filter_modified(data=data, modi_identifier=modi_identifier)
+        # filter data with only modified peptides with modi_identifier
+        modified_df: pd.DataFrame = self._get_modified_peptide_df(
+            data=data, modi_identifier=modi_identifier
+        ).copy()
 
-        info_cols: list[str] = [x for x in data.columns if x not in self._obs]
-        ptm_info: pd.DataFrame = data[info_cols].copy()
+        info_cols: list[str] = [x for x in modified_df.columns if x not in self._obs]
+        ptm_info: pd.DataFrame = modified_df[info_cols].copy()
         ptm_info["peptide_site"] = ptm_info["peptide"].apply(
             lambda x: self._get_mod_sites(x, modi_identifier)
         )
 
+        # label peptide site
         ptm_info["peptide_site"] = ptm_info["peptide_site"].apply(
             lambda x: self._label_peptide_site(x)
         )
+
+        # explode data to single protein for label protein site
         ptm_info = self._explode_mod_site(ptm_info)
         ptm_info = self._explode_protein_groups(ptm_info)
         ptm_info = self._explode_protein_group(ptm_info)
 
+        # label protein site to each single protein
         fasta_dict: dict = self._read_fasta_seq(file=fasta_file)
         ptm_info["protein_site"] = ptm_info.apply(
             lambda x: self._label_protein_site(
@@ -239,29 +264,24 @@ class PtmSummariser(Summariser):
             ),
             axis=1,
         )
-
-        ptm_info.to_csv(
-            "/Users/wook/Desktop/bertis/test/msm_norm_test/labeled.tsv", sep="\t"
+        ptm_info = ptm_info.loc[ptm_info["protein_site"].str.len() > 0].copy()
+        ptm_info["modified_protein"] = ptm_info["protein_site"].apply(
+            lambda x: x.split("|")[0]
         )
 
+        # wrap up single protein to single protein group
         ptm_info = self._implode_protein_group(ptm_info)
 
-        ptm_info.to_csv(
-            "/Users/wook/Desktop/bertis/test/msm_norm_test/imploded.tsv", sep="\t"
-        )
+        # group by modified peptide and its peptide site
+        ptm_info = self._implode_peptide_peptide_site(ptm_info)
 
-        peptide_value: pd.DataFrame = data[self._obs].copy()
+        peptide_value: pd.DataFrame = modified_df[self._obs].copy()
         peptide_value["peptide"] = peptide_value.index
         ptm_data = pd.merge(ptm_info, peptide_value, how="left", on="peptide")
 
-        ptm_data.to_csv(
-            "/Users/wook/Desktop/bertis/test/msm_norm_test/merged.tsv", sep="\t"
-        )
-
-        # return ptm_info
         return ptm_data
 
-    def _filter_modified(
+    def _get_modified_peptide_df(
         self, data: pd.DataFrame, modi_identifier: str
     ) -> pd.DataFrame:
         regex_modi_identifier: str = re.escape(modi_identifier)
@@ -290,6 +310,25 @@ class PtmSummariser(Summariser):
 
         return sites
 
+    def _label_protein_site(
+        self, protein: str, peptide: str, pep_site: str, fasta_dict: dict
+    ) -> str:
+        aa: str = pep_site[0]
+        pos: int = int(pep_site[1:])
+        prot_site: str = ""
+
+        res: list = list()
+        prot_split = self._get_uniprot(protein)
+
+        if prot_split in fasta_dict.keys():
+            refseq: str = fasta_dict[prot_split]
+            for match in re.finditer(peptide, refseq):
+                matched = f"{prot_split}|{aa}{pos + match.span()[0]}"
+                res.append(matched)
+            prot_site = "/".join(res)
+
+        return prot_site
+
     def _explode_mod_site(self, pep_labed_data: pd.DataFrame) -> pd.DataFrame:
         pep_labed_data = pep_labed_data.explode("peptide_site", ignore_index=True)
 
@@ -309,35 +348,16 @@ class PtmSummariser(Summariser):
 
         return exploded_data
 
-    def _label_protein_site(
-        self, protein: str, peptide: str, pep_site: str, fasta_dict: dict
-    ) -> str:
-        aa: str = pep_site[0]
-        pos: int = int(pep_site[1:])
-        prot_site: str | None = None
-
-        res: list = list()
-        prot_split = self._get_uniprot(protein)
-
-        if prot_split in fasta_dict.keys():
-            refseq: str = fasta_dict[prot_split]
-            for match in re.finditer(peptide, refseq):
-                matched = f"{prot_split}|{aa}{pos + match.span()[0]}"
-                res.append(matched)
-            prot_site = "/".join(res)
-
-        return prot_site
-
     def _implode_protein_group(self, data) -> pd.DataFrame:
         data = (
             data.groupby(["peptide", "peptide_site", "_prot_gr"], as_index=False)
             .agg(
                 {
-                    "protein_group": "first",
+                    "protein_site": ",".join,
+                    "modified_protein": ",".join,
                     "stripped_peptide": "first",
                     "total_psm": "sum",
                     "num_used_psm": "sum",
-                    "protein_site": self._join_protein_group,
                 }
             )
             .copy()
@@ -345,22 +365,15 @@ class PtmSummariser(Summariser):
 
         return data
 
-    def _join_protein_group(self, protein_sites: pd.Series) -> str:
-        protein_sites: list = [x for x in protein_sites if x.strip()]
-        protein_sites_concated: str = ",".join(protein_sites)
-
-        return protein_sites_concated
-
-    def _implode_protein_groups(self, data) -> pd.DataFrame:
-        data = data.groupby(
-            ["peptide", "peptide_site", "protein_group"], as_index=False
-        ).agg(
+    def _implode_peptide_peptide_site(self, data) -> pd.DataFrame:
+        data = data.groupby(["peptide", "peptide_site"], as_index=False).agg(
             {
+                "protein_site": ";".join,
+                "modified_protein": ";".join,
                 "stripped_peptide": "first",
                 "total_psm": "sum",
                 "num_used_psm": "sum",
-                "protein_site": ";".join,
-                "repr_protein": "first",
+                "_prot_gr": ";".join,
             }
         )
 

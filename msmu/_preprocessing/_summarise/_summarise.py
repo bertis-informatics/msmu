@@ -23,6 +23,9 @@ def to_peptide(
     protein_col: str = "protein_group",
     top_n: int | None = None,
 ) -> md.MuData:
+    """
+    Summarise peptide level data from PSM level data.
+    """
     modality_dict: dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=from_)
 
     adata_list: list[ad.AnnData] = list()
@@ -36,7 +39,7 @@ def to_peptide(
         data: pd.DataFrame = summ.get_data()
 
         if top_n is not None:
-            data: pd.DataFrame = summ.rank_psm(data=data, method=rank_method)
+            data: pd.DataFrame = summ.rank_psm(data=data, rank_method=rank_method)
             data: pd.DataFrame = summ.filter_by_rank(data=data, top_n=top_n)
 
         summaried_data: pd.DataFrame = summ.summarise_data(
@@ -64,7 +67,7 @@ def to_peptide(
         mdata=mdata,
         adata=merged_peptide_adata,
         mod_name="peptide",
-        parent_mods=modality_dict.keys(),
+        parent_mods=list(modality_dict.keys()),
     )
     mdata.push_obs()
     mdata.update_var()
@@ -102,6 +105,9 @@ def to_protein(
     sum_method="median",
     from_="peptide",
 ) -> md.MuData:
+    """
+    Summarise protein level data from peptide level data.
+    """
     modality_dict: dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=from_)
     adata: ad.AnnData = modality_dict[from_].copy()
 
@@ -136,6 +142,9 @@ def to_ptm_site(
     modification_mass: float | None = None,
     sum_method: str = "median",
 ) -> md.MuData:
+    """
+    Summarise PTM site level data from peptide level data.
+    """
 
     if modification_mass is None:
         if modification_name in PtmPreset.__dict__:
