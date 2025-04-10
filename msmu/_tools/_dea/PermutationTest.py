@@ -16,7 +16,8 @@ class PermutationTestResult:
     ctrl_median: np.ndarray
     expr_median: np.ndarray
     log2fc: np.ndarray
-    # fc_pct: np.ndarray
+    fc_pct_1: float | None
+    fc_pct_5: float | None
 
     def to_df(self) -> pd.DataFrame:
         contents: dict = {
@@ -24,7 +25,6 @@ class PermutationTestResult:
             "ctrl_median": self.ctrl_median,
             "expr_median": self.expr_median,
             "log2fc": self.log2fc,
-            # "fc_pct": self.fc_pct
         }
         for key in self.method:
             contents[f"p_perm_{key}"] = getattr(self, f"p_perm_{key}")
@@ -32,16 +32,6 @@ class PermutationTestResult:
         df: pd.DataFrame = pd.DataFrame(contents)
 
         return df
-
-    def fc_threshold(self, threshold: float):
-        low_quantile = np.min(self.fc_pct > threshold)
-        print(low_quantile)
-        high_quantile = np.max(self.fc_pct < (100 - threshold))
-        print(high_quantile)
-
-        fc_cutoff = np.mean([abs(low_quantile), abs(high_quantile)])
-
-        return fc_cutoff
 
 
 class PermutationTest:
@@ -88,7 +78,8 @@ class PermutationTest:
             ctrl_median=np.nanmedian(self.ctrl, axis=0),
             expr_median=np.nanmedian(self.expr, axis=0),
             log2fc=np.array([]),
-            # fc_pct=np.array([])
+            fc_pct_1=None,
+            fc_pct_5=None,
         )
 
         tqdm_stat = tqdm(stat_to_run, desc="Running Statistics", position=0)
@@ -119,11 +110,23 @@ class PermutationTest:
 
             if stat_method == "med_diff":
                 perm_test_res.log2fc = obs_stats.statistic
-                # perm_test_res.fc_pct = self._get_fc_percentile(
-                #     obs_med_diff=obs_stats.statistic, null_med_diff=null_dist.null_distribution
-                # )
+
+                fc_pct_criteria = [1, 5]  # 1% and 5% thresholds
+                perm_test_res.fc_pct_1, perm_test_res.fc_pct_5 = [
+                    self._get_fc_threshold(null_dist.null_distribution, x)
+                    for x in fc_pct_criteria
+                ]
 
         return perm_test_res
+
+    @staticmethod
+    def _get_fc_threshold(null_med_diff: np.ndarray, percentile: int) -> float:
+        low_quantile: float = np.nanpercentile(null_med_diff, percentile)
+        high_quantile: float = np.nanpercentile(null_med_diff, 100 - percentile)
+
+        fc_cutoff: float = np.mean([abs(low_quantile), abs(high_quantile)])
+
+        return fc_cutoff
 
     def _sub_perm(
         self, concated_arr: np.ndarray, combinations: np.array, statistic: list

@@ -9,7 +9,7 @@ def _get_test_array(
     modality: str,
     catetory: str,
     control: str,
-    expr: str | None = None,
+    expr: str | None,
 ) -> tuple[np.ndarray, np.ndarray]:
     mod_mdata = mdata[modality].copy()
     ctrl_samples = mod_mdata.obs.loc[
@@ -33,13 +33,13 @@ def _get_test_array(
 
 def permutation_test(
     mdata,
-    modality,
-    control,
-    expr,
+    modality: str,
     category,
+    control: str,
+    expr: str | None = None,
     n_resamples: int = 1000,
     n_jobs: int = 1,
-    statistic: str | list = "all",
+    statistic: str | list = "t_test",
     force_resample: bool = False,
 ) -> PermutationTestResult:
     ctrl, expr = _get_test_array(
