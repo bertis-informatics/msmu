@@ -1,5 +1,6 @@
 from typing import Tuple, TypedDict, Union
 from collections import deque
+import warnings
 
 import re
 import numpy as np
@@ -16,6 +17,43 @@ class Mapping(TypedDict):
 
 
 def map_representatives(
+    mdata: md.MuData,
+    modality: Union[str, None] = None,
+    level: Union[str, None] = "psm",
+    peptide_colname: str = "stripped_peptide",
+    protein_colname: str = "proteins",
+) -> md.MuData:
+    """
+    DEPRECATED: Use `infer_protein` instead.
+
+    Map protein information to peptides.
+
+    Args:
+        mdata (MuData): MuData object
+        modality (str): modality
+        peptide_colname (str): column name for peptide information
+        protein_colname (str): column name for protein information
+
+    Returns:
+        mdata (MuData): MuData object with updated protein mappings
+    """
+
+    warnings.warn(
+        "map_representatives is deprecated. Use infer_protein instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    return infer_protein(
+        mdata=mdata,
+        modality=modality,
+        level=level,
+        peptide_colname=peptide_colname,
+        protein_colname=protein_colname,
+    )
+
+
+def infer_protein(
     mdata: md.MuData,
     modality: Union[str, None] = None,
     level: Union[str, None] = "psm",
@@ -56,7 +94,7 @@ def map_representatives(
         ]
         mdata[mod_name].var = mdata[mod_name].var.rename(columns={protein_colname: "protein_group"})
 
-        mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(select_canon_prot)
+        mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(select_representative)
 
     return mdata
 
@@ -552,6 +590,29 @@ def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[Tuple
 
 
 def select_canon_prot(protein_group: str) -> str:
+    """
+    DEPRECATED: Use `select_representative` instead.
+
+    Select canonical protein from protein list based on priority.
+    canonical > swissprot > trembl > contam
+
+    Args:
+        protein_group (str): protein group (uniprot entry)
+
+    Returns:
+        protein_group (str): canonical protein group
+    """
+
+    warnings.warn(
+        "select_canon_prot is deprecated. Use select_representative instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    return select_representative(protein_group=protein_group)
+
+
+def select_representative(protein_group: str) -> str:
     """
     Select canonical protein from protein list based on priority.
     canonical > swissprot > trembl > contam
