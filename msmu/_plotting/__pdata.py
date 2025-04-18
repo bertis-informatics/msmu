@@ -28,9 +28,9 @@ class PlotData:
 
     def _get_obs(self):
         obs_df = self.mdata.obs.copy()
-        obs_df = obs_df.sort_values(["condition", "sample"])
-        obs_df["sample"] = obs_df["sample"].cat.remove_unused_categories()
-        obs_df["sample"] = obs_df["sample"].cat.reorder_categories(obs_df["sample"].values.tolist())
+        obs_df = obs_df.sort_values(["condition", "sample_id"])
+        obs_df["sample_id"] = obs_df["sample_id"].cat.remove_unused_categories()
+        obs_df["sample_id"] = obs_df["sample_id"].cat.reorder_categories(obs_df["sample_id"].values.tolist())
 
         return obs_df
 
