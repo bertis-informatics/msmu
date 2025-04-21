@@ -5,8 +5,11 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
-from .normalisation_methods import (normalise_median_center,
-                                    normalise_quantile, normalise_total_sum)
+from .normalisation_methods import (
+    normalise_median_center,
+    normalise_quantile,
+    normalise_total_sum,
+)
 
 
 def log2_transform(
@@ -55,22 +58,31 @@ def normalise(
 def correct_batch_effect(
     mdata: md.MuData, batch: str, method: str, modality: str, level: str
 ) -> md.MuData:
-    pass
+    raise NotImplementedError("Batch correction methods are not implemented yet.")
 
 
 def scale_data(
-    mdata: md.MuData, method: str, modality: str | None = None, level: str | None = None, gis_prefix: str | None= None, gis_col: list[str] | None = None
+    mdata: md.MuData,
+    method: str,
+    modality: str | None = None,
+    level: str | None = None,
+    gis_prefix: str | None = None,
+    gis_col: list[str] | None = None,
 ) -> md.MuData:
     mod_dict = get_modality_dict(mdata=mdata, level=level, modality=modality)
     for mod_name, mod in mod_dict.items():
         if method == "gis":
             if (gis_prefix is None) & (gis_col is None):
-                raise ValueError("Please provide either a GIS prefix or GIS column name")
-            
+                raise ValueError(
+                    "Please provide either a GIS prefix or GIS column name"
+                )
+
             if gis_col is not None:
                 gis_idx: np.array[bool] = mod.obs[gis_col] == True
             else:
-                gis_idx: np.array[bool] = mod.obs_names.str.startswith(gis_prefix) == True
+                gis_idx: np.array[bool] = (
+                    mod.obs_names.str.startswith(gis_prefix) == True
+                )
 
             if gis_idx.sum() == 0:
                 raise ValueError(f"No GIS samples found in {mod_name}")
