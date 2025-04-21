@@ -63,7 +63,9 @@ def read_sage(
     if meta is not None:
         mdata.obs = mdata.obs.join(meta.set_index(sample_col, drop=False))
     elif channel is not None:
-        mdata.obs["channel"] = mdata.obs.index.map({i: c for i, c in zip(sample_name, channel)})
+        mdata.obs["channel"] = mdata.obs.index.map(
+            {i: c for i, c in zip(sample_name, channel)}
+        )
 
     mdata.obs = to_categorical(mdata.obs)
     mdata.push_obs()
@@ -146,13 +148,19 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
                 peptide_list.append(adata)
 
     if peptide_list:
-        adata_dict["peptide"] = ad.concat(peptide_list, uns_merge="unique", join="outer")
+        adata_dict["peptide"] = ad.concat(
+            peptide_list, uns_merge="unique", join="outer"
+        )
 
     obs_ident_df = pd.concat(obs_ident)
 
     merged_mdata = md.MuData(adata_dict)
     merged_mdata.obs = pd.concat(
-        [merged_mdata.obs, pd.concat([merged_mdata[mod].obs for mod in merged_mdata.mod_names])], axis=1
+        [
+            merged_mdata.obs,
+            pd.concat([merged_mdata[mod].obs for mod in merged_mdata.mod_names if mod != "peptide"]),
+        ],
+        axis=1,
     )
     merged_mdata.obs["set"] = obs_ident_df["set"]
     merged_mdata.obs = to_categorical(merged_mdata.obs)
@@ -204,7 +212,9 @@ def mask_obs(
     return mdata
 
 
-def add_modality(mdata: md.MuData, adata: ad.AnnData, mod_name: str, parent_mods: list[str]) -> md.MuData:
+def add_modality(
+    mdata: md.MuData, adata: ad.AnnData, mod_name: str, parent_mods: list[str]
+) -> md.MuData:
     """
     Adds a new modality to a MuData object.
 
