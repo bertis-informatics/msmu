@@ -12,6 +12,7 @@ from ..._utils.utils import get_modality_dict
 from ._summariser import PeptideSummariser, ProteinSummariser, PtmSummariser
 
 warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
+warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
 
 def to_peptide(
@@ -19,14 +20,37 @@ def to_peptide(
     rank_method: str | None = None,
     from_: str = "psm",
     sum_method: str = "median",
-    peptide_col: str = "peptide",
     protein_col: str = "protein_group",
     top_n: int | None = None,
+    keep_mbr_only: bool = False,
 ) -> md.MuData:
     """
-    Summarise peptide level data from PSM level data.
+    Summarise peptide (or precursor; for lfq) level data from PSM level data.
+
+    Args:
+        mdata (md.MuData): MuData object containing PSM level data.
+        rank_method (str | None): Method to rank PSMs. If None, no ranking is applied.
+        from_ (str): Level to summarise from. Default is "psm".
+        sum_method (str): Method to summarise quantification of PSMs. Default is "median".
+        protein_col (str): Column name for protein groups. Default is "protein_group" which is from msmu protein inference.
+        top_n (int | None): Number of top PSMs to keep after ranking. If None, all PSMs are kept.
+        keep_mbr_only (bool): For LFQ, MBR can be used for quantifiction. If True, keep precursor quantity without MSMS evidence. Default is False.
+
+    Returns:
+        md.MuData: MuData object containing peptide level data.
     """
     modality_dict: dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=from_)
+    label_list: list = list(set([x.uns["label"] for x in modality_dict.values()]))
+    if len(label_list) > 1:
+        raise ValueError(
+            "Multiple labels found in the input data. Please provide a single label."
+        )
+    else:
+        label = label_list[0]
+
+    # assign peptide_col for groupby (summarisation) as "peptide" for tmt and "precursor" for lfq
+    # in lfq, column "precursor" is made from reader class with "peptide" + "." + charge
+    peptide_col = "precursor" if label == "lfq" else "peptide"
 
     adata_list: list[ad.AnnData] = list()
     for mod_adata in modality_dict.values():
@@ -42,20 +66,57 @@ def to_peptide(
             data: pd.DataFrame = summ.rank_psm(data=data, rank_method=rank_method)
             data: pd.DataFrame = summ.filter_by_rank(data=data, top_n=top_n)
 
-        summaried_data: pd.DataFrame = summ.summarise_data(
+        summarised_data: pd.DataFrame = summ.summarise_data(
             data=data, sum_method=sum_method
         )
-        peptide_adata: pd.DataFrame = summ.data2adata(data=summaried_data)
+        peptide_adata: pd.DataFrame = summ.data2adata(data=summarised_data)
         adata_list.append(peptide_adata)
 
     merged_peptide_adata: ad.AnnData = ad.concat(adatas=adata_list, join="outer")
-    if np.all(np.isnan(merged_peptide_adata.X.astype(np.float64))):  # for lfq
-        peptide_arr: pd.DataFrame = mdata["peptide"].to_df().T
+
+    # TODO: make module for lfq summarisation
+    if label == "lfq":
+        peptide_arr: pd.DataFrame = mdata["peptide"].to_df().T.copy()
         intersect_idx = peptide_arr.index.intersection(merged_peptide_adata.var_names)
         peptide_arr: pd.DataFrame = peptide_arr.loc[intersect_idx].T
         merged_peptide_adata: ad.AnnData = merged_peptide_adata[:, intersect_idx]
-        merged_peptide_adata.X = peptide_arr.T
+        merged_peptide_adata.X = peptide_arr.astype(float)
 
+        # make msms_evidence dataframe
+        msms_evidence_list: list[pd.DataFrame] = list()
+        for mod_adata in modality_dict.values():
+            tmp_evidence: pd.DataFrame = mod_adata.var[["precursor", "filename"]]
+            msms_evidence_list.append(tmp_evidence)
+
+        msms_evidence: pd.DataFrame = pd.concat(msms_evidence_list, axis=0)
+        msms_evidence["evidence"] = 1
+        msms_evidence = msms_evidence.groupby(
+            ["precursor", "filename"], as_index=False, observed=False
+        ).agg("sum")
+        msms_evidence = msms_evidence.pivot(
+            index="precursor", columns="filename", values="evidence"
+        )
+        rename_dict: dict = {
+            f"{filename}.mzML": sample
+            for filename, sample in zip(mdata.obs["tag"], mdata.obs_names)
+        }
+        msms_evidence = msms_evidence.rename(columns=rename_dict)
+        msms_evidence = msms_evidence.notna().astype(int).replace({0: np.nan})
+
+        msms_evidence = msms_evidence.loc[
+            merged_peptide_adata.var_names, merged_peptide_adata.obs_names
+        ]
+
+        # assign msms_evidence to a layer of adata (merged_peptide_adata)
+        merged_peptide_adata.layers["msms_evidence"] = msms_evidence.values.T
+
+        # filter out quantity without MSMS evidence if keep_mbr_only is False
+        if keep_mbr_only == False:
+            merged_peptide_adata.X = np.multiply(
+                merged_peptide_adata.X, msms_evidence.values.T
+            ).astype(float)
+
+    # make merged_var dataframe
     merged_var: pd.DataFrame = _merged_var_df(
         adata_list=adata_list, protein_col=protein_col
     )
@@ -63,16 +124,17 @@ def to_peptide(
     merged_peptide_adata.var = merged_var.loc[merged_peptide_adata.var_names]
     merged_peptide_adata.uns["level"] = "peptide"
 
-    mdata: md.MuData = add_modality(
+    # add peptide_adata to mdata
+    pep_summ_mdata: md.MuData = add_modality(
         mdata=mdata,
         adata=merged_peptide_adata,
         mod_name="peptide",
         parent_mods=list(modality_dict.keys()),
     )
-    mdata.push_obs()
-    mdata.update_var()
+    pep_summ_mdata.push_obs()
+    pep_summ_mdata.update_var()
 
-    return mdata
+    return pep_summ_mdata
 
 
 def _merged_var_df(adata_list: list[ad.AnnData], protein_col: str) -> pd.DataFrame:
@@ -100,13 +162,26 @@ def _merged_var_df(adata_list: list[ad.AnnData], protein_col: str) -> pd.DataFra
 
 def to_protein(
     mdata,
+    top_n: int | None = None,  # TODO: add top_n to protein level
+    rank_method: str | None = None,  # TODO: add rank_method to protein level
     protein_col="protein_group",
     min_n_peptides=1,
     sum_method="median",
     from_="peptide",
+    keep_mbr_only: bool = False,  # TODO: add keep_mbr_only to protein level
 ) -> md.MuData:
     """
     Summarise protein level data from peptide level data.
+
+    Args:
+        mdata (md.MuData): MuData object containing peptide level data.
+        protein_col (str): Column name for protein groups. Default is "protein_group" which is from msmu protein inference.
+        min_n_peptides (int): Minimum number of peptides required to keep a protein. Default is 1.
+        sum_method (str): Method to summarise quantification of peptides. Default is "median".
+        from_ (str): Level to summarise from. Default is "peptide".
+
+    Returns:
+        md.MuData: MuData object containing protein level data.
     """
     modality_dict: dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=from_)
     adata: ad.AnnData = modality_dict[from_].copy()
@@ -125,13 +200,13 @@ def to_protein(
 
     protein_adata: ad.AnnData = summ.data2adata(data=summarised_data)
 
-    mdata: md.MuData = add_modality(
+    protein_summed_mdata: md.MuData = add_modality(
         mdata=mdata, adata=protein_adata, mod_name=summ._to, parent_mods=[from_]
     )
-    mdata.push_obs()
-    mdata.update_var()
+    protein_summed_mdata.push_obs()
+    protein_summed_mdata.update_var()
 
-    return mdata
+    return protein_summed_mdata
 
 
 def to_ptm_site(
@@ -144,6 +219,17 @@ def to_ptm_site(
 ) -> md.MuData:
     """
     Summarise PTM site level data from peptide level data.
+
+    Args:
+        mdata (md.MuData): MuData object containing peptide level data.
+        protein_col (str): Column name for protein groups. Default is "protein_group" which is from msmu protein inference.
+        fasta_file (str | Path): Path to the FASTA file for protein sequences used for protein site labeling.
+        modification_name (str): Name of the PTM modification (e.g. phospho, acetyl).
+        modification_mass (float | None): Mass of the PTM modification. If None, default mass will be used.
+        sum_method (str): Method to summarise quantification of peptides. Default is "median".
+
+    Returns:
+        md.MuData: MuData object containing PTM site level data. Modality name will be "{modification_name}_site".
     """
 
     if modification_mass is None:

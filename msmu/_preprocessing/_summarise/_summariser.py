@@ -79,6 +79,7 @@ class PeptideSummariser(Summariser):
         adata = self._adata
         data: pd.DataFrame = adata.to_df().transpose()
 
+        data[self._col_to_groupby] = adata.var[self._col_to_groupby].astype(str)
         data["peptide"] = adata.var["peptide"].astype(str)
         data["modifications"] = adata.var["modifications"]
         data["stripped_peptide"] = adata.var["stripped_peptide"]
