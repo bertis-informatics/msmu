@@ -5,6 +5,9 @@ import plotly.io as pio
 import plotly.graph_objects as go
 
 
+DEFAULT_COLUMN = "sample_id"
+
+
 def _set_color(
     fig: go.Figure,
     mdata: md.MuData,
@@ -33,7 +36,7 @@ def _set_color(
         sorted(
             fig.data,
             key=lambda trace: order_dict.get(
-                mdata.obs.loc[mdata.obs["sample"] == trace.name][colorby].values[0], float("inf")
+                mdata.obs.loc[mdata.obs[DEFAULT_COLUMN] == trace.name][colorby].values[0], float("inf")
             ),
         )
     )

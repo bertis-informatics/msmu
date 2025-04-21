@@ -4,12 +4,9 @@ import plotly.graph_objects as go
 from .__pdata import PlotData
 from .__ptypes import *
 from ._template import DEFAULT_TEMPLATE
-from ._utils import _set_color, _get_pc_cols, _get_umap_cols
+from ._utils import _set_color, _get_pc_cols, _get_umap_cols, DEFAULT_COLUMN
 
 from .._utils import get_modality_dict
-
-
-DEFAULT_COLUMN = "sample"
 
 
 def format_level(level: str) -> str:
@@ -404,6 +401,7 @@ def plot_umap(
         x=umap_columns[0],
         y=umap_columns[1],
         name=groupby,
+        meta=DEFAULT_COLUMN,
         hovertemplate=hovertemplate,
     )
     fig = plot.figure(mode="markers")
