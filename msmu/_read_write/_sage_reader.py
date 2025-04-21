@@ -1,7 +1,7 @@
+import json
 import warnings
 from pathlib import Path
 from types import NoneType
-import json
 
 import anndata as ad
 import mudata as md
@@ -63,6 +63,7 @@ class SageReader(Reader):
         sage_result_df = pd.read_csv(self._sage_result, sep="\t")
         sage_result_df = self._make_psm_index(data=sage_result_df)
         print(f"Sage result file loaded: {sage_result_df.shape}")
+
         return sage_result_df
 
     def _read_sage_quant(self) -> pd.DataFrame:
@@ -92,10 +93,25 @@ class SageReader(Reader):
     def _import_sage(self) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         raise NotImplementedError("This method should be implemented in subclasses.")
 
-    def _normalise_columns(self, sage_result_df: pd.DataFrame) -> pd.DataFrame:
-        return normalise_sage_columns(sage_result_df=sage_result_df)
+    def _normalise_columns(
+        self, sage_result_df: pd.DataFrame, precursor_charge: bool = False
+    ) -> pd.DataFrame:
+        return normalise_sage_columns(
+            sage_result_df=sage_result_df, precursor_charge=precursor_charge
+        )
 
-    def _sage2mdata(self, sage_result_df: pd.DataFrame, sage_quant_df: pd.DataFrame, sage_config: dict) -> md.MuData:
+    def _add_obs_tag(self, mdata: md.MuData, rename_dict: dict) -> md.MuData:
+        mdata.obs["tag"] = mdata.obs.index.map(
+            {sample: tag for tag, sample in rename_dict.items()}
+        )
+        return mdata
+
+    def _sage2mdata(
+        self,
+        sage_result_df: pd.DataFrame,
+        sage_quant_df: pd.DataFrame,
+        sage_config: dict,
+    ) -> md.MuData:
         raise NotImplementedError("This method should be implemented in subclasses.")
 
     def read(self) -> md.MuData:
@@ -116,7 +132,9 @@ class TmtSageReader(SageReader):
     def _read_sage_quant(self) -> pd.DataFrame:
         sage_quant_df = super()._read_sage_quant()
         sage_quant_df = self._make_psm_index(data=sage_quant_df)
-        sage_quant_df = sage_quant_df.drop(["filename", "scannr", "ion_injection_time", "scan_num"], axis=1)
+        sage_quant_df = sage_quant_df.drop(
+            ["filename", "scannr", "ion_injection_time", "scan_num"], axis=1
+        )
 
         return sage_quant_df
 
@@ -137,7 +155,9 @@ class TmtSageReader(SageReader):
             )
 
         channel_dict = {sage_col: tmt for sage_col, tmt in zip(tmt_labels, sage_labels)}
-        annotation_dict = {channel: sample for channel, sample in zip(channel_list, self._sample_name)}
+        annotation_dict = {
+            channel: sample for channel, sample in zip(channel_list, self._sample_name)
+        }
 
         return {channel_dict[key]: annotation_dict[key] for key in channel_list}
 
@@ -169,8 +189,11 @@ class TmtSageReader(SageReader):
                 "sage_config": sage_config,
             }
         )
+        mdata: md.MuData = md.MuData({"psm": adata})
+        mdata: md.MuData = self._add_obs_tag(mdata, rename_dict)
+        mdata.update_obs()
 
-        return md.MuData({"psm": adata})
+        return mdata
 
 
 class LfqSageReader(SageReader):
@@ -185,8 +208,19 @@ class LfqSageReader(SageReader):
 
     def _read_sage_quant(self) -> pd.DataFrame:
         sage_quant_df = super()._read_sage_quant()
+
+        # make precursor ID
+        sage_quant_df.loc[:, "peptide"] = sage_quant_df.apply(
+            lambda x: x["peptide"] + "." + str(x["charge"]), axis=1
+        )
+
         sage_quant_df = sage_quant_df.set_index("peptide", drop=True)
-        sage_quant_df = sage_quant_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)
+        self._precursor_charge = (
+            True if sage_quant_df["charge"].unique()[0] != -1 else False
+        )
+        sage_quant_df = sage_quant_df.drop(
+            ["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1
+        )
 
         return sage_quant_df
 
@@ -194,7 +228,6 @@ class LfqSageReader(SageReader):
         sage_result_df = self._read_sage_result()
 
         sage_quant_df = self._read_sage_quant()
-        sage_quant_df = self._rename_samples(sage_quant_df)
 
         sage_config = self._read_sage_config()
 
@@ -207,7 +240,9 @@ class LfqSageReader(SageReader):
             )
 
         filenames = self._filename or sage_quant_df.columns.tolist()
-        return {filename: sample for filename, sample in zip(filenames, self._sample_name)}
+        return {
+            filename: sample for filename, sample in zip(filenames, self._sample_name)
+        }
 
     def _sage2mdata(
         self,
@@ -215,8 +250,13 @@ class LfqSageReader(SageReader):
         sage_quant_df: pd.DataFrame,
         sage_config: dict,
     ) -> md.MuData:
-        adata_psm = ad.AnnData(pd.DataFrame(index=sage_result_df.index, columns=sage_quant_df.columns).T)
-        adata_psm.var = self._normalise_columns(sage_result_df)
+        rename_dict = self._make_rename_dict(sage_quant_df)
+        sage_quant_df = sage_quant_df.rename(columns=rename_dict)
+
+        adata_psm = ad.AnnData(
+            pd.DataFrame(index=sage_result_df.index, columns=sage_quant_df.columns).T
+        )
+        adata_psm.var = self._normalise_columns(sage_result_df, self._precursor_charge)
         adata_psm.varm["search_result"] = sage_result_df
         adata_psm.uns.update(
             {
@@ -230,4 +270,8 @@ class LfqSageReader(SageReader):
         adata_peptide = ad.AnnData(sage_quant_df.T)
         adata_peptide.uns["level"] = "peptide"
 
-        return md.MuData({"psm": adata_psm, "peptide": adata_peptide})
+        mdata = md.MuData({"psm": adata_psm, "peptide": adata_peptide})
+        mdata = self._add_obs_tag(mdata=mdata, rename_dict=rename_dict)
+        mdata.update_obs()
+
+        return mdata

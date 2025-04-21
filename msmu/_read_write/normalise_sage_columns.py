@@ -1,4 +1,5 @@
 import re
+
 import pandas as pd
 
 
@@ -25,7 +26,7 @@ def rename_sage_columns(sage_result_df: pd.DataFrame) -> pd.DataFrame:
     return sage_result_df.rename(columns=rename_dict)
 
 
-def normalise_sage_columns(sage_result_df):
+def normalise_sage_columns(sage_result_df, precursor_charge: bool) -> pd.DataFrame:
     """
     Normalizes the Sage result DataFrame by selecting relevant columns and adding derived columns.
 
@@ -49,30 +50,26 @@ def normalise_sage_columns(sage_result_df):
     normalised_sage_result_df = sage_result_df[used_cols].copy()
 
     # Extract stripped peptide and modifications
-    normalised_sage_result_df[["stripped_peptide", "modifications"]] = sage_result_df["peptide"].apply(
-        lambda x: pd.Series(make_peptide(x))
-    )
+    normalised_sage_result_df[["stripped_peptide", "modifications"]] = sage_result_df[
+        "peptide"
+    ].apply(lambda x: pd.Series(make_peptide(x)))
 
     # Calculate observed m/z
     normalised_sage_result_df["observed_mz"] = sage_result_df.apply(
-        lambda row: make_observed_mz(row["expmass"], row["charge"]), axis=1
+        lambda x: make_observed_mz(x["expmass"], x["charge"]), axis=1
     )
 
+    # make precursor column
+    if precursor_charge == False:
+        normalised_sage_result_df["precursor"] = sage_result_df.apply(
+            lambda x: f"{x['peptide']}.-1", axis=1
+        )
+    else:
+        normalised_sage_result_df["precursor"] = sage_result_df.apply(
+            lambda x: f"{x['peptide']}.{x['charge']}", axis=1
+        )
+
     return normalised_sage_result_df
-
-
-# def make_protein(protein_input:str) -> tuple[str]:
-#    protein_split = protein_input.split(';')
-#
-#    proteins = [protein for protein in protein_split if not protein.startswith("rev_")]
-#    rev_proteis = [protein for protein in protein_split if protein.startswith("rev_")]
-#
-#    if proteins:
-#        return proteins[0]
-#
-#
-#
-#    return protein, protein_group, rev_protein
 
 
 def make_peptide(peptide_input: str) -> tuple[str, str]:
