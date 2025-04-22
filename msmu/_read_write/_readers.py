@@ -50,7 +50,8 @@ def read_sage(
         if label == "tmt":
             channel = meta[channel_col].tolist()
         if label == "lfq":
-            filename = meta[filename_col].tolist()
+            filename:list[str] = meta[filename_col].tolist()
+            filename = [f if f.endswith(".mzML") else f"{f}.mzML" for f in filename]
 
     reader = reader_cls(
         sage_output_dir=sage_output_dir,
@@ -60,12 +61,12 @@ def read_sage(
     )
     mdata = reader.read()
 
-    if meta is not None:
-        mdata.obs = mdata.obs.join(meta.set_index(sample_col, drop=False))
-    elif channel is not None:
-        mdata.obs["channel"] = mdata.obs.index.map(
-            {i: c for i, c in zip(sample_name, channel)}
-        )
+    # if meta is not None:
+    #     mdata.obs = mdata.obs.join(meta.set_index(sample_col, drop=False))
+    # elif channel is not None:
+    #     mdata.obs["channel"] = mdata.obs.index.map(
+    #         {i: c for i, c in zip(sample_name, channel)}
+    #     )
 
     mdata.obs = to_categorical(mdata.obs)
     mdata.push_obs()
