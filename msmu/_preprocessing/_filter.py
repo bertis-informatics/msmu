@@ -4,7 +4,7 @@ from anndata import AnnData
 from mudata import MuData
 
 from ._calculate_precursor_purity import calculate_precursor_purity
-from .._utils import subset
+from .._utils import subset, get_modality_dict
 
 
 def add_q_value_filter(
@@ -113,14 +113,24 @@ def add_all_nan_filter(
 
 def apply_filter(
     mdata: MuData,
-    modality: str | list,
+    modality: str | list | None,
+    level: str | None
 ) -> MuData:
     # Check modality
-    if isinstance(modality, str):
-        modality = [modality]
+    if (level is not None) and (modality is not None):
+        raise ValueError("Only one of level or modality should be provided")
+    elif level is None:
+        if isinstance(modality, str):
+            modality_to_filter:list[str] = [modality]
+        elif isinstance(modality, list):
+            modality_to_filter:list[str] = modality
+    elif modality is None:
+        modality_to_filter:list[str] = [x for x in get_modality_dict(mdata, level=level).keys()]
+    else:
+        raise ValueError("One of level or modality should be provided")
 
     # Apply filter
-    for mod in modality:
+    for mod in modality_to_filter:
         mdata = _apply_filter(mdata, mod)
 
     return mdata.copy()
@@ -132,6 +142,7 @@ def _apply_filter(
 ) -> MuData:
 
     mdata = mdata.copy()
+
     # Get filter result
     if "filter" not in mdata[modality].varm_keys():
         raise ValueError("Filter result is not found in the data")
