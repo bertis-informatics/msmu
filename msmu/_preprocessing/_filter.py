@@ -183,7 +183,7 @@ def _save_filter_result(
     filter_result: pd.Series,
 ) -> None:
     if "filter" not in adata.varm_keys():
-        adata.varm["filter"] = pd.DataFrame(columns=[key], index=adata.var.index, data=filter_result)
+        adata.varm["filter"] = filter_result.to_frame(name=key)
     else:
         adata.varm["filter"][key] = filter_result
     return None
