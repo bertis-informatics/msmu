@@ -113,8 +113,8 @@ def add_all_nan_filter(
 
 def apply_filter(
     mdata: MuData,
-    modality: str | list | None,
-    level: str | None
+    modality: str | list | None = None,
+    level: str | None = None
 ) -> MuData:
     # Check modality
     if (level is not None) and (modality is not None):
