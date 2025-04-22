@@ -61,12 +61,14 @@ def read_sage(
     )
     mdata = reader.read()
 
-    # if meta is not None:
-    #     mdata.obs = mdata.obs.join(meta.set_index(sample_col, drop=False))
-    # elif channel is not None:
-    #     mdata.obs["channel"] = mdata.obs.index.map(
-    #         {i: c for i, c in zip(sample_name, channel)}
-    #     )
+    if meta is not None:
+        meta_col_add = [x for x in meta.columns if x not in mdata.obs.columns]
+        meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
+        mdata.obs = mdata.obs.join(meta_add)
+    elif channel is not None:
+        mdata.obs["channel"] = mdata.obs.index.map(
+            {i: c for i, c in zip(sample_name, channel)}
+        )
 
     mdata.obs = to_categorical(mdata.obs)
     mdata.push_obs()
