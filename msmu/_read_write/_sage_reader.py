@@ -254,7 +254,7 @@ class LfqSageReader(SageReader):
         sage_quant_df = sage_quant_df.rename(columns=rename_dict)
 
         adata_psm = ad.AnnData(
-            pd.DataFrame(index=sage_result_df.index, columns=sage_quant_df.columns).T
+            pd.DataFrame(index=sage_result_df.index, columns=sage_quant_df.columns).T.astype("float")
         )
         adata_psm.var = self._normalise_columns(sage_result_df, self._precursor_charge)
         adata_psm.varm["search_result"] = sage_result_df
