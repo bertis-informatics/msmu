@@ -148,10 +148,9 @@ def feature_scale(
 
             gis_drop_mod = mod[~gis_idx]
             gis_drop_mod.X = gis_normalised_data
-
             mdata.mod[mod_name] = gis_drop_mod
 
-            median_rescale_arr = np.append(median_rescale_arr, mdata.mod[mod_name].X[gis_idx])
+            median_rescale_arr = np.append(median_rescale_arr, mod[gis_idx].X.flatten())
 
         elif method == "median_center":
             median_centered_data = Normalisation(method="median", axis="var").normalise(
@@ -159,7 +158,7 @@ def feature_scale(
             )
             mdata[mod_name].X = median_centered_data
 
-            median_rescale_arr = np.append(median_rescale_arr, mdata.mod[mod_name].X.flatten())
+            median_rescale_arr = np.append(median_rescale_arr, mod.X.flatten())
 
         else:
             raise ValueError(
