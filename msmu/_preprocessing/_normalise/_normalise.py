@@ -29,14 +29,38 @@ def normalise(
     method: str,
     level: str,
     modality: str | None = None,
-    axis: str = "obs",
     fraction: bool = False,
+    rescale: bool = True,
 ):
+    """
+    Normalise data in MuData object.
+    Parameters
+    ----------
+    mdata: MuData
+        MuData object to normalise.
+    method: str
+        Normalisation method to use. Options are 'quantile', 'median', 'total_sum (not implemented)'.
+    level: str
+        Level of data to normalise. Options are 'psm', 'peptide', 'protein'.
+    modality: str
+        Modality to normalise. If None, all modalities at the specified level will be normalised.
+    fraction: bool
+        If True, normalise within fractions. If False, normalise across all data.
+    rescale: bool
+        If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
 
-    mod_dict = get_modality_dict(mdata=mdata, level=level, modality=modality)
-    norm_cls = Normalisation(method=method, axis=axis)
+    Returns
+    -------
+    mdata: MuData
+        Normalised MuData object.
+    """
+    axis:str = "obs"
+    mod_dict:dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=level, modality=modality)
+    norm_cls:Normalisation = Normalisation(method=method, axis=axis)
 
+    rescale_arr: np.array[float] = np.array([])
     for mod_name, mod in mod_dict.items():
+        rescale_arr = np.append(rescale_arr, mod.X.flatten())
         if fraction:
             normalised_arr = np.full_like(mod.X, np.nan, dtype=float)
             for fraction in np.unique(mod.var["filename"]):
@@ -50,7 +74,13 @@ def normalise(
             arr = mod.X.copy()
             normalised_arr = norm_cls.normalise(arr=arr)
 
-        mdata[mod_name].X = normalised_arr
+        mdata.mod[mod_name].X = normalised_arr
+
+    # rescale function for median normalisation
+    if (method == "median") & rescale:
+        all_median = np.nanmedian(rescale_arr.flatten())
+        for mod_name in mod_dict.keys():
+            mdata.mod[mod_name].X = mdata[mod_name].X + all_median
 
     return mdata
 
@@ -68,6 +98,7 @@ def feature_scale(
     level: str | None = None,
     gis_prefix: str | None = None,
     gis_col: list[str] | None = None,
+    rescale: bool = True,
 ) -> md.MuData:
     """
     Feature scale data in MuData object.
