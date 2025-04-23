@@ -154,7 +154,7 @@ def feature_scale(
 
         elif method == "median_center":
             median_centered_data = Normalisation(method="median", axis="var").normalise(
-                arr=mod.X, rescale=rescale
+                arr=mod.X,
             )
             mdata[mod_name].X = median_centered_data
 
@@ -165,10 +165,10 @@ def feature_scale(
                 f"Method {method} not recognised. Please choose from 'gis' or 'median_center'"
             )
         
-        if rescale:
-            all_gis_median = np.nanmedian(median_rescale_arr.flatten())
-            for mod_name in mod_dict.keys():
-                mdata[mod_name].X = mdata[mod_name].X + all_gis_median
+    if rescale:
+        all_gis_median = np.nanmedian(median_rescale_arr.flatten())
+        for mod_name in mod_dict.keys():
+            mdata[mod_name].X = mdata[mod_name].X + all_gis_median
 
 
     mdata.update_obs()
