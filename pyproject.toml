@@ -29,3 +29,6 @@ Repository = "https://bitbucket.org/bertis/msmu"
 
 [tool.setuptools]
 packages = ["msmu"]
+
+[tool.setuptools.packages.find]
+where = ["."]
