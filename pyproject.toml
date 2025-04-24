@@ -27,5 +27,8 @@ dynamic = ["version"]
 [project.urls]
 Repository = "https://bitbucket.org/bertis/msmu"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["."]
