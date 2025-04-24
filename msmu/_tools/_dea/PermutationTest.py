@@ -124,9 +124,10 @@ class PermutationTest:
         low_quantile: float = np.nanpercentile(null_med_diff, percentile)
         high_quantile: float = np.nanpercentile(null_med_diff, 100 - percentile)
 
-        fc_cutoff: float = np.mean([abs(low_quantile), abs(high_quantile)])
+        fc_cutoff: float = float(np.mean([abs(low_quantile), abs(high_quantile)]))
+        rounded_cutoff:float = round(fc_cutoff, 2)
 
-        return fc_cutoff
+        return rounded_cutoff
 
     def _sub_perm(
         self, concated_arr: np.ndarray, combinations: np.array, statistic: list
