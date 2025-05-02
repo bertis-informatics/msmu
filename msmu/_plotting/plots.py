@@ -623,7 +623,10 @@ def plot_correlation(
 
     # Draw plot
     data = PlotData(mdata, mods=mods)
-    plot = PlotHeatmap(data=data._prep_correlation_data(obs_column=obs_column))
+    plot = PlotHeatmap(
+        data=data._prep_correlation_data(obs_column=obs_column),
+        hovertemplate="<b>%{x} / %{y}</b><br>Pearson's <i>r</i> : %{z:.4f}<extra></extra>",
+    )
     fig = plot.figure()
 
     fig.update_traces(

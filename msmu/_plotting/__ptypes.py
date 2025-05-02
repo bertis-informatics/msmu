@@ -79,18 +79,13 @@ class PlotStackedBar(PlotTypes):
 
 
 class PlotHeatmap(PlotTypes):
-    def __init__(
-        self,
-        data: pd.DataFrame,
-    ):
-        super().__init__(data)
-
     def figure(self, **kwargs):
         self.layouts.update(dict(yaxis=dict(autorange="reversed"))),
         return super().figure(go.Heatmap, **kwargs)
 
     def trace(self):
         traces = TraceHeatmap(data=self.data)
+        traces.merge_trace_options(**self.options)
         self.fig.add_traces([self.ptype(**trace) for trace in traces()])
 
 

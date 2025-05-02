@@ -79,6 +79,11 @@ class TraceHeatmap(Trace):
         self.traces = self._get_traces()
 
     def _get_traces(self):
+        if len(self.data.index) < 20:
+            texttemplate = "%{z:.2f}"
+        else:
+            texttemplate = None
+
         return [
             {
                 "x": self.data.columns.tolist(),
@@ -86,6 +91,8 @@ class TraceHeatmap(Trace):
                 "z": self.data.values.tolist(),
                 "zmin": -1,
                 "zmax": 1,
+                "hoverongaps": False,
+                "texttemplate": texttemplate,
             }
         ]
 
