@@ -137,7 +137,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     #    protein_list: list = list() # for further feature
     #    ptm_list: list = list() # for further feature
     obs_ident = []
-
+    protein_info:pd.DataFrame = pd.DataFrame()
     for name_, mdata in mdatas.items():
         for mod in mdata.mod_names:
             adata = mdata[mod].copy()
@@ -149,6 +149,8 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
                 obs_ident.append(obs_ident_df)
             elif adata.uns["level"] == "peptide":
                 peptide_list.append(adata)
+
+        protein_info = pd.concat([protein_info, mdata.uns['protein_info']]).drop_duplicates()
 
     if peptide_list:
         adata_dict["peptide"] = ad.concat(
@@ -167,6 +169,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     )
     merged_mdata.obs["set"] = obs_ident_df["set"]
     merged_mdata.obs = to_categorical(merged_mdata.obs)
+    merged_mdata.uns['protein_info'] = protein_info.reset_index(drop=True)
     merged_mdata.push_obs()
     merged_mdata.update_var()
 

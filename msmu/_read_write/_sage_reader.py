@@ -16,7 +16,7 @@ class Reader:
     def __init__(self):
         md.set_options(pull_on_update=False)
 
-    def split_desc_mtx(self, search_result: pd.DataFrame): ...
+    # def split_desc_mtx(self, search_result: pd.DataFrame): ...
 
     #    def make_mudata(self, level, adata) -> md.MuData:
     #        mdata = md.MuData({level: adata})
@@ -24,6 +24,48 @@ class Reader:
 
 
 #        return mdata
+
+class ProteinIdParser:
+    def _parse_uniprot_accession(self, proteins:pd.Series) -> pd.DataFrame:
+        protein_df:pd.DataFrame = pd.DataFrame(proteins)
+        protein_df['index'] = range(len(protein_df))
+        protein_df['protein'] = protein_df['proteins'].apply(lambda x: x.split(';'))
+        protein_df = protein_df.explode('protein')
+
+        uniprot_id_category:list = ['source', 'accession', 'protein_name']
+        for idx, cat_ in enumerate(uniprot_id_category):
+            protein_df[cat_] = protein_df['protein'].apply(lambda x: x.split("|")[idx])
+        
+        protein_df['accession'] = protein_df.apply(lambda x: f"rev_{x['accession']}" if x['protein'].startswith('rev_') else x['accession'], axis=1)
+        protein_df['accession'] = protein_df.apply(lambda x: f"contam_{x['accession']}" if x['protein'].startswith('contam_') else x['accession'], axis=1)
+        
+        return protein_df
+
+    def _make_protein_info(self, protein_df:pd.DataFrame) -> pd.DataFrame:
+        protein_info:pd.DataFrame = protein_df.copy()
+
+        protein_info = protein_info.drop_duplicates('accession')
+        protein_info = protein_info.drop(columns=["index", "proteins"])
+
+        protein_info = protein_info.loc[protein_info['source'].str.startswith('rev_') == False, ]
+        protein_info = protein_info.loc[protein_info['source'].str.startswith('contam_') == False, ]
+
+        protein_info = protein_info.sort_values("accession")
+        protein_info = protein_info.reset_index(drop=True)
+        
+        return protein_info
+
+    def parse(self, proteins:pd.Series, source:str="uniprot"):
+        if source == 'uniprot':
+            protein_df:pd.DataFrame = self._parse_uniprot_accession(proteins=proteins)
+            protein_df_grouped = protein_df.groupby(['index', 'proteins'], as_index = False).agg(';'.join)
+            protein_df_grouped = protein_df_grouped.sort_values('index')
+
+            self.accession:list[str] = protein_df_grouped['accession'].tolist()
+        else:
+            raise NotImplementedError('For now, protein parse only can be applied to uniprot fasta')
+
+        self.protein_info:pd.DataFrame = self._make_protein_info(protein_df=protein_df)
 
 
 class SageReader(Reader):
@@ -113,10 +155,22 @@ class SageReader(Reader):
         sage_config: dict,
     ) -> md.MuData:
         raise NotImplementedError("This method should be implemented in subclasses.")
+    
+    def _assign_protein_id_info(self, mdata:md.MuData) -> md.MuData:
+        protein_id_info:ProteinIdParser = ProteinIdParser()
+        protein_id_info.parse(proteins=mdata['psm'].var['proteins'])
+        
+        mdata.mod['psm'].var['proteins'] = protein_id_info.accession
+        mdata.uns['protein_info'] = protein_id_info.protein_info
+
+        return mdata
 
     def read(self) -> md.MuData:
         sage_result_df, sage_quant_df, sage_config = self._import_sage()
-        return self._sage2mdata(sage_result_df, sage_quant_df, sage_config)
+        mdata:md.MuData = self._sage2mdata(sage_result_df, sage_quant_df, sage_config)
+        mdata = self._assign_protein_id_info(mdata=mdata)
+
+        return mdata
 
 
 class TmtSageReader(SageReader):
