@@ -84,6 +84,14 @@ def infer_protein(
     mdata.uns["peptide_map"] = peptide_map
     mdata.uns["protein_map"] = protein_map
 
+    # Make protein information mapping dict from mdata.uns['protein_info']
+    protein_info = mdata.uns['protein_info'].copy()
+    protein_info['concated_accession'] = protein_info['source'] + '_' + protein_info['accession']
+    protein_info = protein_info.set_index('accession')
+    protein_info = protein_info[['concated_accession']]
+
+    protein_info_dict = protein_info.to_dict(orient='dict')['concated_accession']
+
     # Remap proteins and classify peptides
     for mod_name, _ in mod_dict.items():
         mdata[mod_name].var[protein_colname] = (
@@ -94,7 +102,7 @@ def infer_protein(
         ]
         mdata[mod_name].var = mdata[mod_name].var.rename(columns={protein_colname: "protein_group"})
 
-        mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(select_representative)
+        mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(lambda x: select_representative(x, protein_info_dict))
 
     return mdata
 
@@ -589,7 +597,7 @@ def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[Tuple
     return connections
 
 
-def select_canon_prot(protein_group: str) -> str:
+def select_canon_prot(protein_group: str, protein_info: pd.DataFrame) -> str:
     """
     DEPRECATED: Use `select_representative` instead.
 
@@ -609,35 +617,37 @@ def select_canon_prot(protein_group: str) -> str:
         stacklevel=2,
     )
 
-    return select_representative(protein_group=protein_group)
+    return select_representative(protein_group=protein_group, protein_info=protein_info)
 
 
-def select_representative(protein_group: str) -> str:
+def select_representative(protein_group: str, protein_info: dict[str, str]) -> str:
     """
     Select canonical protein from protein list based on priority.
     canonical > swissprot > trembl > contam
 
     Args:
         protein_list (list[str]): list of proteins (uniprot entry)
+        protein_info (pd.DataFrame): DataFrame of protein info from mdata.uns['protein_info']
 
     Returns:
         protein_group (str): canonical protein group
     """
     protein_list = re.split(";|,", protein_group)
+    concated_protein_list:list[str] = [protein_info[k] for k in protein_list]
 
-    swissprot_canon_ls = [prot for prot in protein_list if prot.startswith("sp") and "-" not in prot]
+    swissprot_canon_ls = [prot for prot in concated_protein_list if prot.startswith("sp") and "-" not in prot]
     if swissprot_canon_ls:
-        return ",".join(swissprot_canon_ls)
+        return ",".join(swissprot_canon_ls).replace('sp_', '')
 
-    swissprot_ls = [prot for prot in protein_list if prot.startswith("sp")]
+    swissprot_ls = [prot for prot in concated_protein_list if prot.startswith("sp")]
     if swissprot_ls:
-        return ",".join(swissprot_ls)
+        return ",".join(swissprot_ls).replace('sp_', '')
 
-    trembl_ls = [prot for prot in protein_list if prot.startswith("tr")]
+    trembl_ls = [prot for prot in concated_protein_list if prot.startswith("tr")]
     if trembl_ls:
-        return ",".join(trembl_ls)
+        return ",".join(trembl_ls).replace('tr_', '')
 
-    contam_ls = [prot for prot in protein_list if prot.startswith("contam")]
+    contam_ls = [prot for prot in concated_protein_list if prot.startswith("contam")]
     if contam_ls:
         return ",".join(contam_ls)
 
