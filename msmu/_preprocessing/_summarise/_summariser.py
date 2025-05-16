@@ -50,6 +50,24 @@ class Summariser:
 
         return adata
 
+    def rank_(self, data: pd.DataFrame, rank_method: str) -> pd.DataFrame:
+        if rank_method == "max_intensity":
+            data.loc[:, "max_intensity"] = data[self._obs].max(axis=1)
+            data.loc[:, "rank"] = data.groupby(self._col_to_groupby)[
+                "max_intensity"
+            ].rank(ascending=False)
+        else:
+            raise ValueError(
+                f"Unknown rank method: {rank_method}. Please choose from ['max_intensity']"
+            )
+
+        return data
+
+    def filter_by_rank(self, data: pd.DataFrame, top_n: int) -> pd.DataFrame:
+        data = data[data["rank"] <= top_n]
+
+        return data
+
 
 class PeptideSummariser(Summariser):
     def __init__(
@@ -100,24 +118,6 @@ class PeptideSummariser(Summariser):
         data: pd.DataFrame = data.merge(
             peptide_count, left_on=self._col_to_groupby, right_index=True
         )
-
-        return data
-
-    def rank_psm(self, data: pd.DataFrame, rank_method: str) -> pd.DataFrame:
-        if rank_method == "max_intensity":
-            data.loc[:, "max_intensity"] = data[self._obs].max(axis=1)
-            data.loc[:, "rank"] = data.groupby(self._col_to_groupby)[
-                "max_intensity"
-            ].rank(ascending=False)
-        else:
-            raise ValueError(
-                f"Unknown rank method: {rank_method}. Please choose from ['max_intensity']"
-            )
-
-        return data
-
-    def filter_by_rank(self, data: pd.DataFrame, top_n: int) -> pd.DataFrame:
-        data = data[data["rank"] <= top_n]
 
         return data
 

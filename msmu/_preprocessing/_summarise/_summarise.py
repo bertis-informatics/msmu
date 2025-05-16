@@ -62,8 +62,9 @@ def to_peptide(
         )
         data: pd.DataFrame = summ.get_data()
 
+        # get top n PSMs for each peptide
         if top_n is not None:
-            data: pd.DataFrame = summ.rank_psm(data=data, rank_method=rank_method)
+            data: pd.DataFrame = summ.rank_(data=data, rank_method=rank_method)
             data: pd.DataFrame = summ.filter_by_rank(data=data, top_n=top_n)
 
         summarised_data: pd.DataFrame = summ.summarise_data(
@@ -162,19 +163,21 @@ def _merged_var_df(adata_list: list[ad.AnnData], protein_col: str) -> pd.DataFra
 
 def to_protein(
     mdata,
-    top_n: int | None = None,  # TODO: add top_n to protein level
-    rank_method: str | None = None,  # TODO: add rank_method to protein level
+    top_n: int | None = None,
+    rank_method: str = "",
     protein_col="protein_group",
     min_n_peptides=1,
     sum_method="median",
     from_="peptide",
-    keep_mbr_only: bool = False,  # TODO: add keep_mbr_only to protein level
+    # keep_mbr_only: bool = False,  # TODO: add keep_mbr_only to protein level
 ) -> md.MuData:
     """
     Summarise protein level data from peptide level data.
 
     Args:
         mdata (md.MuData): MuData object containing peptide level data.
+        top_n (int | None): Number of top peptides to keep after ranking. If None, all peptides are kept.
+        rank_method (str): Method to rank peptides. Default is "" (no ranking).
         protein_col (str): Column name for protein groups. Default is "protein_group" which is from msmu protein inference.
         min_n_peptides (int): Minimum number of peptides required to keep a protein. Default is 1.
         sum_method (str): Method to summarise quantification of peptides. Default is "median".
@@ -191,9 +194,22 @@ def to_protein(
     )
     data: pd.DataFrame = summ.get_data()
     unique_filtered_data: pd.DataFrame = summ.filter_unique_peptides(data=data)
+
+    # get top n peptides for each protein
+    if top_n is not None:
+        unique_filtered_data: pd.DataFrame = summ.rank_(
+            data=unique_filtered_data, rank_method=rank_method
+        )
+        unique_filtered_data: pd.DataFrame = summ.filter_by_rank(
+            data=unique_filtered_data, top_n=top_n
+        )
+
+    # summarise data
     summarised_data: pd.DataFrame = summ.summarise_data(
         data=unique_filtered_data, sum_method=sum_method
     )
+
+    # filter out proteins with less than min_n_peptides
     summarised_data: pd.DataFrame = summ.filter_n_min_peptides(
         data=summarised_data, min_n_peptides=min_n_peptides
     )
