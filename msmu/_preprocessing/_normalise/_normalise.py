@@ -29,14 +29,38 @@ def normalise(
     method: str,
     level: str,
     modality: str | None = None,
-    axis: str = "obs",
     fraction: bool = False,
+    rescale: bool = True,
 ):
+    """
+    Normalise data in MuData object.
+    Parameters
+    ----------
+    mdata: MuData
+        MuData object to normalise.
+    method: str
+        Normalisation method to use. Options are 'quantile', 'median', 'total_sum (not implemented)'.
+    level: str
+        Level of data to normalise. Options are 'psm', 'peptide', 'protein'.
+    modality: str
+        Modality to normalise. If None, all modalities at the specified level will be normalised.
+    fraction: bool
+        If True, normalise within fractions. If False, normalise across all data.
+    rescale: bool
+        If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
 
-    mod_dict = get_modality_dict(mdata=mdata, level=level, modality=modality)
-    norm_cls = Normalisation(method=method, axis=axis)
+    Returns
+    -------
+    mdata: MuData
+        Normalised MuData object.
+    """
+    axis:str = "obs"
+    mod_dict:dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=level, modality=modality)
+    norm_cls:Normalisation = Normalisation(method=method, axis=axis)
 
+    rescale_arr: np.array[float] = np.array([])
     for mod_name, mod in mod_dict.items():
+        rescale_arr = np.append(rescale_arr, mod.X.flatten())
         if fraction:
             normalised_arr = np.full_like(mod.X, np.nan, dtype=float)
             for fraction in np.unique(mod.var["filename"]):
@@ -50,7 +74,13 @@ def normalise(
             arr = mod.X.copy()
             normalised_arr = norm_cls.normalise(arr=arr)
 
-        mdata[mod_name].X = normalised_arr
+        mdata.mod[mod_name].X = normalised_arr
+
+    # rescale function for median normalisation
+    if (method == "median") & rescale:
+        all_median = np.nanmedian(rescale_arr.flatten())
+        for mod_name in mod_dict.keys():
+            mdata.mod[mod_name].X = mdata[mod_name].X + all_median
 
     return mdata
 
@@ -61,15 +91,40 @@ def correct_batch_effect(
     raise NotImplementedError("Batch correction methods are not implemented yet.")
 
 
-def scale_data(
+def feature_scale(
     mdata: md.MuData,
     method: str,
     modality: str | None = None,
     level: str | None = None,
     gis_prefix: str | None = None,
     gis_col: list[str] | None = None,
+    rescale: bool = True,
 ) -> md.MuData:
+    """
+    Feature scale data in MuData object.
+    Parameters
+    ----------
+    mdata: MuData
+        MuData object to normalise.
+    method: str
+        Normalisation method to use. Options are 'gis', 'median_center'.
+    level: str
+        Level of data to normalise. Options are 'psm', 'peptide', 'protein'.
+    modality: str
+        Modality to normalise. If None, all modalities at the specified level will be normalised.
+    gis_prefix: str
+        Prefix for GIS samples. If None, all samples with 'gis' in the name will be used.
+    gis_col: str
+        Column name for GIS samples. If None, all samples with 'gis' in the name will be used.
+    rescale: bool
+        If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
+    Returns
+    -------
+    mdata: MuData
+        Normalised MuData object.
+    """
     mod_dict = get_modality_dict(mdata=mdata, level=level, modality=modality)
+    median_rescale_arr: np.array[float] = np.array([])
     for mod_name, mod in mod_dict.items():
         if method == "gis":
             if (gis_prefix is None) & (gis_col is None):
@@ -93,19 +148,28 @@ def scale_data(
 
             gis_drop_mod = mod[~gis_idx]
             gis_drop_mod.X = gis_normalised_data
-
             mdata.mod[mod_name] = gis_drop_mod
+
+            median_rescale_arr = np.append(median_rescale_arr, mod[gis_idx].X.flatten())
 
         elif method == "median_center":
             median_centered_data = Normalisation(method="median", axis="var").normalise(
-                arr=mod.X
+                arr=mod.X,
             )
             mdata[mod_name].X = median_centered_data
+
+            median_rescale_arr = np.append(median_rescale_arr, mod.X.flatten())
 
         else:
             raise ValueError(
                 f"Method {method} not recognised. Please choose from 'gis' or 'median_center'"
             )
+        
+    if rescale:
+        all_gis_median = np.nanmedian(median_rescale_arr.flatten())
+        for mod_name in mod_dict.keys():
+            mdata[mod_name].X = mdata[mod_name].X + all_gis_median
+
 
     mdata.update_obs()
 
@@ -155,7 +219,7 @@ def get_modality_dict(
     return mod_dict
 
 
-def _trim_blank_gis(adata, ignore_blank, ignore_gis):
+def _trim_blank_gis(adata, ignore_blank, ignore_gis): # deprecated
     invalid_idx = np.array([])
     if ignore_blank:
         invalid_idx = np.append(invalid_idx, np.where(adata.obs["is_blank"]))

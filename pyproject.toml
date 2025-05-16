@@ -28,4 +28,8 @@ dynamic = ["version"]
 Repository = "https://bitbucket.org/bertis/msmu"
 
 [tool.setuptools]
-packages = ["msmu"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests", "docs"]

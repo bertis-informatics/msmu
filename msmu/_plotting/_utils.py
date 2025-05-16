@@ -5,7 +5,7 @@ import plotly.io as pio
 import plotly.graph_objects as go
 
 
-DEFAULT_COLUMN = "sample_id"
+DEFAULT_COLUMN = "sample"
 
 
 def _set_color(

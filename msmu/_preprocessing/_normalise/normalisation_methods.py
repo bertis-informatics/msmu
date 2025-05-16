@@ -86,4 +86,6 @@ def normalise_median_center(arr: np.ndarray) -> np.ndarray:
     return median_centered_data
 
 
-def normalise_total_sum(): ...
+def normalise_total_sum():
+    """Total sum normalisation of data"""
+    raise NotImplementedError("Total sum normalisation is not implemented yet.")

@@ -97,8 +97,10 @@ def to_peptide(
         msms_evidence = msms_evidence.pivot(
             index="precursor", columns="filename", values="evidence"
         )
+        msms_evidence = msms_evidence.rename_axis(index=None, columns=None)
+        
         rename_dict: dict = {
-            f"{filename}.mzML": sample
+            filename: sample
             for filename, sample in zip(mdata.obs["tag"], mdata.obs_names)
         }
         msms_evidence = msms_evidence.rename(columns=rename_dict)

@@ -50,7 +50,8 @@ def read_sage(
         if label == "tmt":
             channel = meta[channel_col].tolist()
         if label == "lfq":
-            filename = meta[filename_col].tolist()
+            filename:list[str] = meta[filename_col].tolist()
+            filename = [f if f.endswith(".mzML") else f"{f}.mzML" for f in filename]
 
     reader = reader_cls(
         sage_output_dir=sage_output_dir,
@@ -61,7 +62,9 @@ def read_sage(
     mdata = reader.read()
 
     if meta is not None:
-        mdata.obs = mdata.obs.join(meta.set_index(sample_col, drop=False))
+        meta_col_add = [x for x in meta.columns if x not in mdata.obs.columns]
+        meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
+        mdata.obs = mdata.obs.join(meta_add)
     elif channel is not None:
         mdata.obs["channel"] = mdata.obs.index.map(
             {i: c for i, c in zip(sample_name, channel)}
@@ -152,7 +155,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     #    protein_list: list = list() # for further feature
     #    ptm_list: list = list() # for further feature
     obs_ident = []
-
+    protein_info:pd.DataFrame = pd.DataFrame()
     for name_, mdata in mdatas.items():
         for mod in mdata.mod_names:
             adata = mdata[mod].copy()
@@ -164,6 +167,8 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
                 obs_ident.append(obs_ident_df)
             elif adata.uns["level"] == "peptide":
                 peptide_list.append(adata)
+
+        protein_info = pd.concat([protein_info, mdata.uns['protein_info']]).drop_duplicates()
 
     if peptide_list:
         adata_dict["peptide"] = ad.concat(
@@ -182,6 +187,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     )
     merged_mdata.obs["set"] = obs_ident_df["set"]
     merged_mdata.obs = to_categorical(merged_mdata.obs)
+    merged_mdata.uns['protein_info'] = protein_info.reset_index(drop=True)
     merged_mdata.push_obs()
     merged_mdata.update_var()
 

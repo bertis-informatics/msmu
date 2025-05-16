@@ -14,7 +14,7 @@ from ._infer_protein import (
     select_canon_prot,
 )
 
-from ._normalise._normalise import log2_transform, normalise, scale_data
+from ._normalise._normalise import log2_transform, normalise, feature_scale 
 from ._summarise._summarise import to_peptide, to_protein, to_ptm_site
 
 __all__ = [
@@ -26,7 +26,7 @@ __all__ = [
     "calculate_precursor_purity",
     "log2_transform",
     "normalise",
-    "scale_data",
+    "feature_scale",
     "to_peptide",
     "to_protein",
     "to_ptm_site",

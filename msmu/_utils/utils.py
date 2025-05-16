@@ -1,3 +1,4 @@
+from typing import Iterable
 import anndata as ad
 import mudata as md
 from pathlib import Path
@@ -28,6 +29,18 @@ def get_modality_dict(
         mod_dict[modality] = mdata[modality].copy()
 
     return mod_dict
+
+
+def get_label(mdata: md.MuData) -> str:
+    psm_mdatas:Iterable[ad.AnnData] = get_modality_dict(mdata=mdata, level='psm').values()
+    label_list:list[str] = [x.uns['label'] for x in psm_mdatas]
+    
+    if len(set(label_list)) == 1:
+        label:str = label_list[0]
+    else:
+        raise ValueError("Multiple Label in Adatas! Please check label argument for reading search outputs!")
+
+    return label
 
 
 def get_fasta_meta(
