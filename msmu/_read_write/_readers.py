@@ -90,8 +90,26 @@ def to_categorical(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def read_diann():
-    return NotImplementedError
+def read_diann(
+    diann_output_dir: str | Path,
+    sample_name: list[str],
+    filename: list[str] | None = None,
+) -> md.MuData:
+    reader_cls = DiannReader
+
+    if meta is not None:
+        sample_name = meta[sample_col].tolist()
+        filename = meta[filename_col].tolist()
+
+    reader = reader_cls(
+        diann_output_dir=diann_output_dir,
+        sample_name=sample_name,
+        filename=filename,
+    )
+
+    mdata = reader.read()
+
+    return mdata
 
 
 def read_comet():
