@@ -362,23 +362,16 @@ class PlotData:
 
         return combination_counts, item_counts
 
-    def _prep_correlation_data(self, obs_column: str = DEFAULT_COLUMN):
-        corrs = []
-        orig_df = self._get_data().T
+    def _prep_correlation_data(self, groupby: str, obs_column: str = DEFAULT_COLUMN):
+        orig_df = self._get_data()
         obs_df = self._get_obs(obs_column)
+        corrs_df = orig_df.groupby(obs_df[groupby], observed=True).median().T.corr(method="pearson")
 
-        for x, y in itertools.combinations(obs_df.index, 2):
-            corrs.append((x, y, orig_df[x].corr(orig_df[y])))
+        for x in range(corrs_df.shape[0]):
+            for y in range(corrs_df.shape[1]):
+                if x < y:
+                    corrs_df.iloc[x, y] = np.nan
 
-        for x in orig_df.columns:
-            corrs.append((x, x, orig_df[x].corr(orig_df[x])))
-
-        corrs_df = pd.DataFrame(corrs, columns=["x", "y", "corr"])
-        corrs_df = corrs_df.set_index(["y", "x"]).unstack()
-        corrs_df = corrs_df.droplevel(0, axis=1)
-
-        corrs_df.columns = pd.CategoricalIndex(corrs_df.columns, categories=obs_df.index)
-        corrs_df.index = pd.CategoricalIndex(corrs_df.index, categories=obs_df.index)
         corrs_df = corrs_df.sort_index(axis=0).sort_index(axis=1)
 
         return corrs_df
