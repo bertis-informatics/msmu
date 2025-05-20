@@ -102,10 +102,12 @@ class PermutationTest:
                 )
                 null_dist = null_dist.add_permutation_result(tmp_stat)
 
-            # pval_permutation = StatTest.pval2tail(stat_obs=obs_stats.statistic, null_dist=null_dist.null_distribution)
             pval_permutation = StatTest.pval_calc_test(
                 stat_obs=obs_stats.statistic, null_dist=null_dist.null_distribution
             )
+            # pval_permutation = StatTest.pval2tail(
+            #     stat_obs=obs_stats.statistic, null_dist=null_dist.null_distribution
+            # )
             setattr(perm_test_res, f"p_perm_{stat_method}", pval_permutation)
 
             if stat_method == "med_diff":
