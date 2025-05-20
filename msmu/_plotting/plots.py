@@ -611,6 +611,7 @@ def plot_upset(
 
 def plot_correlation(
     mdata: md.MuData,
+    groupby: str = DEFAULT_COLUMN,
     level: str = "protein",
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
@@ -624,7 +625,7 @@ def plot_correlation(
     # Draw plot
     data = PlotData(mdata, mods=mods)
     plot = PlotHeatmap(
-        data=data._prep_correlation_data(obs_column=obs_column),
+        data=data._prep_correlation_data(obs_column=obs_column, groupby=groupby),
         hovertemplate="<b>%{x} / %{y}</b><br>Pearson's <i>r</i> : %{z:.4f}<extra></extra>",
     )
     fig = plot.figure()
