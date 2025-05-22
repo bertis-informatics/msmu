@@ -22,16 +22,16 @@ def uns_logger(func):
         log_entry = {
             "function": func.__name__,
             "timestamp": datetime.datetime.now().isoformat(),
-            "args": args,
+            "args": list(args),
             "kwargs": kwargs,
         }
 
         # Initialize the log list if needed
         if "_cmd" not in result.uns_keys():
-            result.uns["_cmd"] = []
+            result.uns["_cmd"] = {}
 
         # Append log
-        result.uns["_cmd"].append(log_entry)
+        result.uns["_cmd"][str(len(result.uns["_cmd"]))] = log_entry
 
         return result
 
