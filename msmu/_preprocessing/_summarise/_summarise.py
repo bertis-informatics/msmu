@@ -8,13 +8,14 @@ import numpy as np
 import pandas as pd
 
 from ..._read_write._readers import add_modality
-from ..._utils.utils import get_modality_dict
+from ..._utils.utils import get_modality_dict, uns_logger
 from ._summariser import PeptideSummariser, ProteinSummariser, PtmSummariser
 
 warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
 warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
 
+@uns_logger
 def to_peptide(
     mdata: md.MuData,
     rank_method: str | None = None,
@@ -42,9 +43,7 @@ def to_peptide(
     modality_dict: dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=from_)
     label_list: list = list(set([x.uns["label"] for x in modality_dict.values()]))
     if len(label_list) > 1:
-        raise ValueError(
-            "Multiple labels found in the input data. Please provide a single label."
-        )
+        raise ValueError("Multiple labels found in the input data. Please provide a single label.")
     else:
         label = label_list[0]
 
@@ -67,9 +66,7 @@ def to_peptide(
             data: pd.DataFrame = summ.rank_(data=data, rank_method=rank_method)
             data: pd.DataFrame = summ.filter_by_rank(data=data, top_n=top_n)
 
-        summarised_data: pd.DataFrame = summ.summarise_data(
-            data=data, sum_method=sum_method
-        )
+        summarised_data: pd.DataFrame = summ.summarise_data(data=data, sum_method=sum_method)
         peptide_adata: pd.DataFrame = summ.data2adata(data=summarised_data)
         adata_list.append(peptide_adata)
 
@@ -91,38 +88,25 @@ def to_peptide(
 
         msms_evidence: pd.DataFrame = pd.concat(msms_evidence_list, axis=0)
         msms_evidence["evidence"] = 1
-        msms_evidence = msms_evidence.groupby(
-            ["precursor", "filename"], as_index=False, observed=False
-        ).agg("sum")
-        msms_evidence = msms_evidence.pivot(
-            index="precursor", columns="filename", values="evidence"
-        )
+        msms_evidence = msms_evidence.groupby(["precursor", "filename"], as_index=False, observed=False).agg("sum")
+        msms_evidence = msms_evidence.pivot(index="precursor", columns="filename", values="evidence")
         msms_evidence = msms_evidence.rename_axis(index=None, columns=None)
-        
-        rename_dict: dict = {
-            filename: sample
-            for filename, sample in zip(mdata.obs["tag"], mdata.obs_names)
-        }
+
+        rename_dict: dict = {filename: sample for filename, sample in zip(mdata.obs["tag"], mdata.obs_names)}
         msms_evidence = msms_evidence.rename(columns=rename_dict)
         msms_evidence = msms_evidence.notna().astype(int).replace({0: np.nan})
 
-        msms_evidence = msms_evidence.loc[
-            merged_peptide_adata.var_names, merged_peptide_adata.obs_names
-        ]
+        msms_evidence = msms_evidence.loc[merged_peptide_adata.var_names, merged_peptide_adata.obs_names]
 
         # assign msms_evidence to a layer of adata (merged_peptide_adata)
         merged_peptide_adata.layers["msms_evidence"] = msms_evidence.values.T
 
         # filter out quantity without MSMS evidence if keep_mbr_only is False
         if keep_mbr_only == False:
-            merged_peptide_adata.X = np.multiply(
-                merged_peptide_adata.X, msms_evidence.values.T
-            ).astype(float)
+            merged_peptide_adata.X = np.multiply(merged_peptide_adata.X, msms_evidence.values.T).astype(float)
 
     # make merged_var dataframe
-    merged_var: pd.DataFrame = _merged_var_df(
-        adata_list=adata_list, protein_col=protein_col
-    )
+    merged_var: pd.DataFrame = _merged_var_df(adata_list=adata_list, protein_col=protein_col)
 
     merged_peptide_adata.var = merged_var.loc[merged_peptide_adata.var_names]
     merged_peptide_adata.uns["level"] = "peptide"
@@ -155,14 +139,13 @@ def _merged_var_df(adata_list: list[ad.AnnData], protein_col: str) -> pd.DataFra
     if "repr_protein" in merged_var.columns:
         merged_agg_dict["repr_protein"] = "first"
 
-    merged_var: pd.DataFrame = merged_var.groupby(merged_var.index, observed=False).agg(
-        merged_agg_dict
-    )
+    merged_var: pd.DataFrame = merged_var.groupby(merged_var.index, observed=False).agg(merged_agg_dict)
     merged_var: pd.DataFrame = merged_var[~merged_var.index.duplicated(keep="first")]
 
     return merged_var
 
 
+@uns_logger
 def to_protein(
     mdata,
     top_n: int | None = None,
@@ -191,30 +174,20 @@ def to_protein(
     modality_dict: dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=from_)
     adata: ad.AnnData = modality_dict[from_].copy()
 
-    summ: ProteinSummariser = ProteinSummariser(
-        adata=adata, protein_col=protein_col, from_=from_
-    )
+    summ: ProteinSummariser = ProteinSummariser(adata=adata, protein_col=protein_col, from_=from_)
     data: pd.DataFrame = summ.get_data()
     unique_filtered_data: pd.DataFrame = summ.filter_unique_peptides(data=data)
 
     # get top n peptides for each protein
     if top_n is not None:
-        unique_filtered_data: pd.DataFrame = summ.rank_(
-            data=unique_filtered_data, rank_method=rank_method
-        )
-        unique_filtered_data: pd.DataFrame = summ.filter_by_rank(
-            data=unique_filtered_data, top_n=top_n
-        )
+        unique_filtered_data: pd.DataFrame = summ.rank_(data=unique_filtered_data, rank_method=rank_method)
+        unique_filtered_data: pd.DataFrame = summ.filter_by_rank(data=unique_filtered_data, top_n=top_n)
 
     # summarise data
-    summarised_data: pd.DataFrame = summ.summarise_data(
-        data=unique_filtered_data, sum_method=sum_method
-    )
+    summarised_data: pd.DataFrame = summ.summarise_data(data=unique_filtered_data, sum_method=sum_method)
 
     # filter out proteins with less than min_n_peptides
-    summarised_data: pd.DataFrame = summ.filter_n_min_peptides(
-        data=summarised_data, min_n_peptides=min_n_peptides
-    )
+    summarised_data: pd.DataFrame = summ.filter_n_min_peptides(data=summarised_data, min_n_peptides=min_n_peptides)
 
     protein_adata: ad.AnnData = summ.data2adata(data=summarised_data)
 
@@ -255,9 +228,7 @@ def to_ptm_site(
             preset = getattr(PtmPreset, modification_name)()
             modification_mass = preset.mass
         else:
-            raise ValueError(
-                f"Unknown modification name: {modification_name}. Please provide modification mass."
-            )
+            raise ValueError(f"Unknown modification name: {modification_name}. Please provide modification mass.")
     else:
         if modification_name in PtmPreset.__dict__:
             warnings.warn(
@@ -269,17 +240,13 @@ def to_ptm_site(
         elif modification_name not in PtmPreset.__dict__:  # user defined modification
             preset = PtmPreset(name=modification_name, mass=modification_mass)
         else:
-            raise ValueError(
-                f"Unknown modification name: {modification_name}. Please provide modification mass."
-            )
+            raise ValueError(f"Unknown modification name: {modification_name}. Please provide modification mass.")
 
     peptide_adata = mdata.mod["peptide"].copy()
 
     summ: PtmSummariser = PtmSummariser(adata=peptide_adata, protein_col=protein_col)
     data: pd.DataFrame = summ.get_data()
-    ptm_label_df = summ.label_ptm_site(
-        data=data, modification_mass=preset.mass, fasta_file=fasta_file
-    )
+    ptm_label_df = summ.label_ptm_site(data=data, modification_mass=preset.mass, fasta_file=fasta_file)
     ptm_df = summ.summarise_data(data=ptm_label_df, sum_method=sum_method)
 
     ptm_adata: ad.AnnData = summ.data2adata(data=ptm_df)

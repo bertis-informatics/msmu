@@ -2,7 +2,10 @@ import pandas as pd
 from mudata import MuData
 from sklearn.decomposition import PCA
 
+from .._utils import uns_logger
 
+
+@uns_logger
 def pca(
     mdata: MuData,
     modality: str,

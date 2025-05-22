@@ -4,9 +4,10 @@ from anndata import AnnData
 from mudata import MuData
 
 from ._calculate_precursor_purity import calculate_precursor_purity
-from .._utils import subset, get_modality_dict
+from .._utils import subset, get_modality_dict, uns_logger
 
 
+@uns_logger
 def add_q_value_filter(
     mdata: MuData,
     modality: str,
@@ -39,6 +40,7 @@ def add_q_value_filter(
     return mdata
 
 
+@uns_logger
 def add_prefix_filter(
     mdata: MuData,
     modality: str,
@@ -62,6 +64,7 @@ def add_prefix_filter(
     return mdata
 
 
+@uns_logger
 def add_precursor_purity_filter(
     mdata: MuData,
     modality: str,
@@ -95,6 +98,7 @@ def add_precursor_purity_filter(
     return mdata
 
 
+@uns_logger
 def add_all_nan_filter(
     mdata: MuData,
     modality: str,
@@ -111,21 +115,18 @@ def add_all_nan_filter(
     return mdata
 
 
-def apply_filter(
-    mdata: MuData,
-    modality: str | list | None = None,
-    level: str | None = None
-) -> MuData:
+@uns_logger
+def apply_filter(mdata: MuData, modality: str | list | None = None, level: str | None = None) -> MuData:
     # Check modality
     if (level is not None) and (modality is not None):
         raise ValueError("Only one of level or modality should be provided")
     elif level is None:
         if isinstance(modality, str):
-            modality_to_filter:list[str] = [modality]
+            modality_to_filter: list[str] = [modality]
         elif isinstance(modality, list):
-            modality_to_filter:list[str] = modality
+            modality_to_filter: list[str] = modality
     elif modality is None:
-        modality_to_filter:list[str] = [x for x in get_modality_dict(mdata, level=level).keys()]
+        modality_to_filter: list[str] = [x for x in get_modality_dict(mdata, level=level).keys()]
     else:
         raise ValueError("One of level or modality should be provided")
 

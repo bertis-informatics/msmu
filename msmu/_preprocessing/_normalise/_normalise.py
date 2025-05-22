@@ -10,11 +10,11 @@ from .normalisation_methods import (
     normalise_quantile,
     normalise_total_sum,
 )
+from ..._utils import uns_logger
 
 
-def log2_transform(
-    mdata: md.MuData, modality: str | None = None, level: str | None = None
-):
+@uns_logger
+def log2_transform(mdata: md.MuData, modality: str | None = None, level: str | None = None):
     mod_dict = get_modality_dict(mdata=mdata, level=level, modality=modality)
     for mod_name, mod in mod_dict.items():
         log2_arr = np.log2(mod.X)
@@ -54,9 +54,9 @@ def normalise(
     mdata: MuData
         Normalised MuData object.
     """
-    axis:str = "obs"
-    mod_dict:dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=level, modality=modality)
-    norm_cls:Normalisation = Normalisation(method=method, axis=axis)
+    axis: str = "obs"
+    mod_dict: dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=level, modality=modality)
+    norm_cls: Normalisation = Normalisation(method=method, axis=axis)
 
     rescale_arr: np.array[float] = np.array([])
     for mod_name, mod in mod_dict.items():
@@ -85,9 +85,7 @@ def normalise(
     return mdata
 
 
-def correct_batch_effect(
-    mdata: md.MuData, batch: str, method: str, modality: str, level: str
-) -> md.MuData:
+def correct_batch_effect(mdata: md.MuData, batch: str, method: str, modality: str, level: str) -> md.MuData:
     raise NotImplementedError("Batch correction methods are not implemented yet.")
 
 
@@ -128,23 +126,17 @@ def feature_scale(
     for mod_name, mod in mod_dict.items():
         if method == "gis":
             if (gis_prefix is None) & (gis_col is None):
-                raise ValueError(
-                    "Please provide either a GIS prefix or GIS column name"
-                )
+                raise ValueError("Please provide either a GIS prefix or GIS column name")
 
             if gis_col is not None:
                 gis_idx: np.array[bool] = mod.obs[gis_col] == True
             else:
-                gis_idx: np.array[bool] = (
-                    mod.obs_names.str.startswith(gis_prefix) == True
-                )
+                gis_idx: np.array[bool] = mod.obs_names.str.startswith(gis_prefix) == True
 
             if gis_idx.sum() == 0:
                 raise ValueError(f"No GIS samples found in {mod_name}")
 
-            gis_normalised_data: np.array[float] = normalise_gis(
-                arr=mod.X, gis_idx=gis_idx
-            )
+            gis_normalised_data: np.array[float] = normalise_gis(arr=mod.X, gis_idx=gis_idx)
 
             gis_drop_mod = mod[~gis_idx]
             gis_drop_mod.X = gis_normalised_data
@@ -161,15 +153,12 @@ def feature_scale(
             median_rescale_arr = np.append(median_rescale_arr, mod.X.flatten())
 
         else:
-            raise ValueError(
-                f"Method {method} not recognised. Please choose from 'gis' or 'median_center'"
-            )
-        
+            raise ValueError(f"Method {method} not recognised. Please choose from 'gis' or 'median_center'")
+
     if rescale:
         all_gis_median = np.nanmedian(median_rescale_arr.flatten())
         for mod_name in mod_dict.keys():
             mdata[mod_name].X = mdata[mod_name].X + all_gis_median
-
 
     mdata.update_obs()
 
@@ -199,9 +188,7 @@ class BatchCorrection:
         return self._method_call(arr=arr)
 
 
-def get_modality_dict(
-    mdata: md.MuData, level: str | None = None, modality: str | None = None
-) -> dict:
+def get_modality_dict(mdata: md.MuData, level: str | None = None, modality: str | None = None) -> dict:
     """Get modality data from MuData object"""
 
     if (level == None) & (modality == None):
@@ -219,7 +206,7 @@ def get_modality_dict(
     return mod_dict
 
 
-def _trim_blank_gis(adata, ignore_blank, ignore_gis): # deprecated
+def _trim_blank_gis(adata, ignore_blank, ignore_gis):  # deprecated
     invalid_idx = np.array([])
     if ignore_blank:
         invalid_idx = np.append(invalid_idx, np.where(adata.obs["is_blank"]))
@@ -257,9 +244,7 @@ class Normalisation:
             normalised_arr = self._method_call(arr=arr)
 
         else:
-            raise ValueError(
-                f"Axis {self._axis} not recognised. Please choose from 'obs' or 'var'"
-            )
+            raise ValueError(f"Axis {self._axis} not recognised. Please choose from 'obs' or 'var'")
 
         normalised_arr[na_idx] = np.nan
 

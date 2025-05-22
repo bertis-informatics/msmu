@@ -1,5 +1,5 @@
 from .subset import subset
-from .utils import get_modality_dict, get_fasta_meta, map_fasta, get_label
+from .utils import get_modality_dict, get_fasta_meta, map_fasta, get_label, uns_logger
 
 __all__ = [
     "subset",
@@ -7,4 +7,5 @@ __all__ = [
     "get_fasta_meta",
     "map_fasta",
     "get_label",
+    "uns_logger",
 ]

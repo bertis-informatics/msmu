@@ -8,7 +8,7 @@ import pandas as pd
 import scipy.sparse as sp
 import mudata as md
 
-from .._utils import get_modality_dict
+from .._utils import get_modality_dict, uns_logger
 
 
 class Mapping(TypedDict):
@@ -53,6 +53,7 @@ def map_representatives(
     )
 
 
+@uns_logger
 def infer_protein(
     mdata: md.MuData,
     modality: Union[str, None] = None,
@@ -85,12 +86,12 @@ def infer_protein(
     mdata.uns["protein_map"] = protein_map
 
     # Make protein information mapping dict from mdata.uns['protein_info']
-    protein_info = mdata.uns['protein_info'].copy()
-    protein_info['concated_accession'] = protein_info['source'] + '_' + protein_info['accession']
-    protein_info = protein_info.set_index('accession')
-    protein_info = protein_info[['concated_accession']]
+    protein_info = mdata.uns["protein_info"].copy()
+    protein_info["concated_accession"] = protein_info["source"] + "_" + protein_info["accession"]
+    protein_info = protein_info.set_index("accession")
+    protein_info = protein_info[["concated_accession"]]
 
-    protein_info_dict = protein_info.to_dict(orient='dict')['concated_accession']
+    protein_info_dict = protein_info.to_dict(orient="dict")["concated_accession"]
 
     # Remap proteins and classify peptides
     for mod_name, _ in mod_dict.items():
@@ -102,7 +103,9 @@ def infer_protein(
         ]
         mdata[mod_name].var = mdata[mod_name].var.rename(columns={protein_colname: "protein_group"})
 
-        mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(lambda x: select_representative(x, protein_info_dict))
+        mdata[mod_name].var["repr_protein"] = (
+            mdata[mod_name].var["protein_group"].apply(lambda x: select_representative(x, protein_info_dict))
+        )
 
     return mdata
 
@@ -633,19 +636,19 @@ def select_representative(protein_group: str, protein_info: dict[str, str]) -> s
         protein_group (str): canonical protein group
     """
     protein_list = re.split(";|,", protein_group)
-    concated_protein_list:list[str] = [protein_info[k] for k in protein_list]
+    concated_protein_list: list[str] = [protein_info[k] for k in protein_list]
 
     swissprot_canon_ls = [prot for prot in concated_protein_list if prot.startswith("sp") and "-" not in prot]
     if swissprot_canon_ls:
-        return ",".join(swissprot_canon_ls).replace('sp_', '')
+        return ",".join(swissprot_canon_ls).replace("sp_", "")
 
     swissprot_ls = [prot for prot in concated_protein_list if prot.startswith("sp")]
     if swissprot_ls:
-        return ",".join(swissprot_ls).replace('sp_', '')
+        return ",".join(swissprot_ls).replace("sp_", "")
 
     trembl_ls = [prot for prot in concated_protein_list if prot.startswith("tr")]
     if trembl_ls:
-        return ",".join(trembl_ls).replace('tr_', '')
+        return ",".join(trembl_ls).replace("tr_", "")
 
     contam_ls = [prot for prot in concated_protein_list if prot.startswith("contam")]
     if contam_ls:
