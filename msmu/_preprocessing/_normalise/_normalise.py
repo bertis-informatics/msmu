@@ -5,21 +5,19 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
-from .normalisation_methods import (
-    normalise_median_center,
-    normalise_quantile,
-    normalise_total_sum,
-)
+from .normalisation_methods import (normalise_median_center,
+                                    normalise_quantile, normalise_total_sum)
 
 
 def log2_transform(
-    mdata: md.MuData, modality: str | None = None, level: str | None = None
+    mdata: md.MuData,
+    modality: str | None,
 ):
-    mod_dict = get_modality_dict(mdata=mdata, level=level, modality=modality)
-    for mod_name, mod in mod_dict.items():
-        log2_arr = np.log2(mod.X)
+    adata = mdata[modality].copy()
 
-        mdata[mod_name].X = log2_arr
+    log2_arr = np.log2(adata.X)
+
+    mdata[modality].X = log2_arr
 
     return mdata
 
@@ -27,8 +25,7 @@ def log2_transform(
 def normalise(
     mdata: md.MuData,
     method: str,
-    level: str,
-    modality: str | None = None,
+    modality: str,
     fraction: bool = False,
     rescale: bool = True,
 ):
@@ -40,8 +37,6 @@ def normalise(
         MuData object to normalise.
     method: str
         Normalisation method to use. Options are 'quantile', 'median', 'total_sum (not implemented)'.
-    level: str
-        Level of data to normalise. Options are 'psm', 'peptide', 'protein'.
     modality: str
         Modality to normalise. If None, all modalities at the specified level will be normalised.
     fraction: bool
@@ -54,48 +49,40 @@ def normalise(
     mdata: MuData
         Normalised MuData object.
     """
-    axis:str = "obs"
-    mod_dict:dict[str, ad.AnnData] = get_modality_dict(mdata=mdata, level=level, modality=modality)
-    norm_cls:Normalisation = Normalisation(method=method, axis=axis)
+    axis: str = "obs"
+
+    adata: ad.AnnData = mdata.mod[modality].copy()
+    norm_cls: Normalisation = Normalisation(method=method, axis=axis)
 
     rescale_arr: np.array[float] = np.array([])
-    for mod_name, mod in mod_dict.items():
-        rescale_arr = np.append(rescale_arr, mod.X.flatten())
-        if fraction:
-            normalised_arr = np.full_like(mod.X, np.nan, dtype=float)
-            for fraction in np.unique(mod.var["filename"]):
-                fraction_idx = mod.var["filename"] == fraction
+    rescale_arr = np.append(rescale_arr, adata.X.flatten())
+    if fraction:
+        normalised_arr = np.full_like(adata.X, np.nan, dtype=float)
+        for fraction in np.unique(adata.var["filename"]):
+            fraction_idx = adata.var["filename"] == fraction
 
-                arr = mod.X[:, fraction_idx].copy()
-                fraction_normalised_data = norm_cls.normalise(arr=arr)
-                normalised_arr[:, fraction_idx] = fraction_normalised_data
+            arr = adata.X[:, fraction_idx].copy()
+            fraction_normalised_data = norm_cls.normalise(arr=arr)
+            normalised_arr[:, fraction_idx] = fraction_normalised_data
 
-        else:
-            arr = mod.X.copy()
-            normalised_arr = norm_cls.normalise(arr=arr)
+    else:
+        arr = adata.X.copy()
+        normalised_arr = norm_cls.normalise(arr=arr)
 
-        mdata.mod[mod_name].X = normalised_arr
+    mdata.mod[modality].X = normalised_arr
 
     # rescale function for median normalisation
     if (method == "median") & rescale:
         all_median = np.nanmedian(rescale_arr.flatten())
-        for mod_name in mod_dict.keys():
-            mdata.mod[mod_name].X = mdata[mod_name].X + all_median
+        mdata.mod[modality].X = mdata[modality].X + all_median
 
     return mdata
-
-
-def correct_batch_effect(
-    mdata: md.MuData, batch: str, method: str, modality: str, level: str
-) -> md.MuData:
-    raise NotImplementedError("Batch correction methods are not implemented yet.")
 
 
 def feature_scale(
     mdata: md.MuData,
     method: str,
-    modality: str | None = None,
-    level: str | None = None,
+    modality: str,
     gis_prefix: str | None = None,
     gis_col: list[str] | None = None,
     rescale: bool = True,
@@ -108,10 +95,8 @@ def feature_scale(
         MuData object to normalise.
     method: str
         Normalisation method to use. Options are 'gis', 'median_center'.
-    level: str
-        Level of data to normalise. Options are 'psm', 'peptide', 'protein'.
     modality: str
-        Modality to normalise. If None, all modalities at the specified level will be normalised.
+        Modality to normalise.
     gis_prefix: str
         Prefix for GIS samples. If None, all samples with 'gis' in the name will be used.
     gis_col: str
@@ -123,53 +108,46 @@ def feature_scale(
     mdata: MuData
         Normalised MuData object.
     """
-    mod_dict = get_modality_dict(mdata=mdata, level=level, modality=modality)
+    adata: ad.AnnData = mdata.mod[modality].copy()
     median_rescale_arr: np.array[float] = np.array([])
-    for mod_name, mod in mod_dict.items():
-        if method == "gis":
-            if (gis_prefix is None) & (gis_col is None):
-                raise ValueError(
-                    "Please provide either a GIS prefix or GIS column name"
-                )
+    if method == "gis":
+        if (gis_prefix is None) & (gis_col is None):
+            raise ValueError("Please provide either a GIS prefix or GIS column name")
 
-            if gis_col is not None:
-                gis_idx: np.array[bool] = mod.obs[gis_col] == True
-            else:
-                gis_idx: np.array[bool] = (
-                    mod.obs_names.str.startswith(gis_prefix) == True
-                )
-
-            if gis_idx.sum() == 0:
-                raise ValueError(f"No GIS samples found in {mod_name}")
-
-            gis_normalised_data: np.array[float] = normalise_gis(
-                arr=mod.X, gis_idx=gis_idx
-            )
-
-            gis_drop_mod = mod[~gis_idx]
-            gis_drop_mod.X = gis_normalised_data
-            mdata.mod[mod_name] = gis_drop_mod
-
-            median_rescale_arr = np.append(median_rescale_arr, mod[gis_idx].X.flatten())
-
-        elif method == "median_center":
-            median_centered_data = Normalisation(method="median", axis="var").normalise(
-                arr=mod.X,
-            )
-            mdata[mod_name].X = median_centered_data
-
-            median_rescale_arr = np.append(median_rescale_arr, mod.X.flatten())
-
+        if gis_col is not None:
+            gis_idx: np.array[bool] = adata.obs[gis_col] == True
         else:
-            raise ValueError(
-                f"Method {method} not recognised. Please choose from 'gis' or 'median_center'"
-            )
-        
+            gis_idx: np.array[bool] = adata.obs_names.str.startswith(gis_prefix) == True
+
+        if gis_idx.sum() == 0:
+            raise ValueError(f"No GIS samples found in {modality}")
+
+        gis_normalised_data: np.array[float] = normalise_gis(
+            arr=adata.X, gis_idx=gis_idx
+        )
+
+        gis_drop_mod = adata[~gis_idx]
+        gis_drop_mod.X = gis_normalised_data
+        mdata.mod[modality] = gis_drop_mod
+
+        median_rescale_arr = np.append(median_rescale_arr, adata[gis_idx].X.flatten())
+
+    elif method == "median_center":
+        median_centered_data = Normalisation(method="median", axis="var").normalise(
+            arr=adata.X,
+        )
+        mdata[modality].X = median_centered_data
+
+        median_rescale_arr = np.append(median_rescale_arr, adata.X.flatten())
+
+    else:
+        raise ValueError(
+            f"Method {method} not recognised. Please choose from 'gis' or 'median_center'"
+        )
+
     if rescale:
         all_gis_median = np.nanmedian(median_rescale_arr.flatten())
-        for mod_name in mod_dict.keys():
-            mdata[mod_name].X = mdata[mod_name].X + all_gis_median
-
+        mdata[modality].X = mdata[modality].X + all_gis_median
 
     mdata.update_obs()
 
@@ -186,17 +164,6 @@ def normalise_gis(arr: np.ndarray, gis_idx: np.array) -> np.ndarray:
     gis_normalised_data[na_idx] = np.nan
 
     return gis_normalised_data
-
-
-class BatchCorrection:
-    def __init__(self, method: str) -> None:
-        self._method_call: Callable = getattr(self, f"_{method}")
-
-    def _remove_batch_effect(self, arr) -> np.ndarray:
-        pass
-
-    def correct(self, arr) -> np.ndarray:
-        return self._method_call(arr=arr)
 
 
 def get_modality_dict(
@@ -217,19 +184,6 @@ def get_modality_dict(
         mod_dict[modality] = mdata[modality].copy()
 
     return mod_dict
-
-
-def _trim_blank_gis(adata, ignore_blank, ignore_gis): # deprecated
-    invalid_idx = np.array([])
-    if ignore_blank:
-        invalid_idx = np.append(invalid_idx, np.where(adata.obs["is_blank"]))
-    if ignore_gis:
-        invalid_idx = np.append(invalid_idx, np.where(adata.obs["is_gis"]))
-
-    valid_idx = np.setdiff1d(np.arange(adata.shape[0]), invalid_idx)
-    trimmed_arr = adata[valid_idx].X
-
-    return trimmed_arr, valid_idx
 
 
 class Normalisation:
@@ -338,18 +292,3 @@ class Normalisation:
 
 
 #        return fraction_normalised_arr
-
-
-class BatchNormalisation(Normalisation):
-    """Normalise across experimental Batches"""
-
-    def __init__(self, method: str) -> None:
-        super().__init__(method=method)
-
-    def reshape(self, arr): ...
-
-    def inverse_shape(self, normalised_arr) -> np.ndarray:
-        return super().inverse_shape(normalised_arr=normalised_arr)
-
-    def normalise(self, arr):
-        return super().normalise(arr)

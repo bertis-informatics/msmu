@@ -1,9 +1,8 @@
+import mudata as md
 import numpy as np
 import pandas as pd
-import mudata as md
-import plotly.io as pio
 import plotly.graph_objects as go
-
+import plotly.io as pio
 
 DEFAULT_COLUMN = "sample"
 
@@ -11,17 +10,19 @@ DEFAULT_COLUMN = "sample"
 def _set_color(
     fig: go.Figure,
     mdata: md.MuData,
-    mods: list[str],
+    modality: str,
     colorby: str,
     template: str = None,
 ):
     # Get categories
-    categories = pd.concat([mdata[modality].obs[colorby] for modality in mods])
+    categories = mdata[modality].obs[colorby]
 
     # Get colors
     colors = pio.templates[template].layout["colorway"]
 
-    colormap_dict = {val: colors[i % len(colors)] for i, val in enumerate(categories.unique())}
+    colormap_dict = {
+        val: colors[i % len(colors)] for i, val in enumerate(categories.unique())
+    }
     colormap = categories.map(colormap_dict)
 
     # Update figure
@@ -31,12 +32,17 @@ def _set_color(
         if hasattr(trace, "line"):
             trace.line.color = colormap[trace.name]
 
-    order_dict = {value: index for index, value in enumerate(mdata.obs[colorby].unique())}
+    order_dict = {
+        value: index for index, value in enumerate(mdata.obs[colorby].unique())
+    }
     fig.data = tuple(
         sorted(
             fig.data,
             key=lambda trace: order_dict.get(
-                mdata.obs.loc[mdata.obs[DEFAULT_COLUMN] == trace.name][colorby].values[0], float("inf")
+                mdata.obs.loc[mdata.obs[DEFAULT_COLUMN] == trace.name][colorby].values[
+                    0
+                ],
+                float("inf"),
             ),
         )
     )

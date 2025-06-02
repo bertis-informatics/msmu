@@ -1,35 +1,33 @@
 import mudata as md
 import plotly.graph_objects as go
 
+from .._utils import get_modality_dict
 from .__pdata import PlotData
 from .__ptypes import *
 from ._template import DEFAULT_TEMPLATE
-from ._utils import _set_color, _get_pc_cols, _get_umap_cols, DEFAULT_COLUMN
-
-from .._utils import get_modality_dict
+from ._utils import DEFAULT_COLUMN, _get_pc_cols, _get_umap_cols, _set_color
 
 
-def format_level(level: str) -> str:
-    if level == "psm":
-        return "PSM"
-    elif level == "peptide":
+def format_modality(modality: str) -> str:
+    if modality == "feature":
+        return "Feature"
+    elif modality == "peptide":
         return "Peptide"
-    elif level == "protein":
+    elif modality == "protein":
         return "Protein"
     else:
-        raise ValueError(f"Unknown level: {level}, choose from 'psm', 'peptide', 'protein'")
+        raise ValueError(
+            f"Unknown modality: {modality}, choose from 'feature', 'peptide', 'protein'"
+        )
 
 
 def plot_charge(
     mdata: md.MuData,
-    level: str = "psm",
+    modality: str = "feature",
     groupby: str = DEFAULT_COLUMN,
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
 ) -> go.Figure:
-    # Set mods
-    mods = list(get_modality_dict(mdata, level=level).keys())
-
     # Set titles
     title_text = "Number of PSMs by Charge State"
     xaxis_title = f"{groupby.capitalize()}s"
@@ -37,7 +35,7 @@ def plot_charge(
     hovertemplate = "Charge: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, mods=mods)
+    data = PlotData(mdata, modality=modality)
     plot = PlotStackedBar(
         data=data._prep_var_data(groupby, "charge", obs_column=obs_column),
         x=groupby,
@@ -66,29 +64,28 @@ def plot_charge(
 
 def plot_id(
     mdata: md.MuData,
-    level: str = None,
+    modality: str,
     groupby: str = DEFAULT_COLUMN,
-    colorby: str = None,
+    colorby: str | None = None,
     template: str = DEFAULT_TEMPLATE,
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
 ) -> go.Figure:
-    # Set mods
-    mods = list(get_modality_dict(mdata, level=level).keys())
-
     if groupby not in [obs_column]:
         ytemplate = "%{y:,.1f}"
     else:
         ytemplate = "%{y:,d}"
 
     # Set titles
-    title_text = f"Number of {format_level(level)}s"
+    title_text = f"Number of {format_modality(modality)}s"
     xaxis_title = f"{groupby.capitalize()}s"
-    yaxis_title = f"Number of {format_level(level)}s"
-    hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: {ytemplate}<extra></extra>"
+    yaxis_title = f"Number of {format_modality(modality)}s"
+    hovertemplate = (
+        f"{xaxis_title}: %{{x}}<br>{yaxis_title}: {ytemplate}<extra></extra>"
+    )
 
     # Draw plot
-    data = PlotData(mdata, mods=mods)
+    data = PlotData(mdata, modality=modality)
     plot = PlotBar(
         data=data._prep_id_data(groupby, obs_column=obs_column),
         x=groupby,
@@ -117,28 +114,25 @@ def plot_id(
 
     # Set color
     if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, mods, colorby, template)
+        fig = _set_color(fig, mdata, modality, colorby, template)
 
     return fig
 
 
 def plot_id_fraction(
     mdata: md.MuData,
-    level: str = None,
+    modality: str,
     groupby: str = "filename",
     **kwargs,
 ) -> go.Figure:
-    # Set mods
-    mods = list(get_modality_dict(mdata, level=level).keys())
-
     # Set titles
-    title_text = f"Number of {format_level(level)}s by Fraction"
+    title_text = f"Number of {format_modality(modality)}s by Fraction"
     # xaxis_title = f"Filenames"
-    yaxis_title = f"Number of {format_level(level)}s"
+    yaxis_title = f"Number of {format_modality(modality)}s"
     hovertemplate = f"<b>%{{x}}</b><br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, mods=mods)
+    data = PlotData(mdata, modality=modality)
     plot = PlotBar(
         data=data._prep_id_fraction_data(groupby),
         x=groupby,
@@ -171,27 +165,24 @@ def plot_id_fraction(
 
 def plot_intensity(
     mdata: md.MuData,
-    level: str = None,
+    modality: str,
     groupby: str = DEFAULT_COLUMN,
-    colorby: str = None,
+    colorby: str | None = None,
     ptype: str = "hist",
     template: str = DEFAULT_TEMPLATE,
     bins: int = 30,
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
 ) -> go.Figure:
-    # Set mods
-    mods = list(get_modality_dict(mdata, level).keys())
-
     # Set titles
-    title_text = f"{format_level(level)} Intensity Distribution"
+    title_text = f"{format_modality(modality)} Intensity Distribution"
 
     # Draw plot
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
-        yaxis_title = f"Number of {format_level(level)}s"
+        yaxis_title = f"Number of {format_modality(modality)}s"
 
-        data = PlotData(mdata, mods=mods)
+        data = PlotData(mdata, modality=modality)
         bin_info = data._get_bin_info(data._get_data(), bins)
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
@@ -207,12 +198,14 @@ def plot_intensity(
         xaxis_title = f"{groupby.capitalize()}s"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
-        data = PlotData(mdata, mods=mods)
+        data = PlotData(mdata, modality=modality)
         plot = PlotBox(data=data._prep_intensity_data_box(groupby))
         fig = plot.figure()
 
     else:
-        raise ValueError(f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'")
+        raise ValueError(
+            f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'"
+        )
 
     # Update layout
     fig.update_layout(
@@ -230,28 +223,25 @@ def plot_intensity(
 
     # Set color
     if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, mods, colorby, template)
+        fig = _set_color(fig, mdata, modality, colorby, template)
 
     return fig
 
 
 def plot_missingness(
     mdata: md.MuData,
-    level: str = None,
+    modality: str,
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
 ) -> go.Figure:
-    # Set mods
-    mods = list(get_modality_dict(mdata, level).keys())
-
     # Set titles
-    title_text = f"{format_level(level)} Level"
+    title_text = f"{format_modality(modality)} Level"
     xaxis_title = "Data Completeness (%)"
-    yaxis_title = f"Cumulative proportion of {format_level(level)} (%)"
+    yaxis_title = f"Cumulative proportion of {format_modality(modality)} (%)"
     hovertemplate = f"Data Completeness ≤ %{{x:.2f}}%<br>{yaxis_title} : %{{y:.2f}}% (%{{meta}})<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, mods=mods)
+    data = PlotData(mdata, modality=modality)
     plot = PlotScatter(
         data=data._prep_missingness_data(obs_column=obs_column),
         x="missingness",
@@ -299,10 +289,16 @@ def plot_pca(
     title_text = "PCA"
     xaxis_title = f"{pc_columns[0]} ({variances[pcs[0] - 1] * 100:.2f}%)"
     yaxis_title = f"{pc_columns[1]} ({variances[pcs[1] - 1] * 100:.2f}%)"
-    hovertemplate = "<b>%{meta}</b><br>" + xaxis_title + ": %{x}<br>" + yaxis_title + ": %{y}<extra></extra>"
+    hovertemplate = (
+        "<b>%{meta}</b><br>"
+        + xaxis_title
+        + ": %{x}<br>"
+        + yaxis_title
+        + ": %{y}<extra></extra>"
+    )
 
     # Draw plot
-    data = PlotData(mdata, mods=[modality])
+    data = PlotData(mdata, modality=modality)
     plot = PlotScatter(
         data=data._prep_pca_data(modality, groupby, pc_columns, obs_column=obs_column),
         x=pc_columns[0],
@@ -340,7 +336,7 @@ def plot_pca(
 
     # Set color
     if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, [modality], colorby, template)
+        fig = _set_color(fig, mdata, modality, colorby, template)
 
     return fig
 
@@ -353,19 +349,18 @@ def plot_purity(
     **kwargs,
 ) -> go.Figure:
     # Set mods
-    level = "psm"
-    mods = list(get_modality_dict(mdata, level=level).keys())
+    modality = "feature"
 
     # Set titles
     title_text = "Precursor Isolation Purity Distribution"
-    threshold = mdata[mods[0]].uns["filter"]["filter_purity"]
+    threshold = mdata[modality].uns["filter"]["filter_purity"]
 
     # Draw plot
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Precursor Isolation Purity"
         yaxis_title = "Number of PSMs"
 
-        data = PlotData(mdata, mods=mods)
+        data = PlotData(mdata, modality=modality)
         data._prep_purity_data(groupby)
         bin_info = data._get_bin_info(data.X["purity"], bins)
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
@@ -392,7 +387,7 @@ def plot_purity(
         xaxis_title = "Raw Filenames"
         yaxis_title = "Precursor Isolation Purity"
 
-        data = PlotData(mdata, mods=mods)
+        data = PlotData(mdata, modality=modality)
         plot = PlotBox(data=data._prep_purity_data_box(groupby))
         fig = plot.figure()
 
@@ -409,7 +404,9 @@ def plot_purity(
             ),
         )
     else:
-        raise ValueError(f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'")
+        raise ValueError(
+            f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'"
+        )
 
     # Add threshold line
 
@@ -445,12 +442,20 @@ def plot_umap(
     title_text = "UMAP"
     xaxis_title = umap_columns[0]
     yaxis_title = umap_columns[1]
-    hovertemplate = "<b>%{meta}</b><br>" + xaxis_title + ": %{x}<br>" + yaxis_title + ": %{y}<extra></extra>"
+    hovertemplate = (
+        "<b>%{meta}</b><br>"
+        + xaxis_title
+        + ": %{x}<br>"
+        + yaxis_title
+        + ": %{y}<extra></extra>"
+    )
 
     # Draw plot
-    data = PlotData(mdata, mods=[modality])
+    data = PlotData(mdata, modality=modality)
     plot = PlotScatter(
-        data=data._prep_umap_data(modality, groupby, umap_columns, obs_column=obs_column),
+        data=data._prep_umap_data(
+            modality, groupby, umap_columns, obs_column=obs_column
+        ),
         x=umap_columns[0],
         y=umap_columns[1],
         name=groupby,
@@ -485,7 +490,7 @@ def plot_umap(
 
     # Set color
     if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, [modality], colorby, template)
+        fig = _set_color(fig, mdata, modality, colorby, template)
 
     return fig
 
@@ -499,8 +504,7 @@ def plot_peptide_length(
     **kwargs,
 ) -> go.Figure:
     # Set mods
-    level = "peptide"
-    mods = list(get_modality_dict(mdata, level=level).keys())
+    modality: str = "peptide"
 
     # Set titles
     title_text = "Peptide Length Distribution"
@@ -508,7 +512,7 @@ def plot_peptide_length(
     yaxis_title = "Length"
 
     # Draw plot
-    data = PlotData(mdata, mods=mods)
+    data = PlotData(mdata, modality=modality)
     plot = PlotBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
     fig = plot.figure()
 
@@ -528,29 +532,28 @@ def plot_peptide_length(
 
     # Set color
     if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, mods, colorby, template)
+        fig = _set_color(fig, mdata, modality, colorby, template)
 
     return fig
 
 
 def plot_missed_cleavage(
     mdata: md.MuData,
-    level: str = "psm",
+    modality: str = "psm",
     groupby: str = DEFAULT_COLUMN,
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
 ) -> go.Figure:
-    # Set mods
-    mods = list(get_modality_dict(mdata, level=level).keys())
-
     # Set titles
     title_text = "Number of PSMs by Missed Cleavages"
     xaxis_title = f"{groupby.capitalize()}s"
     yaxis_title = "Number of PSMs"
-    hovertemplate = "Missed Cleavages: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
+    hovertemplate = (
+        "Missed Cleavages: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
+    )
 
     # Draw plot
-    data = PlotData(mdata, mods=mods)
+    data = PlotData(mdata, modality=modality)
     plot = PlotStackedBar(
         data=data._prep_var_data(groupby, "missed_cleavages", obs_column=obs_column),
         x=groupby,
@@ -579,18 +582,15 @@ def plot_missed_cleavage(
 
 def plot_upset(
     mdata: md.MuData,
-    level: str = "protein",
+    modality: str = "protein",
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
 ):
-    # Set mods
-    mods = list(get_modality_dict(mdata, level).keys())
-
     # Set titles
     title_text = "Intersection of Proteins among Samples"
 
     # Draw plot
-    data = PlotData(mdata, mods=mods)
+    data = PlotData(mdata, modality=modality)
     plot = PlotUpset(
         data=data._prep_upset_data(obs_column=obs_column),
     )
@@ -612,18 +612,16 @@ def plot_upset(
 def plot_correlation(
     mdata: md.MuData,
     groupby: str = DEFAULT_COLUMN,
-    level: str = "protein",
+    modality: str = "protein",
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
 ):
-    # Set mods
-    mods = list(get_modality_dict(mdata, level).keys())
 
     # Set titles
     title_text = "Correlation Heatmap"
 
     # Draw plot
-    data = PlotData(mdata, mods=mods)
+    data = PlotData(mdata, modality=modality)
     plot = PlotHeatmap(
         data=data._prep_correlation_data(obs_column=obs_column, groupby=groupby),
         hovertemplate="<b>%{x} / %{y}</b><br>Pearson's <i>r</i> : %{z:.4f}<extra></extra>",
@@ -655,8 +653,7 @@ def plot_purity_metrics(
     **kwargs,
 ):
     # Set mods
-    level: str = "psm"
-    mods = list(get_modality_dict(mdata, level).keys())
+    modality: str = "feature"
 
     # Set titles
     title_text = "Precursor Isolation Purity Metrics"
@@ -664,8 +661,10 @@ def plot_purity_metrics(
     yaxis_title = "Ratio of PSMs"
 
     # Draw plot
-    hovertemplate = "<b>%{x}</b><br>Category: %{meta}<br>Ratio of PSMs: %{y:.2f}%<extra></extra>"
-    data = PlotData(mdata, mods=mods)
+    hovertemplate = (
+        "<b>%{x}</b><br>Category: %{meta}<br>Ratio of PSMs: %{y:.2f}%<extra></extra>"
+    )
+    data = PlotData(mdata, modality=modality)
     plot = PlotStackedBar(
         data=data._prep_purity_metrics_data(),
         x="filename",

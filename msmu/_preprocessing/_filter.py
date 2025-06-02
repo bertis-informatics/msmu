@@ -1,51 +1,86 @@
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 from anndata import AnnData
 from mudata import MuData
 
+from .._utils import get_modality_dict, subset
 from ._calculate_precursor_purity import calculate_precursor_purity
-from .._utils import subset, get_modality_dict
+
+# def add_q_value_filter(
+#    mdata: MuData,
+#    modality: str,
+#    threshold: float | list[float] | dict[str, float],
+# ) -> MuData:
+#    mdata = mdata.copy()
+#    adata = mdata[modality]
+#
+#    # Format threshold
+#    if isinstance(threshold, (float, int)):
+#        threshold = {"spectrum": threshold, "peptide": threshold, "protein": threshold}
+#    elif isinstance(threshold, list):
+#        threshold = {
+#            "spectrum": threshold[0],
+#            "peptide": threshold[1],
+#            "protein": threshold[2],
+#        }
+#
+#    # Get q values
+#    spectrum_q = _get_column(adata, "spectrum_q", "search_result")
+#    peptide_q = _get_column(adata, "peptide_q", "search_result")
+#    protein_q = _get_column(adata, "protein_q", "search_result")
+#
+#    # Get filter result
+#    filter_result_spectrum = spectrum_q < threshold["spectrum"]
+#    filter_result_peptide = peptide_q < threshold["peptide"]
+#    filter_result_protein = protein_q < threshold["protein"]
+#
+#    # Save filter
+#    _save_filter(
+#        adata, "q_value_spectrum", filter_result_spectrum, threshold["spectrum"]
+#    )
+#    _save_filter(adata, "q_value_peptide", filter_result_peptide, threshold["peptide"])
+#    _save_filter(adata, "q_value_protein", filter_result_protein, threshold["protein"])
+#
+#    return mdata
 
 
 def add_q_value_filter(
     mdata: MuData,
-    modality: str,
     threshold: float | list[float] | dict[str, float],
 ) -> MuData:
     mdata = mdata.copy()
-    adata = mdata[modality]
+    adata = mdata["feature"]
+
+    q_val_categories = ["spectrum_q", "peptide_q", "protein_q"]
+    var_cols = adata.var.columns
+    q_val_cols = [x for x in var_cols if x in q_val_categories]
 
     # Format threshold
     if isinstance(threshold, (float, int)):
-        threshold = {"spectrum": threshold, "peptide": threshold, "protein": threshold}
+        threshold_dict = {q_col: threshold for q_col in q_val_cols}
     elif isinstance(threshold, list):
-        threshold = {"spectrum": threshold[0], "peptide": threshold[1], "protein": threshold[2]}
+        threshold_dict = {q_col: threshold[i] for i, q_col in enumerate(q_val_cols)}
+    elif isinstance(threshold, dict):
+        threshold_dict = {q_col: threshold[q_col] for q_col in q_val_cols}
 
-    # Get q values
-    spectrum_q = _get_column(adata, "spectrum_q", "search_result")
-    peptide_q = _get_column(adata, "peptide_q", "search_result")
-    protein_q = _get_column(adata, "protein_q", "search_result")
+    q_values = adata.var[q_val_cols]
 
     # Get filter result
-    filter_result_spectrum = spectrum_q < threshold["spectrum"]
-    filter_result_peptide = peptide_q < threshold["peptide"]
-    filter_result_protein = protein_q < threshold["protein"]
-
-    # Save filter
-    _save_filter(adata, "q_value_spectrum", filter_result_spectrum, threshold["spectrum"])
-    _save_filter(adata, "q_value_peptide", filter_result_peptide, threshold["peptide"])
-    _save_filter(adata, "q_value_protein", filter_result_protein, threshold["protein"])
+    filter_result = dict()
+    for q_col in q_val_cols:
+        filter_result[q_col] = q_values[q_col] < threshold_dict[q_col]
+        _save_filter(adata, q_col, filter_result[q_col], threshold_dict[q_col])
 
     return mdata
 
 
 def add_prefix_filter(
     mdata: MuData,
-    modality: str,
     prefix: str | tuple = ("rev_", "contam_"),
 ) -> MuData:
     mdata = mdata.copy()
-    adata = mdata[modality]
+    adata = mdata["feature"]
 
     # Get protein columns
     proteins = _get_column(adata, "proteins", "search_result")
@@ -64,27 +99,32 @@ def add_prefix_filter(
 
 def add_precursor_purity_filter(
     mdata: MuData,
-    modality: str,
     threshold: float,
     mzml_files: list[str | Path] = None,
     n_cores: int = 1,
 ) -> MuData:
     mdata = mdata.copy()
-    adata = mdata[modality]
+    adata = mdata["feature"]
 
     # Check if the argument is provided
     if mzml_files is None:
         if "mzml_files" in adata.uns:
             mzml_files: list[str | Path] = adata.uns["mzml_files"]
         else:
-            raise ValueError("mzml_files should be provided or stored in mdata.uns['mzml_files']")
+            raise ValueError(
+                "mzml_files should be provided or stored in mdata.uns['mzml_files']"
+            )
 
     # Get precursor purity
     if "purity" not in adata.var_keys():
-        purity_df = calculate_precursor_purity(adata=adata, mzml_files=mzml_files, n_cores=n_cores)
+        purity_df = calculate_precursor_purity(
+            adata=adata, mzml_files=mzml_files, n_cores=n_cores
+        )
         adata.var = adata.var.join(purity_df)
     else:
-        raise ValueError("Precursor purity is already calculated. Please remove it before recalculating.")
+        raise ValueError(
+            "Precursor purity is already calculated. Please remove it before recalculating."
+        )
 
     # Get filter result
     filter_result = adata.var["purity"] > threshold
@@ -113,24 +153,17 @@ def add_all_nan_filter(
 
 def apply_filter(
     mdata: MuData,
-    modality: str | list | None = None,
-    level: str | None = None
+    modality: str | list,
 ) -> MuData:
-    # Check modality
-    if (level is not None) and (modality is not None):
-        raise ValueError("Only one of level or modality should be provided")
-    elif level is None:
-        if isinstance(modality, str):
-            modality_to_filter:list[str] = [modality]
-        elif isinstance(modality, list):
-            modality_to_filter:list[str] = modality
-    elif modality is None:
-        modality_to_filter:list[str] = [x for x in get_modality_dict(mdata, level=level).keys()]
+    if isinstance(modality, str):
+        mods = [modality]
+    elif isinstance(modality, list):
+        mods = modality
     else:
-        raise ValueError("One of level or modality should be provided")
+        raise ValueError("modality should be a string or a list of strings")
 
     # Apply filter
-    for mod in modality_to_filter:
+    for mod in mods:
         mdata = _apply_filter(mdata, mod)
 
     return mdata.copy()

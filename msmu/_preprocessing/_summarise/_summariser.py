@@ -21,6 +21,7 @@ class Summariser:
 
     def summarise_data(self, data: pd.DataFrame, sum_method: str) -> pd.DataFrame:
         concated_agg_dict: dict = self._concat_agg_dict_w_obs(sum_method=sum_method)
+        data = data.rename_axis(None)
 
         summarised_data: pd.DataFrame = data.groupby(
             self._col_to_groupby, observed=False
@@ -44,8 +45,13 @@ class Summariser:
         var_cols: list[str] = [x for x in data.columns if x not in self._obs]
         var_data: pd.DataFrame = data[var_cols]
         arr_data: pd.DataFrame = data[self._obs].transpose()
-
-        adata: ad.AnnData = ad.AnnData(X=arr_data, var=var_data)
+        if arr_data.empty:
+            var_data = var_data.astype("object")
+            obs_data = pd.DataFrame(index=arr_data.index)
+            arr_data = np.empty((len(obs_data), 0))
+            adata: ad.AnnData = ad.AnnData(X=arr_data, var=var_data, obs=obs_data)
+        else:
+            adata: ad.AnnData = ad.AnnData(X=arr_data, var=var_data)
         adata.uns["level"] = self._to
 
         return adata
@@ -71,9 +77,12 @@ class Summariser:
 
 class PeptideSummariser(Summariser):
     def __init__(
-        self, adata: ad.AnnData, peptide_col: str, protein_col: str, from_: str
+        self,
+        adata: ad.AnnData,
+        peptide_col: str,
+        protein_col: str,
     ) -> None:
-        super().__init__(adata=adata, from_=from_, to_="peptide")
+        super().__init__(adata=adata, from_="feature", to_="peptide")
 
         self._col_to_groupby: str = peptide_col
         self._protein_col: str = protein_col
@@ -82,7 +91,7 @@ class PeptideSummariser(Summariser):
             self._col_to_groupby: "first",
             self._protein_col: "first",
             "stripped_peptide": "first",
-            "modifications": "first",
+            # "modifications": "first",
             "total_psm": "first",
             "peptide": "count",
         }
@@ -99,7 +108,7 @@ class PeptideSummariser(Summariser):
 
         data[self._col_to_groupby] = adata.var[self._col_to_groupby].astype(str)
         data["peptide"] = adata.var["peptide"].astype(str)
-        data["modifications"] = adata.var["modifications"]
+        # data["modifications"] = adata.var["modifications"]
         data["stripped_peptide"] = adata.var["stripped_peptide"]
         data[self._protein_col] = adata.var[self._protein_col]
         if "peptide_type" in adata.var.columns:
@@ -393,4 +402,4 @@ class PtmSummariser(Summariser):
         return result
 
     def _get_uniprot(self, protein: str) -> str:
-        return protein.split("|")[1]
+        return protein
