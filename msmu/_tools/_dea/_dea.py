@@ -51,15 +51,15 @@ def permutation_test(
     )
 
     perm_test: PermutationTest = PermutationTest(ctrl=ctrl, expr=expr)
-    possible_combinations: list = perm_test.possible_combinations
+    possible_combinations: int = perm_test.possible_combination_count
 
     if n_resamples == -np.inf:
         permutation_method = "exact"
-    elif n_resamples == len(possible_combinations):
+    elif n_resamples == possible_combinations:
         permutation_method = "exact"
-    elif (n_resamples > len(possible_combinations)) and not force_resample:
+    elif (n_resamples > possible_combinations) and not force_resample:
         permutation_method = "exact"
-    elif (n_resamples > len(possible_combinations)) and force_resample:
+    elif (n_resamples > possible_combinations) and force_resample:
         permutation_method = "randomised"
     else:
         permutation_method = "randomised"

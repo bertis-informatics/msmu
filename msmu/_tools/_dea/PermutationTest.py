@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from itertools import combinations
 
@@ -38,7 +39,7 @@ class PermutationTest:
     def __init__(self, ctrl: str, expr: str):
         self._ctrl: str = ctrl
         self._expr: str = expr
-        self._possible_combinations: list = self._get_combinations()
+        self._possible_combination_count: int = self._get_number_of_combinations()
         self._permutation_method: str | None = None
 
     def _get_combinations(self) -> list:
@@ -46,9 +47,15 @@ class PermutationTest:
 
         return list(combinations(range(total_sample_num), len(self.ctrl)))
 
+    def _get_number_of_combinations(self) -> int:
+        total_sample_num = len(self.ctrl) + len(self.expr)
+        combination_count = math.comb(total_sample_num, len(self.ctrl))
+
+        return combination_count
+
     def _get_iterations(self, method: str, n_resamples: int) -> list:
         if method == "exact":
-            return self._possible_combinations
+            return self._get_combinations()
         elif method == "randomised":
             return [
                 np.random.permutation(range(len(self.ctrl) + len(self.expr)))
@@ -127,7 +134,7 @@ class PermutationTest:
         high_quantile: float = np.nanpercentile(null_med_diff, 100 - percentile)
 
         fc_cutoff: float = float(np.mean([abs(low_quantile), abs(high_quantile)]))
-        rounded_cutoff:float = round(fc_cutoff, 2)
+        rounded_cutoff: float = round(fc_cutoff, 2)
 
         return rounded_cutoff
 
@@ -175,8 +182,8 @@ class PermutationTest:
         return self._expr
 
     @property
-    def possible_combinations(self):
-        return self._possible_combinations
+    def possible_combination_count(self):
+        return self._possible_combination_count
 
     @property
     def permutation_method(self):
