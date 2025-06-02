@@ -1,3 +1,4 @@
+from functools import reduce
 from pathlib import Path
 from typing import Literal
 
@@ -95,22 +96,25 @@ def to_categorical(df: pd.DataFrame) -> pd.DataFrame:
 
 def read_diann(
     diann_output_dir: str | Path,
-    sample_name: list[str],
+    sample_name: list[str] | None = None,
     filename: list[str] | None = None,
+    meta: pd.DataFrame | None = None,
+    sample_col: str | None = None,
+    filename_col: str | None = None,
 ) -> md.MuData:
-    reader_cls = DiannReader
 
     if meta is not None:
         sample_name = meta[sample_col].tolist()
         filename = meta[filename_col].tolist()
 
-    reader = reader_cls(
+    mdata: md.MuData = DiannReader(
         diann_output_dir=diann_output_dir,
         sample_name=sample_name,
         filename=filename,
-    )
+    ).read()
 
-    mdata = reader.read()
+    mdata.obs = to_categorical(mdata.obs)
+    mdata.push_obs()
 
     return mdata
 
