@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from .._utils import get_modality_dict
+from .._utils import get_modality_dict, uns_logger
 
 
 class Mapping(TypedDict):
@@ -122,6 +122,7 @@ def map_representatives(
 #    return mdata
 
 
+@uns_logger
 def infer_protein(
     mdata: md.MuData,
     peptide_colname: str = "stripped_peptide",

@@ -583,16 +583,22 @@ def plot_missed_cleavage(
 def plot_upset(
     mdata: md.MuData,
     modality: str = "protein",
+    subset: str = None,
+    subset_column: str = DEFAULT_COLUMN,
+    groupby: str = DEFAULT_COLUMN,
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
 ):
     # Set titles
-    title_text = "Intersection of Proteins among Samples"
+    title_text = f"Intersection of Proteins among {groupby.capitalize()}s"
+
+    if subset is not None:
+        mdata = mdata[mdata.obs[subset_column] == subset].copy()
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
     plot = PlotUpset(
-        data=data._prep_upset_data(obs_column=obs_column),
+        data=data._prep_upset_data(groupby=groupby, obs_column=obs_column),
     )
     fig = plot.figure()
 

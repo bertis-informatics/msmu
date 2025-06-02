@@ -2,7 +2,10 @@ import pandas as pd
 from mudata import MuData
 from umap import UMAP
 
+from .._utils import uns_logger
 
+
+@uns_logger
 def umap(
     mdata: MuData,
     modality: str,

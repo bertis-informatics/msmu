@@ -5,10 +5,15 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
-from .normalisation_methods import (normalise_median_center,
-                                    normalise_quantile, normalise_total_sum)
+from .normalisation_methods import (
+    normalise_median_center,
+    normalise_quantile,
+    normalise_total_sum,
+)
+from ..._utils import uns_logger
 
 
+@uns_logger
 def log2_transform(
     mdata: md.MuData,
     modality: str | None,
@@ -211,9 +216,7 @@ class Normalisation:
             normalised_arr = self._method_call(arr=arr)
 
         else:
-            raise ValueError(
-                f"Axis {self._axis} not recognised. Please choose from 'obs' or 'var'"
-            )
+            raise ValueError(f"Axis {self._axis} not recognised. Please choose from 'obs' or 'var'")
 
         normalised_arr[na_idx] = np.nan
 

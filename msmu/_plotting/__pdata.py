@@ -389,7 +389,11 @@ class PlotData:
 
         return prep_df
 
-    def _prep_upset_data(self, obs_column: str = DEFAULT_COLUMN):
+    def _prep_upset_data(
+        self,
+        groupby: str = DEFAULT_COLUMN,
+        obs_column: str = DEFAULT_COLUMN,
+    ):
         orig_df = self._get_data()
         obs_df = self._get_obs(obs_column)
 
@@ -397,8 +401,7 @@ class PlotData:
         orig_df = orig_df.sort_index(axis=0)
 
         # Get the binary representation of the sets
-        orig_df[orig_df.notna()] = 1
-        orig_df[orig_df.isna()] = 0
+        orig_df = orig_df.groupby(obs_df[groupby], observed=True).any()
         orig_df = orig_df.astype(int)
         df_binary = orig_df.apply(lambda row: "".join(row.astype(str)), axis=0)
 

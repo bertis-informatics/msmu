@@ -8,12 +8,14 @@ import numpy as np
 import pandas as pd
 
 from ..._read_write._readers import add_modality
+from ..._utils.utils import get_modality_dict, uns_logger
 from ._summariser import PeptideSummariser, ProteinSummariser, PtmSummariser
 
 warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
 warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
 
+@uns_logger
 def to_peptide(
     mdata: md.MuData,
     rank_method: str | None = None,
@@ -126,6 +128,7 @@ def to_peptide(
     return pep_summ_mdata
 
 
+@uns_logger
 def to_protein(
     mdata,
     top_n: int | None = None,
@@ -153,30 +156,20 @@ def to_protein(
     """
     adata: ad.AnnData = mdata[from_].copy()
 
-    summ: ProteinSummariser = ProteinSummariser(
-        adata=adata, protein_col=protein_col, from_=from_
-    )
+    summ: ProteinSummariser = ProteinSummariser(adata=adata, protein_col=protein_col, from_=from_)
     data: pd.DataFrame = summ.get_data()
     unique_filtered_data: pd.DataFrame = summ.filter_unique_peptides(data=data)
 
     # get top n peptides for each protein
     if top_n is not None:
-        unique_filtered_data: pd.DataFrame = summ.rank_(
-            data=unique_filtered_data, rank_method=rank_method
-        )
-        unique_filtered_data: pd.DataFrame = summ.filter_by_rank(
-            data=unique_filtered_data, top_n=top_n
-        )
+        unique_filtered_data: pd.DataFrame = summ.rank_(data=unique_filtered_data, rank_method=rank_method)
+        unique_filtered_data: pd.DataFrame = summ.filter_by_rank(data=unique_filtered_data, top_n=top_n)
 
     # summarise data
-    summarised_data: pd.DataFrame = summ.summarise_data(
-        data=unique_filtered_data, sum_method=sum_method
-    )
+    summarised_data: pd.DataFrame = summ.summarise_data(data=unique_filtered_data, sum_method=sum_method)
 
     # filter out proteins with less than min_n_peptides
-    summarised_data: pd.DataFrame = summ.filter_n_min_peptides(
-        data=summarised_data, min_n_peptides=min_n_peptides
-    )
+    summarised_data: pd.DataFrame = summ.filter_n_min_peptides(data=summarised_data, min_n_peptides=min_n_peptides)
 
     protein_adata: ad.AnnData = summ.data2adata(data=summarised_data)
 
@@ -217,9 +210,7 @@ def to_ptm_site(
             preset = getattr(PtmPreset, modification_name)()
             modification_mass = preset.mass
         else:
-            raise ValueError(
-                f"Unknown modification name: {modification_name}. Please provide modification mass."
-            )
+            raise ValueError(f"Unknown modification name: {modification_name}. Please provide modification mass.")
     else:
         if modification_name in PtmPreset.__dict__:
             warnings.warn(
@@ -231,17 +222,13 @@ def to_ptm_site(
         elif modification_name not in PtmPreset.__dict__:  # user defined modification
             preset = PtmPreset(name=modification_name, mass=modification_mass)
         else:
-            raise ValueError(
-                f"Unknown modification name: {modification_name}. Please provide modification mass."
-            )
+            raise ValueError(f"Unknown modification name: {modification_name}. Please provide modification mass.")
 
     peptide_adata = mdata.mod["peptide"].copy()
 
     summ: PtmSummariser = PtmSummariser(adata=peptide_adata, protein_col=protein_col)
     data: pd.DataFrame = summ.get_data()
-    ptm_label_df = summ.label_ptm_site(
-        data=data, modification_mass=preset.mass, fasta_file=fasta_file
-    )
+    ptm_label_df = summ.label_ptm_site(data=data, modification_mass=preset.mass, fasta_file=fasta_file)
     ptm_df = summ.summarise_data(data=ptm_label_df, sum_method=sum_method)
 
     ptm_adata: ad.AnnData = summ.data2adata(data=ptm_df)

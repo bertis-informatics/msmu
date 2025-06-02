@@ -6,6 +6,7 @@ from mudata import MuData
 
 from .._utils import get_modality_dict, subset
 from ._calculate_precursor_purity import calculate_precursor_purity
+from .._utils import subset, get_modality_dict, uns_logger
 
 # def add_q_value_filter(
 #    mdata: MuData,
@@ -45,6 +46,7 @@ from ._calculate_precursor_purity import calculate_precursor_purity
 #    return mdata
 
 
+@uns_logger
 def add_q_value_filter(
     mdata: MuData,
     threshold: float | list[float] | dict[str, float],
@@ -75,6 +77,7 @@ def add_q_value_filter(
     return mdata
 
 
+@uns_logger
 def add_prefix_filter(
     mdata: MuData,
     prefix: str | tuple = ("rev_", "contam_"),
@@ -97,6 +100,7 @@ def add_prefix_filter(
     return mdata
 
 
+@uns_logger
 def add_precursor_purity_filter(
     mdata: MuData,
     threshold: float,
@@ -135,6 +139,7 @@ def add_precursor_purity_filter(
     return mdata
 
 
+@uns_logger
 def add_all_nan_filter(
     mdata: MuData,
     modality: str,
@@ -151,6 +156,7 @@ def add_all_nan_filter(
     return mdata
 
 
+@uns_logger
 def apply_filter(
     mdata: MuData,
     modality: str | list,
