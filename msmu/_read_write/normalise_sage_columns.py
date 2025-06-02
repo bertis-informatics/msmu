@@ -26,7 +26,7 @@ def rename_sage_columns(sage_result_df: pd.DataFrame) -> pd.DataFrame:
     return sage_result_df.rename(columns=rename_dict)
 
 
-def normalise_sage_columns(sage_result_df, precursor_charge: bool) -> pd.DataFrame:
+def normalise_sage_columns(sage_result_df) -> pd.DataFrame:
     """
     Normalizes the Sage result DataFrame by selecting relevant columns and adding derived columns.
 
@@ -58,16 +58,6 @@ def normalise_sage_columns(sage_result_df, precursor_charge: bool) -> pd.DataFra
     normalised_sage_result_df["observed_mz"] = sage_result_df.apply(
         lambda x: make_observed_mz(x["expmass"], x["charge"]), axis=1
     )
-
-    # make precursor column
-    if precursor_charge == False:
-        normalised_sage_result_df["precursor"] = sage_result_df.apply(
-            lambda x: f"{x['peptide']}.-1", axis=1
-        )
-    else:
-        normalised_sage_result_df["precursor"] = sage_result_df.apply(
-            lambda x: f"{x['peptide']}.{x['charge']}", axis=1
-        )
 
     return normalised_sage_result_df
 
