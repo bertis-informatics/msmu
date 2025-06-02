@@ -1,12 +1,12 @@
-from typing import Tuple, TypedDict, Union
-from collections import deque
-import warnings
-
 import re
+import warnings
+from collections import deque
+from typing import Tuple, TypedDict, Union
+
+import mudata as md
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-import mudata as md
 
 from .._utils import get_modality_dict
 
@@ -53,10 +53,77 @@ def map_representatives(
     )
 
 
+# def infer_protein(
+#    mdata: md.MuData,
+#    modality: Union[str, None] = None,
+#    level: Union[str, None] = "psm",
+#    peptide_colname: str = "stripped_peptide",
+#    protein_colname: str = "proteins",
+# ) -> md.MuData:
+#    """
+#    Map protein information to peptides.
+#
+#    Args:
+#        mdata (MuData): MuData object
+#        modality (str): modality
+#        peptide_colname (str): column name for peptide information
+#        protein_colname (str): column name for protein information
+#
+#    Returns:
+#        mdata (MuData): MuData object with updated protein mappings
+#    """
+#
+#    mod_dict = get_modality_dict(mdata, level=level, modality=modality)
+#    peptides = [
+#        peptide for mod in mod_dict.values() for peptide in mod.var[peptide_colname]
+#    ]
+#    proteins = [
+#        protein for mod in mod_dict.values() for protein in mod.var[protein_colname]
+#    ]
+#
+#    # Get protein mapping information
+#    peptide_map, protein_map = get_protein_mapping(peptides, proteins)
+#
+#    # Store mapping information in MuData object
+#    mdata.uns["peptide_map"] = peptide_map
+#    mdata.uns["protein_map"] = protein_map
+#
+#    # Make protein information mapping dict from mdata.uns['protein_info']
+#    protein_info = mdata.uns["protein_info"].copy()
+#    protein_info["concated_accession"] = (
+#        protein_info["source"] + "_" + protein_info["accession"]
+#    )
+#    protein_info = protein_info.set_index("accession")
+#    protein_info = protein_info[["concated_accession"]]
+#
+#    protein_info_dict = protein_info.to_dict(orient="dict")["concated_accession"]
+#
+#    # Remap proteins and classify peptides
+#    for mod_name, _ in mod_dict.items():
+#        mdata[mod_name].var[protein_colname] = (
+#            mdata[mod_name]
+#            .var[peptide_colname]
+#            .map(peptide_map.set_index("peptide").to_dict()["protein_group"])
+#        )
+#        mdata[mod_name].var["peptide_type"] = [
+#            "unique" if len(x.split(";")) == 1 else "shared"
+#            for x in mdata[mod_name].var["proteins"]
+#        ]
+#        mdata[mod_name].var = mdata[mod_name].var.rename(
+#            columns={protein_colname: "protein_group"}
+#        )
+#
+#        mdata[mod_name].var["repr_protein"] = (
+#            mdata[mod_name]
+#            .var["protein_group"]
+#            .apply(lambda x: select_representative(x, protein_info_dict))
+#        )
+#
+#    return mdata
+
+
 def infer_protein(
     mdata: md.MuData,
-    modality: Union[str, None] = None,
-    level: Union[str, None] = "psm",
     peptide_colname: str = "stripped_peptide",
     protein_colname: str = "proteins",
 ) -> md.MuData:
@@ -72,10 +139,17 @@ def infer_protein(
     Returns:
         mdata (MuData): MuData object with updated protein mappings
     """
+    if "feature" in mdata.mod_names:
+        modality = "feature"
+    elif "psm" in mdata.mod_names:
+        modality = "psm"
+    else:
+        raise ValueError(
+            "MuData object must contain either 'feature' or 'psm' modality."
+        )
 
-    mod_dict = get_modality_dict(mdata, level=level, modality=modality)
-    peptides = [peptide for mod in mod_dict.values() for peptide in mod.var[peptide_colname]]
-    proteins = [protein for mod in mod_dict.values() for protein in mod.var[protein_colname]]
+    peptides = [peptide for peptide in mdata[modality].var[peptide_colname]]
+    proteins = [protein for protein in mdata[modality].var[protein_colname]]
 
     # Get protein mapping information
     peptide_map, protein_map = get_protein_mapping(peptides, proteins)
@@ -85,24 +159,35 @@ def infer_protein(
     mdata.uns["protein_map"] = protein_map
 
     # Make protein information mapping dict from mdata.uns['protein_info']
-    protein_info = mdata.uns['protein_info'].copy()
-    protein_info['concated_accession'] = protein_info['source'] + '_' + protein_info['accession']
-    protein_info = protein_info.set_index('accession')
-    protein_info = protein_info[['concated_accession']]
+    protein_info = mdata.uns["protein_info"].copy()
+    protein_info.loc[protein_info["source"] == "", "source"] = "sp"
+    protein_info["concated_accession"] = (
+        protein_info["source"] + "_" + protein_info["accession"]
+    )
+    protein_info = protein_info.set_index("accession")
+    protein_info = protein_info[["concated_accession"]]
 
-    protein_info_dict = protein_info.to_dict(orient='dict')['concated_accession']
+    protein_info_dict = protein_info.to_dict(orient="dict")["concated_accession"]
 
     # Remap proteins and classify peptides
-    for mod_name, _ in mod_dict.items():
-        mdata[mod_name].var[protein_colname] = (
-            mdata[mod_name].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein_group"])
-        )
-        mdata[mod_name].var["peptide_type"] = [
-            "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[mod_name].var["proteins"]
-        ]
-        mdata[mod_name].var = mdata[mod_name].var.rename(columns={protein_colname: "protein_group"})
+    mdata[modality].var[protein_colname] = (
+        mdata[modality]
+        .var[peptide_colname]
+        .map(peptide_map.set_index("peptide").to_dict()["protein_group"])
+    )
+    mdata[modality].var["peptide_type"] = [
+        "unique" if len(x.split(";")) == 1 else "shared"
+        for x in mdata[modality].var["proteins"]
+    ]
+    mdata[modality].var = mdata[modality].var.rename(
+        columns={protein_colname: "protein_group"}
+    )
 
-        mdata[mod_name].var["repr_protein"] = mdata[mod_name].var["protein_group"].apply(lambda x: select_representative(x, protein_info_dict))
+    mdata[modality].var["repr_protein"] = (
+        mdata[modality]
+        .var["protein_group"]
+        .apply(lambda x: select_representative(x, protein_info_dict))
+    )
 
     return mdata
 
@@ -137,9 +222,9 @@ def get_protein_mapping(
     # Find subsumable proteins
     map_df, subsum_map, removed_proteins = _find_subsumable(map_df)
     removed_proteins = [p for p2 in removed_proteins for p in p2.split(",")]
-    initial_protein_df = initial_protein_df[~initial_protein_df["protein"].isin(removed_proteins)].reset_index(
-        drop=True
-    )
+    initial_protein_df = initial_protein_df[
+        ~initial_protein_df["protein"].isin(removed_proteins)
+    ].reset_index(drop=True)
 
     # Get final output
     peptide_map, protein_map = _get_final_output(
@@ -212,7 +297,10 @@ def _get_protein_df(map_df: pd.DataFrame, peptide_df: pd.DataFrame) -> pd.DataFr
     # Count shared & unique peptides for each protein
     protein_df = (
         data.groupby(GROUP_COLS, observed=False)
-        .agg(shared_peptides=("is_unique", lambda x: (~x).sum()), unique_peptides=("is_unique", "sum"))
+        .agg(
+            shared_peptides=("is_unique", lambda x: (~x).sum()),
+            unique_peptides=("is_unique", "sum"),
+        )
         .reset_index()
     )
 
@@ -299,7 +387,9 @@ def _find_indistinguisable(
     indist_map = _get_indist_map(indist_mat, protein_df)
 
     # Update protein
-    map_df["protein"] = map_df["protein"].map(indist_map["repr"]).fillna(map_df["protein"])
+    map_df["protein"] = (
+        map_df["protein"].map(indist_map["repr"]).fillna(map_df["protein"])
+    )
     map_df = map_df.drop_duplicates().reset_index(drop=True)
     peptide_df, protein_df = _get_df(map_df)
 
@@ -418,7 +508,9 @@ def _find_subsettable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
     subset_map = _get_subset_map(subset_mat, protein_df)
 
     # Update protein
-    map_df["protein"] = map_df["protein"].map(subset_map["repr"]).fillna(map_df["protein"])
+    map_df["protein"] = (
+        map_df["protein"].map(subset_map["repr"]).fillna(map_df["protein"])
+    )
     map_df = map_df.drop_duplicates().reset_index(drop=True)
     peptide_df, protein_df = _get_df(map_df)
 
@@ -512,10 +604,14 @@ def _find_subsumable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
     map_df = map_df[~map_df["protein"].isin(removed_proteins)].reset_index(drop=True)
 
     # Update protein
-    map_df["protein"] = map_df["protein"].map(subsum_map["repr"]).fillna(map_df["protein"])
+    map_df["protein"] = (
+        map_df["protein"].map(subsum_map["repr"]).fillna(map_df["protein"])
+    )
     map_df = map_df.drop_duplicates().reset_index(drop=True)
 
-    removed_subsumables = len(subsum_map["repr"]) - len(subsum_map["memb"]) + len(removed_proteins)
+    removed_subsumables = (
+        len(subsum_map["repr"]) - len(subsum_map["memb"]) + len(removed_proteins)
+    )
     print(f"- Removed subsumable: {removed_subsumables}", flush=True)
 
     return map_df, subsum_map, removed_proteins
@@ -576,7 +672,9 @@ def _get_subsum_map(
     return Mapping(repr=subsum_repr_map, memb=subsum_memb_map), removed_proteins
 
 
-def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[Tuple[list[int], list[int]]]:
+def _build_connection(
+    protein_mat: np.ndarray, indices: list[int]
+) -> list[Tuple[list[int], list[int]]]:
     """
     Build connections from peptide-protein matrix.
 
@@ -590,9 +688,15 @@ def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[Tuple
     np.fill_diagonal(protein_mat, 0)
     protein_mat = protein_mat.astype(bool)
     protein_mat_csr = sp.csr_matrix(protein_mat)
-    n_components, labels = sp.csgraph.connected_components(csgraph=protein_mat_csr, directed=False, return_labels=True)
+    n_components, labels = sp.csgraph.connected_components(
+        csgraph=protein_mat_csr, directed=False, return_labels=True
+    )
     components = [np.where(labels == i)[0].tolist() for i in range(n_components)]
-    connections = [comp for comp in components if (len(comp) > 1) & (any([i in indices for i in comp]))]
+    connections = [
+        comp
+        for comp in components
+        if (len(comp) > 1) & (any([i in indices for i in comp]))
+    ]
 
     return connections
 
@@ -633,19 +737,23 @@ def select_representative(protein_group: str, protein_info: dict[str, str]) -> s
         protein_group (str): canonical protein group
     """
     protein_list = re.split(";|,", protein_group)
-    concated_protein_list:list[str] = [protein_info[k] for k in protein_list]
+    concated_protein_list: list[str] = [protein_info[k] for k in protein_list]
 
-    swissprot_canon_ls = [prot for prot in concated_protein_list if prot.startswith("sp") and "-" not in prot]
+    swissprot_canon_ls = [
+        prot
+        for prot in concated_protein_list
+        if prot.startswith("sp") and "-" not in prot
+    ]
     if swissprot_canon_ls:
-        return ",".join(swissprot_canon_ls).replace('sp_', '')
+        return ",".join(swissprot_canon_ls).replace("sp_", "")
 
     swissprot_ls = [prot for prot in concated_protein_list if prot.startswith("sp")]
     if swissprot_ls:
-        return ",".join(swissprot_ls).replace('sp_', '')
+        return ",".join(swissprot_ls).replace("sp_", "")
 
     trembl_ls = [prot for prot in concated_protein_list if prot.startswith("tr")]
     if trembl_ls:
-        return ",".join(trembl_ls).replace('tr_', '')
+        return ",".join(trembl_ls).replace("tr_", "")
 
     contam_ls = [prot for prot in concated_protein_list if prot.startswith("contam")]
     if contam_ls:
@@ -695,7 +803,11 @@ def _make_protein_map(
         protein_map (pd.DataFrame): protein mapping information
     """
     # Map protein groups
-    protein_indist = initial_protein_df["protein"].map(indist_repr_map).fillna(initial_protein_df["protein"])
+    protein_indist = (
+        initial_protein_df["protein"]
+        .map(indist_repr_map)
+        .fillna(initial_protein_df["protein"])
+    )
     protein_subset = protein_indist.map(subset_repr_map).fillna(protein_indist)
     protein_subsum = protein_subset.map(subsum_repr_map).fillna(protein_subset)
 
@@ -704,7 +816,9 @@ def _make_protein_map(
         {
             "initial_protein": initial_protein_df["protein"],
             "protein_group": protein_subsum,
-            "indistinguishable": initial_protein_df["protein"].isin(indist_repr_map.keys()),
+            "indistinguishable": initial_protein_df["protein"].isin(
+                indist_repr_map.keys()
+            ),
             "subsetted": protein_indist.isin(subset_repr_map.keys()),
             "subsumable": protein_subset.isin(subsum_repr_map.keys()),
         }
