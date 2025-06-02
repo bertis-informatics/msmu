@@ -243,7 +243,7 @@ class TmtSageReader(SageReader):
                 "sage_config": sage_config,
             }
         )
-        mdata: md.MuData = md.MuData({"psm": adata})
+        mdata: md.MuData = md.MuData({"feature": adata})
         mdata: md.MuData = self._add_obs_tag(mdata, rename_dict)
         mdata.update_obs()
 
@@ -324,7 +324,7 @@ class LfqSageReader(SageReader):
         adata_peptide = ad.AnnData(sage_quant_df.T)
         adata_peptide.uns["level"] = "peptide"
 
-        mdata = md.MuData({"psm": adata_psm, "peptide": adata_peptide})
+        mdata = md.MuData({"feature": adata_psm, "peptide": adata_peptide})
         mdata = self._add_obs_tag(mdata=mdata, rename_dict=rename_dict)
         mdata.update_obs()
 

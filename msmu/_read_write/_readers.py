@@ -51,7 +51,7 @@ def read_sage(
         if label == "tmt":
             channel = meta[channel_col].tolist()
         if label == "lfq":
-            filename:list[str] = meta[filename_col].tolist()
+            filename: list[str] = meta[filename_col].tolist()
             filename = [f if f.endswith(".mzML") else f"{f}.mzML" for f in filename]
 
     reader = reader_cls(
@@ -147,97 +147,207 @@ def read_h5mu(h5mu_file: str | Path) -> md.MuData:
 def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     """
     Merges multiple MuData objects into a single MuData object.
-
     Args:
         mdatas (dict[str, md.MuData]): Dictionary of MuData objects to merge.
-
     Returns:
-        md.MuData: A merged MuData object.
+        md.MuData: Merged MuData object.
     """
-    adata_dict = {}
-    peptide_list = []
-    #    protein_list: list = list() # for further feature
-    #    ptm_list: list = list() # for further feature
-    obs_ident = []
-    protein_info:pd.DataFrame = pd.DataFrame()
+    mdata_components = dict()
+    adata_components = dict()
     for name_, mdata in mdatas.items():
-        for mod in mdata.mod_names:
-            adata = mdata[mod].copy()
-            if adata.uns["level"] == "psm":
-                psm_name = f"psm_{name_}"
-                adata_dict[psm_name] = adata
-                obs_ident_df = adata.obs.copy()
-                obs_ident_df["set"] = name_
-                obs_ident.append(obs_ident_df)
-            elif adata.uns["level"] == "peptide":
-                peptide_list.append(adata)
+        if not isinstance(mdata, md.MuData):
+            raise TypeError(
+                f"Expected MuData object, got {type(mdata)} for {name_}. "
+                "Please use read_h5mu or read_sage to read the data."
+            )
+        else:
+            mdata_components = _decompose_data(
+                data=mdata, name=name_, parent_dict=mdata_components
+            )
+            for mod in mdata.mod_names:
+                adata_components = _decompose_data(
+                    data=mdata[mod],
+                    name=name_,
+                    modality=mod,
+                    parent_dict=adata_components,
+                )
 
-        protein_info = pd.concat([protein_info, mdata.uns['protein_info']]).drop_duplicates()
+    # merge adata components
+    merged_adatas = _merge_components(components_dict=adata_components)
+    # merge mdata components
+    merged_mdata = _merge_components(
+        components_dict=mdata_components, adatas=merged_adatas
+    )["mdata"].copy()
 
-    if peptide_list:
-        adata_dict["peptide"] = ad.concat(
-            peptide_list, uns_merge="unique", join="outer"
-        )
-
-    obs_ident_df = pd.concat(obs_ident)
-
-    merged_mdata = md.MuData(adata_dict)
-    merged_mdata.obs = pd.concat(
-        [
-            merged_mdata.obs,
-            pd.concat([merged_mdata[mod].obs for mod in merged_mdata.mod_names if mod != "peptide"]),
-        ],
-        axis=1,
-    )
-    merged_mdata.obs["set"] = obs_ident_df["set"]
     merged_mdata.obs = to_categorical(merged_mdata.obs)
-    merged_mdata.uns['protein_info'] = protein_info.reset_index(drop=True)
     merged_mdata.push_obs()
     merged_mdata.update_var()
 
     return merged_mdata
 
 
-def mask_obs(
-    mdata: md.MuData,
-    mask_type: str,
-    prefix: str | None = None,
-    suffix: str | None = None,
-    masking_list: list[str] | None = None,
-) -> md.MuData:
-    """
-    Masks observations in a MuData object based on the specified criteria.
+def _decompose_data(
+    data: md.MuData | ad.AnnData,
+    name: str,
+    parent_dict: dict,
+    modality: str | None = None,
+) -> dict:
+    components = [
+        "adata",
+        "var",
+        "varm",
+        "varp",
+        "obs",
+        "obsm",
+        "obsp",
+        "uns",
+    ]
 
-    Args:
-        mdata (md.MuData): Input MuData object.
-        mask_type (str): Type of mask ('blank' or 'gis').
-        prefix (str | None): Prefix for masking.
-        suffix (str | None): Suffix for masking.
-        masking_list (list[str] | None): List of specific observations to mask.
+    if isinstance(data, md.MuData):
+        if modality is not None:
+            raise ValueError("If data is a MuData object, mod should be None. ")
+        else:
+            mod: str = "mdata"
+            components = [
+                component
+                for component in components
+                if component not in ["adata", "varm", "varp", "obsm", "obsp"]
+            ]
 
-    Returns:
-        md.MuData: Updated MuData object with masked observations.
-    """
-    if mask_type not in ["blank", "gis"]:
-        raise ValueError('Argument "mask_type" must be one of "blank" or "gis".')
+    elif isinstance(data, ad.AnnData):
+        if modality is None:
+            raise ValueError("If data is an AnnData object, mod should be specified.")
+        else:
+            mod: str = modality
 
-    obs_df = mdata.obs.copy()
-    obs_df["_obs"] = obs_df.index
-    mask_column_name = f"is_{mask_type}"
-    obs_df[mask_column_name] = False
+    else:
+        raise TypeError(
+            f"Expected MuData or AnnData object, got {type(data)} for {name}. "
+            "Please use read_h5mu or read_sage to read the data."
+        )
 
-    if prefix:
-        obs_df.loc[obs_df["_obs"].str.startswith(prefix), mask_column_name] = True
-    if suffix:
-        obs_df.loc[obs_df["_obs"].str.endswith(suffix), mask_column_name] = True
-    if masking_list:
-        obs_df.loc[obs_df["_obs"].isin(masking_list), mask_column_name] = True
+    components_dict = parent_dict.copy()
+    if mod not in components_dict.keys():
+        components_dict[mod] = {}
+    for component in components:
+        if component not in components_dict[mod].keys():
+            components_dict[mod][component] = {}
+        if component == "adata":
+            components_dict[mod][component][name] = data.copy()
+        else:
+            tmp = getattr(data, component, None)
+            if tmp is not None:
+                if component == "var":
+                    if "level" in data.uns:
+                        if data.uns["level"] in ["precursor", "psm"]:
+                            tmp["dataset"] = name
+                    components_dict[mod][component][name] = tmp
+                elif component == "obs":
+                    tmp["dataset"] = name
+                    components_dict[mod][component][name] = tmp
+                elif component in ["varm", "varp", "obsm", "obsp", "uns"]:
+                    for sub_comp in tmp.keys():
+                        if sub_comp not in components_dict[mod][component].keys():
+                            components_dict[mod][component][sub_comp] = {}
+                        components_dict[mod][component][sub_comp][name] = tmp[sub_comp]
 
-    obs_df = obs_df.drop("_obs", axis=1)
-    mdata.obs[mask_column_name] = obs_df[mask_column_name]
-    mdata.push_obs()
+    return components_dict
 
-    return mdata
+
+def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict:
+
+    merged_data = dict()
+    if adatas is not None:
+        mods = ["mdata"]
+        type_ = "mdata"
+
+    else:
+        mods = components_dict.keys()
+        type_ = "adata"
+
+    for mod in mods:
+        if type_ == "mdata":
+            merged_data[mod] = md.MuData(adatas)
+        else:
+            merged_data[mod] = ad.concat(
+                components_dict[mod]["adata"].values(), join="outer"
+            )
+
+        for component in components_dict[mod].keys():
+            if component != "adata":
+                if component in ["var"]:
+                    setattr(
+                        merged_data[mod],
+                        component,
+                        reduce(
+                            lambda left, right: left.combine_first(right),
+                            components_dict[mod][component].values(),
+                        ),
+                    )
+                elif component == "obs":
+                    merged_data[mod].obs = pd.concat(
+                        components_dict[mod][component].values(), axis=0
+                    )
+                elif component in ["varm", "varp", "obsm", "obsp"]:
+                    setattr(
+                        merged_data[mod],
+                        component,
+                        {
+                            k: reduce(
+                                lambda left, right: left.combine_first(right),
+                                v.values(),
+                            )
+                            for k, v in components_dict[mod][component].items()
+                        },
+                    )
+                elif component == "uns":
+                    for sub_comp in components_dict[mod][component].keys():
+                        uns_type = set(
+                            [
+                                type(v).__name__
+                                for k, v in components_dict[mod][component][
+                                    sub_comp
+                                ].items()
+                            ]
+                        )
+                        if len(uns_type) == 1:
+                            uns_type = uns_type.pop()
+                        else:
+                            raise ValueError(
+                                f"Uns type for {sub_comp} in {mod} is not consistent: {uns_type}"
+                            )
+                        if "DataFrame" in uns_type:
+                            dfs = components_dict[mod][component][sub_comp].values()
+                            merged_data[mod].uns[sub_comp] = pd.concat(
+                                dfs, axis=0, ignore_index=True
+                            ).drop_duplicates()
+                        elif "dict" in uns_type:
+                            merged_data[mod].uns[sub_comp] = {
+                                k: v
+                                for k, v in components_dict[mod][component][
+                                    sub_comp
+                                ].items()
+                            }
+                        elif "list" in uns_type:
+                            merged_data[mod].uns[sub_comp] = reduce(
+                                lambda left, right: left + right,
+                                components_dict[mod][component][sub_comp].values(),
+                            )
+                        elif "str" in uns_type:
+                            str_set = set(
+                                components_dict[mod][component][sub_comp].values()
+                            )
+                            if len(str_set) == 1:
+                                merged_data[mod].uns[sub_comp] = str_set.pop()
+                            else:
+                                merged_data[mod].uns[sub_comp] = {
+                                    k: v
+                                    for k, v in components_dict[mod][component][
+                                        sub_comp
+                                    ].items()
+                                }
+
+    return merged_data
 
 
 def add_modality(
