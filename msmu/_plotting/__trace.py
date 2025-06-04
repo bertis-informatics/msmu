@@ -59,11 +59,13 @@ class TraceDescribed(Trace):
         return [
             {
                 "x": [idx],
-                "lowerfence": [row["min"]],
+                # "min": [row["min"]],
+                "lowerfence": [max(row["25%"] - 1.5 * (row["75%"] - row["25%"]), row["min"])],
                 "q1": [row["25%"]],
                 "median": [row["50%"]],
                 "q3": [row["75%"]],
-                "upperfence": [row["max"]],
+                "upperfence": [min(row["75%"] + 1.5 * (row["75%"] - row["25%"]), row["max"])],
+                # "max": [row["max"]],
                 "name": idx,
             }
             for idx, row in self.data.iterrows()

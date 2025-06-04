@@ -166,6 +166,21 @@ class PlotData:
 
         return self.bin_info
 
+    def _prep_intensity_data(
+        self,
+        groupby: str,
+        obs_column: str = DEFAULT_COLUMN,
+    ) -> pd.DataFrame:
+        obs_df = self._get_obs(obs_column)
+        orig_df = pd.concat([self.mdata[mod].to_df() for mod in self.mods]).T
+
+        melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
+        join_df = melt_df.join(obs_df, on="_obs", how="left")
+
+        prep_df = join_df[[groupby, "_value"]]
+
+        return prep_df
+
     def _prep_intensity_data_box(
         self,
         groupby: str,
@@ -329,6 +344,18 @@ class PlotData:
 
         return prep_df
 
+    def _prep_purity_data_vln(
+        self,
+        groupby: str,
+    ) -> pd.DataFrame:
+        # Prepare data
+        orig_df = self._get_var()[[groupby, "purity"]]
+        orig_df[["purity"]] = orig_df[["purity"]][orig_df[["purity"]] >= 0]
+
+        prep_df = orig_df
+
+        return prep_df
+
     def _prep_peptide_length_data(
         self,
         groupby: str,
@@ -357,6 +384,28 @@ class PlotData:
             prep_df.index, categories=obs_df[groupby].unique()
         )
         prep_df = prep_df.sort_index(axis=0)
+
+        return prep_df
+
+    def _prep_peptide_length_data_vln(
+        self,
+        groupby: str,
+        obs_column: str = DEFAULT_COLUMN,
+    ):
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self._get_data()
+        var_df["peptide_length"] = var_df["stripped_peptide"].str.len()
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        prep_df = melt_df.merge(var_df[["peptide_length"]], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
 
         return prep_df
 

@@ -67,9 +67,7 @@ def read_sage(
         meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
         mdata.obs = mdata.obs.join(meta_add)
     elif channel is not None:
-        mdata.obs["channel"] = mdata.obs.index.map(
-            {i: c for i, c in zip(sample_name, channel)}
-        )
+        mdata.obs["channel"] = mdata.obs.index.map({i: c for i, c in zip(sample_name, channel)})
 
     mdata.obs = to_categorical(mdata.obs)
     mdata.push_obs()
@@ -161,9 +159,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
                 "Please use read_h5mu or read_sage to read the data."
             )
         else:
-            mdata_components = _decompose_data(
-                data=mdata, name=name_, parent_dict=mdata_components
-            )
+            mdata_components = _decompose_data(data=mdata, name=name_, parent_dict=mdata_components)
             for mod in mdata.mod_names:
                 adata_components = _decompose_data(
                     data=mdata[mod],
@@ -175,9 +171,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     # merge adata components
     merged_adatas = _merge_components(components_dict=adata_components)
     # merge mdata components
-    merged_mdata = _merge_components(
-        components_dict=mdata_components, adatas=merged_adatas
-    )["mdata"].copy()
+    merged_mdata = _merge_components(components_dict=mdata_components, adatas=merged_adatas)["mdata"].copy()
 
     merged_mdata.obs = to_categorical(merged_mdata.obs)
     merged_mdata.push_obs()
@@ -209,9 +203,7 @@ def _decompose_data(
         else:
             mod: str = "mdata"
             components = [
-                component
-                for component in components
-                if component not in ["adata", "varm", "varp", "obsm", "obsp"]
+                component for component in components if component not in ["adata", "varm", "varp", "obsm", "obsp"]
             ]
 
     elif isinstance(data, ad.AnnData):
@@ -269,9 +261,7 @@ def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict
         if type_ == "mdata":
             merged_data[mod] = md.MuData(adatas)
         else:
-            merged_data[mod] = ad.concat(
-                components_dict[mod]["adata"].values(), join="outer"
-            )
+            merged_data[mod] = ad.concat(components_dict[mod]["adata"].values(), join="outer")
 
         for component in components_dict[mod].keys():
             if component != "adata":
@@ -285,9 +275,7 @@ def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict
                         ),
                     )
                 elif component == "obs":
-                    merged_data[mod].obs = pd.concat(
-                        components_dict[mod][component].values(), axis=0
-                    )
+                    merged_data[mod].obs = pd.concat(components_dict[mod][component].values(), axis=0)
                 elif component in ["varm", "varp", "obsm", "obsp"]:
                     setattr(
                         merged_data[mod],
@@ -302,31 +290,17 @@ def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict
                     )
                 elif component == "uns":
                     for sub_comp in components_dict[mod][component].keys():
-                        uns_type = set(
-                            [
-                                type(v).__name__
-                                for k, v in components_dict[mod][component][
-                                    sub_comp
-                                ].items()
-                            ]
-                        )
+                        uns_type = set([type(v).__name__ for k, v in components_dict[mod][component][sub_comp].items()])
                         if len(uns_type) == 1:
                             uns_type = uns_type.pop()
                         else:
-                            raise ValueError(
-                                f"Uns type for {sub_comp} in {mod} is not consistent: {uns_type}"
-                            )
+                            raise ValueError(f"Uns type for {sub_comp} in {mod} is not consistent: {uns_type}")
                         if "DataFrame" in uns_type:
                             dfs = components_dict[mod][component][sub_comp].values()
-                            merged_data[mod].uns[sub_comp] = pd.concat(
-                                dfs, axis=0, ignore_index=True
-                            ).drop_duplicates()
+                            merged_data[mod].uns[sub_comp] = pd.concat(dfs, axis=0, ignore_index=True).drop_duplicates()
                         elif "dict" in uns_type:
                             merged_data[mod].uns[sub_comp] = {
-                                k: v
-                                for k, v in components_dict[mod][component][
-                                    sub_comp
-                                ].items()
+                                k: v for k, v in components_dict[mod][component][sub_comp].items()
                             }
                         elif "list" in uns_type:
                             merged_data[mod].uns[sub_comp] = reduce(
@@ -334,25 +308,18 @@ def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict
                                 components_dict[mod][component][sub_comp].values(),
                             )
                         elif "str" in uns_type:
-                            str_set = set(
-                                components_dict[mod][component][sub_comp].values()
-                            )
+                            str_set = set(components_dict[mod][component][sub_comp].values())
                             if len(str_set) == 1:
                                 merged_data[mod].uns[sub_comp] = str_set.pop()
                             else:
                                 merged_data[mod].uns[sub_comp] = {
-                                    k: v
-                                    for k, v in components_dict[mod][component][
-                                        sub_comp
-                                    ].items()
+                                    k: v for k, v in components_dict[mod][component][sub_comp].items()
                                 }
 
     return merged_data
 
 
-def add_modality(
-    mdata: md.MuData, adata: ad.AnnData, mod_name: str, parent_mods: list[str]
-) -> md.MuData:
+def add_modality(mdata: md.MuData, adata: ad.AnnData, mod_name: str, parent_mods: list[str]) -> md.MuData:
     """
     Adds a new modality to a MuData object.
 

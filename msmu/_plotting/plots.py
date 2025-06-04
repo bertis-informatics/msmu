@@ -16,9 +16,7 @@ def format_modality(modality: str) -> str:
     elif modality == "protein":
         return "Protein"
     else:
-        raise ValueError(
-            f"Unknown modality: {modality}, choose from 'feature', 'peptide', 'protein'"
-        )
+        raise ValueError(f"Unknown modality: {modality}, choose from 'feature', 'peptide', 'protein'")
 
 
 def plot_charge(
@@ -80,9 +78,7 @@ def plot_id(
     title_text = f"Number of {format_modality(modality)}s"
     xaxis_title = f"{groupby.capitalize()}s"
     yaxis_title = f"Number of {format_modality(modality)}s"
-    hovertemplate = (
-        f"{xaxis_title}: %{{x}}<br>{yaxis_title}: {ytemplate}<extra></extra>"
-    )
+    hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: {ytemplate}<extra></extra>"
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
@@ -201,11 +197,26 @@ def plot_intensity(
         data = PlotData(mdata, modality=modality)
         plot = PlotBox(data=data._prep_intensity_data_box(groupby))
         fig = plot.figure()
+    elif ptype in ["vln", "violin"]:
+        xaxis_title = f"{groupby.capitalize()}s"
+        yaxis_title = "Intensity (log<sub>2</sub>)"
 
-    else:
-        raise ValueError(
-            f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'"
+        data = PlotData(mdata, modality=modality)
+        plot = PlotViolin(
+            data=data._prep_intensity_data(groupby),
+            x=groupby,
+            y="_value",
+            name=groupby,
         )
+        fig = plot.figure(
+            spanmode="hard",
+            points="suspectedoutliers",
+            marker=dict(line=dict(outlierwidth=0)),
+            box=dict(visible=True),
+            meanline=dict(visible=True),
+        )
+    else:
+        raise ValueError(f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'")
 
     # Update layout
     fig.update_layout(
@@ -289,13 +300,7 @@ def plot_pca(
     title_text = "PCA"
     xaxis_title = f"{pc_columns[0]} ({variances[pcs[0] - 1] * 100:.2f}%)"
     yaxis_title = f"{pc_columns[1]} ({variances[pcs[1] - 1] * 100:.2f}%)"
-    hovertemplate = (
-        "<b>%{meta}</b><br>"
-        + xaxis_title
-        + ": %{x}<br>"
-        + yaxis_title
-        + ": %{y}<extra></extra>"
-    )
+    hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y}}<extra></extra>"
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
@@ -403,12 +408,40 @@ def plot_purity(
                 x=0,
             ),
         )
-    else:
-        raise ValueError(
-            f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'"
+    elif ptype in ["vln", "violin"]:
+        xaxis_title = "Raw Filenames"
+        yaxis_title = "Precursor Isolation Purity"
+
+        data = PlotData(mdata, modality=modality)
+        plot = PlotViolin(
+            data=data._prep_purity_data_vln(groupby),
+            x=groupby,
+            y="purity",
+            name=groupby,
         )
 
-    # Add threshold line
+        fig = plot.figure(
+            spanmode="hard",
+            points="suspectedoutliers",
+            marker=dict(line=dict(outlierwidth=0)),
+            box=dict(visible=True),
+            meanline=dict(visible=True),
+        )
+
+        fig.add_hline(
+            y=threshold,
+            line_dash="dash",
+            line_color="red",
+            line_width=1,
+            annotation=dict(
+                text=f" Purity threshold : {threshold}",
+                xanchor="left",
+                yanchor="top",
+                x=0,
+            ),
+        )
+    else:
+        raise ValueError(f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'")
 
     # Update layout
     fig.update_layout(
@@ -442,20 +475,12 @@ def plot_umap(
     title_text = "UMAP"
     xaxis_title = umap_columns[0]
     yaxis_title = umap_columns[1]
-    hovertemplate = (
-        "<b>%{meta}</b><br>"
-        + xaxis_title
-        + ": %{x}<br>"
-        + yaxis_title
-        + ": %{y}<extra></extra>"
-    )
+    hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y}}<extra></extra>"
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
     plot = PlotScatter(
-        data=data._prep_umap_data(
-            modality, groupby, umap_columns, obs_column=obs_column
-        ),
+        data=data._prep_umap_data(modality, groupby, umap_columns, obs_column=obs_column),
         x=umap_columns[0],
         y=umap_columns[1],
         name=groupby,
@@ -501,6 +526,7 @@ def plot_peptide_length(
     colorby: str = None,
     template: str = DEFAULT_TEMPLATE,
     obs_column: str = DEFAULT_COLUMN,
+    ptype: str = "box",
     **kwargs,
 ) -> go.Figure:
     # Set mods
@@ -512,9 +538,27 @@ def plot_peptide_length(
     yaxis_title = "Length"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
-    plot = PlotBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
-    fig = plot.figure()
+    if ptype in ["box", "boxplot"]:
+        data = PlotData(mdata, modality=modality)
+        plot = PlotBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
+        fig = plot.figure()
+    elif ptype in ["vln", "violin"]:
+        data = PlotData(mdata, modality=modality)
+        plot = PlotViolin(
+            data=data._prep_peptide_length_data_vln(groupby, obs_column=obs_column),
+            x=groupby,
+            y="peptide_length",
+            name=groupby,
+        )
+        fig = plot.figure(
+            spanmode="hard",
+            points="suspectedoutliers",
+            marker=dict(line=dict(outlierwidth=0)),
+            box=dict(visible=True),
+            meanline=dict(visible=True),
+        )
+    else:
+        raise ValueError(f"Unknown plot type: {ptype}, choose from 'box|boxplot', 'vln|violin'")
 
     # Update layout
     fig.update_layout(
@@ -548,9 +592,7 @@ def plot_missed_cleavage(
     title_text = "Number of PSMs by Missed Cleavages"
     xaxis_title = f"{groupby.capitalize()}s"
     yaxis_title = "Number of PSMs"
-    hovertemplate = (
-        "Missed Cleavages: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
-    )
+    hovertemplate = "Missed Cleavages: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
@@ -667,9 +709,7 @@ def plot_purity_metrics(
     yaxis_title = "Ratio of PSMs"
 
     # Draw plot
-    hovertemplate = (
-        "<b>%{x}</b><br>Category: %{meta}<br>Ratio of PSMs: %{y:.2f}%<extra></extra>"
-    )
+    hovertemplate = "<b>%{x}</b><br>Category: %{meta}<br>Ratio of PSMs: %{y:.2f}%<extra></extra>"
     data = PlotData(mdata, modality=modality)
     plot = PlotStackedBar(
         data=data._prep_purity_metrics_data(),

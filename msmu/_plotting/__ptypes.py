@@ -62,6 +62,12 @@ class PlotBox(PlotTypes):
         self.fig.update_traces(boxpoints=False, hoverinfo="y")
 
 
+class PlotViolin(PlotTypes):
+    def figure(self, **kwargs):
+        self.layouts.update(dict(xaxis=dict(showticklabels=False)))
+        return super().figure(go.Violin, **kwargs)
+
+
 class PlotHistogram(PlotTypes):
     def figure(self, **kwargs):
         return super().figure(go.Bar, **kwargs)
