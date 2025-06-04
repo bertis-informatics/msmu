@@ -1,11 +1,22 @@
 from typing import Iterable
 import anndata as ad
 import mudata as md
-from pathlib import Path
+from collections.abc import Mapping, Sequence
 import pandas as pd
 import re
 import functools
 import datetime
+
+
+def serialize(obj):
+    if isinstance(obj, tuple):
+        return list(obj)
+    elif isinstance(obj, Mapping):
+        return {k: serialize(v) for k, v in obj.items()}
+    elif isinstance(obj, Sequence) and not isinstance(obj, str):
+        return [serialize(v) for v in obj]
+    else:
+        return obj
 
 
 def uns_logger(func):
@@ -14,23 +25,24 @@ def uns_logger(func):
         # Run the function
         result = func(mdata, *args, **kwargs)
 
-        # Only log if mdata and result are MuData objects
         if not isinstance(mdata, md.MuData) or not isinstance(result, md.MuData):
             return result
+
+        # Filter kwargs (e.g., None values)
+        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
         # Create log entry
         log_entry = {
             "function": func.__name__,
             "timestamp": datetime.datetime.now().isoformat(),
-            "args": list(args),
-            "kwargs": kwargs,
+            "args": serialize(args),
+            "kwargs": serialize(filtered_kwargs),
         }
 
-        # Initialize the log list if needed
+        # Initialize log structure if not present
         if "_cmd" not in result.uns_keys():
             result.uns["_cmd"] = {}
 
-        # Append log
         result.uns["_cmd"][str(len(result.uns["_cmd"]))] = log_entry
 
         return result
