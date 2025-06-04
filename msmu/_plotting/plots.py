@@ -358,7 +358,7 @@ def plot_purity(
 
     # Set titles
     title_text = "Precursor Isolation Purity Distribution"
-    threshold = mdata[modality].uns["filter"]["filter_purity"]
+    threshold = [v["filter_purity"] for k, v in mdata[modality].uns["filter"].items()][0]
 
     # Draw plot
     if ptype in ["hist", "histogram"]:
@@ -583,7 +583,7 @@ def plot_peptide_length(
 
 def plot_missed_cleavage(
     mdata: md.MuData,
-    modality: str = "psm",
+    modality: str = "feature",
     groupby: str = DEFAULT_COLUMN,
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
