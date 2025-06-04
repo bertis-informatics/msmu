@@ -154,7 +154,7 @@ class PlotData:
         obs_column: str = DEFAULT_COLUMN,
     ) -> pd.DataFrame:
         obs_df = self._get_obs(obs_column)
-        orig_df = pd.concat([self.mdata[mod].to_df() for mod in self.modality]).T
+        orig_df = self.mdata[self.modality].to_df().T
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         join_df = melt_df.join(obs_df, on="_obs", how="left")
