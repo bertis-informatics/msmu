@@ -3,13 +3,13 @@ import warnings
 from pathlib import Path
 from types import NoneType
 
-import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
 
 from . import label_info
 from .normalise_sage_columns import normalise_sage_columns
+from .._tools.scverse import MuData, AnnData
 
 
 class Reader:
@@ -18,54 +18,59 @@ class Reader:
 
     # def split_desc_mtx(self, search_result: pd.DataFrame): ...
 
-    #    def make_mudata(self, level, adata) -> md.MuData:
-    #        mdata = md.MuData({level: adata})
+    #    def make_mudata(self, level, adata) -> MuData:
+    #        mdata = MuData({level: adata})
     #
 
 
 #        return mdata
 
-class ProteinIdParser:
-    def _parse_uniprot_accession(self, proteins:pd.Series) -> pd.DataFrame:
-        protein_df:pd.DataFrame = pd.DataFrame(proteins)
-        protein_df['index'] = range(len(protein_df))
-        protein_df['protein'] = protein_df['proteins'].apply(lambda x: x.split(';'))
-        protein_df = protein_df.explode('protein')
 
-        uniprot_id_category:list = ['source', 'accession', 'protein_name']
+class ProteinIdParser:
+    def _parse_uniprot_accession(self, proteins: pd.Series) -> pd.DataFrame:
+        protein_df: pd.DataFrame = pd.DataFrame(proteins)
+        protein_df["index"] = range(len(protein_df))
+        protein_df["protein"] = protein_df["proteins"].apply(lambda x: x.split(";"))
+        protein_df = protein_df.explode("protein")
+
+        uniprot_id_category: list = ["source", "accession", "protein_name"]
         for idx, cat_ in enumerate(uniprot_id_category):
-            protein_df[cat_] = protein_df['protein'].apply(lambda x: x.split("|")[idx])
-        
-        protein_df['accession'] = protein_df.apply(lambda x: f"rev_{x['accession']}" if x['protein'].startswith('rev_') else x['accession'], axis=1)
-        protein_df['accession'] = protein_df.apply(lambda x: f"contam_{x['accession']}" if x['protein'].startswith('contam_') else x['accession'], axis=1)
-        
+            protein_df[cat_] = protein_df["protein"].apply(lambda x: x.split("|")[idx])
+
+        protein_df["accession"] = protein_df.apply(
+            lambda x: f"rev_{x['accession']}" if x["protein"].startswith("rev_") else x["accession"], axis=1
+        )
+        protein_df["accession"] = protein_df.apply(
+            lambda x: f"contam_{x['accession']}" if x["protein"].startswith("contam_") else x["accession"], axis=1
+        )
+
         return protein_df
 
-    def _make_protein_info(self, protein_df:pd.DataFrame) -> pd.DataFrame:
-        protein_info:pd.DataFrame = protein_df.copy()
+    def _make_protein_info(self, protein_df: pd.DataFrame) -> pd.DataFrame:
+        protein_info: pd.DataFrame = protein_df.copy()
 
-        protein_info = protein_info.drop_duplicates('accession')
+        protein_info = protein_info.drop_duplicates("accession")
         protein_info = protein_info.drop(columns=["index", "proteins"])
 
-        protein_info = protein_info.loc[protein_info['source'].str.startswith('rev_') == False, ]
-        protein_info = protein_info.loc[protein_info['source'].str.startswith('contam_') == False, ]
+        protein_info = protein_info.loc[protein_info["source"].str.startswith("rev_") == False,]
+        protein_info = protein_info.loc[protein_info["source"].str.startswith("contam_") == False,]
 
         protein_info = protein_info.sort_values("accession")
         protein_info = protein_info.reset_index(drop=True)
-        
+
         return protein_info
 
-    def parse(self, proteins:pd.Series, source:str="uniprot"):
-        if source == 'uniprot':
-            protein_df:pd.DataFrame = self._parse_uniprot_accession(proteins=proteins)
-            protein_df_grouped = protein_df.groupby(['index', 'proteins'], as_index = False).agg(';'.join)
-            protein_df_grouped = protein_df_grouped.sort_values('index')
+    def parse(self, proteins: pd.Series, source: str = "uniprot"):
+        if source == "uniprot":
+            protein_df: pd.DataFrame = self._parse_uniprot_accession(proteins=proteins)
+            protein_df_grouped = protein_df.groupby(["index", "proteins"], as_index=False).agg(";".join)
+            protein_df_grouped = protein_df_grouped.sort_values("index")
 
-            self.accession:list[str] = protein_df_grouped['accession'].tolist()
+            self.accession: list[str] = protein_df_grouped["accession"].tolist()
         else:
-            raise NotImplementedError('For now, protein parse only can be applied to uniprot fasta')
+            raise NotImplementedError("For now, protein parse only can be applied to uniprot fasta")
 
-        self.protein_info:pd.DataFrame = self._make_protein_info(protein_df=protein_df)
+        self.protein_info: pd.DataFrame = self._make_protein_info(protein_df=protein_df)
 
 
 class SageReader(Reader):
@@ -135,17 +140,11 @@ class SageReader(Reader):
     def _import_sage(self) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         raise NotImplementedError("This method should be implemented in subclasses.")
 
-    def _normalise_columns(
-        self, sage_result_df: pd.DataFrame, precursor_charge: bool = False
-    ) -> pd.DataFrame:
-        return normalise_sage_columns(
-            sage_result_df=sage_result_df, precursor_charge=precursor_charge
-        )
+    def _normalise_columns(self, sage_result_df: pd.DataFrame, precursor_charge: bool = False) -> pd.DataFrame:
+        return normalise_sage_columns(sage_result_df=sage_result_df, precursor_charge=precursor_charge)
 
-    def _add_obs_tag(self, mdata: md.MuData, rename_dict: dict) -> md.MuData:
-        mdata.obs["tag"] = mdata.obs.index.map(
-            {sample: tag for tag, sample in rename_dict.items()}
-        )
+    def _add_obs_tag(self, mdata: MuData, rename_dict: dict) -> MuData:
+        mdata.obs["tag"] = mdata.obs.index.map({sample: tag for tag, sample in rename_dict.items()})
         return mdata
 
     def _sage2mdata(
@@ -153,21 +152,21 @@ class SageReader(Reader):
         sage_result_df: pd.DataFrame,
         sage_quant_df: pd.DataFrame,
         sage_config: dict,
-    ) -> md.MuData:
+    ) -> MuData:
         raise NotImplementedError("This method should be implemented in subclasses.")
-    
-    def _assign_protein_id_info(self, mdata:md.MuData) -> md.MuData:
-        protein_id_info:ProteinIdParser = ProteinIdParser()
-        protein_id_info.parse(proteins=mdata['psm'].var['proteins'])
-        
-        mdata.mod['psm'].var['proteins'] = protein_id_info.accession
-        mdata.uns['protein_info'] = protein_id_info.protein_info
+
+    def _assign_protein_id_info(self, mdata: MuData) -> MuData:
+        protein_id_info: ProteinIdParser = ProteinIdParser()
+        protein_id_info.parse(proteins=mdata["psm"].var["proteins"])
+
+        mdata.mod["psm"].var["proteins"] = protein_id_info.accession
+        mdata.uns["protein_info"] = protein_id_info.protein_info
 
         return mdata
 
-    def read(self) -> md.MuData:
+    def read(self) -> MuData:
         sage_result_df, sage_quant_df, sage_config = self._import_sage()
-        mdata:md.MuData = self._sage2mdata(sage_result_df, sage_quant_df, sage_config)
+        mdata: MuData = self._sage2mdata(sage_result_df, sage_quant_df, sage_config)
         mdata = self._assign_protein_id_info(mdata=mdata)
 
         return mdata
@@ -186,9 +185,7 @@ class TmtSageReader(SageReader):
     def _read_sage_quant(self) -> pd.DataFrame:
         sage_quant_df = super()._read_sage_quant()
         sage_quant_df = self._make_psm_index(data=sage_quant_df)
-        sage_quant_df = sage_quant_df.drop(
-            ["filename", "scannr", "ion_injection_time", "scan_num"], axis=1
-        )
+        sage_quant_df = sage_quant_df.drop(["filename", "scannr", "ion_injection_time", "scan_num"], axis=1)
 
         return sage_quant_df
 
@@ -209,9 +206,7 @@ class TmtSageReader(SageReader):
             )
 
         channel_dict = {sage_col: tmt for sage_col, tmt in zip(tmt_labels, sage_labels)}
-        annotation_dict = {
-            channel: sample for channel, sample in zip(channel_list, self._sample_name)
-        }
+        annotation_dict = {channel: sample for channel, sample in zip(channel_list, self._sample_name)}
 
         return {channel_dict[key]: annotation_dict[key] for key in channel_list}
 
@@ -230,9 +225,9 @@ class TmtSageReader(SageReader):
         sage_result_df: pd.DataFrame,
         sage_quant_df: pd.DataFrame,
         sage_config: dict,
-    ) -> md.MuData:
+    ) -> MuData:
         rename_dict = self._make_rename_dict(sage_quant_df)
-        adata = ad.AnnData(sage_quant_df.rename(columns=rename_dict).T)
+        adata = AnnData(sage_quant_df.rename(columns=rename_dict).T)
         adata.var = self._normalise_columns(sage_result_df)
         adata.varm["search_result"] = sage_result_df
         adata.uns.update(
@@ -243,8 +238,8 @@ class TmtSageReader(SageReader):
                 "sage_config": sage_config,
             }
         )
-        mdata: md.MuData = md.MuData({"psm": adata})
-        mdata: md.MuData = self._add_obs_tag(mdata, rename_dict)
+        mdata: MuData = MuData({"psm": adata})
+        mdata: MuData = self._add_obs_tag(mdata, rename_dict)
         mdata.update_obs()
 
         return mdata
@@ -264,17 +259,11 @@ class LfqSageReader(SageReader):
         sage_quant_df = super()._read_sage_quant()
 
         # make precursor ID
-        sage_quant_df.loc[:, "peptide"] = sage_quant_df.apply(
-            lambda x: x["peptide"] + "." + str(x["charge"]), axis=1
-        )
+        sage_quant_df.loc[:, "peptide"] = sage_quant_df.apply(lambda x: x["peptide"] + "." + str(x["charge"]), axis=1)
 
         sage_quant_df = sage_quant_df.set_index("peptide", drop=True)
-        self._precursor_charge = (
-            True if sage_quant_df["charge"].unique()[0] != -1 else False
-        )
-        sage_quant_df = sage_quant_df.drop(
-            ["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1
-        )
+        self._precursor_charge = True if sage_quant_df["charge"].unique()[0] != -1 else False
+        sage_quant_df = sage_quant_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)
 
         return sage_quant_df
 
@@ -294,22 +283,18 @@ class LfqSageReader(SageReader):
             )
 
         filenames = self._filename or sage_quant_df.columns.tolist()
-        return {
-            filename: sample for filename, sample in zip(filenames, self._sample_name)
-        }
+        return {filename: sample for filename, sample in zip(filenames, self._sample_name)}
 
     def _sage2mdata(
         self,
         sage_result_df: pd.DataFrame,
         sage_quant_df: pd.DataFrame,
         sage_config: dict,
-    ) -> md.MuData:
+    ) -> MuData:
         rename_dict = self._make_rename_dict(sage_quant_df)
         sage_quant_df = sage_quant_df.rename(columns=rename_dict)
 
-        adata_psm = ad.AnnData(
-            pd.DataFrame(index=sage_result_df.index, columns=sage_quant_df.columns).T.astype("float")
-        )
+        adata_psm = AnnData(pd.DataFrame(index=sage_result_df.index, columns=sage_quant_df.columns).T.astype("float"))
         adata_psm.var = self._normalise_columns(sage_result_df, self._precursor_charge)
         adata_psm.varm["search_result"] = sage_result_df
         adata_psm.uns.update(
@@ -321,10 +306,10 @@ class LfqSageReader(SageReader):
             }
         )
 
-        adata_peptide = ad.AnnData(sage_quant_df.T)
+        adata_peptide = AnnData(sage_quant_df.T)
         adata_peptide.uns["level"] = "peptide"
 
-        mdata = md.MuData({"psm": adata_psm, "peptide": adata_peptide})
+        mdata = MuData({"psm": adata_psm, "peptide": adata_peptide})
         mdata = self._add_obs_tag(mdata=mdata, rename_dict=rename_dict)
         mdata.update_obs()
 

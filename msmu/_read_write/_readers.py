@@ -8,6 +8,7 @@ import pandas as pd
 
 from ._diann_reader import DiannReader
 from ._sage_reader import LfqSageReader, TmtSageReader
+from .._tools.scverse import MuData, AnnData
 
 
 def read_sage(
@@ -20,7 +21,7 @@ def read_sage(
     sample_col: str | None = None,
     channel_col: str | None = None,
     filename_col: str | None = None,
-) -> md.MuData:
+) -> MuData:
     """
     Reads Sage output and returns a MuData object.
 
@@ -36,7 +37,7 @@ def read_sage(
         filename_col (str | None): Column name for filenames in metadata.
 
     Returns:
-        md.MuData: A MuData object containing the Sage data.
+        MuData: A MuData object containing the Sage data.
     """
     if label == "tmt":
         reader_cls = TmtSageReader
@@ -50,7 +51,7 @@ def read_sage(
         if label == "tmt":
             channel = meta[channel_col].tolist()
         if label == "lfq":
-            filename:list[str] = meta[filename_col].tolist()
+            filename: list[str] = meta[filename_col].tolist()
             filename = [f if f.endswith(".mzML") else f"{f}.mzML" for f in filename]
 
     reader = reader_cls(
@@ -66,9 +67,7 @@ def read_sage(
         meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
         mdata.obs = mdata.obs.join(meta_add)
     elif channel is not None:
-        mdata.obs["channel"] = mdata.obs.index.map(
-            {i: c for i, c in zip(sample_name, channel)}
-        )
+        mdata.obs["channel"] = mdata.obs.index.map({i: c for i, c in zip(sample_name, channel)})
 
     mdata.obs = to_categorical(mdata.obs)
     mdata.push_obs()
@@ -97,7 +96,7 @@ def read_diann(
     diann_output_dir: str | Path,
     sample_name: list[str],
     filename: list[str] | None = None,
-) -> md.MuData:
+) -> MuData:
     reader_cls = DiannReader
 
     if meta is not None:
@@ -127,7 +126,7 @@ def read_maxquant():
     return NotImplementedError
 
 
-def read_h5mu(h5mu_file: str | Path) -> md.MuData:
+def read_h5mu(h5mu_file: str | Path) -> MuData:
     """
     Reads an H5MU file and returns a MuData object.
 
@@ -135,27 +134,27 @@ def read_h5mu(h5mu_file: str | Path) -> md.MuData:
         h5mu_file (str | Path): Path to the H5MU file.
 
     Returns:
-        md.MuData: A MuData object.
+        MuData: A MuData object.
     """
     return md.read_h5mu(h5mu_file)
 
 
-def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
+def merge_mudata(mdatas: dict[str, MuData]) -> MuData:
     """
     Merges multiple MuData objects into a single MuData object.
 
     Args:
-        mdatas (dict[str, md.MuData]): Dictionary of MuData objects to merge.
+        mdatas (dict[str, MuData]): Dictionary of MuData objects to merge.
 
     Returns:
-        md.MuData: A merged MuData object.
+        MuData: A merged MuData object.
     """
     adata_dict = {}
     peptide_list = []
     #    protein_list: list = list() # for further feature
     #    ptm_list: list = list() # for further feature
     obs_ident = []
-    protein_info:pd.DataFrame = pd.DataFrame()
+    protein_info: pd.DataFrame = pd.DataFrame()
     for name_, mdata in mdatas.items():
         for mod in mdata.mod_names:
             adata = mdata[mod].copy()
@@ -168,16 +167,14 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
             elif adata.uns["level"] == "peptide":
                 peptide_list.append(adata)
 
-        protein_info = pd.concat([protein_info, mdata.uns['protein_info']]).drop_duplicates()
+        protein_info = pd.concat([protein_info, mdata.uns["protein_info"]]).drop_duplicates()
 
     if peptide_list:
-        adata_dict["peptide"] = ad.concat(
-            peptide_list, uns_merge="unique", join="outer"
-        )
+        adata_dict["peptide"] = ad.concat(peptide_list, uns_merge="unique", join="outer")
 
     obs_ident_df = pd.concat(obs_ident)
 
-    merged_mdata = md.MuData(adata_dict)
+    merged_mdata = MuData(adata_dict)
     merged_mdata.obs = pd.concat(
         [
             merged_mdata.obs,
@@ -187,7 +184,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     )
     merged_mdata.obs["set"] = obs_ident_df["set"]
     merged_mdata.obs = to_categorical(merged_mdata.obs)
-    merged_mdata.uns['protein_info'] = protein_info.reset_index(drop=True)
+    merged_mdata.uns["protein_info"] = protein_info.reset_index(drop=True)
     merged_mdata.push_obs()
     merged_mdata.update_var()
 
@@ -195,24 +192,24 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
 
 
 def mask_obs(
-    mdata: md.MuData,
+    mdata: MuData,
     mask_type: str,
     prefix: str | None = None,
     suffix: str | None = None,
     masking_list: list[str] | None = None,
-) -> md.MuData:
+) -> MuData:
     """
     Masks observations in a MuData object based on the specified criteria.
 
     Args:
-        mdata (md.MuData): Input MuData object.
+        mdata (MuData): Input MuData object.
         mask_type (str): Type of mask ('blank' or 'gis').
         prefix (str | None): Prefix for masking.
         suffix (str | None): Suffix for masking.
         masking_list (list[str] | None): List of specific observations to mask.
 
     Returns:
-        md.MuData: Updated MuData object with masked observations.
+        MuData: Updated MuData object with masked observations.
     """
     if mask_type not in ["blank", "gis"]:
         raise ValueError('Argument "mask_type" must be one of "blank" or "gis".')
@@ -236,20 +233,18 @@ def mask_obs(
     return mdata
 
 
-def add_modality(
-    mdata: md.MuData, adata: ad.AnnData, mod_name: str, parent_mods: list[str]
-) -> md.MuData:
+def add_modality(mdata: MuData, adata: AnnData, mod_name: str, parent_mods: list[str]) -> MuData:
     """
     Adds a new modality to a MuData object.
 
     Args:
-        mdata (md.MuData): Input MuData object.
-        adata (ad.AnnData): AnnData object to add as a modality.
+        mdata (MuData): Input MuData object.
+        adata (AnnData): AnnData object to add as a modality.
         mod_name (str): Name of the new modality.
         parent_mods (list[str]): List of parent modalities.
 
     Returns:
-        md.MuData: Updated MuData object with the new modality.
+        MuData: Updated MuData object with the new modality.
     """
     if not parent_mods:
         raise ValueError("parent_mods should not be empty.")

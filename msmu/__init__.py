@@ -4,6 +4,7 @@ from . import _read_write as rw
 from . import _preprocessing as pp
 from . import _plotting as pl
 from . import _tools as tl
+from ._tools.scverse import MuData, AnnData
 
 from ._read_write._readers import mask_obs, merge_mudata, read_sage, read_h5mu
 from ._utils import subset, get_fasta_meta, map_fasta, get_label
