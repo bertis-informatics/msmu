@@ -211,6 +211,25 @@ def plot_intensity(
         plot = PlotBox(data=data._prep_intensity_data_box(groupby))
         fig = plot.figure()
 
+    elif ptype in ["vln", "violin"]:
+        xaxis_title = f"{groupby.capitalize()}s"
+        yaxis_title = "Intensity (log<sub>2</sub>)"
+
+        data = PlotData(mdata, mods=mods)
+        plot = PlotViolin(
+            data=data._prep_intensity_data(groupby),
+            x=groupby,
+            y="_value",
+            name=groupby,
+        )
+        fig = plot.figure(
+            spanmode="hard",
+            points="suspectedoutliers",
+            marker=dict(line=dict(outlierwidth=0)),
+            box=dict(visible=True),
+            meanline=dict(visible=True),
+        )
+
     else:
         raise ValueError(f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'")
 
@@ -388,6 +407,7 @@ def plot_purity(
                 yanchor="bottom",
             ),
         )
+
     elif ptype == "box":
         xaxis_title = "Raw Filenames"
         yaxis_title = "Precursor Isolation Purity"
@@ -408,10 +428,41 @@ def plot_purity(
                 x=0,
             ),
         )
+
+    elif ptype in ["vln", "violin"]:
+        xaxis_title = "Raw Filenames"
+        yaxis_title = "Precursor Isolation Purity"
+
+        data = PlotData(mdata, mods=mods)
+        plot = PlotViolin(
+            data=data._prep_purity_data_vln(groupby),
+            x=groupby,
+            y="purity",
+            name=groupby,
+        )
+
+        fig = plot.figure(
+            spanmode="hard",
+            points="suspectedoutliers",
+            marker=dict(line=dict(outlierwidth=0)),
+            box=dict(visible=True),
+            meanline=dict(visible=True),
+        )
+
+        fig.add_hline(
+            y=threshold,
+            line_dash="dash",
+            line_color="red",
+            line_width=1,
+            annotation=dict(
+                text=f" Purity threshold : {threshold}",
+                xanchor="left",
+                yanchor="top",
+                x=0,
+            ),
+        )
     else:
         raise ValueError(f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'")
-
-    # Add threshold line
 
     # Update layout
     fig.update_layout(
@@ -496,6 +547,7 @@ def plot_peptide_length(
     colorby: str = None,
     template: str = DEFAULT_TEMPLATE,
     obs_column: str = DEFAULT_COLUMN,
+    ptype: str = "box",
     **kwargs,
 ) -> go.Figure:
     # Set mods
@@ -508,9 +560,27 @@ def plot_peptide_length(
     yaxis_title = "Length"
 
     # Draw plot
-    data = PlotData(mdata, mods=mods)
-    plot = PlotBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
-    fig = plot.figure()
+    if ptype in ["box", "boxplot"]:
+        data = PlotData(mdata, mods=mods)
+        plot = PlotBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
+        fig = plot.figure()
+    elif ptype in ["vln", "violin"]:
+        data = PlotData(mdata, mods=mods)
+        plot = PlotViolin(
+            data=data._prep_peptide_length_data_vln(groupby, obs_column=obs_column),
+            x=groupby,
+            y="peptide_length",
+            name=groupby,
+        )
+        fig = plot.figure(
+            spanmode="hard",
+            points="suspectedoutliers",
+            marker=dict(line=dict(outlierwidth=0)),
+            box=dict(visible=True),
+            meanline=dict(visible=True),
+        )
+    else:
+        raise ValueError(f"Unknown plot type: {ptype}, choose from 'box|boxplot', 'vln|violin'")
 
     # Update layout
     fig.update_layout(
