@@ -53,6 +53,8 @@ class PlotData:
             if groupby not in var_df.columns:
                 raise ValueError(f"Column '{groupby}' not found in var data.")
             prep_df = var_df[[groupby, name]].groupby(groupby, observed=True).value_counts().reset_index()
+            prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
+            prep_df = prep_df.sort_values(groupby).reset_index(drop=True)
         else:
             merged_df = orig_df.notna().join(obs_df[groupby], how="left")
             merged_df = merged_df.groupby(groupby, observed=True).any()
