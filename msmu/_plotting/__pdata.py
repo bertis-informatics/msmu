@@ -48,21 +48,27 @@ class PlotData:
         var_df = self._get_var()
         orig_df = self._get_data()
 
-        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
-        merged_df = merged_df.groupby(groupby, observed=True).any()
+        if np.nansum(orig_df) == 0:
+            print("No data available for the selected modality. Counting from var.")
+            if groupby not in var_df.columns:
+                raise ValueError(f"Column '{groupby}' not found in var data.")
+            prep_df = var_df[[groupby, name]].groupby(groupby, observed=True).value_counts().reset_index()
+        else:
+            merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+            merged_df = merged_df.groupby(groupby, observed=True).any()
 
-        melt_df = merged_df.stack().reset_index()
-        melt_df.columns = [groupby, "_var", "_exists"]
+            melt_df = merged_df.stack().reset_index()
+            melt_df.columns = [groupby, "_var", "_exists"]
 
-        prep_df = melt_df.merge(var_df[[name]], left_on="_var", right_index=True)
-        prep_df = prep_df[prep_df["_exists"] > 0]
-        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+            prep_df = melt_df.merge(var_df[[name]], left_on="_var", right_index=True)
+            prep_df = prep_df[prep_df["_exists"] > 0]
+            prep_df = prep_df.drop(["_var", "_exists"], axis=1)
 
-        prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
-        prep_df[groupby] = prep_df[groupby].values.tolist()
+            prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
+            prep_df[groupby] = prep_df[groupby].values.tolist()
 
-        prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
-        prep_df = prep_df.sort_values(groupby)
+            prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
+            prep_df = prep_df.sort_values(groupby)
 
         return prep_df
 
@@ -72,15 +78,19 @@ class PlotData:
         obs_column: str = DEFAULT_COLUMN,
     ):
         obs_df = self._get_obs(obs_column)
-        orig_df = pd.DataFrame(self._get_data().T.count(), columns=["count"]).T
+        var_df = self._get_var()
+        orig_df = self._get_data()
 
-        melt_df = pd.melt(orig_df, var_name="_obs", value_name="_count").dropna()
-        melt_df = melt_df.join(obs_df, on="_obs", how="left")
+        if np.nansum(orig_df) == 0:
+            print("No data available for the selected modality. Counting from var.")
+            if groupby not in var_df.columns:
+                raise ValueError(f"Column '{groupby}' not found in var data.")
+            prep_df = var_df[groupby].value_counts().reset_index()
+        else:
+            melt_df = orig_df.notna().groupby(obs_df[groupby], observed=True).any().T
+            prep_df = melt_df.sum().reset_index()
 
-        prep_df = pd.DataFrame(melt_df.groupby(groupby, observed=True)["_count"].mean(), columns=["_count"]).T
-        prep_df = prep_df.melt(var_name=groupby, value_name="_count").dropna()
-        prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
-        prep_df = prep_df.sort_index(axis=0)
+        prep_df.columns = [groupby, "_count"]
 
         return prep_df
 

@@ -69,16 +69,11 @@ def plot_id(
     obs_column: str = DEFAULT_COLUMN,
     **kwargs,
 ) -> go.Figure:
-    if groupby not in [obs_column]:
-        ytemplate = "%{y:,.1f}"
-    else:
-        ytemplate = "%{y:,d}"
-
     # Set titles
     title_text = f"Number of {format_modality(modality)}s"
     xaxis_title = f"{groupby.capitalize()}s"
     yaxis_title = f"Number of {format_modality(modality)}s"
-    hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: {ytemplate}<extra></extra>"
+    hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: {{y}}<extra></extra>"
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
@@ -91,8 +86,6 @@ def plot_id(
         text="_count",
     )
     fig = plot.figure()
-    # Update traces
-    fig.update_traces(texttemplate=ytemplate)
 
     # Update layout
     fig.update_layout(
