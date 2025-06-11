@@ -178,3 +178,28 @@ def map_fasta(protein_groups: pd.Series, fasta_meta: pd.DataFrame) -> pd.Series:
         pd.Series: Series containing gene names.
     """
     return protein_groups.map(lambda x: _map_fasta(x, fasta_meta))
+
+
+def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool:str) -> md.MuData:
+    if isinstance(quant_data, str):
+        quant = pd.read_csv(quant_data)
+    if isinstance(quant_data, pd.DataFrame):
+        quant = quant_data.copy()
+
+    if quant_tool == 'flashlfq':
+        quant = quant.set_index('Sequence', drop=True)
+        intensity_cols = [x for x in quant.columns if x.startswith('Intensity_')]
+        input_arr = quant[intensity_cols]
+        input_arr.columns = [x.split("Intensity_") for x in intensity_cols]
+        
+        obs_df = mdata.obs.copy()
+        rename_dict = {k: v for k, v in zip(obs_df['tag'], obs_df.index)}
+
+        input_arr = input_arr.rename(columns=rename_dict)
+
+        peptide_adata = ad.AnnData()
+        
+        
+
+
+

@@ -133,6 +133,12 @@ class SageReader(Reader):
             if not file_path.exists():
                 raise FileNotFoundError(f"{file_path} does not exist!")
 
+        if not self._sage_quant.exists():
+            self._quant = False
+            print(f"[Warning]{self._label}.tsv is not found. Please Check quant option in sage or provide a quantification matrix from other tools!")
+        else:
+            self._quant = True
+
     def _read_file(self, file_path: Path, sep: str = "\t") -> pd.DataFrame:
         return pd.read_csv(file_path, sep=sep)
 
@@ -284,8 +290,11 @@ class LfqSageReader(SageReader):
 
     def _import_sage(self) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         sage_result_df = self._read_sage_result()
-
-        sage_quant_df = self._read_sage_quant()
+        
+        if self._quant:
+            sage_quant_df = self._read_sage_quant()
+        else:
+            sage_quant_df = None
 
         sage_config = self._read_sage_config()
 
@@ -307,7 +316,10 @@ class LfqSageReader(SageReader):
         sage_config: dict,
     ) -> md.MuData:
         rename_dict = self._make_rename_dict(sage_quant_df)
-        sage_quant_df = sage_quant_df.rename(columns=rename_dict)
+        if self._quant == False:
+            sage_quant_df = pd.DataFrame(columns=list(rename_dict.values()))
+        else:
+            sage_quant_df = sage_quant_df.rename(columns=rename_dict)
 
         adata_psm = ad.AnnData(
             pd.DataFrame(index=sage_result_df.index, columns=sage_quant_df.columns).T.astype("float")
@@ -323,11 +335,13 @@ class LfqSageReader(SageReader):
                 "search_config": sage_config,
             }
         )
+        mdata = md.MuData({"feature": adata_psm})
+        
+        if self._quant:
+            adata_peptide = ad.AnnData(sage_quant_df.T)
+            adata_peptide.uns["level"] = "peptide"
+            mdata.mod["peptide"] = adata_peptide
 
-        adata_peptide = ad.AnnData(sage_quant_df.T)
-        adata_peptide.uns["level"] = "peptide"
-
-        mdata = md.MuData({"feature": adata_psm, "peptide": adata_peptide})
         mdata = self._add_obs_tag(mdata=mdata, rename_dict=rename_dict)
         mdata.update_obs()
 
