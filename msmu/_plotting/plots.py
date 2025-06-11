@@ -73,7 +73,7 @@ def plot_id(
     title_text = f"Number of {format_modality(modality)}s"
     xaxis_title = f"{groupby.capitalize()}s"
     yaxis_title = f"Number of {format_modality(modality)}s"
-    hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: {{y}}<extra></extra>"
+    hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y}}<extra></extra>"
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
