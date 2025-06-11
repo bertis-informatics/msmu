@@ -96,6 +96,9 @@ def plot_id(
         legend=dict(title_text=f"{groupby.capitalize()}s"),
     )
 
+    # Update traces
+    fig.update_traces(texttemplate="%{y:,d}")
+
     # Update layout with kwargs
     fig.update_layout(
         **kwargs,
