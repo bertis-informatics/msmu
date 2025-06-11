@@ -129,7 +129,7 @@ class SageReader(Reader):
         self._sage_json = self._sage_output_dir / "results.json"
 
     def _validate_sage_outputs(self) -> None:
-        for file_path in [self._sage_result, self._sage_quant, self._sage_json]:
+        for file_path in [self._sage_result, self._sage_json]:
             if not file_path.exists():
                 raise FileNotFoundError(f"{file_path} does not exist!")
 
