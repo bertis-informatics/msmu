@@ -260,7 +260,7 @@ class TmtSageReader(SageReader):
             {
                 "level": "psm",
                 "search_engine": self._search_engine,
-                "quantification": self._quantification
+                "quantification": self._quantification,
                 "label": self._label,
                 "search_output_dir": str(self._sage_output_dir),
                 "search_config": sage_config,
