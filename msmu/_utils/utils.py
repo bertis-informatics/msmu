@@ -8,6 +8,8 @@ import functools
 import datetime
 import numpy as np
 
+from .._read_write._readers import add_modality
+
 def serialize(obj):
     if isinstance(obj, tuple):
         return list(obj)
@@ -181,6 +183,7 @@ def map_fasta(protein_groups: pd.Series, fasta_meta: pd.DataFrame) -> pd.Series:
 
 
 def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool:str) -> md.MuData:
+    # mdata_quant = mdata.copy()
     if isinstance(quant_data, str):
         quant = pd.read_csv(quant_data, sep='\t')
     elif isinstance(quant_data, pd.DataFrame):
@@ -190,25 +193,31 @@ def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool:str) 
 
     if quant_tool == 'flashlfq':
         quant = quant.set_index('Sequence', drop=True)
+        quant = quant.rename_axis(index=None, columns=None)
         intensity_cols = [x for x in quant.columns if x.startswith('Intensity_')]
         input_arr = quant[intensity_cols]
-        input_arr.columns = [x.split("Intensity_") for x in intensity_cols]
+        input_arr.columns = [x.split("Intensity_")[1] for x in intensity_cols]
         input_arr = input_arr.replace(0, np.nan)
         
         obs_df = mdata.obs.copy()
-        rename_dict = {k: v for k, v in zip(obs_df['tag'], obs_df.index)}
-
+        filename = [x.split('.mzML')[0] for x in obs_df['tag']]
+        rename_dict = {k: v for k, v in zip(filename, obs_df.index)}
+        col_order = list(rename_dict.values())
         input_arr = input_arr.rename(columns=rename_dict)
+        input_arr = input_arr[col_order]
 
-        peptide_adata = ad.AnnData(input_arr.T)
+        peptide_adata = ad.AnnData(X=input_arr.T)
+        peptide_adata.uns['level'] = 'peptide'
 
-        mdata = mdata.mod['peptide'] = peptide_adata
+        mdata = add_modality(
+            mdata=mdata, 
+            adata=peptide_adata, 
+            mod_name='peptide', 
+            parent_mods=['feature']
+            )
+
+        # mdata.mod['peptide'] = peptide_adata
     
-    mdata.push_obs()
+    mdata.update_obs()
 
     return mdata
-        
-        
-
-
-
