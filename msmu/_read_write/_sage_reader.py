@@ -218,7 +218,7 @@ class TmtSageReader(SageReader):
     def _make_rename_dict(self, sage_quant_df: pd.DataFrame) -> dict:
         if isinstance(self._channel, NoneType):
             print(
-                '[WARNING] TMT Channels are not provied as argument "channel". Quantifiation columns will be renamed as an order of sample_name list.'
+                '[WARNING] TMT Channels are not provied as argument "channel". Quantification columns will be renamed as an order of sample_name list.'
             )
 
         plex = len(sage_quant_df.columns)
@@ -333,6 +333,7 @@ class LfqSageReader(SageReader):
             {
                 "level": "psm",
                 "search_engine": self._search_engine,
+                "quantification": self._quantification,
                 "label": self._label,
                 "search_output_dir": str(self._sage_output_dir),
                 "search_config": sage_config,
