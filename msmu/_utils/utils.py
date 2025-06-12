@@ -182,7 +182,7 @@ def map_fasta(protein_groups: pd.Series, fasta_meta: pd.DataFrame) -> pd.Series:
 
 def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool:str) -> md.MuData:
     if isinstance(quant_data, str):
-        quant = pd.read_csv(quant_data)
+        quant = pd.read_csv(quant_data, sep='\t')
     elif isinstance(quant_data, pd.DataFrame):
         quant = quant_data.copy()
     else:
