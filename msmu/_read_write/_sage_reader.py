@@ -135,9 +135,11 @@ class SageReader(Reader):
 
         if not self._sage_quant.exists():
             self._quant = False
+            self._quantification = None
             print(f"[Warning]{self._label}.tsv is not found. Please Check quant option in sage or provide a quantification matrix from other tools!")
         else:
             self._quant = True
+            self._quantification = 'sage'
 
     def _read_file(self, file_path: Path, sep: str = "\t") -> pd.DataFrame:
         return pd.read_csv(file_path, sep=sep)
@@ -258,6 +260,7 @@ class TmtSageReader(SageReader):
             {
                 "level": "psm",
                 "search_engine": self._search_engine,
+                "quantification": self._quantification
                 "label": self._label,
                 "search_output_dir": str(self._sage_output_dir),
                 "search_config": sage_config,
