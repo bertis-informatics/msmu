@@ -135,7 +135,7 @@ class SageReader(Reader):
 
         if not self._sage_quant.exists():
             self._quant = False
-            self._quantification = None
+            self._quantification = "none"
             print(f"[Warning]{self._label}.tsv is not found. Please Check quant option in sage or provide a quantification matrix from other tools!")
         else:
             self._quant = True
