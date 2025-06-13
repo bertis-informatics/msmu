@@ -99,6 +99,7 @@ def read_diann(
     meta: pd.DataFrame | None = None,
     sample_col: str | None = None,
     filename_col: str | None = None,
+    fasta: str | Path | None = None,
 ) -> md.MuData:
 
     if meta is not None:
@@ -109,7 +110,13 @@ def read_diann(
         diann_output_dir=diann_output_dir,
         sample_name=sample_name,
         filename=filename,
+        fasta=fasta,
     ).read()
+
+    if meta is not None:
+        meta_col_add = [x for x in meta.columns if x not in mdata.obs.columns]
+        meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
+        mdata.obs = mdata.obs.join(meta_add)
 
     mdata.obs = to_categorical(mdata.obs)
     mdata.push_obs()
