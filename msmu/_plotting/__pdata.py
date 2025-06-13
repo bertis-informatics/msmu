@@ -32,7 +32,8 @@ class PlotData:
 
     def _get_obs(self, obs_column: str = DEFAULT_COLUMN):
         obs_df = self.mdata.obs.copy()
-        obs_df = obs_df.sort_values(["condition", obs_column])
+        if "condition" in obs_df.columns:
+            obs_df = obs_df.sort_values(["condition", obs_column])
         obs_df[obs_column] = obs_df[obs_column].cat.remove_unused_categories()
         obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(obs_df[obs_column].values.tolist())
 
