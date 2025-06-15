@@ -40,9 +40,7 @@ class DiannReader(Reader):
 
     def _make_precursor_index(self, data: pd.DataFrame) -> pd.DataFrame:
         df = data.copy()
-        df["precursor_idx"] = (
-            df["Run"] + "." + df["MS2.Scan"].astype(str) + "." + df["Precursor.Id"]
-        )
+        df["precursor_idx"] = df["Run"] + "." + df["MS2.Scan"].astype(str) + "." + df["Precursor.Id"]
 
         return df
 
@@ -81,17 +79,13 @@ class DiannReader(Reader):
     def _normalise_columns(self, diann_result_df: pd.DataFrame) -> pd.DataFrame:
         return normalise_diann_columns(diann_result_df)
 
-    def _diann2mdata(
-        self, diann_result_df: pd.DataFrame, diann_quant_df: pd.DataFrame
-    ) -> md.MuData:
+    def _diann2mdata(self, diann_result_df: pd.DataFrame, diann_quant_df: pd.DataFrame) -> md.MuData:
         rename_dict = self._make_rename_dict(diann_result_df)
         diann_quant_df = diann_quant_df.rename(columns=rename_dict)
 
         adata_precursor = ad.AnnData(diann_quant_df.T.astype("float"))
         normalised_diann_result_df = self._normalise_columns(diann_result_df)
-        normalised_diann_result_df = normalised_diann_result_df.loc[
-            diann_quant_df.index,
-        ]
+        normalised_diann_result_df = normalised_diann_result_df.loc[diann_quant_df.index, :]
         adata_precursor.var = normalised_diann_result_df
         varm_df = diann_result_df.set_index("precursor_idx")
         varm_df = varm_df.rename_axis(index=None)
@@ -107,7 +101,7 @@ class DiannReader(Reader):
             }
         )
         mdata: md.MuData = md.MuData({"feature": adata_precursor})
-        mdata: md.MuData = self._add_obs_tag(mdata, rename_dict)
+        # mdata: md.MuData = self._add_obs_tag(mdata, rename_dict)
         mdata.update_obs()
 
         return mdata
@@ -125,9 +119,7 @@ class DiannReader(Reader):
 
 
 #
-def rename_diann_columns(
-    diann_result_df: pd.DataFrame, mbr: bool = True
-) -> pd.DataFrame:
+def rename_diann_columns(diann_result_df: pd.DataFrame, mbr: bool = True) -> pd.DataFrame:
     """
     Renames columns in the DIANN result DataFrame to a more user-friendly format.
 
