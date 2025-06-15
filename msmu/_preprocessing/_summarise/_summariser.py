@@ -58,7 +58,7 @@ class Summariser:
 
     def rank_(self, data: pd.DataFrame, rank_method: str) -> pd.DataFrame:
         if rank_method == "max_intensity":
-            data.loc[:, "max_intensity"] = data[self._obs].max(axis=1)
+            data.loc[:, "max_intensity"] = data[self._obs].sum(axis=1)
             data.loc[:, "rank"] = data.groupby(self._col_to_groupby)[
                 "max_intensity"
             ].rank(ascending=False)
