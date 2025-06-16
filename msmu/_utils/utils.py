@@ -205,6 +205,7 @@ def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool:str) 
         col_order = list(rename_dict.values())
         input_arr = input_arr.rename(columns=rename_dict)
         input_arr = input_arr[col_order]
+        input_arr = input_arr.dropna(how='all')
 
         peptide_adata = ad.AnnData(X=input_arr.T)
         peptide_adata.uns['level'] = 'peptide'
@@ -215,8 +216,6 @@ def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool:str) 
             mod_name='peptide', 
             parent_mods=['feature']
             )
-
-        # mdata.mod['peptide'] = peptide_adata
     
     mdata.update_obs()
 
