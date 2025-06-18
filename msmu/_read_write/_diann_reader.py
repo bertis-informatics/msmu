@@ -19,6 +19,7 @@ class DiannReader(Reader):
     ) -> None:
         super().__init__()
         self._search_engine = "diann"
+        self._quantification = "diann"
         self._label = "lfq"
         self._diann_output_dir = Path(diann_output_dir).absolute()
         self._sample_name = sample_name
@@ -95,6 +96,7 @@ class DiannReader(Reader):
             {
                 "level": "precursor",
                 "search_engine": self._search_engine,
+                "quantification": self._quantification,
                 "label": self._label,
                 "search_output_dir": str(self._diann_output_dir),
                 "search_config": "should be a config file",
