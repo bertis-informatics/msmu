@@ -106,6 +106,22 @@ class DiannReader(Reader):
 
         return mdata
 
+    def _stringify_columns(self, mdata: pd.DataFrame) -> pd.DataFrame:
+        cols = [
+            "Protein.Names",
+            "Genes",
+            "Genes.Quantity",
+            "Genes.Normalised",
+            "Genes.MaxLFQ",
+            "Genes.MaxLFQ.Unique",
+            "First.Protein.Description",
+        ]
+
+        for col in cols:
+            mdata["feature"].varm["search_result"][col] = mdata["feature"].varm["search_result"][col].astype(str)
+
+        return mdata
+
     def read(self):
         diann_result_df = self._import_diann()
         diann_result_df = self._make_precursor_index(diann_result_df)
@@ -114,6 +130,7 @@ class DiannReader(Reader):
 
         mdata: md.MuData = self._diann2mdata(diann_result_df, diann_quant_df)
         mdata = self._assign_protein_id_info(mdata=mdata, fasta=self._fasta)
+        mdata = self._stringify_columns(mdata)
 
         return mdata
 
