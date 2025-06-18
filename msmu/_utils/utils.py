@@ -10,6 +10,7 @@ import numpy as np
 
 from .._read_write._readers import add_modality
 
+
 def serialize(obj):
     if isinstance(obj, tuple):
         return list(obj)
@@ -78,7 +79,7 @@ def get_modality_dict(
 
 
 def get_label(mdata: md.MuData) -> str:
-    psm_mdatas: Iterable[ad.AnnData] = get_modality_dict(mdata=mdata, level="psm").values()
+    psm_mdatas: Iterable[ad.AnnData] = get_modality_dict(mdata=mdata, modality="feature").values()
     label_list: list[str] = [x.uns["label"] for x in psm_mdatas]
 
     if len(set(label_list)) == 1:
@@ -182,41 +183,36 @@ def map_fasta(protein_groups: pd.Series, fasta_meta: pd.DataFrame) -> pd.Series:
     return protein_groups.map(lambda x: _map_fasta(x, fasta_meta))
 
 
-def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool:str) -> md.MuData:
+def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool: str) -> md.MuData:
     # mdata_quant = mdata.copy()
     if isinstance(quant_data, str):
-        quant = pd.read_csv(quant_data, sep='\t')
+        quant = pd.read_csv(quant_data, sep="\t")
     elif isinstance(quant_data, pd.DataFrame):
         quant = quant_data.copy()
     else:
-        raise ValueError('quant_data must be file for dataframe')
+        raise ValueError("quant_data must be file for dataframe")
 
-    if quant_tool == 'flashlfq':
-        quant = quant.set_index('Sequence', drop=True)
+    if quant_tool == "flashlfq":
+        quant = quant.set_index("Sequence", drop=True)
         quant = quant.rename_axis(index=None, columns=None)
-        intensity_cols = [x for x in quant.columns if x.startswith('Intensity_')]
+        intensity_cols = [x for x in quant.columns if x.startswith("Intensity_")]
         input_arr = quant[intensity_cols]
         input_arr.columns = [x.split("Intensity_")[1] for x in intensity_cols]
         input_arr = input_arr.replace(0, np.nan)
-        
+
         obs_df = mdata.obs.copy()
-        filename = [x.split('.mzML')[0] for x in obs_df['tag']]
+        filename = [x.split(".mzML")[0] for x in obs_df["tag"]]
         rename_dict = {k: v for k, v in zip(filename, obs_df.index)}
         col_order = list(rename_dict.values())
         input_arr = input_arr.rename(columns=rename_dict)
         input_arr = input_arr[col_order]
-        input_arr = input_arr.dropna(how='all')
+        input_arr = input_arr.dropna(how="all")
 
         peptide_adata = ad.AnnData(X=input_arr.T)
-        peptide_adata.uns['level'] = 'peptide'
+        peptide_adata.uns["level"] = "peptide"
 
-        mdata = add_modality(
-            mdata=mdata, 
-            adata=peptide_adata, 
-            mod_name='peptide', 
-            parent_mods=['feature']
-            )
-    
+        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["feature"])
+
     mdata.update_obs()
 
     return mdata
