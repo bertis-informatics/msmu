@@ -1,11 +1,13 @@
+import warnings
 from dataclasses import dataclass
 from typing import Callable
 
 import numpy as np
-from scipy.stats import ranksums, ttest_ind
-from statsmodels.distributions.empirical_distribution import ECDF
+import pandas as pd
 from scipy.interpolate import interp1d
-from scipy.stats import t
+from scipy.stats import ranksums, t
+from statsmodels.distributions.empirical_distribution import ECDF
+
 
 @dataclass
 class StatResult:
@@ -53,8 +55,11 @@ class StatTest:
         mean_expr = np.nanmean(expr, axis=0)
 
         # Variances (ddof=1 for sample variance)
-        var_ctrl = np.nanvar(ctrl, axis=0, ddof=1)
-        var_expr = np.nanvar(expr, axis=0, ddof=1)
+        # Ignore NaN warnings for variance calculation
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            var_ctrl = np.nanvar(ctrl, axis=0, ddof=1)
+            var_expr = np.nanvar(expr, axis=0, ddof=1)
 
         # Sample sizes (account for NaNs)
         n_ctrl = np.sum(~np.isnan(ctrl), axis=0)
@@ -66,7 +71,9 @@ class StatTest:
 
         # Degrees of freedom (Welch–Satterthwaite equation)
         df_num = (var_ctrl / n_ctrl + var_expr / n_expr) ** 2
-        df_denom = (var_ctrl**2 / ((n_ctrl**2) * (n_ctrl - 1))) + (var_expr**2 / ((n_expr**2) * (n_expr - 1)))
+        df_denom = (var_ctrl**2 / ((n_ctrl**2) * (n_ctrl - 1))) + (
+            var_expr**2 / ((n_expr**2) * (n_expr - 1))
+        )
         df = df_num / df_denom
 
         # Handle divisions by zero or invalid DOF
@@ -78,23 +85,6 @@ class StatTest:
         pval = 2 * t.sf(np.abs(t_val), df)
 
         return t_val, pval
-    
-    # @staticmethod
-    # def t_test(ctrl, expr):
-    #     mean_ctrl = np.nanmean(ctrl, axis=0)
-    #     mean_expr = np.nanmean(expr, axis=0)
-    #     var_ctrl = np.nanvar(ctrl, axis=0)
-    #     var_expr = np.nanvar(expr, axis=0)
-
-    #     t_val = (mean_expr - mean_ctrl) / np.sqrt(
-    #         var_expr / len(ctrl) + var_ctrl / len(expr)
-    #     )
-
-    #     t_val[np.isinf(t_val)] = np.nan
-    #     pval = None
-    #     # t_val, pval = ttest_ind(ctrl, expr, axis=0, equal_var=False, nan_policy="omit")
-
-    #     return t_val, pval
 
     @staticmethod
     def wilcoxon_rank_sum(ctrl, expr):
@@ -108,34 +98,8 @@ class StatTest:
 
         return med_diff, None
 
-    # @staticmethod
-    # def pval2tail(stat_obs, null_dist):
-    #     # p-value computation routine
-    #     # s0: null statistic, s: observed statistic
-    #     # p-value : computed by two-tail test
-
-    #     # stacked_s0 = np.hstack(null_dist)
-    #     stacked_s0 = null_dist
-    #     ecdf_res = ECDF(stacked_s0)
-    #     null_dist = ecdf_res.x[1:]
-    #     f0 = ecdf_res.y[1:]
-
-    #     f = interp1d(null_dist, f0, bounds_error=False)
-    #     p = f(stat_obs)
-    #     p[np.isnan(p)] = 0
-    #     p = 2 * np.min(np.c_[p, 1 - p], axis=1)
-
-    #     if np.sum(p != 0) != 0:
-    #         p[p == 0] = np.nanmin(p[p != 0]) / 2
-    #     else:
-    #         p[p == 0] = 1e-10
-    #     p[p == 1] = (1 - np.max(p[p != 1])) / 2 + np.max(p[p != 1])
-
-    #     return p
-
-
     @staticmethod
-    def pval2tail(stat_obs, null_dist, min_pval=1e-10):
+    def calc_permutation_pvalue_ecdf(stat_obs, null_dist, min_pval=1e-10):
         """
         Compute two-sided empirical p-values using ECDF interpolation.
 
@@ -187,33 +151,27 @@ class StatTest:
 
         return pvals
 
-    #@staticmethod
-    # def pval_calc_test(stat_obs, null_dist):
-    #     pval = np.zeros_like(stat_obs)
-    #     for i in range(len(stat_obs)):
-    #         pval[i] = (np.sum(np.abs(null_dist) >= np.abs(stat_obs[i])) + 1) / (len(null_dist) + 1)
-    #     return pval
-
-    @staticmethod 
-    def pval_calc_test(stat_obs, null_dist):
+    @staticmethod
+    def calc_permutation_pvalue(stat_obs, null_dist):
         stat_obs = np.asarray(stat_obs)
         null_dist = np.abs(np.asarray(null_dist))
-        
+
         # Initialize p-values with NaNs
         pvals = np.full_like(stat_obs, np.nan, dtype=float)
-        
+
         # Identify valid (non-NaN) indices
         valid_mask = ~np.isnan(stat_obs)
-        
+
         # Only compute for valid stats
         stat_obs_valid = np.abs(stat_obs[valid_mask])[:, np.newaxis]
         null_dist_expanded = null_dist[np.newaxis, :]
-        
+
         more_extreme = null_dist_expanded >= stat_obs_valid
 
         pvals[valid_mask] = (np.sum(more_extreme, axis=1) + 1) / (null_dist.size + 1)
 
         return pvals
+
 
 @dataclass
 class NullDistribution:
@@ -227,3 +185,82 @@ class NullDistribution:
                 (self.null_distribution, other.statistic), axis=0
             ),
         )
+
+
+class CorrectPvalues:
+    @staticmethod
+    def bh(pvals: np.ndarray) -> np.ndarray:
+        """
+        Apply Benjamini-Hochberg correction to p-values.
+
+        Parameters:
+        -----------
+        pvals : np.ndarray
+            Array of p-values to correct.
+
+        Returns:
+        --------
+        np.ndarray
+            Corrected p-values.
+        """
+        pvals = np.asarray(pvals)
+        sorted_indices = np.argsort(pvals)
+        sorted_pvals = pvals[sorted_indices]
+
+        m = len(sorted_pvals)
+        corrected_pvals = sorted_pvals * m / (np.arange(m) + 1)
+
+        # Ensure monotonicity
+        corrected_pvals = np.minimum.accumulate(corrected_pvals[::-1])[::-1]
+
+        # Restore original order
+        padj = np.empty_like(pvals)
+        padj[sorted_indices] = corrected_pvals
+
+        return padj
+
+    @staticmethod
+    def empirical(
+        obs_stats: np.ndarray,
+        null_stats: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Direct FDR-based q-value estimation using pooled null distribution from permutation tests.
+        -----
+        Parameters:
+        - obs_stats: array of observed test statistics (e.g., t-values)
+        -----
+        Returns:
+         - q-values: array of q-values
+        """
+
+        # Keep original indices
+        original_idx = np.arange(len(obs_stats))
+
+        # Apply absolute (2-sided) transformation
+        obs = np.abs(obs_stats)
+        null = np.abs(null_stats)
+
+        # Build DataFrame with original index
+        df = pd.DataFrame(
+            {"stat": obs, "orig_stat": obs_stats, "original_idx": original_idx}
+        )
+
+        # Sort by stat descending for q-value calculation
+        df_sorted = df.sort_values(by="stat", ascending=False).reset_index(drop=True)
+
+        # Empirical p-value
+        df_sorted["p_value"] = [
+            (null >= s).sum() / len(null) for s in df_sorted["stat"]
+        ]
+
+        # FDR = (# null ≥ s) / (# obs ≥ s)
+        obs_sorted = df_sorted["stat"].values
+        fdr_list = [(null >= s).sum() / (i + 1) for i, s in enumerate(obs_sorted)]
+        df_sorted["fdr"] = fdr_list
+        df_sorted["q_value"] = pd.Series(fdr_list)[::-1].cummin()[::-1]
+
+        # Merge back to original order
+        df_final = df_sorted.sort_values(by="original_idx").reset_index(drop=True)
+
+        return df_final[["orig_stat", "p_value", "q_value"]]
