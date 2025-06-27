@@ -22,11 +22,9 @@ dependencies = [
     "scipy==1.15.3",
     "scikit-learn",
     "umap-learn",
+    "bertis-mskit @ git+https://bitbucket.org/bertis/bertis-mskit.git"
 ]
 dynamic = ["version"]
-
-[project.dependencies]
-bertis-mskit = { git = "https://bitbucket.org/bertis/bertis-mskit.git" }
 
 [project.optional-dependencies]
 dev = ["pytest"]
