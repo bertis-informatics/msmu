@@ -63,12 +63,20 @@ def normalise(
     rescale_arr = np.append(rescale_arr, adata.X.flatten())
     if fraction:
         normalised_arr = np.full_like(adata.X, np.nan, dtype=float)
-        for fraction in np.unique(adata.var["filename"]):
-            fraction_idx = adata.var["filename"] == fraction
+        for frac in np.unique(adata.var["filename"]):
+            fraction_idx = adata.var["filename"] == frac
 
-            arr = adata.X[:, fraction_idx].copy()
+            arr = adata.X[:, fraction_idx].copy()  
+
+            not_all_nan_rows = ~np.all(np.isnan(arr), axis=1)
+            indices = np.where(not_all_nan_rows)[0]
+            
+            arr = arr[indices, :].copy()
             fraction_normalised_data = norm_cls.normalise(arr=arr)
-            normalised_arr[:, fraction_idx] = fraction_normalised_data
+            
+            for i, r in enumerate(indices):
+                normalised_arr[r, fraction_idx] = fraction_normalised_data[i]
+            # normalised_arr[indices, fraction_idx] = fraction_normalised_data
 
     else:
         arr = adata.X.copy()
