@@ -77,14 +77,27 @@ def plot_id(
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
-    plot = PlotBar(
-        data=data._prep_id_data(groupby, obs_column=obs_column),
-        x=groupby,
-        y="_count",
-        name=groupby,
-        hovertemplate=hovertemplate,
-        text="_count",
-    )
+    if groupby != 'fraction':
+        plot = PlotBar(
+            data=data._prep_id_data(groupby, obs_column=obs_column),
+            x=groupby,
+            y="_count",
+            name=groupby,
+            hovertemplate=hovertemplate,
+            text="_count",
+        )
+    else:
+        plot_data = data._prep_var_data(groupby, 'id_count', obs_column=obs_column)
+        plot_data = plot_data.loc[(plot_data['fraction'] == plot_data['id_count']), ]
+        plot = PlotBar(
+            data=plot_data,
+            x=groupby,
+            y="count",
+            name=groupby,
+            hovertemplate=hovertemplate,
+            text="count",
+        )
+
     fig = plot.figure()
 
     # Update layout

@@ -49,12 +49,26 @@ class PlotData:
         var_df = self._get_var()
         orig_df = self._get_data()
 
-        if np.nansum(orig_df) == 0:
-            print("No data available for the selected modality. Counting from var.")
+        if (np.nansum(orig_df) == 0) or (groupby == 'fraction'):
+            prep_df = var_df.copy()
+            if np.nansum(orig_df) == 0:
+                print("No data available for the selected modality. Counting from var.")
+            if groupby == 'fraction':
+                var_df['fraction'] = var_df['filename']
+                categories = pd.Categorical(var_df['fraction'].unique().sort_values())
+
+                if self.modality != 'feature':
+                    raise ValueError("groupby: 'fraction' only supports modality: 'feature'")
+                if name == 'id_count':
+                    var_df['id_count'] = var_df['filename']
+            else:
+                categories = obs_df[groupby].unique()
+
             if groupby not in var_df.columns:
                 raise ValueError(f"Column '{groupby}' not found in var data.")
+
             prep_df = var_df[[groupby, name]].groupby(groupby, observed=True).value_counts().reset_index()
-            prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
+            prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=categories)
             prep_df = prep_df.sort_values(groupby).reset_index(drop=True)
         else:
             merged_df = orig_df.notna().join(obs_df[groupby], how="left")
@@ -97,8 +111,6 @@ class PlotData:
 
         return prep_df
 
-    def _prep_id_fraction_data(self, groupby: str) -> pd.DataFrame:
-        return pd.DataFrame(self._get_var()[groupby].value_counts(sort=False)).reset_index()
 
     def _prep_intensity_data_hist(
         self,
