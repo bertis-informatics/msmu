@@ -17,11 +17,13 @@ pipelines:
     - step:
         name: Build and Push Docker Image to ECR
         script:
-          - docker build \
-              --build-arg BB_USER=${BB_USER} \
-              --build-arg BB_PASS=${BB_PASS} \
-              --build-arg GIT_TAG=${BITBUCKET_TAG} \
-              -t pass_finder/msmu:${BITBUCKET_TAG} .
+          - >
+            docker build
+            --build-arg BB_USER=${BB_USER}
+            --build-arg BB_PASS=${BB_PASS}
+            --build-arg GIT_TAG=${BITBUCKET_TAG}
+            -t pass_finder/msmu:${BITBUCKET_TAG}
+            .
           - pipe: atlassian/aws-ecr-push-image:2.6.0
             variables:
               AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
