@@ -25,6 +25,9 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [project.urls]
 Repository = "https://bitbucket.org/bertis/msmu"
 
