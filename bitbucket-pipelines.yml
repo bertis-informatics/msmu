@@ -1,0 +1,29 @@
+image: python:3.11
+
+pipelines:
+  tags:
+    "**":
+    - step:
+        name: Run Tests
+        caches:
+          - pip
+        script:
+          - pip install -r requirements.txt
+          - pip install pytest
+          - pytest
+
+    - step:
+        name: Build and Push Docker Image to ECR
+        script:
+          - docker build --build-arg GIT_TAG=${BITBUCKET_TAG} -t pass_finder/msmu:${BITBUCKET_TAG} .
+          - pipe: atlassian/aws-ecr-push-image:2.6.0
+            variables:
+              AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+              AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+              AWS_DEFAULT_REGION: "ap-northeast-2"
+              IMAGE_NAME: "pass_finder/msmu"
+              TAGS: ${BITBUCKET_TAG}
+        caches:
+          - docker
+        services:
+          - docker
