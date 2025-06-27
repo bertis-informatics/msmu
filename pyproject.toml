@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "msmu"
 authors = [
-    {name = "Hyunguk Choi", email = "hyunguk.choi@bertis.com"},
-    {name = "Byeongchan Lee", email = "byeongchan.lee@bertis.com"},
+    {name = "Hyung-wook Choi", email = "hyungwook.choi@bertis.com"},
+    {name = "Byeong-chan Lee", email = "byeongchan.lee@bertis.com"},
 ]
 license = {file = "LICENSE"}
 description = "BERTIS LC/MS analysis library through MuData"
@@ -19,6 +19,9 @@ dependencies = [
     "plotly",
     "pymzml",
     "statsmodels",
+    "scipy==1.15.3",
+    "scikit-learn",
+    "umap-learn",
 ]
 dynamic = ["version"]
 
@@ -26,4 +29,8 @@ dynamic = ["version"]
 Repository = "https://bitbucket.org/bertis/msmu"
 
 [tool.setuptools]
-packages = ["msmu"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests", "docs"]

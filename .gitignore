@@ -140,3 +140,7 @@ dmypy.json
 
 # Mac OS
 .DS_Store
+
+# Data files
+*.h5ad
+*.h5mu

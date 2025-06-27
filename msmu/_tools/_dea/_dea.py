@@ -1,0 +1,108 @@
+import mudata as md
+import numpy as np
+
+from .PermutationTest import PermutationTest, PermutationTestResult
+
+
+def _get_test_array(
+    mdata: md.MuData,
+    modality: str,
+    catetory: str,
+    control: str,
+    expr: str | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    mod_mdata = mdata[modality].copy()
+    ctrl_samples = mod_mdata.obs.loc[
+        mod_mdata.obs[catetory] == control,
+    ].index.to_list()
+
+    if expr is not None:
+        expr_samples = mod_mdata.obs.loc[
+            mod_mdata.obs[catetory] == expr,
+        ].index.to_list()
+    else:
+        expr_samples = mod_mdata.obs.loc[
+            mod_mdata.obs[catetory] != control,
+        ].index.to_list()
+
+    ctrl_arr = mod_mdata.to_df().T[ctrl_samples].values.T
+    expr_arr = mod_mdata.to_df().T[expr_samples].values.T
+
+    return ctrl_arr, expr_arr
+
+
+def permutation_test(
+    mdata: md.MuData,
+    modality: str,
+    category: str,
+    control: str,
+    expr: str | None = None,
+    n_resamples: int = 1000,
+    n_jobs: int = 1,
+    statistic: str = "t_test",
+    force_resample: bool = False,
+) -> PermutationTestResult:
+    """
+    Perform a permutation test on the given MuData object.
+    Parameters
+    ----------
+    mdata : md.MuData
+        The MuData object containing the data.
+    modality : str
+        The modality to perform the test on.
+    category : str
+        The category column in the mdata.obs.
+    control : str
+        The control group label.
+    expr : str | None
+        The experimental group label. If None, all other groups are considered experimental.
+    n_resamples : int
+        The number of resamples for the permutation test.
+    n_jobs : int
+        The number of parallel jobs to run.
+    statistic : str
+        The statistical test to use. Options are 't_test (Welch's)', 'wilcoxon', or 'median_diff'. default is 't_test'.
+    force_resample : bool
+        If True, forces resampling even if the number of permutations exceeds the possible combinations.
+    Returns
+    -------
+    PermutationTestResult
+        The result of the permutation test.
+    Raises
+    ------
+    ValueError
+        If the statistic is not one of the supported types.
+    """
+    ctrl_arr, expr_arr = _get_test_array(
+        mdata=mdata,
+        modality=modality,
+        catetory=category,
+        control=control,
+        expr=expr,
+    )
+    if statistic not in ["t_test", "wilcoxon", "median_diff"]:
+        raise ValueError(
+            f"Invalid statistic: {statistic}. Choose from 't_test', 'wilcoxon', or 'median_diff'."
+        )
+
+    perm_test: PermutationTest = PermutationTest(
+        ctrl_arr=ctrl_arr,
+        expr_arr=expr_arr,
+        n_resamples=n_resamples,
+        force_resample=force_resample,
+    )
+    print(f"Permutation Method: {perm_test.permutation_method}")
+    print(f"Statistics: {statistic}")
+
+    perm_res: PermutationTestResult = perm_test.run(
+        n_permutations=n_resamples, n_jobs=n_jobs, statistic=statistic
+    )
+    perm_res.ctrl = control
+    perm_res.expr = expr if expr is not None else "all_other_groups"
+    perm_res.features = mdata[modality].var.index.to_numpy()
+
+    return perm_res
+
+
+# def limma(self):
+#     return Limma()
