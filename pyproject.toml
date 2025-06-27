@@ -25,6 +25,9 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.dependencies]
+bertis-mskit = { git = "https://bitbucket.org/bertis/bertis-mskit.git" }
+
 [project.optional-dependencies]
 dev = ["pytest"]
 
