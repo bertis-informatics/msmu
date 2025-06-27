@@ -8,6 +8,8 @@ pipelines:
         caches:
           - pip
         script:
+          - git config --global url."https://${BB_USER}:${BB_PASS}@bitbucket.org/".insteadOf "https://bitbucket.org/"
+          - pip install --upgrade pip
           - pip install .[dev]
           - pytest
 
@@ -26,8 +28,6 @@ pipelines:
               AWS_DEFAULT_REGION: "ap-northeast-2"
               IMAGE_NAME: "pass_finder/msmu"
               TAGS: ${BITBUCKET_TAG}
-              BB_USER: ${BB_USER}
-              BB_PASS: ${BB_PASS}
         caches:
           - docker
         services:
