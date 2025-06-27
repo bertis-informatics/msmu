@@ -8,8 +8,7 @@ pipelines:
         caches:
           - pip
         script:
-          - pip install -r requirements.txt
-          - pip install pytest
+          - pip install .[dev]
           - pytest
 
     - step:
