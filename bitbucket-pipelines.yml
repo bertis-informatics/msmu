@@ -23,7 +23,7 @@ pipelines:
             --build-arg BB_PASS=${BB_PASS}
             --build-arg GIT_TAG=${BITBUCKET_TAG}
             -t pass_finder/msmu:${BITBUCKET_TAG}
-	    -t pass_finder/msmu:latest
+            -t pass_finder/msmu:latest
             .
           - pipe: atlassian/aws-ecr-push-image:2.6.0
             variables:
