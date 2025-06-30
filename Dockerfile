@@ -16,5 +16,5 @@ ARG BB_USER
 ARG BB_PASS
 RUN git config --global url."https://${BB_USER}:${BB_PASS}@bitbucket.org/".insteadOf "https://bitbucket.org/"
 
-RUN pip install --upgrade pip setuptools wheel
+RUN pip install --upgrade pip setuptools wheel requests openpyxl
 RUN pip install .
