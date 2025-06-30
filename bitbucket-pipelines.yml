@@ -23,6 +23,7 @@ pipelines:
             --build-arg BB_PASS=${BB_PASS}
             --build-arg GIT_TAG=${BITBUCKET_TAG}
             -t pass_finder/msmu:${BITBUCKET_TAG}
+	    -t pass_finder/msmu:latest
             .
           - pipe: atlassian/aws-ecr-push-image:2.6.0
             variables:
@@ -30,7 +31,7 @@ pipelines:
               AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
               AWS_DEFAULT_REGION: "ap-northeast-2"
               IMAGE_NAME: "pass_finder/msmu"
-              TAGS: ${BITBUCKET_TAG}
+              TAGS: "${BITBUCKET_TAG} latest"
         caches:
           - docker
         services:
