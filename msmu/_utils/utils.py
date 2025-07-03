@@ -216,3 +216,46 @@ def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool: str)
     mdata.update_obs()
 
     return mdata
+
+
+def rename_obs(
+    mdata: md.MuData,
+    map: dict[str, str] | pd.Series | pd.DataFrame,
+) -> md.MuData:
+    """
+    Rename an observation (obs) column in the MuData object.
+
+    Parameters
+    ----------
+    mdata : md.MuData
+        The MuData object containing the observation to rename.
+    obs_name : str
+        The current name of the observation to rename.
+    new_obs_name : str
+        The new name for the observation.
+
+    Returns
+    -------
+    md.MuData
+        The modified MuData object with the renamed observation.
+    """
+    mdata = mdata.copy()
+
+    if isinstance(map, pd.Series):
+        map = map.to_dict()
+    elif isinstance(map, pd.DataFrame):
+        if len(map.columns) != 2:
+            raise ValueError("DataFrame must have exactly two columns.")
+        map = map.set_index(map.columns[0])[map.columns[1]].to_dict()
+    elif not isinstance(map, dict):
+        raise ValueError("Map must be a dictionary, pandas Series, or DataFrame.")
+
+    if not (set(mdata.obs.index) <= set(map.keys())):
+        raise ValueError("Map keys must contain the index of mdata.obs")
+
+    mdata.obs.index = mdata.obs.index.map(map)
+
+    for mod in mdata.mod:
+        mdata[mod].obs.index = mdata[mod].obs.index.map(map)
+
+    return mdata

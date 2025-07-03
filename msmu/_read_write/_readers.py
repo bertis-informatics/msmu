@@ -14,13 +14,13 @@ from ._sage_reader import LfqSageReader, TmtSageReader
 def read_sage(
     sage_output_dir: str | Path,
     label: Literal["tmt", "lfq"],
-    sample_name: list[str] | None = None,
-    channel: list[str] | None = None,
-    filename: list[str] | None = None,
-    meta: pd.DataFrame | None = None,
-    sample_col: str | None = None,
-    channel_col: str | None = None,
-    filename_col: str | None = None,
+    # sample_name: list[str] | None = None,
+    # channel: list[str] | None = None,
+    # filename: list[str] | None = None,
+    # meta: pd.DataFrame | None = None,
+    # sample_col: str | None = None,
+    # channel_col: str | None = None,
+    # filename_col: str | None = None,
 ) -> md.MuData:
     """
     Reads Sage output and returns a MuData object.
@@ -28,13 +28,13 @@ def read_sage(
     Args:
         sage_output_dir (str | Path): Path to the Sage output directory.
         label (Literal["tmt", "lfq"]): Label for the Sage output ('tmt' or 'lfq').
-        sample_name (list[str] | None): List of sample names.
-        channel (list[str] | None): List of TMT channels.
-        filename (list[str] | None): List of filenames for LFQ.
-        meta (pd.DataFrame | None): Metadata DataFrame.
-        sample_col (str | None): Column name for sample names in metadata.
-        channel_col (str | None): Column name for TMT channels in metadata.
-        filename_col (str | None): Column name for filenames in metadata.
+        # sample_name (list[str] | None): List of sample names.
+        # channel (list[str] | None): List of TMT channels.
+        # filename (list[str] | None): List of filenames for LFQ.
+        # meta (pd.DataFrame | None): Metadata DataFrame.
+        # sample_col (str | None): Column name for sample names in metadata.
+        # channel_col (str | None): Column name for TMT channels in metadata.
+        # filename_col (str | None): Column name for filenames in metadata.
 
     Returns:
         md.MuData: A MuData object containing the Sage data.
@@ -46,31 +46,31 @@ def read_sage(
     else:
         raise ValueError("Argument label should be one of 'tmt', 'lfq'.")
 
-    if meta is not None:
-        sample_name = meta[sample_col].tolist()
-        if label == "tmt":
-            channel = meta[channel_col].tolist()
-        if label == "lfq":
-            filename: list[str] = meta[filename_col].tolist()
-            filename = [f if f.endswith(".mzML") else f"{f}.mzML" for f in filename]
+    # if meta is not None:
+    #     sample_name = meta[sample_col].tolist()
+    #     if label == "tmt":
+    #         channel = meta[channel_col].tolist()
+    #     if label == "lfq":
+    #         filename: list[str] = meta[filename_col].tolist()
+    #         filename = [f if f.endswith(".mzML") else f"{f}.mzML" for f in filename]
 
     reader = reader_cls(
         sage_output_dir=sage_output_dir,
-        sample_name=sample_name,
-        channel=channel,
-        filename=filename,
+        # sample_name=sample_name,
+        # channel=channel,
+        # filename=filename,
     )
     mdata = reader.read()
 
-    if meta is not None:
-        meta_col_add = [x for x in meta.columns if x not in mdata.obs.columns]
-        meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
-        mdata.obs = mdata.obs.join(meta_add)
-    elif channel is not None:
-        mdata.obs["channel"] = mdata.obs.index.map({i: c for i, c in zip(sample_name, channel)})
+    # if meta is not None:
+    #     meta_col_add = [x for x in meta.columns if x not in mdata.obs.columns]
+    #     meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
+    #     mdata.obs = mdata.obs.join(meta_add)
+    # elif channel is not None:
+    #     mdata.obs["channel"] = mdata.obs.index.map({i: c for i, c in zip(sample_name, channel)})
 
-    mdata.obs = to_categorical(mdata.obs)
-    mdata.push_obs()
+    # mdata.obs = to_categorical(mdata.obs)
+    # mdata.push_obs()
 
     return mdata
 
@@ -94,32 +94,32 @@ def to_categorical(df: pd.DataFrame) -> pd.DataFrame:
 
 def read_diann(
     diann_output_dir: str | Path,
-    sample_name: list[str] | None = None,
-    filename: list[str] | None = None,
-    meta: pd.DataFrame | None = None,
-    sample_col: str | None = None,
-    filename_col: str | None = None,
-    fasta: str | Path | None = None,
+    # sample_name: list[str] | None = None,
+    # filename: list[str] | None = None,
+    # meta: pd.DataFrame | None = None,
+    # sample_col: str | None = None,
+    # filename_col: str | None = None,
+    # fasta: str | Path | None = None,
 ) -> md.MuData:
 
-    if meta is not None:
-        sample_name = meta[sample_col].tolist()
-        filename = meta[filename_col].tolist()
+    # if meta is not None:
+    #     sample_name = meta[sample_col].tolist()
+    #     filename = meta[filename_col].tolist()
 
     mdata: md.MuData = DiannReader(
         diann_output_dir=diann_output_dir,
-        sample_name=sample_name,
-        filename=filename,
-        fasta=fasta,
+        # sample_name=sample_name,
+        # filename=filename,
+        # fasta=fasta,
     ).read()
 
-    if meta is not None:
-        meta_col_add = [x for x in meta.columns if x not in mdata.obs.columns]
-        meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
-        mdata.obs = mdata.obs.join(meta_add)
+    # if meta is not None:
+    #     meta_col_add = [x for x in meta.columns if x not in mdata.obs.columns]
+    #     meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
+    #     mdata.obs = mdata.obs.join(meta_add)
 
-    mdata.obs = to_categorical(mdata.obs)
-    mdata.push_obs()
+    # mdata.obs = to_categorical(mdata.obs)
+    # mdata.push_obs()
 
     return mdata
 
