@@ -13,18 +13,18 @@ class DiannReader(Reader):
     def __init__(
         self,
         diann_output_dir: str | Path,
-        sample_name: list[str],
-        filename: list[str] | None = None,
-        fasta: str | Path | None = None,
+        # sample_name: list[str],
+        # filename: list[str] | None = None,
+        # fasta: str | Path | None = None,
     ) -> None:
         super().__init__()
         self._search_engine = "diann"
         self._quantification = "diann"
         self._label = "lfq"
         self._diann_output_dir = Path(diann_output_dir).absolute()
-        self._sample_name = sample_name
-        self._filename = filename
-        self._fasta = fasta
+        # self._sample_name = sample_name
+        # self._filename = filename
+        # self._fasta = fasta
 
         self._get_diann_outputs()
         self._validate_diann_outputs()
@@ -81,8 +81,8 @@ class DiannReader(Reader):
         return normalise_diann_columns(diann_result_df)
 
     def _diann2mdata(self, diann_result_df: pd.DataFrame, diann_quant_df: pd.DataFrame) -> md.MuData:
-        rename_dict = self._make_rename_dict(diann_result_df)
-        diann_quant_df = diann_quant_df.rename(columns=rename_dict)
+        # rename_dict = self._make_rename_dict(diann_result_df)
+        # diann_quant_df = diann_quant_df.rename(columns=rename_dict)
 
         adata_precursor = ad.AnnData(diann_quant_df.T.astype("float"))
         normalised_diann_result_df = self._normalise_columns(diann_result_df)
@@ -131,7 +131,8 @@ class DiannReader(Reader):
         # self._get_mbr(diann_result_df)
 
         mdata: md.MuData = self._diann2mdata(diann_result_df, diann_quant_df)
-        mdata = self._assign_protein_id_info(mdata=mdata, fasta=self._fasta)
+        mdata = self._assign_protein_id_info(mdata=mdata)
+        # mdata = self._assign_protein_id_info(mdata=mdata, fasta=self._fasta)
         mdata = self._stringify_columns(mdata)
 
         return mdata

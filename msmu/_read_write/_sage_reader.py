@@ -20,12 +20,12 @@ class Reader:
         mdata.obs["tag"] = mdata.obs.index.map({sample: tag for tag, sample in rename_dict.items()})
         return mdata
 
-    def _assign_protein_id_info(self, mdata: md.MuData, fasta: str | Path | None) -> md.MuData:
+    def _assign_protein_id_info(self, mdata: md.MuData) -> md.MuData:
         protein_id_info: ProteinIdParser = ProteinIdParser()
         protein_id_info.parse(proteins=mdata["feature"].var["proteins"], source="uniprot")
-        if fasta is None:
-            warnings.warn("Fasta file is not provided. Protein Information will be assigned from the search result.")
-            protein_id_info._get_protein_info_from_fasta(fasta=fasta)
+        # if fasta is None:
+        #     warnings.warn("Fasta file is not provided. Protein Information will be assigned from the search result.")
+        #     protein_id_info._get_protein_info_from_fasta(fasta=fasta)
 
         mdata["feature"].var["proteins"] = protein_id_info.accessions
         mdata.uns["protein_info"] = protein_id_info.protein_info
@@ -105,20 +105,20 @@ class SageReader(Reader):
     def __init__(
         self,
         sage_output_dir: str | Path,
-        sample_name: list[str],
-        channel: list[str] | None = None,
-        filename: list[str] | None = None,
+        # sample_name: list[str],
+        # channel: list[str] | None = None,
+        # filename: list[str] | None = None,
         label: str | None = None,
-        fasta: str | Path | None = None,
+        # fasta: str | Path | None = None,
     ) -> None:
         super().__init__()
         self._search_engine = "Sage"
         self._label = label
         self._sage_output_dir = Path(sage_output_dir).absolute()
-        self._sample_name = sample_name
-        self._channel = channel
-        self._filename = filename
-        self._fasta = fasta
+        # self._sample_name = sample_name
+        # self._channel = channel
+        # self._filename = filename
+        # self._fasta = fasta
 
         self._get_sage_outputs()
         self._validate_sage_outputs()
@@ -136,10 +136,12 @@ class SageReader(Reader):
         if not self._sage_quant.exists():
             self._quant = False
             self._quantification = "none"
-            print(f"[Warning]{self._label}.tsv is not found. Please Check quant option in sage or provide a quantification matrix from other tools!")
+            print(
+                f"[Warning]{self._label}.tsv is not found. Please Check quant option in sage or provide a quantification matrix from other tools!"
+            )
         else:
             self._quant = True
-            self._quantification = 'sage'
+            self._quantification = "sage"
 
     def _read_file(self, file_path: Path, sep: str = "\t") -> pd.DataFrame:
         return pd.read_csv(file_path, sep=sep)
@@ -193,7 +195,8 @@ class SageReader(Reader):
         print(f"Importing sage outputs from {self._sage_output_dir}")
         sage_result_df, sage_quant_df, sage_config = self._import_sage()
         mdata: md.MuData = self._sage2mdata(sage_result_df, sage_quant_df, sage_config)
-        mdata = self._assign_protein_id_info(mdata=mdata, fasta=self._fasta)
+        mdata = self._assign_protein_id_info(mdata=mdata)
+        # mdata = self._assign_protein_id_info(mdata=mdata, fasta=self._fasta)
 
         return mdata
 
@@ -202,11 +205,12 @@ class TmtSageReader(SageReader):
     def __init__(
         self,
         sage_output_dir: str | Path,
-        sample_name: list[str],
-        channel: list[str] | None = None,
-        filename: list[str] | None = None,
+        # sample_name: list[str],
+        # channel: list[str] | None = None,
+        # filename: list[str] | None = None,
     ) -> None:
-        super().__init__(sage_output_dir, sample_name, channel, filename, label="tmt")
+        super().__init__(sage_output_dir, label="tmt")
+        # super().__init__(sage_output_dir, sample_name, channel, filename, label="tmt")
 
     def _read_sage_quant(self) -> pd.DataFrame:
         sage_quant_df = super()._read_sage_quant()
@@ -216,25 +220,26 @@ class TmtSageReader(SageReader):
         return sage_quant_df
 
     def _make_rename_dict(self, sage_quant_df: pd.DataFrame) -> dict:
-        if isinstance(self._channel, NoneType):
-            print(
-                '[WARNING] TMT Channels are not provied as argument "channel". Quantification columns will be renamed as an order of sample_name list.'
-            )
+        # if isinstance(self._channel, NoneType):
+        #     print(
+        #         '[WARNING] TMT Channels are not provied as argument "channel". Quantification columns will be renamed as an order of sample_name list.'
+        #     )
 
         plex = len(sage_quant_df.columns)
         tmt_labels = getattr(label_info, f"Tmt{plex}").label
         sage_labels = [f"tmt_{x}" for x in range(1, plex + 1)]
-        channel_list = self._channel or sage_labels
+        # channel_list = self._channel or sage_labels
 
-        if set(tmt_labels) != set(channel_list):
-            raise ValueError(
-                f"Provied Channel list is not matched to TMT{plex} channels. Diff_channel: {set(tmt_labels).difference(set(channel_list))}"
-            )
+        # if set(tmt_labels) != set(channel_list):
+        #     raise ValueError(
+        #         f"Provied Channel list is not matched to TMT{plex} channels. Diff_channel: {set(tmt_labels).difference(set(channel_list))}"
+        #     )
 
-        channel_dict = {sage_col: tmt for sage_col, tmt in zip(tmt_labels, sage_labels)}
-        annotation_dict = {channel: sample for channel, sample in zip(channel_list, self._sample_name)}
+        channel_dict = {sage_col: tmt for sage_col, tmt in zip(sage_labels, tmt_labels)}
+        # annotation_dict = {channel: sample for channel, sample in zip(channel_list, self._sample_name)}
 
-        return {channel_dict[key]: annotation_dict[key] for key in channel_list}
+        return channel_dict
+        # return {channel_dict[key]: annotation_dict[key] for key in channel_list}
 
     def _import_sage(self) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         sage_result_df = self._read_sage_result()
@@ -267,8 +272,8 @@ class TmtSageReader(SageReader):
             }
         )
         mdata: md.MuData = md.MuData({"feature": adata})
-        mdata: md.MuData = self._add_obs_tag(mdata, rename_dict)
-        mdata.update_obs()
+        # mdata: md.MuData = self._add_obs_tag(mdata, rename_dict)
+        # mdata.update_obs()
 
         return mdata
 
@@ -277,15 +282,15 @@ class LfqSageReader(SageReader):
     def __init__(
         self,
         sage_output_dir: str | Path,
-        sample_name: list[str],
-        channel: list[str] | None = None,
-        filename: list[str] | None = None,
+        # sample_name: list[str],
+        # channel: list[str] | None = None,
+        # filename: list[str] | None = None,
     ) -> None:
-        super().__init__(sage_output_dir, sample_name, channel, filename, label="lfq")
+        super().__init__(sage_output_dir, label="lfq")
+        # super().__init__(sage_output_dir, sample_name, channel, filename, label="lfq")
 
     def _read_sage_quant(self) -> pd.DataFrame:
         sage_quant_df = super()._read_sage_quant()
-
         sage_quant_df = sage_quant_df.set_index("peptide", drop=True).rename_axis(index=None)
         sage_quant_df = sage_quant_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)
 
@@ -293,7 +298,7 @@ class LfqSageReader(SageReader):
 
     def _import_sage(self) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         sage_result_df = self._read_sage_result()
-        
+
         if self._quant:
             sage_quant_df = self._read_sage_quant()
         else:
@@ -303,14 +308,17 @@ class LfqSageReader(SageReader):
 
         return sage_result_df, sage_quant_df, sage_config
 
-    def _make_rename_dict(self, sage_quant_df: pd.DataFrame) -> dict:
-        if isinstance(self._filename, NoneType):
-            print(
-                '[WARNING] filnames are not provied as argument "filename". Quantifiation columns will be renamed with in an order of sample_name list.'
-            )
-
-        filenames = self._filename or sage_quant_df.columns.tolist()
-        return {filename: sample for filename, sample in zip(filenames, self._sample_name)}
+    def _make_rename_dict(self) -> dict:
+        # def _make_rename_dict(self, sage_quant_df: pd.DataFrame) -> dict:
+        # if isinstance(self._filename, NoneType):
+        #     print(
+        #         '[WARNING] filnames are not provied as argument "filename". Quantifiation columns will be renamed with in an order of sample_name list.'
+        #     )
+        sage_config = self._read_sage_config()
+        filenames = [Path(x).name for x in sage_config["mzml_paths"]]
+        # filenames = self._filename or sage_quant_df.columns.tolist()
+        # return {filename: sample for filename, sample in zip(filenames, self._sample_name)}
+        return {col: col.rsplit(".", 1)[0] for col in filenames}
 
     def _sage2mdata(
         self,
@@ -318,18 +326,19 @@ class LfqSageReader(SageReader):
         sage_quant_df: pd.DataFrame,
         sage_config: dict,
     ) -> md.MuData:
-        rename_dict = self._make_rename_dict(sage_quant_df)
+        rename_dict = self._make_rename_dict()
+
         if self._quant == False:
             sage_quant_df = pd.DataFrame(columns=list(rename_dict.values()))
         else:
             sage_quant_df = sage_quant_df.rename(columns=rename_dict)
 
-        adata_psm = ad.AnnData(
+        adata_feature = ad.AnnData(
             pd.DataFrame(index=sage_result_df.index, columns=sage_quant_df.columns).T.astype("float")
         )
-        adata_psm.var = self._normalise_columns(sage_result_df)
-        adata_psm.varm["search_result"] = sage_result_df
-        adata_psm.uns.update(
+        adata_feature.var = self._normalise_columns(sage_result_df)
+        adata_feature.varm["search_result"] = sage_result_df
+        adata_feature.uns.update(
             {
                 "level": "psm",
                 "search_engine": self._search_engine,
@@ -339,14 +348,14 @@ class LfqSageReader(SageReader):
                 "search_config": sage_config,
             }
         )
-        mdata = md.MuData({"feature": adata_psm})
-        
+        mdata = md.MuData({"feature": adata_feature})
+
         if self._quant:
             adata_peptide = ad.AnnData(sage_quant_df.T)
             adata_peptide.uns["level"] = "peptide"
             mdata.mod["peptide"] = adata_peptide
 
-        mdata = self._add_obs_tag(mdata=mdata, rename_dict=rename_dict)
-        mdata.update_obs()
+        # mdata = self._add_obs_tag(mdata=mdata, rename_dict=rename_dict)
+        # mdata.update_obs()
 
         return mdata
