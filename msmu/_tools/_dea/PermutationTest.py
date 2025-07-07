@@ -8,7 +8,7 @@ from numpy import floating
 from scipy.stats import percentileofscore
 from tqdm import tqdm
 
-from .StatTest import NullDistribution, StatResult, StatTest
+from .StatTest import NullDistribution, StatResult, StatTest, PvalueCorrection
 
 
 @dataclass
@@ -53,7 +53,7 @@ class PermutationTestResult:
             "pct_expr": self.pct_expr,
             "log2fc": self.log2fc,
             "p_value": self.p_value,
-            # "p_adj": self.p_adj,
+            "p_adj": self.p_adj,
         }
 
         df: pd.DataFrame = pd.DataFrame(contents)
@@ -97,6 +97,7 @@ class PermutationTest:
         expr_arr: np.ndarray,
         n_resamples: int,
         force_resample: bool,
+        fdr: bool | str
     ):
         self._ctrl_arr: np.ndarray = ctrl_arr
         self._expr_arr: np.ndarray = expr_arr
@@ -104,6 +105,7 @@ class PermutationTest:
         self._n_resamples: int = n_resamples
         self._force_resample: bool = force_resample
         self._permutation_method: str = self._get_permutation_method()
+        self.fdr: bool | str = fdr
 
     def _get_permutation_method(self) -> str:
         if self._n_resamples == -np.inf:
@@ -193,13 +195,14 @@ class PermutationTest:
             expr=self.expr_arr,
             statistic=statistic,
         )
+        # print(obs_stats.statistic)
         obs_log2fc: StatResult = StatTest._stat_tests(
             ctrl=self.ctrl_arr,
             expr=self.expr_arr,
             statistic="med_diff",
         )
 
-        # Initialize NullDistribution objects for the statistic and log2fc
+        # Initialize NullDistribution objects for the statistic and log2fc and q values
         stat_null_dist = NullDistribution(
             method=statistic, null_distribution=np.array([])
         )
@@ -208,33 +211,45 @@ class PermutationTest:
         )
 
         # Iterate over the combinations or randomised permutations
-        for combinations in tqdm_iter:
+        for combn in tqdm_iter:
             # Calculate the statistic for the current permutation
             tmp_stat: StatResult = self._sub_perm(
                 concated_arr=concated_arr,
-                combinations=combinations,
+                combinations=combn,
                 statistic=statistic,
             )
+
             # Add the result to the null distribution
             stat_null_dist = stat_null_dist.add_permutation_result(tmp_stat)
 
             # Calculate the log2 fold change for the current permutation
             tmp_log2fc: StatResult = self._sub_perm(
                 concated_arr=concated_arr,
-                combinations=combinations,
+                combinations=combn,
                 statistic="med_diff",
             )
             # Add the result to the log2fc null distribution
             log2fc_null_dist = log2fc_null_dist.add_permutation_result(tmp_log2fc)
 
-        # Calculate p-values for the observed statistic
         pval_permutation = StatTest.calc_permutation_pvalue(
-            stat_obs=obs_stats.statistic, null_dist=stat_null_dist.null_distribution
+            stat_obs=obs_stats.statistic,
+            null_dist=stat_null_dist.null_distribution
         )
 
-        # Calculate p-values for the observed log2 fold change
+        if self.fdr == 'empirical':
+            q_vals = PvalueCorrection.empirical(
+                stat_obs=obs_stats.statistic, 
+                null_dist=stat_null_dist.null_distribution
+                )
+        elif self.fdr == 'bh':
+            q_vals = PvalueCorrection.bh(
+                pvals=pval_permutation
+            )
+
+        # put results to PermutationTestResult
         perm_test_res.log2fc = obs_log2fc.statistic
         perm_test_res.p_value = pval_permutation
+        perm_test_res.p_adj = q_vals
 
         # Calculate the fold change percentile
         fc_pct_criteria = [1, 5]  # 1% and 5% thresholds

@@ -41,6 +41,7 @@ def permutation_test(
     n_jobs: int = 1,
     statistic: str = "t_test",
     force_resample: bool = False,
+    fdr: bool | str = "empirical"
 ) -> PermutationTestResult:
     """
     Perform a permutation test on the given MuData object.
@@ -80,9 +81,13 @@ def permutation_test(
         control=control,
         expr=expr,
     )
-    if statistic not in ["t_test", "wilcoxon", "median_diff"]:
+    if statistic not in ["welch", "student", "wilcoxon", "med_diff"]:
         raise ValueError(
-            f"Invalid statistic: {statistic}. Choose from 't_test', 'wilcoxon', or 'median_diff'."
+            f"Invalid statistic: {statistic}. Choose from 'welch', 'student', 'wilcoxon', or 'med_diff'."
+        )
+    if fdr not in ["empirical", "bh", "storey", False]:
+        raise ValueError(
+            f"invalied fdr (mutiple test correction). Choose from 'empirical', 'storey' or 'bh'. Or turn off with False (bool)"
         )
 
     perm_test: PermutationTest = PermutationTest(
@@ -90,6 +95,7 @@ def permutation_test(
         expr_arr=expr_arr,
         n_resamples=n_resamples,
         force_resample=force_resample,
+        fdr=fdr,
     )
     print(f"Permutation Method: {perm_test.permutation_method}")
     print(f"Statistics: {statistic}")
