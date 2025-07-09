@@ -48,6 +48,7 @@ class DiannReader(Reader):
     def _make_diann_quant(self, data: pd.DataFrame) -> pd.DataFrame:
         df = data.copy()
         df = df[["precursor_idx", "Run", "Precursor.Quantity"]]
+        df = df[df["Precursor.Quantity"] > 0]
         df = df.pivot(index="precursor_idx", columns="Run", values="Precursor.Quantity")
         df = df.rename_axis(index=None, columns=None)
 
