@@ -40,7 +40,7 @@ class PermutationTestResult:
     pct_expr: np.ndarray
     log2fc: np.ndarray
     p_value: np.ndarray
-    p_adj: np.ndarray
+    q_value: np.ndarray
     fc_pct_1: float | None
     fc_pct_5: float | None
 
@@ -53,7 +53,7 @@ class PermutationTestResult:
             "pct_expr": self.pct_expr,
             "log2fc": self.log2fc,
             "p_value": self.p_value,
-            "p_adj": self.p_adj,
+            "q_value": self.q_value,
         }
 
         df: pd.DataFrame = pd.DataFrame(contents)
@@ -178,7 +178,7 @@ class PermutationTest:
             pct_expr=self._get_pct_expression(self.expr_arr),
             log2fc=np.array([]),
             p_value=np.array([]),
-            p_adj=np.array([]),
+            q_value=np.array([]),
             fc_pct_1=None,
             fc_pct_5=None,
         )
@@ -239,7 +239,8 @@ class PermutationTest:
         if self.fdr == 'empirical':
             q_vals = PvalueCorrection.empirical(
                 stat_obs=obs_stats.statistic, 
-                null_dist=stat_null_dist.null_distribution
+                null_dist=stat_null_dist.null_distribution, 
+                pvals=pval_permutation,
                 )
         elif self.fdr == 'bh':
             q_vals = PvalueCorrection.bh(
@@ -249,7 +250,7 @@ class PermutationTest:
         # put results to PermutationTestResult
         perm_test_res.log2fc = obs_log2fc.statistic
         perm_test_res.p_value = pval_permutation
-        perm_test_res.p_adj = q_vals
+        perm_test_res.q_value = q_vals
 
         # Calculate the fold change percentile
         fc_pct_criteria = [1, 5]  # 1% and 5% thresholds

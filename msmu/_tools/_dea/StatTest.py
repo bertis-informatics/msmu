@@ -34,7 +34,7 @@ class StatTest:
     @staticmethod
     def _stat_tests(ctrl, expr, statistic: str) -> StatResult:
         stat_dict: dict[str, Callable] = {
-            "t_test": StatTest.welch,
+            "welch": StatTest.welch,
             "student": StatTest.student,
             "wilcoxon": StatTest.wilcoxon_rank_sum,
             "med_diff": StatTest.median_diff,
@@ -77,28 +77,28 @@ class StatTest:
             var_ctrl = np.nanvar(ctrl, axis=0, ddof=1)
             var_expr = np.nanvar(expr, axis=0, ddof=1)
 
-        # Sample sizes (account for NaNs)
-        n_ctrl = np.sum(~np.isnan(ctrl), axis=0)
-        n_expr = np.sum(~np.isnan(expr), axis=0)
+            # Sample sizes (account for NaNs)
+            n_ctrl = np.sum(~np.isnan(ctrl), axis=0)
+            n_expr = np.sum(~np.isnan(expr), axis=0)
 
-        # T-statistic
-        denom = np.sqrt(var_ctrl / n_ctrl + var_expr / n_expr)
-        t_val = (mean_expr - mean_ctrl) / denom
+            # T-statistic
+            denom = np.sqrt(var_ctrl / n_ctrl + var_expr / n_expr)
+            t_val = (mean_expr - mean_ctrl) / denom
 
-        # Degrees of freedom (Welch–Satterthwaite equation)
-        df_num = (var_ctrl / n_ctrl + var_expr / n_expr) ** 2
-        df_denom = (var_ctrl**2 / ((n_ctrl**2) * (n_ctrl - 1))) + (
-            var_expr**2 / ((n_expr**2) * (n_expr - 1))
-        )
-        df = df_num / df_denom
+            # Degrees of freedom (Welch–Satterthwaite equation)
+            df_num = (var_ctrl / n_ctrl + var_expr / n_expr) ** 2
+            df_denom = (var_ctrl**2 / ((n_ctrl**2) * (n_ctrl - 1))) + (
+                var_expr**2 / ((n_expr**2) * (n_expr - 1))
+            )
+            df = df_num / df_denom
 
-        # Handle divisions by zero or invalid DOF
-        invalid = (n_ctrl < 2) | (n_expr < 2) | np.isnan(t_val) | np.isnan(df)
-        t_val[invalid] = np.nan
-        df[invalid] = np.nan
+            # Handle divisions by zero or invalid DOF
+            invalid = (n_ctrl < 2) | (n_expr < 2) | np.isnan(t_val) | np.isnan(df)
+            t_val[invalid] = np.nan
+            df[invalid] = np.nan
 
-        # Two-sided p-value
-        pval = 2 * t.sf(np.abs(t_val), df)
+            # Two-sided p-value
+            pval = 2 * t.sf(np.abs(t_val), df)
 
         return t_val, pval
 
@@ -140,27 +140,27 @@ class StatTest:
             var_ctrl = np.nanvar(ctrl, axis=0, ddof=1)
             var_expr = np.nanvar(expr, axis=0, ddof=1)
 
-        # Sample sizes
-        n_ctrl = np.sum(~np.isnan(ctrl), axis=0)
-        n_expr = np.sum(~np.isnan(expr), axis=0)
+            # Sample sizes
+            n_ctrl = np.sum(~np.isnan(ctrl), axis=0)
+            n_expr = np.sum(~np.isnan(expr), axis=0)
 
-        # Pooled variance (equal variance assumption)
-        pooled_var = ((n_ctrl - 1) * var_ctrl + (n_expr - 1) * var_expr) / (n_ctrl + n_expr - 2)
+            # Pooled variance (equal variance assumption)
+            pooled_var = ((n_ctrl - 1) * var_ctrl + (n_expr - 1) * var_expr) / (n_ctrl + n_expr - 2)
 
-        # T-statistic
-        denom = np.sqrt(pooled_var * (1 / n_ctrl + 1 / n_expr))
-        t_val = (mean_expr - mean_ctrl) / denom
+            # T-statistic
+            denom = np.sqrt(pooled_var * (1 / n_ctrl + 1 / n_expr))
+            t_val = (mean_expr - mean_ctrl) / denom
 
-        # Degrees of freedom
-        df = (n_ctrl + n_expr - 2).astype(float)
+            # Degrees of freedom
+            df = (n_ctrl + n_expr - 2).astype(float)
 
-        # Handle invalid cases
-        invalid = (n_ctrl < 2) | (n_expr < 2) | np.isnan(t_val) | np.isnan(df)
-        t_val[invalid] = np.nan
-        df[invalid] = np.nan
+            # Handle invalid cases
+            invalid = (n_ctrl < 2) | (n_expr < 2) | np.isnan(t_val) | np.isnan(df)
+            t_val[invalid] = np.nan
+            df[invalid] = np.nan
 
-        # Two-sided p-value
-        pval = 2 * t.sf(np.abs(t_val), df)
+            # Two-sided p-value
+            pval = 2 * t.sf(np.abs(t_val), df)
 
         return t_val, pval
 
@@ -267,11 +267,43 @@ class PvalueCorrection:
             return q_values
 
     @staticmethod
+    def estimate_pi0_storey(p_values, lambdas=np.linspace(0.5, 0.95, 10)):
+        """
+        Storey's estimator of pi0 (proportion of true nulls) from observed p-values.
+        https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
+        pi0 = #( pval > lamda ) / ( 1 - lambda ) * m
+
+        Parameters:
+        - p_values: array of p-values (one per feature)
+        - lambdas: array of lambda thresholds (typically 0.5 to 0.95)
+
+        Returns:
+        - pi0: estimated pi0 value
+        - pi0_by_lambda: array of intermediate pi0 estimates
+        """
+        p_values = np.asarray(p_values)
+        valid_mask = ~np.isnan(p_values)
+        p_values = p_values[valid_mask]
+        m = len(p_values)
+        
+        pi0_by_lambda = []
+        for lam in lambdas:
+            count = np.sum(p_values > lam)
+            pi0_hat = count / ((1 - lam) * m)
+            pi0_by_lambda.append(min(pi0_hat, 1.0))
+
+        pi0_by_lambda = np.array(pi0_by_lambda)
+        pi0 = np.min(pi0_by_lambda)
+
+        return pi0, pi0_by_lambda
+
+    @staticmethod
     def empirical(
         stat_obs: np.ndarray,
         null_dist: np.ndarray,
+        pvals: np.ndarray,
         two_sided: bool = True,
-        pi0: float = 1,
+        # pi0: float = 1,
     ) -> np.ndarray:
         """
         https://academic.oup.com/bioinformatics/article/21/23/4280/194680
@@ -296,9 +328,11 @@ class PvalueCorrection:
         null_valid = null_dist[~np.isnan(null_dist)]
         null_valid = np.abs(null_valid) if two_sided else null_valid
 
+        # pi0 estimation (storey's)
+        pi0, pi0_by_lambda = PvalueCorrection.estimate_pi0_storey(p_values=pvals)
+
         # q-value 계산 (FDR = pi0 * E[FP] / E[TP])
         q_vals = []
-        pi0 = 1
         for s in stat_valid:
             tp = np.sum(stat_valid >= s)
             fp = np.sum(null_valid >= s)
