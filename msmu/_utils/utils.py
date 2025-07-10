@@ -32,7 +32,7 @@ def uns_logger(func):
             return result
 
         # Filter kwargs (e.g., None values)
-        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        filtered_kwargs = {k: str(v) for k, v in kwargs.items() if v is not None}
 
         # Create log entry
         log_entry = {

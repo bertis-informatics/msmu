@@ -184,7 +184,7 @@ class ProteinSummariser(Summariser):
 
 
 class PtmSummariser(Summariser):
-    def __init__(self, adata: ad.AnnData, protein_col: str = "protein_group") -> None:
+    def __init__(self, adata: ad.AnnData, protein_col: str) -> None:
         super().__init__(adata=adata, from_="peptide", to_="ptm")
 
         self._col_to_groupby: str = "protein_site"
@@ -364,6 +364,7 @@ class PtmSummariser(Summariser):
             .agg(
                 {
                     "protein_site": ",".join,
+                    "protein_group": "first",
                     "modified_protein": ",".join,
                     "stripped_peptide": "first",
                     "total_psm": "sum",
@@ -379,6 +380,7 @@ class PtmSummariser(Summariser):
         data = data.groupby(["peptide", "peptide_site"], as_index=False).agg(
             {
                 "protein_site": ";".join,
+                "protein_group": "first",
                 "modified_protein": ";".join,
                 "stripped_peptide": "first",
                 "total_psm": "sum",

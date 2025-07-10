@@ -7,7 +7,7 @@ from ._filter import (
     apply_filter,
 )
 from ._infer_protein import get_protein_mapping, infer_protein, select_canon_prot, select_representative
-from ._normalise._normalise import feature_scale, log2_transform, normalise
+from ._normalise._normalise import feature_scale, log2_transform, normalise, adjust_ptm_by_protein
 from ._summarise._summarise import to_peptide, to_protein, to_ptm_site
 
 __all__ = [
@@ -20,6 +20,7 @@ __all__ = [
     "log2_transform",
     "normalise",
     "feature_scale",
+    "adjust_ptm_by_protein",
     "to_peptide",
     "to_protein",
     "to_ptm_site",

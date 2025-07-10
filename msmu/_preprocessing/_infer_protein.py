@@ -21,18 +21,28 @@ def infer_protein(
     mdata: md.MuData,
     peptide_colname: str = "stripped_peptide",
     protein_colname: str = "proteins",
+    propagated_from: md.MuData | str | None = None
 ) -> md.MuData:
     """
     Map protein information to peptides.
 
-    Args:
-        mdata (MuData): MuData object
-        modality (str): modality
-        peptide_colname (str): column name for peptide information
-        protein_colname (str): column name for protein information
-
-    Returns:
-        mdata (MuData): MuData object with updated protein mappings
+    Parameters
+    ----------
+    mdata: MuData
+        MuData object
+    peptide_colname: str
+        column name for peptide information
+    protein_colname: str
+        column name for protein information
+    propagated_from: MuData | str | None
+        mudata which contains inference info (for PTM normalisation with global proteins)
+        Can be path to global data .h5mu or mudata object.
+        Default is None
+        
+    Returns
+    -------
+    mdata: MuData
+        MuData object with updated protein mappings
     """
     if "feature" in mdata.mod_names:
         modality = "feature"
@@ -41,11 +51,16 @@ def infer_protein(
     else:
         raise ValueError("MuData object must contain either 'feature' or 'psm' modality.")
 
-    peptides = [peptide for peptide in mdata[modality].var[peptide_colname]]
-    proteins = [protein for protein in mdata[modality].var[protein_colname]]
+    if propagated_from == None:
+        peptides = [peptide for peptide in mdata[modality].var[peptide_colname]]
+        proteins = [protein for protein in mdata[modality].var[protein_colname]]
 
-    # Get protein mapping information
-    peptide_map, protein_map = get_protein_mapping(peptides, proteins)
+        # Get protein mapping information
+        peptide_map, protein_map = get_protein_mapping(peptides, proteins)
+
+    elif isinstance(propagated_from, md.MuData):
+        peptide_map = propagated_from.uns["peptide_map"]
+        protein_map = propagated_from.uns["protein_map"]
 
     # Store mapping information in MuData object
     mdata.uns["peptide_map"] = peptide_map
