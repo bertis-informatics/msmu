@@ -116,16 +116,17 @@ def to_peptide(
     peptide_adata.uns["level"] = "peptide"
 
     # add peptide_adata to mdata
-    pep_summ_mdata: md.MuData = add_modality(
-        mdata=mdata,
+    peptide_mdata = mdata.copy()
+    peptide_mdata: md.MuData = add_modality(
+        mdata=peptide_mdata,
         adata=peptide_adata,
         mod_name="peptide",
         parent_mods=["feature"],
     )
-    pep_summ_mdata.push_obs()
-    pep_summ_mdata.update_var()
+    peptide_mdata.push_obs()
+    peptide_mdata.update_var()
 
-    return pep_summ_mdata
+    return peptide_mdata
 
 
 @uns_logger
@@ -172,22 +173,23 @@ def to_protein(
     summarised_data: pd.DataFrame = summ.filter_n_min_peptides(data=summarised_data, min_n_peptides=min_n_peptides)
 
     protein_adata: ad.AnnData = summ.data2adata(data=summarised_data)
-
-    protein_summed_mdata: md.MuData = add_modality(
-        mdata=mdata, adata=protein_adata, mod_name=summ._to, parent_mods=[from_]
+    
+    protein_mdata = mdata.copy()
+    protein_mdata: md.MuData = add_modality(
+        mdata=protein_mdata, adata=protein_adata, mod_name=summ._to, parent_mods=[from_]
     )
-    protein_summed_mdata.push_obs()
-    protein_summed_mdata.update_var()
+    protein_mdata.push_obs()
+    protein_mdata.update_var()
 
-    return protein_summed_mdata
+    return protein_mdata
 
 
 def to_ptm_site(
     mdata: md.MuData,
-    protein_col: str,
     fasta_file: str | Path,
     modification_name: str,
     modification_mass: float | None = None,
+    protein_col: str = "protein_group",
     sum_method: str = "median",
 ) -> md.MuData:
     """
@@ -233,16 +235,17 @@ def to_ptm_site(
 
     ptm_adata: ad.AnnData = summ.data2adata(data=ptm_df)
 
-    mdata = add_modality(
-        mdata=mdata,
+    ptm_mdata = mdata.copy()
+    ptm_mdata = add_modality(
+        mdata=ptm_mdata,
         adata=ptm_adata,
         mod_name=f"{modification_name}_site",
         parent_mods=["peptide"],
     )
-    mdata.push_obs()
-    mdata.update_var()
+    ptm_mdata.push_obs()
+    ptm_mdata.update_var()
 
-    return mdata
+    return ptm_mdata
 
 
 @dataclass

@@ -1,12 +1,12 @@
 import warnings
 from dataclasses import dataclass
 from typing import Callable
+from typing import Optional
 
 import numpy as np
 import pandas as pd
-from scipy.interpolate import interp1d
-from scipy.stats import ranksums, t
-from statsmodels.distributions.empirical_distribution import ECDF
+from scipy.stats import ranksums, t, ttest_ind
+from statsmodels.stats.multitest import multipletests
 
 
 @dataclass
@@ -16,11 +16,26 @@ class StatResult:
     p_value: np.ndarray
 
 
+@dataclass
+class NullDistribution:
+    method: str
+    null_distribution: np.ndarray
+
+    def add_permutation_result(self, other: StatResult):
+        return NullDistribution(
+            method=self.method,
+            null_distribution=np.concatenate(
+                (self.null_distribution, other.statistic), axis=0
+            ),
+        )
+
+
 class StatTest:
     @staticmethod
     def _stat_tests(ctrl, expr, statistic: str) -> StatResult:
         stat_dict: dict[str, Callable] = {
-            "t_test": StatTest.t_test,
+            "welch": StatTest.welch,
+            "student": StatTest.student,
             "wilcoxon": StatTest.wilcoxon_rank_sum,
             "med_diff": StatTest.median_diff,
         }
@@ -30,8 +45,9 @@ class StatTest:
 
         return StatResult(stat_method=statistic, statistic=stat, p_value=pval)
 
+
     @staticmethod
-    def t_test(ctrl, expr):
+    def welch(ctrl, expr): # welch
         """
         Welch's t-test with NaN handling (manual implementation).
 
@@ -61,28 +77,90 @@ class StatTest:
             var_ctrl = np.nanvar(ctrl, axis=0, ddof=1)
             var_expr = np.nanvar(expr, axis=0, ddof=1)
 
-        # Sample sizes (account for NaNs)
-        n_ctrl = np.sum(~np.isnan(ctrl), axis=0)
-        n_expr = np.sum(~np.isnan(expr), axis=0)
+            # Sample sizes (account for NaNs)
+            n_ctrl = np.sum(~np.isnan(ctrl), axis=0)
+            n_expr = np.sum(~np.isnan(expr), axis=0)
 
-        # T-statistic
-        denom = np.sqrt(var_ctrl / n_ctrl + var_expr / n_expr)
-        t_val = (mean_expr - mean_ctrl) / denom
+            # T-statistic
+            denom = np.sqrt(var_ctrl / n_ctrl + var_expr / n_expr)
+            t_val = (mean_expr - mean_ctrl) / denom
 
-        # Degrees of freedom (Welch–Satterthwaite equation)
-        df_num = (var_ctrl / n_ctrl + var_expr / n_expr) ** 2
-        df_denom = (var_ctrl**2 / ((n_ctrl**2) * (n_ctrl - 1))) + (
-            var_expr**2 / ((n_expr**2) * (n_expr - 1))
-        )
-        df = df_num / df_denom
+            # Degrees of freedom (Welch–Satterthwaite equation)
+            df_num = (var_ctrl / n_ctrl + var_expr / n_expr) ** 2
+            df_denom = (var_ctrl**2 / ((n_ctrl**2) * (n_ctrl - 1))) + (
+                var_expr**2 / ((n_expr**2) * (n_expr - 1))
+            )
+            df = df_num / df_denom
 
-        # Handle divisions by zero or invalid DOF
-        invalid = (n_ctrl < 2) | (n_expr < 2) | np.isnan(t_val) | np.isnan(df)
-        t_val[invalid] = np.nan
-        df[invalid] = np.nan
+            # Handle divisions by zero or invalid DOF
+            invalid = (n_ctrl < 2) | (n_expr < 2) | np.isnan(t_val) | np.isnan(df)
+            t_val[invalid] = np.nan
+            df[invalid] = np.nan
 
-        # Two-sided p-value
-        pval = 2 * t.sf(np.abs(t_val), df)
+            # Two-sided p-value
+            pval = 2 * t.sf(np.abs(t_val), df)
+
+        return t_val, pval
+
+    # @staticmethod
+    # def welch(ctrl, expr):
+    #     res = ttest_ind(ctrl, expr, equal_var=False, nan_policy="omit")
+    #     t = res.statistic
+    #     p = res.pvalue
+
+    #     return t, p
+
+    @staticmethod
+    def student(ctrl, expr):
+        """
+        Student's t-test with NaN handling (equal variance assumed).
+
+        Parameters:
+        -----------
+        ctrl : array-like (n_samples_ctrl x n_features)
+        expr : array-like (n_samples_expr x n_features)
+
+        Returns:
+        --------
+        t_val : np.ndarray
+            T-statistics for each feature.
+        pval : np.ndarray
+            Two-tailed p-values.
+        """
+        ctrl = np.asarray(ctrl)
+        expr = np.asarray(expr)
+
+        # Means
+        mean_ctrl = np.nanmean(ctrl, axis=0)
+        mean_expr = np.nanmean(expr, axis=0)
+
+        # Variances (ddof=1 for sample variance)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            var_ctrl = np.nanvar(ctrl, axis=0, ddof=1)
+            var_expr = np.nanvar(expr, axis=0, ddof=1)
+
+            # Sample sizes
+            n_ctrl = np.sum(~np.isnan(ctrl), axis=0)
+            n_expr = np.sum(~np.isnan(expr), axis=0)
+
+            # Pooled variance (equal variance assumption)
+            pooled_var = ((n_ctrl - 1) * var_ctrl + (n_expr - 1) * var_expr) / (n_ctrl + n_expr - 2)
+
+            # T-statistic
+            denom = np.sqrt(pooled_var * (1 / n_ctrl + 1 / n_expr))
+            t_val = (mean_expr - mean_ctrl) / denom
+
+            # Degrees of freedom
+            df = (n_ctrl + n_expr - 2).astype(float)
+
+            # Handle invalid cases
+            invalid = (n_ctrl < 2) | (n_expr < 2) | np.isnan(t_val) | np.isnan(df)
+            t_val[invalid] = np.nan
+            df[invalid] = np.nan
+
+            # Two-sided p-value
+            pval = 2 * t.sf(np.abs(t_val), df)
 
         return t_val, pval
 
@@ -97,59 +175,6 @@ class StatTest:
         med_diff = np.nanmedian(expr, axis=0) - np.nanmedian(ctrl, axis=0)
 
         return med_diff, None
-
-    @staticmethod
-    def calc_permutation_pvalue_ecdf(stat_obs, null_dist, min_pval=1e-10):
-        """
-        Compute two-sided empirical p-values using ECDF interpolation.
-
-        Parameters:
-        -----------
-        stat_obs : array-like
-            Observed test statistics (can include NaN).
-        null_dist : array-like
-            Pooled null distribution (1D array).
-        min_pval : float
-            Minimum p-value to avoid zeros.
-
-        Returns:
-        --------
-        pvals : np.ndarray
-            Array of p-values (NaN where stat_obs is NaN).
-        """
-        stat_obs = np.asarray(stat_obs)
-        pooled_null = np.asarray(null_dist)
-
-        # Handle edge case: all nulls are NaN
-        if np.all(np.isnan(pooled_null)):
-            return np.full_like(stat_obs, np.nan, dtype=float)
-
-        # Build ECDF from absolute null distribution
-        ecdf = ECDF(np.abs(pooled_null[~np.isnan(pooled_null)]))
-        ecdf_x = ecdf.x
-        ecdf_y = ecdf.y
-
-        # Interpolator for one-sided p
-        interp = interp1d(ecdf_x, ecdf_y, bounds_error=False, fill_value=(0.0, 1.0))
-
-        # Prepare output array
-        pvals = np.full_like(stat_obs, np.nan, dtype=float)
-
-        # Apply only to non-NaN observed stats
-        mask = ~np.isnan(stat_obs)
-        abs_obs = np.abs(stat_obs[mask])
-        p_one_sided = interp(abs_obs)
-
-        # Two-sided p-value: 2 * min(p, 1 - p)
-        pval = 2 * np.minimum(p_one_sided, 1 - p_one_sided)
-
-        # Clip extremely low or high p-values
-        pval = np.clip(pval, min_pval, 1 - min_pval)
-
-        # Store in output array
-        pvals[mask] = pval
-
-        return pvals
 
     @staticmethod
     def calc_permutation_pvalue(stat_obs, null_dist):
@@ -173,94 +198,158 @@ class StatTest:
         return pvals
 
 
-@dataclass
-class NullDistribution:
-    method: str
-    null_distribution: np.ndarray
-
-    def add_permutation_result(self, other: StatResult):
-        return NullDistribution(
-            method=self.method,
-            null_distribution=np.concatenate(
-                (self.null_distribution, other.statistic), axis=0
-            ),
-        )
-
-
-class CorrectPvalues:
+class PvalueCorrection:
     @staticmethod
-    def bh(pvals: np.ndarray) -> np.ndarray:
+    def bh(pvals: np.ndarray):
+        pvals = np.asarray(pvals)
+        qvals = np.full_like(pvals, np.nan, dtype=float)
+        mask = ~np.isnan(pvals)
+        if np.any(mask):
+            _, qvals_nonan, _, _ = multipletests(pvals[mask], method="fdr_bh")
+            qvals[mask] = qvals_nonan
+        return qvals
+
+    @staticmethod
+    def storey(p_values: np.ndarray, lambda_: float = 0.5, alpha: float = 0.05, return_mask: bool = False):
         """
-        Apply Benjamini-Hochberg correction to p-values.
+        Storey (2002) q-value estimation with pi0 estimation.
+
+        Parameters
+        ----------
+        p_values : array-like
+            Array of p-values (can include NaN).
+        lambda_ : float
+            Threshold for estimating pi0 (0 < lambda < 1). Default = 0.5.
+        alpha : float
+            FDR threshold for significance mask (only if return_mask=True).
+        return_mask : bool
+            If True, also returns Boolean significance mask.
+
+        Returns
+        -------
+        q_values : np.ndarray
+            Array of q-values (NaN-filled where p was NaN).
+        rejected : Optional[np.ndarray]
+            Boolean array indicating which features are significant under FDR < alpha.
+        """
+        p_values = np.asarray(p_values)
+        q_values = np.full_like(p_values, np.nan, dtype=float)
+        rejected_mask = np.full_like(p_values, False, dtype=bool)
+
+        # Step 1: Remove NaN
+        valid_mask = ~np.isnan(p_values)
+        p_valid = p_values[valid_mask]
+        m = len(p_valid)
+
+        # Step 2: Estimate π₀
+        pi0 = np.minimum(1.0, np.sum(p_valid > lambda_) / ((1.0 - lambda_) * m))
+
+        # Step 3: Sort p-values and compute BH-like q
+        sorted_idx = np.argsort(p_valid)
+        sorted_p = p_valid[sorted_idx]
+        ranks = np.arange(1, m + 1)
+        q = pi0 * sorted_p * m / ranks
+
+        # Step 4: Cumulative minimum (monotonic q-values)
+        q = np.minimum.accumulate(q[::-1])[::-1]
+        q = np.clip(q, 0, 1)
+
+        # Step 5: Map back to original index
+        q_valid = np.empty_like(p_valid)
+        q_valid[sorted_idx] = q
+        q_values[valid_mask] = q_valid
+
+        # Step 6: Optional significance mask
+        if return_mask:
+            rejected_mask[valid_mask] = q_valid <= alpha
+            return q_values, rejected_mask
+        else:
+            return q_values
+
+    @staticmethod
+    def estimate_pi0_storey(p_values, lambdas=np.linspace(0.5, 0.95, 10)):
+        """
+        Storey's estimator of pi0 (proportion of true nulls) from observed p-values.
+        https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
+        pi0 = #( pval > lamda ) / ( 1 - lambda ) * m
 
         Parameters:
-        -----------
-        pvals : np.ndarray
-            Array of p-values to correct.
+        - p_values: array of p-values (one per feature)
+        - lambdas: array of lambda thresholds (typically 0.5 to 0.95)
 
         Returns:
-        --------
-        np.ndarray
-            Corrected p-values.
+        - pi0: estimated pi0 value
+        - pi0_by_lambda: array of intermediate pi0 estimates
         """
-        pvals = np.asarray(pvals)
-        sorted_indices = np.argsort(pvals)
-        sorted_pvals = pvals[sorted_indices]
+        p_values = np.asarray(p_values)
+        valid_mask = ~np.isnan(p_values)
+        p_values = p_values[valid_mask]
+        m = len(p_values)
+        
+        pi0_by_lambda = []
+        for lam in lambdas:
+            count = np.sum(p_values > lam)
+            pi0_hat = count / ((1 - lam) * m)
+            pi0_by_lambda.append(min(pi0_hat, 1.0))
 
-        m = len(sorted_pvals)
-        corrected_pvals = sorted_pvals * m / (np.arange(m) + 1)
+        pi0_by_lambda = np.array(pi0_by_lambda)
+        pi0 = np.min(pi0_by_lambda)
 
-        # Ensure monotonicity
-        corrected_pvals = np.minimum.accumulate(corrected_pvals[::-1])[::-1]
-
-        # Restore original order
-        padj = np.empty_like(pvals)
-        padj[sorted_indices] = corrected_pvals
-
-        return padj
+        return pi0, pi0_by_lambda
 
     @staticmethod
     def empirical(
-        obs_stats: np.ndarray,
-        null_stats: np.ndarray,
+        stat_obs: np.ndarray,
+        null_dist: np.ndarray,
+        pvals: np.ndarray,
+        two_sided: bool = True,
+        # pi0: float = 1,
     ) -> np.ndarray:
         """
-        Direct FDR-based q-value estimation using pooled null distribution from permutation tests.
-        -----
-        Parameters:
-        - obs_stats: array of observed test statistics (e.g., t-values)
-        -----
-        Returns:
-         - q-values: array of q-values
+        https://academic.oup.com/bioinformatics/article/21/23/4280/194680
+        https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100
+
+        E[FDR] = pi0 * E[FP] / E[TP]
+        E[FP] = #(FP >= s) / B (# permutation)
+        E[TP] = #(TP >= s)
         """
+        stat_obs = np.asarray(stat_obs)
+        null_dist = np.asarray(null_dist)
 
-        # Keep original indices
-        original_idx = np.arange(len(obs_stats))
+        n_permutations = null_dist.size // stat_obs.size
 
-        # Apply absolute (2-sided) transformation
-        obs = np.abs(obs_stats)
-        null = np.abs(null_stats)
+        # treat nan
+        valid_mask = ~np.isnan(stat_obs)
+        stat_valid = stat_obs[valid_mask]
+        orig_index = np.where(valid_mask)[0]
 
-        # Build DataFrame with original index
-        df = pd.DataFrame(
-            {"stat": obs, "orig_stat": obs_stats, "original_idx": original_idx}
-        )
+        # 절댓값 처리 (two-sided인 경우)
+        stat_valid = np.abs(stat_valid) if two_sided else stat_valid
+        null_valid = null_dist[~np.isnan(null_dist)]
+        null_valid = np.abs(null_valid) if two_sided else null_valid
 
-        # Sort by stat descending for q-value calculation
-        df_sorted = df.sort_values(by="stat", ascending=False).reset_index(drop=True)
+        # pi0 estimation (storey's)
+        pi0, pi0_by_lambda = PvalueCorrection.estimate_pi0_storey(p_values=pvals)
 
-        # Empirical p-value
-        df_sorted["p_value"] = [
-            (null >= s).sum() / len(null) for s in df_sorted["stat"]
-        ]
+        # q-value 계산 (FDR = pi0 * E[FP] / E[TP])
+        q_vals = []
+        for s in stat_valid:
+            tp = np.sum(stat_valid >= s)
+            fp = np.sum(null_valid >= s)
+            e_fp = (fp + 1) / (n_permutations + 1)
+            e_tp = tp + 1
 
-        # FDR = (# null ≥ s) / (# obs ≥ s)
-        obs_sorted = df_sorted["stat"].values
-        fdr_list = [(null >= s).sum() / (i + 1) for i, s in enumerate(obs_sorted)]
-        df_sorted["fdr"] = fdr_list
-        df_sorted["q_value"] = pd.Series(fdr_list)[::-1].cummin()[::-1]
+            fdr = pi0 * e_fp / e_tp
+            q_vals.append(fdr)
 
-        # Merge back to original order
-        df_final = df_sorted.sort_values(by="original_idx").reset_index(drop=True)
+        # monotonic correction
+        sort_idx = np.argsort(-stat_valid)
+        q_sorted = np.array(q_vals)[sort_idx]
+        q_sorted_monotonic = np.minimum.accumulate(q_sorted[::-1])[::-1]
 
-        return df_final[["orig_stat", "p_value", "q_value"]]
+        # 원래 순서로 복원
+        q_value_all = np.full_like(stat_obs, np.nan, dtype=float)
+        for i, q in zip(orig_index, q_sorted_monotonic[np.argsort(sort_idx)]):
+            q_value_all[i] = q
+
+        return np.clip(q_value_all, 0, 1)

@@ -33,14 +33,15 @@ def _get_test_array(
 
 def permutation_test(
     mdata: md.MuData,
-    modality: str,
     category: str,
     control: str,
     expr: str | None = None,
+    modality: str = "protein",
     n_resamples: int = 1000,
     n_jobs: int = 1,
-    statistic: str = "t_test",
+    statistic: str = "welch",
     force_resample: bool = False,
+    fdr: bool | str = "empirical"
 ) -> PermutationTestResult:
     """
     Perform a permutation test on the given MuData object.
@@ -49,21 +50,23 @@ def permutation_test(
     mdata : md.MuData
         The MuData object containing the data.
     modality : str
-        The modality to perform the test on.
+        The modality to perform the test on. Default is 'protein'
     category : str
         The category column in the mdata.obs.
     control : str
         The control group label.
     expr : str | None
-        The experimental group label. If None, all other groups are considered experimental.
+        The experimental group label. If None, all other groups are considered experimental. Default is None.
     n_resamples : int
-        The number of resamples for the permutation test.
+        The number of resamples for the permutation test. Default is 1000.
     n_jobs : int
         The number of parallel jobs to run.
     statistic : str
-        The statistical test to use. Options are 't_test (Welch's)', 'wilcoxon', or 'median_diff'. default is 't_test'.
+        The statistical test to use. Options are 'welch', 'student', 'wilcoxon', or 'median_diff'. Default is 'welch'.
+    fdr: str | bool
+        The FDR control method to use. Options are 'empirical', 'bh', 'storey'. Default is 'empirical'.
     force_resample : bool
-        If True, forces resampling even if the number of permutations exceeds the possible combinations.
+        If True, forces resampling even if the number of permutations exceeds the possible combinations. Default is False.
     Returns
     -------
     PermutationTestResult
@@ -80,9 +83,13 @@ def permutation_test(
         control=control,
         expr=expr,
     )
-    if statistic not in ["t_test", "wilcoxon", "median_diff"]:
+    if statistic not in ["welch", "student", "wilcoxon", "med_diff"]:
         raise ValueError(
-            f"Invalid statistic: {statistic}. Choose from 't_test', 'wilcoxon', or 'median_diff'."
+            f"Invalid statistic: {statistic}. Choose from 'welch', 'student', 'wilcoxon', or 'med_diff'."
+        )
+    if fdr not in ["empirical", "bh", "storey", False]:
+        raise ValueError(
+            f"invalied fdr (mutiple test correction). Choose from 'empirical', 'storey' or 'bh'. Or turn off with False (bool)"
         )
 
     perm_test: PermutationTest = PermutationTest(
@@ -90,6 +97,7 @@ def permutation_test(
         expr_arr=expr_arr,
         n_resamples=n_resamples,
         force_resample=force_resample,
+        fdr=fdr,
     )
     print(f"Permutation Method: {perm_test.permutation_method}")
     print(f"Statistics: {statistic}")
