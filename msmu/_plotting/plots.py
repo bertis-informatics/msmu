@@ -325,7 +325,7 @@ def plot_pca(
         meta=obs_column,
         hovertemplate=hovertemplate,
     )
-    fig = plot.figure(mode="markers")
+    fig = plot.figure(mode="markers", marker=dict(size=10))
 
     # Update axis
     fig.update_yaxes(
@@ -505,7 +505,7 @@ def plot_umap(
         meta=obs_column,
         hovertemplate=hovertemplate,
     )
-    fig = plot.figure(mode="markers")
+    fig = plot.figure(mode="markers", marker=dict(size=10))
 
     # Update axis
     fig.update_yaxes(
