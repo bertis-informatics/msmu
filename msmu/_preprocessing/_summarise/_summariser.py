@@ -192,14 +192,16 @@ class PtmSummariser(Summariser):
 
         self._agg_dict: dict[str, str] = {
             "modified_protein": "first",
-            "_prot_gr": "first",
+            "protein_group": "first",
             "peptide": "nunique",
             "num_used_psm": "sum",
         }
+        if "repr_protein" in self._adata.var.columns:
+            self._agg_dict["repr_protein"] = "first"
 
         self._rename_dict: dict[str, str] = {
             "peptide": "num_peptides",
-            "_prot_gr": "protein_group",
+            # "_prot_gr": "protein_group",
         }
 
     def get_data(self) -> pd.DataFrame:
@@ -369,6 +371,7 @@ class PtmSummariser(Summariser):
                     "stripped_peptide": "first",
                     "total_psm": "sum",
                     "num_used_psm": "sum",
+                    "repr_protein": "first",
                 }
             )
             .copy()
@@ -385,9 +388,10 @@ class PtmSummariser(Summariser):
                 "stripped_peptide": "first",
                 "total_psm": "sum",
                 "num_used_psm": "sum",
-                "_prot_gr": ";".join,
+                "repr_protein": "first",
             }
         )
+        print(data)
 
         return data
 
