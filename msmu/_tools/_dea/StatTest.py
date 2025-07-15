@@ -50,6 +50,7 @@ class StatTest:
     def welch(ctrl, expr): # welch
         """
         Welch's t-test with NaN handling (manual implementation).
+        Not using scipy because of time complexity.
 
         Parameters:
         -----------
@@ -114,6 +115,7 @@ class StatTest:
     def student(ctrl, expr):
         """
         Student's t-test with NaN handling (equal variance assumed).
+        Not using scipy because of time complexity.
 
         Parameters:
         -----------
@@ -271,6 +273,7 @@ class PvalueCorrection:
         """
         Storey's estimator of pi0 (proportion of true nulls) from observed p-values.
         https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
+        Based on Equation (7)
         pi0 = #( pval > lamda ) / ( 1 - lambda ) * m
 
         Parameters:
@@ -298,45 +301,91 @@ class PvalueCorrection:
         return pi0, pi0_by_lambda
 
     @staticmethod
+    def estimate_pi0_null(stat_valid, null_matrix_valid, percentile=95):
+        """
+        Estimate pi0 (proportion of true null hypotheses) using permutation-based statistic exceedance method.
+        https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
+        Based on Equation (8): compares observed and null test statistic exceedances at a given threshold.
+        pi0 = (1 - S/m) / (1 - S_star/m)
+
+        Parameters
+        ----------
+        stat_valid : np.ndarray
+            1D array of observed test statistics (NaN-excluded).
+        null_matrix_valid : np.ndarray
+            2D array of null test statistics (shape: [n_permutations, m_valid]),
+            aligned with stat_valid (i.e., same features, same filtering).
+        percentile : float, default=95
+            Percentile value used to define the threshold for exceedance comparison.
+
+        Returns
+        -------
+        pi0 : float
+            Estimated proportion of true null hypotheses (clipped to [0, 1]).
+        """
+        m = stat_valid.size
+        threshold = np.percentile(stat_valid, percentile)
+
+        S = np.sum(stat_valid >= threshold)
+        S_star = np.mean(np.sum(null_matrix_valid >= threshold, axis=0))
+        denominator = 1 - (S_star / m) 
+        pi0 = (1 - S / m) / denominator if denominator != 0 else 1.0
+        pi0 = min(max(pi0, 0.0), 1.0)
+
+        return pi0
+
+    @staticmethod
     def empirical(
         stat_obs: np.ndarray,
         null_dist: np.ndarray,
         pvals: np.ndarray,
         two_sided: bool = True,
-        # pi0: float = 1,
     ) -> np.ndarray:
         """
-        https://academic.oup.com/bioinformatics/article/21/23/4280/194680
-        https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100
+        Permutation-based empirical FDR estimation using:
+        - Storey's method for pi0 (default)
+        - or permutation-statistic-based method (equation 8)
+
+        References:
+        - https://academic.oup.com/bioinformatics/article/21/23/4280/194680
+        - https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100
 
         E[FDR] = pi0 * E[FP] / E[TP]
         E[FP] = #(FP >= s) / B (# permutation)
         E[TP] = #(TP >= s)
         """
+
         stat_obs = np.asarray(stat_obs)
         null_dist = np.asarray(null_dist)
 
-        n_permutations = null_dist.size // stat_obs.size
+        B = null_dist.size // stat_obs.size
 
         # treat nan
         valid_mask = ~np.isnan(stat_obs)
         stat_valid = stat_obs[valid_mask]
         orig_index = np.where(valid_mask)[0]
 
-        # 절댓값 처리 (two-sided인 경우)
+        # abs for two-sided
         stat_valid = np.abs(stat_valid) if two_sided else stat_valid
         null_valid = null_dist[~np.isnan(null_dist)]
         null_valid = np.abs(null_valid) if two_sided else null_valid
 
-        # pi0 estimation (storey's)
-        pi0, pi0_by_lambda = PvalueCorrection.estimate_pi0_storey(p_values=pvals)
+        null_matrix = null_dist.reshape(B, stat_obs.size)
+        null_matrix_valid = null_matrix[:, valid_mask]  # shape (B, m)
+        null_matrix_valid = np.abs(null_matrix_valid) if two_sided else null_matrix_valid
 
-        # q-value 계산 (FDR = pi0 * E[FP] / E[TP])
+        # pi0 estimation (direct pi0 estimation from null distribution)
+        pi0 = PvalueCorrection.estimate_pi0_null(stat_valid=stat_valid, null_matrix_valid=null_matrix_valid, percentile=95)
+
+        # # pi0 estimation (storey's)
+        # pi0, _ = PvalueCorrection.estimate_pi0_storey(p_values=pvals)
+
+        # q-value calculation (FDR = pi0 * E[FP] / E[TP])
         q_vals = []
         for s in stat_valid:
             tp = np.sum(stat_valid >= s)
             fp = np.sum(null_valid >= s)
-            e_fp = (fp + 1) / (n_permutations + 1)
+            e_fp = (fp + 1) / (B + 1)
             e_tp = tp + 1
 
             fdr = pi0 * e_fp / e_tp
@@ -347,7 +396,7 @@ class PvalueCorrection:
         q_sorted = np.array(q_vals)[sort_idx]
         q_sorted_monotonic = np.minimum.accumulate(q_sorted[::-1])[::-1]
 
-        # 원래 순서로 복원
+        # re-order to original index
         q_value_all = np.full_like(stat_obs, np.nan, dtype=float)
         for i, q in zip(orig_index, q_sorted_monotonic[np.argsort(sort_idx)]):
             q_value_all[i] = q
