@@ -224,7 +224,7 @@ class PTMProteinAdjuster:
     def _ridge(self, alpha=100) -> pd.DataFrame:
         records:list = list()
 
-        for pid, grp in self.ptm_data.groupby("protein_group", sort=False):
+        for pid, grp in self.ptm_data.groupby("protein_group", sort=False, observed=True):
             x_full = self.global_data.loc[pid, self.sample_cols].to_numpy(float)
             for _, row in grp.iterrows():
                 y_full:np.ndarray = row[self.sample_cols].to_numpy(float)
@@ -294,7 +294,6 @@ def adjust_ptm_by_protein(
     mdata: md.MuData, 
     global_mdata: md.MuData, 
     ptm_mod:str = "phospho_site", 
-    # global_mod:str = "protein", 
     method:str = "ridge",
     rescale:bool = True
     ) -> md.MuData:

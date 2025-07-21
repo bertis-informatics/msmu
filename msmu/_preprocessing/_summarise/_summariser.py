@@ -391,7 +391,6 @@ class PtmSummariser(Summariser):
                 "repr_protein": "first",
             }
         )
-        print(data)
 
         return data
 
