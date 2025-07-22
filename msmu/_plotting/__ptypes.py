@@ -127,9 +127,10 @@ class PlotUpset(PlotTypes):
                 y=self.combination_counts["count"].tolist(),
                 text=self.combination_counts["count"].tolist(),
                 textposition="auto",
+                texttemplate="%{text:,d}",
                 name="combination",
                 showlegend=False,
-                hovertemplate=f"Sets: %{{x}}<br>Count: %{{y}}<extra></extra>",
+                hovertemplate=f"Sets: %{{x}}<br>Count: %{{y:,d}}<extra></extra>",
                 marker=dict(color="#1f77b4"),
             ),
             row=1,
@@ -165,9 +166,10 @@ class PlotUpset(PlotTypes):
                 y=self.item_counts.index.tolist(),
                 text=self.item_counts.values.tolist(),
                 textposition="auto",
+                texttemplate="%{text:,d}",
                 orientation="h",
                 showlegend=False,
-                hovertemplate=f"Sample: %{{y}}<br>Count: %{{x}}<extra></extra>",
+                hovertemplate=f"Sample: %{{y}}<br>Count: %{{x:,d}}<extra></extra>",
                 marker=dict(color="#1f77b4"),
             ),
             row=2,
@@ -175,13 +177,16 @@ class PlotUpset(PlotTypes):
         )
 
     def layout(self, **kwargs):
-        self.fig.update_xaxes(autorange="reversed", row=2, col=1)
+        self.fig.update_xaxes(autorange="reversed", tickformat=",d", row=2, col=1)
         self.fig.update_xaxes(ticklen=0, showticklabels=False, row=1, col=2)
         self.fig.update_xaxes(ticklen=0, showticklabels=False, row=2, col=2)
 
         self.fig.update_yaxes(autorange="reversed", showticklabels=False, ticklen=0, side="right", row=2, col=1)
-        self.fig.update_yaxes(side="right", showticklabels=True, row=1, col=2)
+        self.fig.update_yaxes(side="right", tickformat=",d", showticklabels=True, row=1, col=2)
         self.fig.update_yaxes(side="right", showticklabels=True, row=2, col=2)
+
+        # self.fig.update_yaxes(yaxis_tickformat=",d", row=1, col=1)
+        # self.fig.update_layout(yaxis_tickformat=",d", row=2, col=1)
 
         self.fig.update_layout(**kwargs)
 

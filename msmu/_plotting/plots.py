@@ -49,6 +49,7 @@ def plot_charge(
         title_text=title_text,
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
+        yaxis_tickformat=",d",
         legend=dict(title_text="Charge State"),
     )
 
@@ -73,11 +74,11 @@ def plot_id(
     title_text = f"Number of {format_modality(modality)}s"
     xaxis_title = f"{groupby.capitalize()}s"
     yaxis_title = f"Number of {format_modality(modality)}s"
-    hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y}}<extra></extra>"
+    hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y:,d}}<extra></extra>"
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
-    if groupby != 'fraction':
+    if groupby != "fraction":
         plot = PlotBar(
             data=data._prep_id_data(groupby, obs_column=obs_column),
             x=groupby,
@@ -87,8 +88,8 @@ def plot_id(
             text="_count",
         )
     else:
-        plot_data = data._prep_var_data(groupby, 'id_count', obs_column=obs_column)
-        plot_data = plot_data.loc[(plot_data['fraction'] == plot_data['id_count']), ]
+        plot_data = data._prep_var_data(groupby, "id_count", obs_column=obs_column)
+        plot_data = plot_data.loc[(plot_data["fraction"] == plot_data["id_count"]),]
         plot = PlotBar(
             data=plot_data,
             x=groupby,
@@ -105,6 +106,7 @@ def plot_id(
         title_text=title_text,
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
+        yaxis_tickformat=",d",
         showlegend=True,
         legend=dict(title_text=f"{groupby.capitalize()}s"),
     )
@@ -156,6 +158,7 @@ def plot_id_fraction(
         title_text=title_text,
         # xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
+        yaxis_tickformat=",d",
         showlegend=False,
         xaxis_showticklabels=False,
     )
@@ -232,6 +235,7 @@ def plot_intensity(
         title_text=title_text,
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
+        yaxis_tickformat=",d",
         showlegend=True,
         legend=dict(title_text=f"{groupby.capitalize()}s"),
     )
@@ -321,7 +325,7 @@ def plot_pca(
         meta=obs_column,
         hovertemplate=hovertemplate,
     )
-    fig = plot.figure(mode="markers")
+    fig = plot.figure(mode="markers", marker=dict(size=10))
 
     # Update axis
     fig.update_yaxes(
@@ -397,6 +401,11 @@ def plot_purity(
                 yanchor="bottom",
             ),
         )
+
+        fig.update_layout(
+            yaxis_tickformat=",d",
+        )
+
     elif ptype == "box":
         xaxis_title = "Raw Filenames"
         yaxis_title = "Precursor Isolation Purity"
@@ -496,7 +505,7 @@ def plot_umap(
         meta=obs_column,
         hovertemplate=hovertemplate,
     )
-    fig = plot.figure(mode="markers")
+    fig = plot.figure(mode="markers", marker=dict(size=10))
 
     # Update axis
     fig.update_yaxes(
@@ -620,6 +629,7 @@ def plot_missed_cleavage(
         title_text=title_text,
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
+        yaxis_tickformat=",d",
         legend=dict(title_text="Missed Cleavages"),
     )
 

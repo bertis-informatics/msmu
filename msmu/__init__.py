@@ -7,7 +7,7 @@ from . import _tools as tl
 from ._read_write._readers import merge_mudata, read_diann, read_h5mu, read_sage
 from ._utils import get_fasta_meta, get_label, map_fasta, subset, add_quant, split_tmt, rename_obs
 
-__version__ = "0.1.3"
+__version__ = "0.1.5"
 
 mudata.set_options(pull_on_update=False)
 pl._set_templates()
