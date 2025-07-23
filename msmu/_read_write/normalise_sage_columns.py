@@ -43,6 +43,7 @@ def normalise_sage_columns(sage_result_df) -> pd.DataFrame:
         "scan_num",
         "charge",
         "missed_cleavages",
+        "semi_enzymatic",
         "spectrum_q",
         "peptide_q",
         "protein_q",

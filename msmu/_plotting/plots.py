@@ -8,15 +8,20 @@ from ._template import DEFAULT_TEMPLATE
 from ._utils import DEFAULT_COLUMN, _get_pc_cols, _get_umap_cols, _set_color
 
 
-def format_modality(modality: str) -> str:
+def format_modality(mdata: md.MuData, modality: str) -> str:
     if modality == "feature":
-        return "Feature"
+        if mdata['feature'].uns['search_engine'] == "Diann":
+            return "Precursor"
+        else:
+            return "PSM"
     elif modality == "peptide":
         return "Peptide"
     elif modality == "protein":
         return "Protein"
+    elif modality.endswith("_site"):
+        return modality.capitalize()
     else:
-        raise ValueError(f"Unknown modality: {modality}, choose from 'feature', 'peptide', 'protein'")
+        raise ValueError(f"Unknown modality: {modality}, choose from 'feature', 'peptide', 'protein', '[ptm]_site'")
 
 
 def plot_charge(
@@ -71,9 +76,9 @@ def plot_id(
     **kwargs,
 ) -> go.Figure:
     # Set titles
-    title_text = f"Number of {format_modality(modality)}s"
+    title_text = f"Number of {format_modality(mdata, modality)}s"
     xaxis_title = f"{groupby.capitalize()}s"
-    yaxis_title = f"Number of {format_modality(modality)}s"
+    yaxis_title = f"Number of {format_modality(mdata, modality)}s"
     hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y:,d}}<extra></extra>"
 
     # Draw plot
@@ -133,9 +138,9 @@ def plot_id_fraction(
     **kwargs,
 ) -> go.Figure:
     # Set titles
-    title_text = f"Number of {format_modality(modality)}s by Fraction"
+    title_text = f"Number of {format_modality(mdata, modality)}s by Fraction"
     # xaxis_title = f"Filenames"
-    yaxis_title = f"Number of {format_modality(modality)}s"
+    yaxis_title = f"Number of {format_modality(mdata, modality)}s"
     hovertemplate = f"<b>%{{x}}</b><br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
 
     # Draw plot
@@ -183,12 +188,12 @@ def plot_intensity(
     **kwargs,
 ) -> go.Figure:
     # Set titles
-    title_text = f"{format_modality(modality)} Intensity Distribution"
+    title_text = f"{format_modality(mdata, modality)} Intensity Distribution"
 
     # Draw plot
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
-        yaxis_title = f"Number of {format_modality(modality)}s"
+        yaxis_title = f"Number of {format_modality(mdata, modality)}s"
 
         data = PlotData(mdata, modality=modality)
         bin_info = data._get_bin_info(data._get_data(), bins)
@@ -259,9 +264,9 @@ def plot_missingness(
     **kwargs,
 ) -> go.Figure:
     # Set titles
-    title_text = f"{format_modality(modality)} Level"
+    title_text = f"{format_modality(mdata, modality)} Level"
     xaxis_title = "Data Completeness (%)"
-    yaxis_title = f"Cumulative proportion of {format_modality(modality)} (%)"
+    yaxis_title = f"Cumulative proportion of {format_modality(mdata, modality)} (%)"
     hovertemplate = f"Data Completeness ≤ %{{x:.2f}}%<br>{yaxis_title} : %{{y:.2f}}% (%{{meta}})<extra></extra>"
 
     # Draw plot
@@ -757,6 +762,51 @@ def plot_purity_metrics(
             x=1,
             y=1,
         ),
+    )
+
+    # Update layout with kwargs
+    fig.update_layout(
+        **kwargs,
+    )
+
+    return fig
+
+
+def plot_tolerable_termini(
+    mdata: md.MuData,
+    modality: str = "feature",
+    groupby: str = DEFAULT_COLUMN,
+    obs_column: str = DEFAULT_COLUMN,
+    **kwargs,
+) -> go.Figure:
+    # Set titles
+    title_text = "Number of PSMs by tolerable termini"
+    xaxis_title = f"{groupby.capitalize()}s"
+    yaxis_title = "Number of PSMs"
+    hovertemplate = "Tolerable termini: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
+
+    # Draw plot
+    data = PlotData(mdata, modality=modality)
+    plot_data = (data._prep_var_data(groupby, "semi_enzymatic", obs_column=obs_column))
+    plot_data['semi_enzymatic'] = plot_data['semi_enzymatic'].map({0: "fully", 1: "semi"})
+    plot = PlotStackedBar(
+        data=plot_data,
+        x=groupby,
+        y="count",
+        name="semi_enzymatic",
+        meta="semi_enzymatic",
+        hovertemplate=hovertemplate,
+    )
+
+    fig = plot.figure()
+
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+        yaxis_tickformat=",d",
+        legend=dict(title_text="Tolerable termini"),
     )
 
     # Update layout with kwargs

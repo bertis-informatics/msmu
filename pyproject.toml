@@ -9,12 +9,13 @@ authors = [
     {name = "Byeong-chan Lee", email = "byeongchan.lee@bertis.com"},
 ]
 license = {file = "LICENSE"}
-description = "BERTIS LC/MS analysis library through MuData"
+description = "BERTIS LC-MS/MS analysis library through MuData"
 readme = "README.md"
 requires-python = ">=3.8"
-keywords = ["LCMS", "Protein", "Peptide", "Mass Spectrometry"]
+keywords = ["LC-MS/MS", "Proteomics", "Protein", "Peptide", "Mass Spectrometry"]
 dependencies = [
-    "mudata",
+    "mudata==0.3.2",
+    "anndata==0.12.0",
     "biopython",
     "plotly",
     "pymzml",
