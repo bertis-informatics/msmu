@@ -770,3 +770,48 @@ def plot_purity_metrics(
     )
 
     return fig
+
+
+def plot_tolerable_termini(
+    mdata: md.MuData,
+    modality: str = "feature",
+    groupby: str = DEFAULT_COLUMN,
+    obs_column: str = DEFAULT_COLUMN,
+    **kwargs,
+) -> go.Figure:
+    # Set titles
+    title_text = "Number of PSMs by tolerable termini"
+    xaxis_title = f"{groupby.capitalize()}s"
+    yaxis_title = "Number of PSMs"
+    hovertemplate = "Tolerable termini: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
+
+    # Draw plot
+    data = PlotData(mdata, modality=modality)
+    plot_data = (data._prep_var_data(groupby, "semi_enzymatic", obs_column=obs_column))
+    plot_data['semi_enzymatic'] = plot_data['semi_enzymatic'].map({0: "fully", 1: "semi"})
+    plot = PlotStackedBar(
+        data=plot_data,
+        x=groupby,
+        y="count",
+        name="semi_enzymatic",
+        meta="semi_enzymatic",
+        hovertemplate=hovertemplate,
+    )
+
+    fig = plot.figure()
+
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+        yaxis_tickformat=",d",
+        legend=dict(title_text="Tolerable termini"),
+    )
+
+    # Update layout with kwargs
+    fig.update_layout(
+        **kwargs,
+    )
+
+    return fig
