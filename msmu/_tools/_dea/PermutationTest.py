@@ -11,6 +11,56 @@ from tqdm import tqdm
 from .StatTest import NullDistribution, StatResult, StatTest, PvalueCorrection
 
 
+class Dea:
+    """
+    Class to perform Differential Expression Analysis (DEA) using permutation tests.
+    This class is used to compare two groups of data (control and experimental) and
+    calculate statistics such as median differences, fold changes, and p-values.
+    """
+    def __init__(self):
+        self._de_available: bool = True
+
+    def validate_inputs(
+        self,
+        ctrl_arr: np.ndarray,
+        expr_arr: np.ndarray,
+    ) -> None:
+        if not isinstance(ctrl_arr, np.ndarray) or not isinstance(expr_arr, np.ndarray):
+            raise TypeError("Control and experimental arrays must be numpy arrays.")
+        if ctrl_arr.shape[1] == 0 or expr_arr.shape[1] == 0:
+            raise ValueError("Control and experimental arrays must have at least one feature.")
+        if ctrl_arr.shape[0] < 2 or expr_arr.shape[0] < 2:
+            print("Control and experimental arrays must have at least two samples each.")
+            print("Any statistics will not be performed. Results will only contain Fold Changes and Pct Expressions.")
+            self.de_available = False
+
+    def get_insufficient_feature_indices(self):
+        ...
+
+
+
+    @property
+    def de_available(self) -> bool:
+        """
+        Check if DEA is available based on the number of samples in control and experimental groups.
+        Returns True if DEA is available, False otherwise.
+        """
+        return self._de_available
+
+    @de_available.setter
+    def de_available(self, value: bool) -> None:
+        """
+        Set the availability of DEA.
+        Parameters
+        ----------
+        value : bool
+            True if DEA is available, False otherwise.
+        """
+        if not isinstance(value, bool):
+            raise TypeError("de_available must be a boolean value.")
+        self._de_available = value
+
+
 @dataclass
 class PermutationTestResult:
     """
@@ -61,7 +111,7 @@ class PermutationTestResult:
         return df
 
 
-class PermutationTest:
+class PermutationTest(Dea):
     """
     Class to perform permutation tests on two groups of data (control and experimental).
     Parameters
@@ -98,9 +148,12 @@ class PermutationTest:
         n_resamples: int,
         force_resample: bool,
         fdr: bool | str
-    ):
+    ):  
+        super().__init__()
         self._ctrl_arr: np.ndarray = ctrl_arr
         self._expr_arr: np.ndarray = expr_arr
+        self.validate_inputs(self.ctrl_arr, self.expr_arr)
+
         self._possible_combination_count: int = self._get_number_of_combinations()
         self._n_resamples: int = n_resamples
         self._force_resample: bool = force_resample
@@ -298,6 +351,24 @@ class PermutationTest:
         statistic: str,
         n_jobs: int,
     ) -> PermutationTestResult:
+        if not self.de_available:
+            perm_test_res: PermutationTestResult = PermutationTestResult(
+                permutation_method=None,
+                statistic=None,
+                ctrl=None,
+                expr=None,
+                features=np.array([]),
+                median_ctrl=np.nanmedian(self.ctrl_arr, axis=0),
+                median_expr=np.nanmedian(self.expr_arr, axis=0),
+                pct_ctrl=self._get_pct_expression(self.ctrl_arr),
+                pct_expr=self._get_pct_expression(self.expr_arr),
+                log2fc=StatTest._stat_tests(ctrl=self.ctrl_arr, expr=self.expr_arr, statistic="med_diff").statistic,
+                p_value=np.full_like(self.ctrl_arr[0], np.nan),
+                q_value=np.full_like(self.ctrl_arr[0], np.nan),
+                fc_pct_1=None,
+                fc_pct_5=None,
+            )
+            return perm_test_res
 
         concated_arr: np.ndarray = np.concatenate(
             (self.ctrl_arr, self.expr_arr), axis=0
