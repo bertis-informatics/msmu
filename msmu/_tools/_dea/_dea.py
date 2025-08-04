@@ -99,9 +99,7 @@ def permutation_test(
         force_resample=force_resample,
         fdr=fdr,
     )
-    print(f"Permutation Method: {perm_test.permutation_method}")
-    print(f"Statistics: {statistic}")
-
+    
     perm_res: PermutationTestResult = perm_test.run(
         n_permutations=n_resamples, n_jobs=n_jobs, statistic=statistic
     )

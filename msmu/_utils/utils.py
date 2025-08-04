@@ -91,55 +91,46 @@ def get_label(mdata: md.MuData) -> str:
 
 
 def get_fasta_meta(
-    fasta: str | None = None,
-) -> list[str]:
+    fasta: str | None = None
+    ) -> pd.DataFrame:
     """
-    Parse a FASTA file to extract protein symbols, descriptions, and gene names.
+    Parse a FASTA file to extract protein metadata robustly,
+    even if some fields (GN, OS, OX) are missing.
 
     Args:
         fasta (str | None): Path to the FASTA file.
 
     Returns:
-        pd.DataFrame: DataFrame containing protein symbols, descriptions, and gene names.
+        pd.DataFrame: DataFrame containing parsed protein metadata.
     """
-
     with open(fasta, "r") as f:
         headers = [line.strip() for line in f if line.startswith(">")]
 
-        pattern = re.compile(r">(\w+)\|(\S+)\|(\S+) (.+?) OS=(.+?) OX=(\d+) GN=(\S+)")
-        pattern_sub = re.compile(r">(\w+)\|(\S+)\|(\S+) (.+?) OS=(.+?) GN=(\S+)")
-
     parsed_data = []
     for header in headers:
-        match = pattern.match(header)
-        if match:
-            entry_type, accession, protein_id, protein_name, organism, taxonomy_id, gene = match.groups()
-            parsed_data.append(
-                {
-                    "Entry Type": entry_type,  # sp or tr
-                    "Accession": accession,
-                    "Protein ID": protein_id,
-                    "Protein Name": protein_name,
-                    "Organism": organism if organism else "Unknown",
-                    "Taxonomy ID": taxonomy_id if taxonomy_id else "Unknown",
-                    "Gene": gene if gene else "Unknown",
-                }
-            )
-        else:
-            match = pattern_sub.match(header)
-            if match:
-                entry_type, accession, protein_id, protein_name, organism, gene = match.groups()
-                parsed_data.append(
-                    {
-                        "Entry Type": entry_type,
-                        "Accession": accession,
-                        "Protein ID": protein_id,
-                        "Protein Name": protein_name,
-                        "Organism": organism if organism else "Unknown",
-                        "Taxonomy ID": "Unknown",
-                        "Gene": gene if gene else "Unknown",
-                    }
-                )
+        # Parse initial identifier part: >sp|P12345|PROT_HUMAN Some protein name
+        m = re.match(r">(\w+)\|(\S+)\|(\S+)\s(.+)", header)
+        if not m:
+            continue  # skip if header malformed
+
+        entry_type, accession, protein_id, remaining = m.groups()
+
+        # Try to extract additional annotations (may be missing)
+        os_match = re.search(r"OS=([^=]+?)(?=\s\w+=|$)", remaining)
+        ox_match = re.search(r"OX=(\d+)", remaining)
+        gn_match = re.search(r"GN=([^\s]+)", remaining)
+
+        protein_name = remaining.split(" OS=")[0] if " OS=" in remaining else remaining
+
+        parsed_data.append({
+            "Entry Type": entry_type,
+            "Accession": accession,
+            "Protein ID": protein_id,
+            "Protein Name": protein_name.strip(),
+            "Organism": os_match.group(1).strip() if os_match else "Unknown",
+            "Taxonomy ID": ox_match.group(1) if ox_match else "Unknown",
+            "Gene": gn_match.group(1) if gn_match else "Unknown",
+        })
 
     fasta_meta = pd.DataFrame(parsed_data)
     fasta_meta.index = fasta_meta["Entry Type"] + "|" + fasta_meta["Accession"] + "|" + fasta_meta["Protein ID"]
