@@ -27,7 +27,7 @@ class NullDistribution:
         if nd.size == 0:
             nd2d = row
         else:
-            nd2d = np.atleast2d(nd)
+            nd2d = np.atleast_2d(nd)
             if nd2d.shape[1] != row.shape[1] and nd2d.shape[0] == row.shape[1]:
                 nd2d = nd2d.T
             nd2d = np.vstack([nd2d, row])
