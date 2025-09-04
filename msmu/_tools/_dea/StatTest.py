@@ -21,7 +21,7 @@ class NullDistribution:
     null_distribution: np.ndarray
 
     def add_permutation_result(self, other: StatResult):
-        row = np.atleast_2d(np.asarray(other.statistics))
+        row = np.atleast_2d(np.asarray(other.statistic))
         nd = self.null_distribution
 
         if nd.size == 0:
