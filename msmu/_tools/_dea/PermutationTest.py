@@ -316,13 +316,24 @@ class PermutationTest(Dea):
 
     @staticmethod
     def _get_fc_threshold(null_med_diff: np.ndarray, percentile: int) -> float:
-        low_quantile: floating = np.nanpercentile(null_med_diff, percentile)
-        high_quantile: floating = np.nanpercentile(null_med_diff, 100 - percentile)
+            x = np.asarray(null_med_diff)
+            if x.ndim == 2:
+                x = x.ravel()
+            x = x[~np.isnan(x)]
+            if x.size == 0:
+                return float("nan")
+            p = float(percentile)
+            low  = np.nanpercentile(x, p)               # e.g., 5th
+            high = np.nanpercentile(x, 100.0 - p)       # e.g., 95th
+            q = (abs(low) + abs(high)) / 2.0
+            return round(float(q), 2)
+        # low_quantile: floating = np.nanpercentile(null_med_diff, percentile)
+        # high_quantile: floating = np.nanpercentile(null_med_diff, 100 - percentile)
 
-        fc_cutoff: float = float(np.mean([abs(low_quantile), abs(high_quantile)]))
-        rounded_cutoff: float = round(fc_cutoff, 2)
+        # fc_cutoff: float = float(np.mean([abs(low_quantile), abs(high_quantile)]))
+        # rounded_cutoff: float = round(fc_cutoff, 2)
 
-        return rounded_cutoff
+        # return rounded_cutoff
 
     def _sub_perm(
         self, concated_arr: np.ndarray, combinations: np.ndarray, statistic: str

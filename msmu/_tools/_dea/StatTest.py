@@ -1,7 +1,6 @@
 import warnings
 from dataclasses import dataclass
 from typing import Callable
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -22,12 +21,25 @@ class NullDistribution:
     null_distribution: np.ndarray
 
     def add_permutation_result(self, other: StatResult):
-        return NullDistribution(
-            method=self.method,
-            null_distribution=np.concatenate(
-                (self.null_distribution, other.statistic), axis=0
-            ),
-        )
+        row = np.atleast_2d(np.asarray(other.statistics))
+        nd = self.null_distribution
+
+        if nd.size == 0:
+            nd2d = row
+        else:
+            nd2d = np.atleast2d(nd)
+            if nd2d.shape[1] != row.shape[1] and nd2d.shape[0] == row.shape[1]:
+                nd2d = nd2d.T
+            nd2d = np.vstack([nd2d, row])
+        
+        return NullDistribution(method=self.method, null_distribution=nd2d)
+
+        # return NullDistribution(
+        #     method=self.method,
+        #     null_distribution=np.concatenate(
+        #         (self.null_distribution, other.statistic), axis=0
+        #     ),
+        # )
 
 
 class StatTest:
@@ -44,7 +56,6 @@ class StatTest:
         stat, pval = stat_method(ctrl, expr)
 
         return StatResult(stat_method=statistic, statistic=stat, p_value=pval)
-
 
     @staticmethod
     def welch(ctrl, expr): # welch
@@ -180,23 +191,35 @@ class StatTest:
 
     @staticmethod
     def calc_permutation_pvalue(stat_obs, null_dist):
-        stat_obs = np.asarray(stat_obs)
-        null_dist = np.abs(np.asarray(null_dist))
+        # 관측 통계 (p,)
+        obs = np.asarray(stat_obs, dtype=float)
+        p = obs.shape[0]
 
-        # Initialize p-values with NaNs
-        pvals = np.full_like(stat_obs, np.nan, dtype=float)
+        # null 통계 → (B, p)로 강제
+        null = np.asarray(null_dist, dtype=float)
+        if null.ndim == 1:
+            if null.size % p != 0:
+                raise ValueError(f"null_dist.size ({null.size}) not divisible by p ({p})")
+            null = null.reshape(-1, p)  # (B, p)
+        elif null.ndim == 2:
+            if null.shape[1] != p and null.shape[0] == p:
+                null = null.T           # (B, p)
+            if null.shape[1] != p:
+                raise ValueError(f"null_dist must have shape (B, {p}), got {null.shape}")
+        else:
+            raise ValueError(f"null_dist must be 1D or 2D, got ndim={null.ndim}")
 
-        # Identify valid (non-NaN) indices
-        valid_mask = ~np.isnan(stat_obs)
+        # NaN 처리 및 절대값(양측)
+        valid = ~np.isnan(obs)
+        obs_abs   = np.abs(obs[valid])          # (m,)
+        null_abs  = np.abs(null[:, valid])      # (B, m)
 
-        # Only compute for valid stats
-        stat_obs_valid = np.abs(stat_obs[valid_mask])[:, np.newaxis]
-        null_dist_expanded = null_dist[np.newaxis, :]
+        # (B, m) vs (1, m) → (B, m) 불리언 생성 후 열합계만 계산
+        exceed = (null_abs >= obs_abs[None, :]).sum(axis=0)  # (m,)
+        B = null_abs.shape[0]
 
-        more_extreme = null_dist_expanded >= stat_obs_valid
-
-        pvals[valid_mask] = (np.sum(more_extreme, axis=1) + 1) / (null_dist.size + 1)
-
+        pvals = np.full_like(obs, np.nan, dtype=float)
+        pvals[valid] = (exceed + 1) / (B + 1)  # small-sample correction
         return pvals
 
 
@@ -402,3 +425,32 @@ class PvalueCorrection:
             q_value_all[i] = q
 
         return np.clip(q_value_all, 0, 1)
+
+@dataclass
+class StatTestReusult:
+    statistic: str
+    ctrl: str | None
+    expr: str | None = None
+    features: pd.Index | np.ndarray | None = None
+    median_ctrl: np.ndarray | None = None
+    median_expr: np.ndarray | None = None
+    pct_ctrl: np.ndarray | None = None
+    pct_expr: np.ndarray | None = None
+    log2_fc: np.ndarray | None = None
+    p_value: np.ndarray | None = None
+    q_value: np.ndarray | None = None
+
+    def to_df(self) -> pd.DataFrame:
+        contents: dict ={
+            "features": self.features,
+            "median_ctrl": self.median_ctrl,
+            "median_expr": self.median_expr,
+            "pct_ctrl": self.pct_ctrl,
+            "pct_expr": self.pct_expr,
+            "log2_fc": self.log2_fc,
+            "p_value": self.p_value,
+            "q_value": self.q_value,
+        }
+        df = pd.DataFrame(contents)
+
+        return df
