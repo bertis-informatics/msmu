@@ -4,12 +4,19 @@ from typing import Callable
 
 import numpy as np
 import pandas as pd
-from scipy.stats import ranksums, t, ttest_ind
+from scipy.stats import ranksums, t
 from statsmodels.stats.multitest import multipletests
 
 
 @dataclass
 class StatResult:
+    """
+    Data class to store statistical test results.
+    Attributes:
+        stat_method (str): The statistical method used.
+        statistic (np.ndarray): Array of test statistics.
+        p_value (np.ndarray): Array of p-values.
+    """
     stat_method: str
     statistic: np.ndarray
     p_value: np.ndarray
@@ -17,10 +24,25 @@ class StatResult:
 
 @dataclass
 class NullDistribution:
+    """
+    Data class to store null distribution from permutation tests.
+    Attributes:
+        method (str): The statistical method used.
+        null_distribution (np.ndarray): 2D array of null test statistics (shape: [n_permutations, n_features]).
+    """
     method: str
     null_distribution: np.ndarray
 
     def add_permutation_result(self, other: StatResult):
+        """
+        Add (stack) a new permutation result to the null distribution.
+        Parameters:
+        other : StatResult
+            A StatResult object containing the statistic from a new permutation.
+        Returns:
+        NullDistribution
+            A new NullDistribution object with the updated null distribution.
+        """
         row = np.atleast_2d(np.asarray(other.statistic))
         nd = self.null_distribution
 
@@ -34,15 +56,13 @@ class NullDistribution:
         
         return NullDistribution(method=self.method, null_distribution=nd2d)
 
-        # return NullDistribution(
-        #     method=self.method,
-        #     null_distribution=np.concatenate(
-        #         (self.null_distribution, other.statistic), axis=0
-        #     ),
-        # )
-
 
 class StatTest:
+    """
+    Class for performing statistical tests between two groups of samples.
+    Attributes:
+        method (str): The statistical method to use ('welch', 'student', 'wilcoxon', 'med_diff').
+    """
     @staticmethod
     def _stat_tests(ctrl, expr, statistic: str) -> StatResult:
         stat_dict: dict[str, Callable] = {
@@ -114,14 +134,6 @@ class StatTest:
 
         return t_val, pval
 
-    # @staticmethod
-    # def welch(ctrl, expr):
-    #     res = ttest_ind(ctrl, expr, equal_var=False, nan_policy="omit")
-    #     t = res.statistic
-    #     p = res.pvalue
-
-    #     return t, p
-
     @staticmethod
     def student(ctrl, expr):
         """
@@ -148,7 +160,7 @@ class StatTest:
         mean_expr = np.nanmean(expr, axis=0)
 
         # Variances (ddof=1 for sample variance)
-        with warnings.catch_warnings():
+        with warnings.catch_warnings(): # make silent nan warnings
             warnings.simplefilter("ignore", category=RuntimeWarning)
             var_ctrl = np.nanvar(ctrl, axis=0, ddof=1)
             var_expr = np.nanvar(expr, axis=0, ddof=1)
@@ -179,53 +191,97 @@ class StatTest:
 
     @staticmethod
     def wilcoxon_rank_sum(ctrl, expr):
+        """
+        Wilcoxon rank-sum test (Mann-Whitney U test) with NaN handling.
+        Uses scipy's ranksums function which handles NaNs internally.
+        Parameters:
+        -----------
+        ctrl : array-like (n_samples_ctrl x n_features)
+        expr : array-like (n_samples_expr x n_features)
+        Returns:
+        --------
+        stat : np.ndarray
+            Test statistics for each feature.
+        pval : np.ndarray
+            Two-tailed p-values.
+        """
         stat, pval = ranksums(ctrl, expr, axis=0)
 
         return stat, pval
 
     @staticmethod
     def median_diff(ctrl, expr):
+        """
+        Median difference (expr - ctrl) with NaN handling.
+        Parameters:
+        -----------
+        ctrl : array-like (n_samples_ctrl x n_features)
+        expr : array-like (n_samples_expr x n_features)
+        Returns:
+        --------
+        med_diff : np.ndarray
+            Median differences for each feature.
+        """
         med_diff = np.nanmedian(expr, axis=0) - np.nanmedian(ctrl, axis=0)
 
         return med_diff, None
 
     @staticmethod
-    def calc_permutation_pvalue(stat_obs, null_dist):
-        # 관측 통계 (p,)
-        obs = np.asarray(stat_obs, dtype=float)
-        p = obs.shape[0]
+    def calc_permutation_pvalue(
+        stat_obs: np.ndarray, 
+        null_dist: np.ndarray
+        ) -> np.ndarray:
+        """
+        Permutation-based empirical p-value calculation (two-sided).
+        Parameters
+        ----------
+        stat_obs : np.ndarray
+            1D array of observed test statistics (one per feature).
+        null_dist : np.ndarray
+            2D array of null test statistics (shape: [n_permutations, n_features]).
+        Returns
+        -------
+        pvals : np.ndarray
+            Array of empirical p-values (NaN-filled where stat_obs was NaN).
+        """
+        stat_obs = np.asarray(stat_obs)
+        valid_mask = ~np.isnan(stat_obs)
+        stat_obs_valid = stat_obs[valid_mask]
+        abs_stat_obs_valid = np.abs(stat_obs_valid)
 
-        # null 통계 → (B, p)로 강제
-        null = np.asarray(null_dist, dtype=float)
-        if null.ndim == 1:
-            if null.size % p != 0:
-                raise ValueError(f"null_dist.size ({null.size}) not divisible by p ({p})")
-            null = null.reshape(-1, p)  # (B, p)
-        elif null.ndim == 2:
-            if null.shape[1] != p and null.shape[0] == p:
-                null = null.T           # (B, p)
-            if null.shape[1] != p:
-                raise ValueError(f"null_dist must have shape (B, {p}), got {null.shape}")
-        else:
-            raise ValueError(f"null_dist must be 1D or 2D, got ndim={null.ndim}")
+        pooled_null = np.abs(np.asarray(null_dist)).ravel()
+        pooled_null = pooled_null[~np.isnan(pooled_null)]
+        pooled_null = np.sort(pooled_null)
 
-        # NaN 처리 및 절대값(양측)
-        valid = ~np.isnan(obs)
-        obs_abs   = np.abs(obs[valid])          # (m,)
-        null_abs  = np.abs(null[:, valid])      # (B, m)
+        pvals = np.full_like(stat_obs, np.nan, dtype=float)
+        left_idx = np.searchsorted(pooled_null, abs_stat_obs_valid, side="left") # left: ">="
+        exceeded = pooled_null.size - left_idx
+        pvals[valid_mask] = (exceeded + 1) / (pooled_null.size + 1)
 
-        # (B, m) vs (1, m) → (B, m) 불리언 생성 후 열합계만 계산
-        exceed = (null_abs >= obs_abs[None, :]).sum(axis=0)  # (m,)
-        B = null_abs.shape[0]
-
-        pvals = np.full_like(obs, np.nan, dtype=float)
-        pvals[valid] = (exceed + 1) / (B + 1)  # small-sample correction
         return pvals
 
 
 class PvalueCorrection:
+    """
+    Class for multiple testing correction methods.
+    Methods:
+        bh : Benjamini-Hochberg FDR correction.
+        storey : Storey's q-value estimation with pi0 estimation.
+        empirical : Permutation-based empirical FDR estimation.
+    """
     @staticmethod
     def bh(pvals: np.ndarray):
+        """
+        Benjamini-Hochberg FDR correction with NaN handling.
+        Parameters
+        ----------
+        pvals : array-like
+            Array of p-values (can include NaN).
+        Returns
+        -------
+        qvals : np.ndarray
+            Array of q-values (NaN-filled where p was NaN).
+        """
         pvals = np.asarray(pvals)
         qvals = np.full_like(pvals, np.nan, dtype=float)
         mask = ~np.isnan(pvals)
@@ -292,7 +348,10 @@ class PvalueCorrection:
             return q_values
 
     @staticmethod
-    def estimate_pi0_storey(p_values, lambdas=np.linspace(0.5, 0.95, 10)):
+    def estimate_pi0_storey(
+        p_values: np.ndarray,
+        lambdas: np.ndarray=np.linspace(0.5, 0.95, 10)
+        ) -> tuple[float, np.ndarray]:
         """
         Storey's estimator of pi0 (proportion of true nulls) from observed p-values.
         https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
@@ -324,7 +383,11 @@ class PvalueCorrection:
         return pi0, pi0_by_lambda
 
     @staticmethod
-    def estimate_pi0_null(stat_valid, null_matrix_valid, percentile=95):
+    def estimate_pi0_null(
+        stat_valid: np.ndarray,
+        null_matrix_valid: np.ndarray, 
+        percentile:int=95
+        ) -> float:
         """
         Estimate pi0 (proportion of true null hypotheses) using permutation-based statistic exceedance method.
         https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
@@ -349,10 +412,10 @@ class PvalueCorrection:
         m = stat_valid.size
         threshold = np.percentile(stat_valid, percentile)
 
-        S = np.sum(stat_valid >= threshold)
-        S_star = np.mean(np.sum(null_matrix_valid >= threshold, axis=0))
-        denominator = 1 - (S_star / m) 
-        pi0 = (1 - S / m) / denominator if denominator != 0 else 1.0
+        s = np.sum(stat_valid >= threshold)
+        s_star = np.mean(np.sum(null_matrix_valid >= threshold, axis=0))
+        denominator = 1 - (s_star / m) 
+        pi0 = (1 - s / m) / denominator if denominator != 0 else 1.0
         pi0 = min(max(pi0, 0.0), 1.0)
 
         return pi0
@@ -361,7 +424,7 @@ class PvalueCorrection:
     def empirical(
         stat_obs: np.ndarray,
         null_dist: np.ndarray,
-        pvals: np.ndarray,
+        # pvals: np.ndarray, # optional, if pi0 estimated by storey
         two_sided: bool = True,
     ) -> np.ndarray:
         """
@@ -379,7 +442,7 @@ class PvalueCorrection:
         """
 
         stat_obs = np.asarray(stat_obs)
-        null_dist = np.asarray(null_dist)
+        null_dist = np.asarray(null_dist).ravel()
 
         B = null_dist.size // stat_obs.size
 
@@ -428,6 +491,22 @@ class PvalueCorrection:
 
 @dataclass
 class StatTestReusult:
+    """
+    Data class to store and convert statistical test results to a DataFrame.
+    Attributes:
+        stat_method (str): The statistical method used.
+        statistic (str): The statistic computed.
+        ctrl (str | None): Control group label.
+        expr (str | None): Experimental group label.
+        features (pd.Index | np.ndarray | None): Feature identifiers.
+        median_ctrl (np.ndarray | None): Median values for control group.
+        median_expr (np.ndarray | None): Median values for experimental group.
+        pct_ctrl (np.ndarray | None): Percentage of non-missing values in control group.
+        pct_expr (np.ndarray | None): Percentage of non-missing values in experimental group.
+        log2_fc (np.ndarray | None): Log2 fold changes between groups.
+        p_value (np.ndarray | None): P-values from statistical tests.
+        q_value (np.ndarray | None): Adjusted q-values for multiple testing.
+    """
     statistic: str
     ctrl: str | None
     expr: str | None = None
@@ -441,6 +520,11 @@ class StatTestReusult:
     q_value: np.ndarray | None = None
 
     def to_df(self) -> pd.DataFrame:
+        """
+        Convert the statistical test results to a pandas DataFrame.
+        Returns:
+            pd.DataFrame: DataFrame containing the statistical test results.
+        """
         contents: dict ={
             "features": self.features,
             "median_ctrl": self.median_ctrl,
