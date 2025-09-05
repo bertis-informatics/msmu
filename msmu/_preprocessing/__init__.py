@@ -1,4 +1,4 @@
-from ._calculate_precursor_purity import calculate_precursor_purity
+from ._compute_precursor_purity import compute_precursor_purity
 from ._filter import (
     add_all_nan_filter,
     add_precursor_purity_filter,
@@ -16,7 +16,7 @@ __all__ = [
     "add_prefix_filter",
     "add_all_nan_filter",
     "apply_filter",
-    "calculate_precursor_purity",
+    "compute_precursor_purity",
     "log2_transform",
     "normalise",
     "feature_scale",
