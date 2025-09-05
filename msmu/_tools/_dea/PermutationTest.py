@@ -293,7 +293,7 @@ class PermutationTest(Dea):
             q_vals = PvalueCorrection.empirical(
                 stat_obs=obs_stats.statistic, 
                 null_dist=stat_null_dist.null_distribution, 
-                pvals=pval_permutation,
+                # pvals=pval_permutation,
                 )
         elif self.fdr == 'bh':
             q_vals = PvalueCorrection.bh(
