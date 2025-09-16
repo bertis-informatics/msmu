@@ -5,7 +5,6 @@ import pandas as pd
 from anndata import AnnData
 from mudata import MuData
 
-from ._compute_precursor_purity import calculate_precursor_purity
 from .._utils import get_modality_dict, subset
 from .._utils import subset, get_modality_dict, uns_logger
 
