@@ -89,11 +89,11 @@ def add_prefix_filter(
     proteins = _get_column(adata, "proteins", "search_result")
 
     # Remove prefix matched from proteins column
-    pat = r'(^|;)\s*(?:' + "|".join(map(re.escape, prefix if isinstance(prefix, (tuple, list)) else (prefix,))) + r')'
+    pat = r"(^|;)\s*(?:" + "|".join(map(re.escape, prefix if isinstance(prefix, (tuple, list)) else (prefix,))) + r")"
     # adata.var["proteins"] = proteins.apply(lambda x: _remove_prefix_matched(x, prefix))
 
     # Get filter result
-    filter_result = proteins.str.contains(pat, regex=True, na=False)
+    filter_result = ~proteins.str.contains(pat, regex=True, na=False)
 
     # Save filter
     _save_filter(adata, "prefix", filter_result, list(prefix))
