@@ -20,6 +20,8 @@ class Summariser:
         self._col_to_groupby: str = ""
 
     def summarise_data(self, data: pd.DataFrame, sum_method: str) -> pd.DataFrame:
+        if sum_method not in ["median", "mean", "sum"]:
+            raise ValueError("sum_method should be one of ['median', 'mean', 'sum']")
         concated_agg_dict: dict = self._concat_agg_dict_w_obs(sum_method=sum_method)
         data = data.rename_axis(None)
 

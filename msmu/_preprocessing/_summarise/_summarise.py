@@ -1,13 +1,14 @@
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
 
-from ..._read_write._readers import add_modality
+from ..._read_write._reader_utils import add_modality
 from ..._utils.utils import get_modality_dict, uns_logger
 from ._summariser import PeptideSummariser, ProteinSummariser, PtmSummariser
 
@@ -18,10 +19,10 @@ warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 @uns_logger
 def to_peptide(
     mdata: md.MuData,
-    rank_method: str | None = None,
-    sum_method: str = "median",
+    sum_method: Literal["median", "mean", "sum"] = "median",
     protein_col: str = "protein_group",
     top_n: int | None = None,
+    rank_method: str | None = None,
 ) -> md.MuData:
     """
     Summarise peptide level data from PSM level data.
@@ -132,11 +133,11 @@ def to_peptide(
 @uns_logger
 def to_protein(
     mdata,
+    protein_col="protein_group",
+    sum_method: Literal["median", "mean", "sum"]="median",
     top_n: int | None = None,
     rank_method: str = "max_intensity",
-    protein_col="protein_group",
     min_n_peptides=1,
-    sum_method="median",
     from_="peptide",
     # keep_mbr_only: bool = False,  # TODO: add keep_mbr_only to protein level
 ) -> md.MuData:

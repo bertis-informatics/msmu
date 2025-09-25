@@ -1,14 +1,14 @@
 import re
 import warnings
 from collections import deque
-from typing import Tuple, TypedDict, Union
+from typing import TypedDict
 
 import mudata as md
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from .._utils import get_modality_dict, uns_logger
+from .._utils import uns_logger
 
 
 class Mapping(TypedDict):
@@ -19,8 +19,6 @@ class Mapping(TypedDict):
 @uns_logger
 def infer_protein(
     mdata: md.MuData,
-    peptide_colname: str = "stripped_peptide",
-    protein_colname: str = "proteins",
     propagated_from: md.MuData | str | None = None
 ) -> md.MuData:
     """
@@ -30,10 +28,6 @@ def infer_protein(
     ----------
     mdata: MuData
         MuData object
-    peptide_colname: str
-        column name for peptide information
-    protein_colname: str
-        column name for protein information
     propagated_from: MuData | str | None
         mudata which contains inference info (for PTM normalisation with global proteins)
         Can be path to global data .h5mu or mudata object.
@@ -44,6 +38,9 @@ def infer_protein(
     mdata: MuData
         MuData object with updated protein mappings
     """
+    protein_colname: str = "proteins"
+    peptide_colname: str = "stripped_peptide"
+
     if "feature" in mdata.mod_names:
         modality = "feature"
     elif "psm" in mdata.mod_names:
@@ -94,7 +91,7 @@ def infer_protein(
 def get_protein_mapping(
     peptides: pd.Series,
     proteins: pd.Series,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Infer protein grouping information.
 
@@ -206,7 +203,7 @@ def _get_protein_df(map_df: pd.DataFrame, peptide_df: pd.DataFrame) -> pd.DataFr
     return protein_df
 
 
-def _get_df(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def _get_df(map_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Returns peptide and protein information.
 
@@ -227,7 +224,7 @@ def _get_matrix(
     map_df: pd.DataFrame,
     peptide_df: pd.DataFrame,
     protein_df: pd.DataFrame,
-) -> Tuple[sp.csr_matrix, np.ndarray]:
+) -> tuple[sp.csr_matrix, np.ndarray]:
     """
     Calculate protein group inclusion relationship.
 
@@ -263,7 +260,7 @@ def _get_matrix(
 
 def _find_indistinguisable(
     map_df: pd.DataFrame,
-) -> Tuple[pd.DataFrame, Mapping]:
+) -> tuple[pd.DataFrame, Mapping]:
     """
     Get indistinguishable group information.
 
@@ -382,7 +379,7 @@ def _find_groups(graph: dict[int, list[int]]) -> list[list[int]]:
     return groups
 
 
-def _find_subsettable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
+def _find_subsettable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping]:
     """
     Get subset group information.
 
@@ -477,7 +474,7 @@ def _build_hierarchy(matrix: np.ndarray) -> dict[int, np.ndarray]:
     return hierarchy
 
 
-def _find_subsumable(map_df: pd.DataFrame) -> Tuple[pd.DataFrame, Mapping]:
+def _find_subsumable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping]:
     """
     Get subsumable protein information.
 
@@ -563,7 +560,7 @@ def _get_subsum_map(
     return Mapping(repr=subsum_repr_map, memb=subsum_memb_map), removed_proteins
 
 
-def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[Tuple[list[int], list[int]]]:
+def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[tuple[list[int], list[int]]]:
     """
     Build connections from peptide-protein matrix.
 
@@ -572,7 +569,7 @@ def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[Tuple
         indices (list[int]): list of indices
 
     Returns:
-        connections (list[Tuple[list[int], list[int]]]): list of connections
+        connections (list[tuple[list[int], list[int]]]): list of connections
     """
     np.fill_diagonal(protein_mat, 0)
     protein_mat = protein_mat.astype(bool)
@@ -707,7 +704,7 @@ def _get_final_output(
     subset_repr_map: dict[str, str],
     indist_repr_map: dict[str, str],
     subsum_repr_map: dict[str, str],
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Returns final output dataframes.
 
