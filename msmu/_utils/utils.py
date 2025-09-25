@@ -8,7 +8,7 @@ import functools
 import datetime
 import numpy as np
 
-from .._read_write._readers import add_modality
+from .._read_write._reader_utils import add_modality
 
 
 def serialize(obj):

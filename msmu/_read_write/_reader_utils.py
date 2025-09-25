@@ -1,154 +1,85 @@
 from functools import reduce
-from pathlib import Path
-from typing import Literal
+import re
 
-import anndata as ad
-import mudata as md
-import numpy as np
+from dataclasses import dataclass
 import pandas as pd
-
-from ._diann_reader import DiannReader
-from ._sage_reader import LfqSageReader, TmtSageReader
-
-
-def read_sage(
-    sage_output_dir: str | Path,
-    label: Literal["tmt", "lfq"],
-    # sample_name: list[str] | None = None,
-    # channel: list[str] | None = None,
-    # filename: list[str] | None = None,
-    # meta: pd.DataFrame | None = None,
-    # sample_col: str | None = None,
-    # channel_col: str | None = None,
-    # filename_col: str | None = None,
-) -> md.MuData:
-    """
-    Reads Sage output and returns a MuData object.
-
-    Args:
-        sage_output_dir (str | Path): Path to the Sage output directory.
-        label (Literal["tmt", "lfq"]): Label for the Sage output ('tmt' or 'lfq').
-        # sample_name (list[str] | None): List of sample names.
-        # channel (list[str] | None): List of TMT channels.
-        # filename (list[str] | None): List of filenames for LFQ.
-        # meta (pd.DataFrame | None): Metadata DataFrame.
-        # sample_col (str | None): Column name for sample names in metadata.
-        # channel_col (str | None): Column name for TMT channels in metadata.
-        # filename_col (str | None): Column name for filenames in metadata.
-
-    Returns:
-        md.MuData: A MuData object containing the Sage data.
-    """
-    if label == "tmt":
-        reader_cls = TmtSageReader
-    elif label == "lfq":
-        reader_cls = LfqSageReader
-    else:
-        raise ValueError("Argument label should be one of 'tmt', 'lfq'.")
-
-    # if meta is not None:
-    #     sample_name = meta[sample_col].tolist()
-    #     if label == "tmt":
-    #         channel = meta[channel_col].tolist()
-    #     if label == "lfq":
-    #         filename: list[str] = meta[filename_col].tolist()
-    #         filename = [f if f.endswith(".mzML") else f"{f}.mzML" for f in filename]
-
-    reader = reader_cls(
-        sage_output_dir=sage_output_dir,
-        # sample_name=sample_name,
-        # channel=channel,
-        # filename=filename,
-    )
-    mdata = reader.read()
-
-    # if meta is not None:
-    #     meta_col_add = [x for x in meta.columns if x not in mdata.obs.columns]
-    #     meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
-    #     mdata.obs = mdata.obs.join(meta_add)
-    # elif channel is not None:
-    #     mdata.obs["channel"] = mdata.obs.index.map({i: c for i, c in zip(sample_name, channel)})
-
-    # mdata.obs = to_categorical(mdata.obs)
-    # mdata.push_obs()
-
-    return mdata
+import numpy as np
+import mudata as md
+import anndata as ad
 
 
-def to_categorical(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Converts object-type columns in a DataFrame to categorical.
+class ProteinIdParser:
+    def _get_protein_info_from_fasta(
+            self,
+            # fasta: str | Path | None
+            ) -> pd.DataFrame: ...
 
-    Args:
-        df (pd.DataFrame): Input DataFrame.
+    def _parse_uniprot_accession(self, proteins: pd.Series) -> pd.DataFrame:
+        protein_df: pd.DataFrame = pd.DataFrame(proteins)
+        protein_df["index"] = range(len(protein_df))
+        protein_df["protein"] = protein_df["proteins"].apply(lambda x: x.split(";"))
+        protein_df = protein_df.explode("protein")
 
-    Returns:
-        pd.DataFrame: DataFrame with object columns converted to categorical.
-    """
-    df = df.copy()
-    for col in df.select_dtypes(include=["object"]).columns:
-        df[col] = pd.Categorical(df[col], categories=df[col].unique())
+        uniprot_id_category: list = ["source", "accession", "protein_name"]
+        for idx, cat_ in enumerate(uniprot_id_category):
+            protein_df[cat_] = protein_df["protein"].apply(lambda x: self._split_uniprot_fasta_entry(x)[idx])
 
-    return df
+        protein_df["accession"] = protein_df.apply(
+            lambda x: (f"rev_{x['accession']}" if x["protein"].startswith("rev_") else x["accession"]),
+            axis=1,
+        )
+        protein_df["accession"] = protein_df.apply(
+            lambda x: (f"contam_{x['accession']}" if x["protein"].startswith("contam_") else x["accession"]),
+            axis=1,
+        )
 
+        return protein_df
 
-def read_diann(
-    diann_output_dir: str | Path,
-    # sample_name: list[str] | None = None,
-    # filename: list[str] | None = None,
-    # meta: pd.DataFrame | None = None,
-    # sample_col: str | None = None,
-    # filename_col: str | None = None,
-    # fasta: str | Path | None = None,
-) -> md.MuData:
+    @staticmethod
+    def _split_uniprot_fasta_entry(entry: str) -> tuple[str, str, str]:
+        """
+        Splits a Uniprot FASTA entry into its accession and protein name.
 
-    # if meta is not None:
-    #     sample_name = meta[sample_col].tolist()
-    #     filename = meta[filename_col].tolist()
+        Args:
+            entry (str): The Uniprot FASTA entry.
 
-    mdata: md.MuData = DiannReader(
-        diann_output_dir=diann_output_dir,
-        # sample_name=sample_name,
-        # filename=filename,
-        # fasta=fasta,
-    ).read()
+        Returns:
+            tuple[str, str]: A tuple containing the accession and protein name.
+        """
+        parts = entry.split("|")
+        if len(parts) == 3:
+            return parts[0], parts[1], parts[2]
+        else:
+            return "", parts[0], ""  # Handle cases where the format is different
 
-    # if meta is not None:
-    #     meta_col_add = [x for x in meta.columns if x not in mdata.obs.columns]
-    #     meta_add = meta[meta_col_add].set_index(sample_col, drop=False)
-    #     mdata.obs = mdata.obs.join(meta_add)
+    def _make_protein_info(self, protein_df: pd.DataFrame) -> pd.DataFrame:
+        protein_info: pd.DataFrame = protein_df.copy()
 
-    # mdata.obs = to_categorical(mdata.obs)
-    # mdata.push_obs()
+        protein_info = protein_info.drop_duplicates("accession")
+        protein_info = protein_info.drop(columns=["index", "proteins"])
 
-    return mdata
+        protein_info = protein_info.loc[protein_info["source"].str.startswith("rev_") == False,]
+        protein_info = protein_info.loc[protein_info["source"].str.startswith("contam_") == False,]
 
+        protein_info = protein_info.sort_values("accession")
+        protein_info = protein_info.reset_index(drop=True)
 
-def read_comet():
-    return NotImplementedError
+        return protein_info
 
+    def parse(self, proteins: pd.Series, source: str = "uniprot"):
+        if source == "uniprot":
+            protein_df: pd.DataFrame = self._parse_uniprot_accession(proteins=proteins)
+            protein_df_grouped = protein_df.groupby(["index", "proteins"], as_index=False).agg(";".join)
+            protein_df_grouped = protein_df_grouped.sort_values("index")
 
-def read_protdiscov():
-    return NotImplementedError
+            self.accessions: list[str] = protein_df_grouped["accession"].tolist()
+        else:
+            raise NotImplementedError("For now, protein parse only can be applied to uniprot fasta")
 
-
-def read_maxquant():
-    return NotImplementedError
-
-
-def read_h5mu(h5mu_file: str | Path) -> md.MuData:
-    """
-    Reads an H5MU file and returns a MuData object.
-
-    Args:
-        h5mu_file (str | Path): Path to the H5MU file.
-
-    Returns:
-        md.MuData: A MuData object.
-    """
-    return md.read_h5mu(h5mu_file)
+        self.protein_info: pd.DataFrame = self._make_protein_info(protein_df=protein_df)
 
 
+# Utility functions for Readers
 def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     """
     Merges multiple MuData objects into a single MuData object.
@@ -254,7 +185,6 @@ def _decompose_data(
 
 
 def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict:
-
     merged_data = dict()
     if adatas is not None:
         mods = ["mdata"]
@@ -356,3 +286,20 @@ def add_modality(mdata: md.MuData, adata: ad.AnnData, mod_name: str, parent_mods
     mdata.update_var()
 
     return mdata
+
+
+def to_categorical(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Converts object-type columns in a DataFrame to categorical.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame.
+
+    Returns:
+        pd.DataFrame: DataFrame with object columns converted to categorical.
+    """
+    df = df.copy()
+    for col in df.select_dtypes(include=["object"]).columns:
+        df[col] = pd.Categorical(df[col], categories=df[col].unique())
+
+    return df
