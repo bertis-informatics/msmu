@@ -22,6 +22,7 @@ dependencies = [
     "scipy==1.15.3",
     "scikit-learn",
     "umap-learn",
+    "pyopenms",
 ]
 dynamic = ["version"]
 

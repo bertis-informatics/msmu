@@ -1,11 +1,11 @@
 from pathlib import Path
+import re
 
 import pandas as pd
 from anndata import AnnData
 from mudata import MuData
 
 from .._utils import get_modality_dict, subset
-# from ._calculate_precursor_purity import calculate_precursor_purity
 from .._utils import subset, get_modality_dict, uns_logger
 
 # def add_q_value_filter(
@@ -89,13 +89,31 @@ def add_prefix_filter(
     proteins = _get_column(adata, "proteins", "search_result")
 
     # Remove prefix matched from proteins column
-    adata.var["proteins"] = proteins.apply(lambda x: _remove_prefix_matched(x, prefix))
+    pat = r'(^|;)\s*(?:' + "|".join(map(re.escape, prefix if isinstance(prefix, (tuple, list)) else (prefix,))) + r')'
+    # adata.var["proteins"] = proteins.apply(lambda x: _remove_prefix_matched(x, prefix))
 
     # Get filter result
-    filter_result = adata.var["proteins"] != ""
+    filter_result = proteins.str.contains(pat, regex=True, na=False)
 
     # Save filter
     _save_filter(adata, "prefix", filter_result, list(prefix))
+
+    return mdata
+
+
+@uns_logger
+def add_precursor_purity_filter(
+    mdata: MuData,
+    threshold: float,
+) -> MuData:
+    mdata = mdata.copy()
+    adata = mdata["feature"]
+
+    # Get filter result
+    filter_result = mdata["feature"].var["purity"] > threshold
+
+    # Save filter
+    _save_filter(adata, "purity", filter_result, threshold)
 
     return mdata
 
@@ -243,7 +261,18 @@ def _get_column(
 
 
 def _remove_prefix_matched(row: pd.Series, prefix: str | tuple) -> pd.Series:
-    return ";".join([str(x) for x in row.split(";") if not str(x).startswith(prefix)])
+    matched_list = []
+    for x in row.split(";"):
+        if str(x).startswith(prefix):
+            continue
+        else:
+            matched_list.append(x)
+
+    matched_str = ";".join(matched_list)
+    if row == matched_str:
+        return row
+    else:
+        return ""
 
 
 def _save_filter(

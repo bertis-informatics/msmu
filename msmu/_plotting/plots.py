@@ -1,5 +1,6 @@
 import mudata as md
 import plotly.graph_objects as go
+import numpy as np
 
 from .._utils import get_modality_dict
 from .__pdata import PlotData
@@ -396,16 +397,17 @@ def plot_purity(
         )
         fig = plot.figure()
 
-        fig.add_vline(
-            x=threshold,
-            line_dash="dash",
-            line_color="red",
-            line_width=1,
-            annotation=dict(
-                text=f"Purity threshold : {threshold}",
-                yanchor="bottom",
-            ),
-        )
+        if threshold is not np.nan:
+            fig.add_vline(
+                x=threshold,
+                line_dash="dash",
+                line_color="red",
+                line_width=1,
+                annotation=dict(
+                    text=f"Purity threshold : {threshold}",
+                    yanchor="bottom",
+                ),
+            )
 
         fig.update_layout(
             yaxis_tickformat=",d",
@@ -419,18 +421,19 @@ def plot_purity(
         plot = PlotBox(data=data._prep_purity_data_box(groupby))
         fig = plot.figure()
 
-        fig.add_hline(
-            y=threshold,
-            line_dash="dash",
-            line_color="red",
-            line_width=1,
-            annotation=dict(
-                text=f" Purity threshold : {threshold}",
-                xanchor="left",
-                yanchor="top",
-                x=0,
-            ),
-        )
+        if threshold is not np.nan:
+            fig.add_hline(
+                y=threshold,
+                line_dash="dash",
+                line_color="red",
+                line_width=1,
+                annotation=dict(
+                    text=f" Purity threshold : {threshold}",
+                    xanchor="left",
+                    yanchor="top",
+                    x=0,
+                ),
+            )
     elif ptype in ["vln", "violin"]:
         xaxis_title = "Raw Filenames"
         yaxis_title = "Precursor Isolation Purity"
@@ -451,18 +454,19 @@ def plot_purity(
             meanline=dict(visible=True),
         )
 
-        fig.add_hline(
-            y=threshold,
-            line_dash="dash",
-            line_color="red",
-            line_width=1,
-            annotation=dict(
-                text=f" Purity threshold : {threshold}",
-                xanchor="left",
-                yanchor="top",
-                x=0,
-            ),
-        )
+        if threshold is not np.nan:
+            fig.add_hline(
+                y=threshold,
+                line_dash="dash",
+                line_color="red",
+                line_width=1,
+                annotation=dict(
+                    text=f" Purity threshold : {threshold}",
+                    xanchor="left",
+                    yanchor="top",
+                    x=0,
+                ),
+            )
     else:
         raise ValueError(f"Unknown plot type: {ptype}, choose from 'hist|histogram', 'box'")
 
