@@ -38,3 +38,7 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["tests", "docs"]
+
+[tool.setuptools_scm]
+write_to = "msmu/_version.py"
+version_scheme = "no-guess-dev"

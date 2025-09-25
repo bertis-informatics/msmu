@@ -2,7 +2,7 @@ image: python:3.11
 
 pipelines:
   tags:
-    "*-dev":
+    "*-dev*":
       - step:
           name: Run Tests
           caches:

@@ -11,7 +11,12 @@ from ._read_write._reader_registry import read_h5mu, read_sage, read_diann, read
 from . import _utils as utils
 from ._utils import get_fasta_meta, get_label, map_fasta, subset, add_quant, split_tmt, rename_obs
 
-__version__ = "0.1.8"
+try:
+    from ._version import version as __version__
+except ImportError:
+    __version__ = version = "0.0.0"
+else:
+    version = __version__
 
 logger = logging.getLogger("msmu")
 logger.setLevel(LogLevel.INFO)
