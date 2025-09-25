@@ -5,7 +5,7 @@ from anndata import AnnData
 from mudata import MuData
 
 from .._utils import get_modality_dict, subset
-from ._calculate_precursor_purity import calculate_precursor_purity
+# from ._calculate_precursor_purity import calculate_precursor_purity
 from .._utils import subset, get_modality_dict, uns_logger
 
 # def add_q_value_filter(
@@ -101,42 +101,74 @@ def add_prefix_filter(
 
 
 @uns_logger
-def add_precursor_purity_filter(
+def add_decoy_filter(
     mdata: MuData,
-    threshold: float,
-    mzml_files: list[str | Path] = None,
-    n_cores: int = 1,
 ) -> MuData:
     mdata = mdata.copy()
     adata = mdata["feature"]
 
-    # Check if the argument is provided
-    if mzml_files is None:
-        if "mzml_files" in adata.uns:
-            mzml_files: list[str | Path] = adata.uns["mzml_files"]
-        else:
-            raise ValueError(
-                "mzml_files should be provided or stored in mdata.uns['mzml_files']"
-            )
-
-    # Get precursor purity
-    if "purity" not in adata.var_keys():
-        purity_df = calculate_precursor_purity(
-            adata=adata, mzml_files=mzml_files, n_cores=n_cores
-        )
-        adata.var = adata.var.join(purity_df)
-    else:
-        raise ValueError(
-            "Precursor purity is already calculated. Please remove it before recalculating."
-        )
-
-    # Get filter result
-    filter_result = adata.var["purity"] > threshold
+    decoy = _get_column(adata, "decoy", "search_result")
+    filter_result = decoy == 0
 
     # Save filter
-    _save_filter(adata, "purity", filter_result, threshold)
+    _save_filter(adata, "decoy", filter_result, 0)
 
     return mdata
+
+
+@uns_logger
+def add_contaminant_filter(
+    mdata: MuData,
+) -> MuData:
+    mdata = mdata.copy()
+    adata = mdata["feature"]
+
+    contaminant = _get_column(adata, "contaminant", "search_result")
+    filter_result = contaminant == 0
+
+    # Save filter
+    _save_filter(adata, "contaminant", filter_result, 0)
+
+    return mdata
+
+
+# @uns_logger
+# def add_precursor_purity_filter(
+#     mdata: MuData,
+#     threshold: float,
+#     mzml_files: list[str | Path] = None,
+#     n_cores: int = 1,
+# ) -> MuData:
+#     mdata = mdata.copy()
+#     adata = mdata["feature"]
+
+#     # Check if the argument is provided
+#     if mzml_files is None:
+#         if "mzml_files" in adata.uns:
+#             mzml_files: list[str | Path] = adata.uns["mzml_files"]
+#         else:
+#             raise ValueError(
+#                 "mzml_files should be provided or stored in mdata.uns['mzml_files']"
+#             )
+
+#     # Get precursor purity
+#     if "purity" not in adata.var_keys():
+#         purity_df = calculate_precursor_purity(
+#             adata=adata, mzml_files=mzml_files, n_cores=n_cores
+#         )
+#         adata.var = adata.var.join(purity_df)
+#     else:
+#         raise ValueError(
+#             "Precursor purity is already calculated. Please remove it before recalculating."
+#         )
+
+#     # Get filter result
+#     filter_result = adata.var["purity"] > threshold
+
+#     # Save filter
+#     _save_filter(adata, "purity", filter_result, threshold)
+
+#     return mdata
 
 
 @uns_logger

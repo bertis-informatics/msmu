@@ -18,12 +18,10 @@ dependencies = [
     "anndata==0.12.0",
     "biopython",
     "plotly",
-    "pymzml",
     "statsmodels",
     "scipy==1.15.3",
     "scikit-learn",
     "umap-learn",
-    "bmskit @ git+https://bitbucket.org/bertis/bertis-mskit.git"
 ]
 dynamic = ["version"]
 
