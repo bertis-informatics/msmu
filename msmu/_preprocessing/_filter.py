@@ -150,45 +150,6 @@ def add_contaminant_filter(
     return mdata
 
 
-# @uns_logger
-# def add_precursor_purity_filter(
-#     mdata: MuData,
-#     threshold: float,
-#     mzml_files: list[str | Path] = None,
-#     n_cores: int = 1,
-# ) -> MuData:
-#     mdata = mdata.copy()
-#     adata = mdata["feature"]
-
-#     # Check if the argument is provided
-#     if mzml_files is None:
-#         if "mzml_files" in adata.uns:
-#             mzml_files: list[str | Path] = adata.uns["mzml_files"]
-#         else:
-#             raise ValueError(
-#                 "mzml_files should be provided or stored in mdata.uns['mzml_files']"
-#             )
-
-#     # Get precursor purity
-#     if "purity" not in adata.var_keys():
-#         purity_df = calculate_precursor_purity(
-#             adata=adata, mzml_files=mzml_files, n_cores=n_cores
-#         )
-#         adata.var = adata.var.join(purity_df)
-#     else:
-#         raise ValueError(
-#             "Precursor purity is already calculated. Please remove it before recalculating."
-#         )
-
-#     # Get filter result
-#     filter_result = adata.var["purity"] > threshold
-
-#     # Save filter
-#     _save_filter(adata, "purity", filter_result, threshold)
-
-#     return mdata
-
-
 @uns_logger
 def add_all_nan_filter(
     mdata: MuData,
