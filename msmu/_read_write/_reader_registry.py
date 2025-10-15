@@ -5,6 +5,7 @@ import mudata as md
 from ._diann import DiannReader, DiannProteinGroupReader
 from ._sage import LfqSageReader, TmtSageReader
 from ._maxquant import MaxTmtReader, MaxLfqReader, MaxDiaReader
+from ._fragpipe import TmtFragPipeReader, LfqFragPipeReader
 
 
 def read_sage(
@@ -116,6 +117,28 @@ class _MaxQuantFacade:
 read_maxquant: _MaxQuantFacade = _MaxQuantFacade()
 
 
+class FragPipeFacade:
+    def __call__(
+        self, 
+        search_dir: str | Path,
+        label: Literal["tmt", "lfq"],
+        acquisition: Literal["dda", "dia"]
+        ) -> md.MuData:
+        if label == "tmt" and acquisition == "dda":
+            reader = TmtFragPipeReader(search_dir=search_dir)
+        elif label == "lfq" and acquisition == "dda":
+            reader = LfqFragPipeReader(search_dir=search_dir)
+        else:
+            raise ValueError("Argument label should be one of 'tmt', 'lfq' and acquisition should be one of 'dda', 'dia'.")
+
+        return reader.read()
+    
+    def from_pg(self):
+        raise NotImplementedError("FragPipe protein group reader is not implemented yet.")
+
+read_fragpipe: FragPipeFacade = FragPipeFacade()
+
+
 def read_h5mu(h5mu_file: str | Path) -> md.MuData:
     """
     Reads an h5mu file (HDF5) and returns a MuData object.
@@ -129,14 +152,9 @@ def read_h5mu(h5mu_file: str | Path) -> md.MuData:
     return md.read_h5mu(h5mu_file)
 
 
-
 #######################################################################
 # Placeholder functions for future implementations
 ########################################################################
-def read_fragpipe():
-    raise NotImplementedError
-
-
 def read_comet():
     raise NotImplementedError
 
