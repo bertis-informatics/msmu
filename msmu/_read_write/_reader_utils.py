@@ -252,6 +252,22 @@ def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict
                                 merged_data[mod].uns[sub_comp] = {
                                     k: v for k, v in components_dict[mod][component][sub_comp].items()
                                 }
+                        elif "int" in uns_type or "float" in uns_type:
+                            num_set = set(components_dict[mod][component][sub_comp].values())
+                            if len(num_set) == 1:
+                                merged_data[mod].uns[sub_comp] = num_set.pop()
+                            else:
+                                merged_data[mod].uns[sub_comp] = {
+                                    k: v for k, v in components_dict[mod][component][sub_comp].items()
+                                }
+                        elif "NoneType" in uns_type:
+                            none_set = set(components_dict[mod][component][sub_comp].values())
+                            if len(none_set) == 1:
+                                merged_data[mod].uns[sub_comp] = none_set.pop()
+                            else:
+                                merged_data[mod].uns[sub_comp] = {
+                                    k: v for k, v in components_dict[mod][component][sub_comp].items()
+                                }
 
     return merged_data
 
