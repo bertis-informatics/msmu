@@ -56,13 +56,11 @@ def to_peptide(
         data: pd.DataFrame = summ.rank_(data=data, rank_method=rank_method)
         data: pd.DataFrame = summ.filter_by_rank(data=data, top_n=top_n)
 
-    summarised_data: pd.DataFrame = summ.summarise_data(
-        data=data, sum_method=sum_method
-    )
+    summarised_data: pd.DataFrame = summ.summarise_data(data=data, sum_method=sum_method)
     peptide_adata: pd.DataFrame = summ.data2adata(data=summarised_data)
 
     # apply filtering for peptide values with no evidence in sage lfq
-    if label == "lfq" and search_engine == "Sage":
+    if label == "label_free" and search_engine == "sage":
         peptide_arr: pd.DataFrame = mdata["peptide"].to_df().T.copy()
         intersect_idx = peptide_arr.index.intersection(peptide_adata.var_names)
         peptide_arr: pd.DataFrame = peptide_arr.loc[intersect_idx].T
@@ -73,24 +71,15 @@ def to_peptide(
         msms_evidence: pd.DataFrame = adata.var[["peptide", "filename"]]
 
         msms_evidence["evidence"] = 1
-        msms_evidence = msms_evidence.groupby(
-            ["peptide", "filename"], as_index=False, observed=False
-        ).agg("sum")
-        msms_evidence = msms_evidence.pivot(
-            index="peptide", columns="filename", values="evidence"
-        )
+        msms_evidence = msms_evidence.groupby(["peptide", "filename"], as_index=False, observed=False).agg("sum")
+        msms_evidence = msms_evidence.pivot(index="peptide", columns="filename", values="evidence")
         msms_evidence = msms_evidence.rename_axis(index=None, columns=None)
 
-        rename_dict: dict = {
-            filename: sample
-            for filename, sample in zip(mdata.obs["tag"], mdata.obs_names)
-        }
+        rename_dict: dict = {filename: sample for filename, sample in zip(mdata.obs["tag"], mdata.obs_names)}
         msms_evidence = msms_evidence.rename(columns=rename_dict)
 
         # add no evidence obs columns
-        dropped_cols: list[str] = list(
-            set(mdata.obs_names) - set(msms_evidence.columns)
-        )
+        dropped_cols: list[str] = list(set(mdata.obs_names) - set(msms_evidence.columns))
         for cols in dropped_cols:
             msms_evidence[cols] = np.nan
 
@@ -102,17 +91,13 @@ def to_peptide(
         # 0 means no evidence, 1 means evidence
         msms_evidence = msms_evidence.notna().astype(int).replace({0: np.nan})
 
-        msms_evidence = msms_evidence.loc[
-            peptide_adata.var_names, peptide_adata.obs_names
-        ]
+        msms_evidence = msms_evidence.loc[peptide_adata.var_names, peptide_adata.obs_names]
 
         # assign msms_evidence to a layer of adata (peptide_adata)
         peptide_adata.layers["msms_evidence"] = msms_evidence.values.T
 
         # filter out quantity without MSMS evidence if keep_mbr_only is False
-        peptide_adata.X = np.multiply(peptide_adata.X, msms_evidence.values.T).astype(
-            float
-        )
+        peptide_adata.X = np.multiply(peptide_adata.X, msms_evidence.values.T).astype(float)
 
     peptide_adata.uns["level"] = "peptide"
 
@@ -134,7 +119,7 @@ def to_peptide(
 def to_protein(
     mdata,
     protein_col="protein_group",
-    sum_method: Literal["median", "mean", "sum"]="median",
+    sum_method: Literal["median", "mean", "sum"] = "median",
     top_n: int | None = None,
     rank_method: str = "max_intensity",
     min_n_peptides=1,
@@ -174,7 +159,7 @@ def to_protein(
     summarised_data: pd.DataFrame = summ.filter_n_min_peptides(data=summarised_data, min_n_peptides=min_n_peptides)
 
     protein_adata: ad.AnnData = summ.data2adata(data=summarised_data)
-    
+
     protein_mdata = mdata.copy()
     protein_mdata: md.MuData = add_modality(
         mdata=protein_mdata, adata=protein_adata, mod_name=summ._to, parent_mods=[from_]
