@@ -53,6 +53,13 @@ class SageReader(SearchResultReader):
             return 1
         else:
             return 0
+        
+    @staticmethod
+    def _label_possible_contaminant(proteins: str) -> int:
+        if "contam_" in proteins:
+            return 1
+        else:
+            return 0
 
     @staticmethod
     def _extract_scan_number(scan_str: str) -> int:
@@ -68,8 +75,7 @@ class SageReader(SearchResultReader):
         feature_df["scan_num"] = feature_df["scannr"].apply(self._extract_scan_number)
         feature_df["stripped_peptide"] = feature_df["peptide"].apply(self._make_stripped_peptide)
         feature_df["decoy"] = feature_df["label"].apply(self._label_decoy)
-        feature_df["contaminant"] = 0
-        feature_df.loc[feature_df["proteins"].str.contains("contam_"), "contaminant"] = 1
+        feature_df["contaminant"] = feature_df["proteins"].apply(self._label_possible_contaminant)
 
         return feature_df.copy()
 
@@ -99,8 +105,7 @@ class TmtSageReader(SageReader):
 
         return quantification_df
 
-    @staticmethod
-    def _make_rename_dict_for_obs(quantification_df: pd.DataFrame) -> dict:
+    def _make_rename_dict_for_obs(self, quantification_df: pd.DataFrame) -> dict:
         plex = len(quantification_df.columns)
         tmt_labels = getattr(label_info, f"Tmt{plex}").label
         sage_labels = [f"tmt_{x}" for x in range(1, plex + 1)]

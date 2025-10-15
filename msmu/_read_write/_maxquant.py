@@ -112,7 +112,6 @@ class MaxTmtReader(MaxQuantReader):
 
         quant_cols = [x for x in feature_df.columns if x.startswith("Reporter intensity corrected")]
         split_quant_df = split_feature_df[quant_cols]
-        split_quant_df = split_quant_df.replace(0, np.nan)
 
         split_feature_df = split_feature_df.drop(columns=quant_cols)
 
@@ -148,7 +147,6 @@ class MaxLfqReader(MaxQuantReader):
             aggfunc="sum"
         )
         pep_quant_df = pep_quant_df.rename_axis(index=None, columns=None)
-        pep_quant_df = pep_quant_df.replace(0, np.nan)
 
         return pep_quant_df
 

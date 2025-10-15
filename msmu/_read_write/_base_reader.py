@@ -18,6 +18,7 @@ from .._utils.peptide import (
     _make_stripped_peptide,
 )
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -114,7 +115,6 @@ class MuDataInput:
     raw_feature_df: pd.DataFrame
     norm_feature_df: pd.DataFrame
     norm_quant_df: pd.DataFrame | None
-    search_result: pd.DataFrame
     search_config: dict
 
 
@@ -235,7 +235,7 @@ class SearchResultReader:
         raise NotImplementedError("_make_needed_columns_for_feature method needs to be implemented in inherited class.")
 
     def _normalise_feature_df(self, feature_df:pd.DataFrame) -> pd.DataFrame:
-        norm_feature_df = self._make_needed_columns_for_feature(feature_df) # this will be method overriden in inherited class
+        norm_feature_df = self._make_needed_columns_for_feature(feature_df.copy()) # this will be method overriden in inherited class
         norm_feature_df = norm_feature_df.rename(columns=self._feature_rename_dict)
         norm_feature_df = self._make_unique_index(norm_feature_df)
         
@@ -250,7 +250,7 @@ class SearchResultReader:
         return dict()
 
     def _normalise_quantification_df(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        norm_quant_df = self._make_needed_columns_for_quantification(quantification_df) # this will be method overriden in inherited classs
+        norm_quant_df = self._make_needed_columns_for_quantification(quantification_df.copy()) # this will be method overriden in inherited classs
         quant_rename_dict = self._make_rename_dict_for_obs(norm_quant_df) # this will be method overriden in inherited class
         norm_quant_df = norm_quant_df.rename(columns=quant_rename_dict)
         norm_quant_df = norm_quant_df.replace(0, np.nan)
@@ -265,24 +265,25 @@ class SearchResultReader:
         """
         raw_dict:dict = self._import_search_results()
         raw_feature_df:pd.DataFrame = raw_dict["feature"].copy()
-        feature_df:pd.DataFrame = self._normalise_feature_df(raw_feature_df)
-        raw_feature_df.index = feature_df.index
-        if self.search_settings.feat_quant_merged:
-            feature_df, quantification_df = self._split_merged_feature_quantification(feature_df)
-            logger.info(f"Feature and quantification data split: {feature_df.shape}, {quantification_df.shape}")
-            quantification_df = self._normalise_quantification_df(quantification_df)
-        elif self.search_settings.quantification is not None:
-            raw_quantification_df:pd.DataFrame = raw_dict["quantification"].copy()
-            quantification_df:pd.DataFrame | None = self._normalise_quantification_df(raw_quantification_df)
-        else:
-            quantification_df = None
 
-        feature_df = feature_df.loc[:, self.used_feature_cols]        
+        norm_feat_df:pd.DataFrame = self._normalise_feature_df(raw_feature_df)
+        if self.search_settings.feat_quant_merged:
+            feature_df, quantification_df = self._split_merged_feature_quantification(norm_feat_df)
+            logger.info(f"Feature and quantification data split: {feature_df.shape}, {quantification_df.shape}")
+        else:
+            feature_df = norm_feat_df.copy()
+            quantification_df = raw_dict["quantification"].copy() if self.search_settings.quantification is not None else None
+
+        norm_feat_df = norm_feat_df.loc[:, self.used_feature_cols]
+
+        raw_feature_df.index = norm_feat_df.index
+
+        norm_quant_df = self._normalise_quantification_df(quantification_df) if quantification_df is not None else None
+
         mudata_input:MuDataInput = MuDataInput(
-            raw_feature_df=raw_feature_df,
-            norm_feature_df=feature_df,
-            norm_quant_df=quantification_df,
-            search_result=raw_feature_df,
+            raw_feature_df=raw_feature_df, # varm["search_result"]
+            norm_feature_df=norm_feat_df, # var
+            norm_quant_df=norm_quant_df, # X
             search_config=raw_dict.get("config", dict()) if "config" in raw_dict else dict(),
         )
 
@@ -306,9 +307,9 @@ class SearchResultReader:
         # both feature and quantification are available in the same level
         if self.search_settings.quantification_level == self.search_settings.feature_level:
             common_index = mudata_input.norm_feature_df.index.intersection(mudata_input.norm_quant_df.index)
-            mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T.astype(np.float32))
+            mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T)
             mod_adata.var = mudata_input.norm_feature_df.loc[common_index, :]
-            mod_adata.varm["search_result"] = mudata_input.search_result.loc[common_index, :]
+            mod_adata.varm["search_result"] = mudata_input.raw_feature_df.loc[common_index, :]
             mod_adata = self._update_default_adata_uns(mod_adata, mudata_input.search_config)
 
             if self.search_settings.quantification_level in ["psm", "precursor"]:
@@ -324,7 +325,7 @@ class SearchResultReader:
                 )
             mod_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
             mod_adata.var = mudata_input.norm_feature_df
-            mod_adata.varm["search_result"] = mudata_input.search_result
+            mod_adata.varm["search_result"] = mudata_input.raw_feature_df
             mod_adata = self._update_default_adata_uns(mod_adata, mudata_input.search_config)
 
             adata_dict["feature"] = mod_adata
@@ -338,7 +339,7 @@ class SearchResultReader:
                 )
             feat_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
             feat_adata.var = mudata_input.norm_feature_df
-            feat_adata.varm["search_result"] = mudata_input.search_result
+            feat_adata.varm["search_result"] = mudata_input.raw_feature_df
             feat_adata = self._update_default_adata_uns(feat_adata, mudata_input.search_config)
 
             if self.search_settings.feature_level in ["psm", "precursor"]:
