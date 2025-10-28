@@ -3,8 +3,9 @@ import itertools
 import mudata as md
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_categorical_dtype
 
-from ._utils import DEFAULT_COLUMN
+from ._utils import _DEFAULT_OBS_PRIORITY, resolve_obs_column
 
 
 class PlotData:
@@ -17,6 +18,7 @@ class PlotData:
         self.mdata = mdata
         self.modality = modality
         self.kwargs = kwargs
+        self._default_obs_column = resolve_obs_column(self.mdata, kwargs.get("obs_column"))
 
     def _get_data(self):
         return self.mdata[self.modality].to_df().copy()
@@ -30,10 +32,18 @@ class PlotData:
 
         return pd.concat([var_df, varm_df], axis=1)
 
-    def _get_obs(self, obs_column: str = DEFAULT_COLUMN):
+    def _resolve_obs_column(self, obs_column: str | None = None) -> str:
+        if obs_column is None:
+            return self._default_obs_column
+        return resolve_obs_column(self.mdata, obs_column)
+
+    def _get_obs(self, obs_column: str):
+        obs_column = self._resolve_obs_column(obs_column)
         obs_df = self.mdata.obs.copy()
         if "condition" in obs_df.columns:
             obs_df = obs_df.sort_values(["condition", obs_column])
+        if not is_categorical_dtype(obs_df[obs_column]):
+            obs_df[obs_column] = obs_df[obs_column].astype("category")
         obs_df[obs_column] = obs_df[obs_column].cat.remove_unused_categories()
         obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(obs_df[obs_column].values.tolist())
 
@@ -43,7 +53,7 @@ class PlotData:
         self,
         groupby: str,
         name: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
@@ -92,7 +102,7 @@ class PlotData:
     def _prep_id_data(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ):
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
@@ -114,7 +124,7 @@ class PlotData:
     def _prep_intensity_data_hist(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
         bin_info: dict | None = None,
     ) -> pd.DataFrame:
         if bin_info is None:
@@ -181,7 +191,7 @@ class PlotData:
     def _prep_intensity_data(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs_df = self._get_obs(obs_column)
         orig_df = self.mdata[self.modality].to_df().T
@@ -196,7 +206,7 @@ class PlotData:
     def _prep_intensity_data_box(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs_df = self._get_obs(obs_column)
         orig_df = self.mdata[self.modality].to_df().T
@@ -212,7 +222,7 @@ class PlotData:
 
     def _prep_missingness_data(
         self,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs = self._get_obs(obs_column)
         n_sample = obs.shape[0]
@@ -238,7 +248,7 @@ class PlotData:
         modality: str,
         groupby: str,
         pc_columns: list[str],
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs = self._get_obs(obs_column)
 
@@ -254,7 +264,7 @@ class PlotData:
         modality: str,
         groupby: str,
         umap_columns: list[str],
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs = self._get_obs(obs_column)
 
@@ -357,7 +367,7 @@ class PlotData:
     def _prep_peptide_length_data(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ):
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
@@ -382,7 +392,7 @@ class PlotData:
     def _prep_peptide_length_data_vln(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ):
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
@@ -404,7 +414,7 @@ class PlotData:
     def _prep_missed_cleavage(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ):
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
@@ -428,8 +438,8 @@ class PlotData:
 
     def _prep_upset_data(
         self,
-        groupby: str = DEFAULT_COLUMN,
-        obs_column: str = DEFAULT_COLUMN,
+        groupby: str,
+        obs_column: str,
     ):
         orig_df = self._get_data()
         obs_df = self._get_obs(obs_column)
@@ -449,7 +459,7 @@ class PlotData:
 
         return combination_counts, item_counts
 
-    def _prep_correlation_data(self, groupby: str, obs_column: str = DEFAULT_COLUMN):
+    def _prep_correlation_data(self, groupby: str, obs_column: str):
         orig_df = self._get_data()
         obs_df = self._get_obs(obs_column)
         corrs_df = orig_df.groupby(obs_df[groupby], observed=True).median().T.corr(method="pearson")

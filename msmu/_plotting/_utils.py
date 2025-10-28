@@ -3,8 +3,51 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
+from pandas.api.types import is_categorical_dtype
 
-DEFAULT_COLUMN = "sample"
+_FALLBACK_COLUMN = "__obs_idx__"
+_DEFAULT_OBS_PRIORITY = ("sample", "filename", _FALLBACK_COLUMN)
+
+
+def resolve_obs_column(
+    mdata: md.MuData,
+    requested: str | None = None,
+) -> str:
+    """
+    Determine a usable observation column for grouping/plotting.
+    Falls back through a priority list and finally creates a categorical
+    column from the obs index when nothing suitable exists.
+    """
+    # Allow MuData to specify a default preference via uns
+    plotting_defaults = mdata.uns.get("plotting", {}) if hasattr(mdata, "uns") else {}
+    preferred = plotting_defaults.get("default_obs_column")
+
+    candidates: list[str] = []
+    for name in (requested, preferred, *_DEFAULT_OBS_PRIORITY):
+        if name and name not in candidates:
+            candidates.append(name)
+
+    for name in candidates:
+        if name in mdata.obs.columns:
+            return _ensure_obs_categorical(mdata, name)
+
+    # Create a stable fallback using obs index
+    fallback_name = requested or preferred or _FALLBACK_COLUMN
+    if fallback_name in mdata.obs.columns:
+        return _ensure_obs_categorical(mdata, fallback_name)
+
+    fallback_values = pd.Index(mdata.obs.index).map(str)
+    mdata.obs[fallback_name] = pd.Categorical(fallback_values)
+    return _ensure_obs_categorical(mdata, fallback_name)
+
+
+def _ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
+    """Cast the obs column to categorical in-place if needed."""
+    if column not in mdata.obs.columns:
+        raise KeyError(f"Column '{column}' not found in observations.")
+    if not is_categorical_dtype(mdata.obs[column]):
+        mdata.obs[column] = mdata.obs[column].astype("category")
+    return column
 
 
 def _set_color(
@@ -12,36 +55,69 @@ def _set_color(
     mdata: md.MuData,
     modality: str,
     colorby: str,
+    groupby_column: str,
     template: str = None,
 ):
+    groupby_column = resolve_obs_column(mdata, groupby_column)
+
+    # Ensure color column exists and is categorical
+    if colorby not in mdata.obs.columns:
+        raise KeyError(f"Column '{colorby}' not found in observations.")
+    color_series = mdata.obs[colorby].copy()
+
+    if not is_categorical_dtype(color_series):
+        color_series = color_series.astype("category")
+        mdata.obs[colorby] = color_series
+    else:
+        mdata.obs[colorby] = color_series.cat.remove_unused_categories()
+
+    group_series = mdata.obs[groupby_column].copy()
+    if not is_categorical_dtype(group_series):
+        group_series = group_series.astype("category")
+        mdata.obs[groupby_column] = group_series
+    else:
+        mdata.obs[groupby_column] = group_series.cat.remove_unused_categories()
+
     # Get categories
-    categories = mdata[modality].obs[colorby]
+    categories = color_series.cat.categories
 
     # Get colors
-    colors = pio.templates[template].layout["colorway"]
+    template_key = template if template in pio.templates else pio.templates.default
+    if isinstance(template_key, (list, tuple)):
+        template_key = template_key[0]
+    if template_key not in pio.templates:
+        template_key = "plotly"
+    colors = (
+        pio.templates[template_key].layout["colorway"]
+        if "colorway" in pio.templates[template_key].layout
+        else pio.templates["plotly"].layout["colorway"]
+    )
 
-    colormap_dict = {
-        val: colors[i % len(colors)] for i, val in enumerate(categories.unique())
-    }
-    colormap = categories.map(colormap_dict)
+    colormap_dict = {val: colors[i % len(colors)] for i, val in enumerate(categories)}
+    group_to_category: dict[str, str] = {}
+    group_to_color: dict[str, str] = {}
+    for group_value, category_value in zip(group_series, color_series):
+        if pd.isna(group_value) or pd.isna(category_value):
+            continue
+        if group_value not in group_to_category:
+            group_to_category[group_value] = category_value
+            group_to_color[group_value] = colormap_dict[category_value]
 
     # Update figure
     for i, trace in enumerate(fig.data):
+        trace_name = getattr(trace, "name", None)
+        color_value = group_to_color.get(trace_name)
         if hasattr(trace, "marker"):
-            trace.marker.color = colormap[trace.name]
+            trace.marker.color = color_value
         if hasattr(trace, "line"):
-            trace.line.color = colormap[trace.name]
+            trace.line.color = color_value
 
-    order_dict = {
-        value: index for index, value in enumerate(mdata.obs[colorby].unique())
-    }
+    order_dict = {value: index for index, value in enumerate(categories)}
     fig.data = tuple(
         sorted(
             fig.data,
             key=lambda trace: order_dict.get(
-                mdata.obs.loc[mdata.obs[DEFAULT_COLUMN] == trace.name][colorby].values[
-                    0
-                ],
+                group_to_category.get(getattr(trace, "name", None)),
                 float("inf"),
             ),
         )

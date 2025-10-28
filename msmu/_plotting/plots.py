@@ -5,7 +5,18 @@ import numpy as np
 from .__pdata import PlotData
 from .__ptypes import *
 from ._template import DEFAULT_TEMPLATE
-from ._utils import DEFAULT_COLUMN, _get_pc_cols, _get_umap_cols, _set_color
+from ._utils import _DEFAULT_OBS_PRIORITY, _get_pc_cols, _get_umap_cols, _set_color, resolve_obs_column
+
+
+def _resolve_plot_columns(
+    mdata: md.MuData,
+    groupby: str | None,
+    obs_column: str | None,
+) -> tuple[str, str]:
+    resolved_obs = resolve_obs_column(mdata, obs_column)
+    resolved_groupby = groupby or resolved_obs
+
+    return resolved_groupby, resolved_obs
 
 
 def _apply_layout_overrides(fig: go.Figure, layout_kwargs: dict) -> go.Figure:
@@ -25,7 +36,9 @@ def _apply_color_if_needed(
     template: str,
 ) -> go.Figure:
     if (colorby is not None) and (groupby == obs_column):
-        return _set_color(fig, mdata, modality, colorby, template)
+        return _set_color(fig, mdata, modality, colorby, obs_column, template)
+    elif (colorby is not None) and (groupby != obs_column):
+        print("[Warning] 'colorby' is only applicable when 'groupby' is not set. Ignoring 'colorby' parameter.")
     return fig
 
 
@@ -48,10 +61,12 @@ def format_modality(mdata: md.MuData, modality: str) -> str:
 def plot_charge(
     mdata: md.MuData,
     modality: str = "feature",
-    groupby: str = DEFAULT_COLUMN,
-    obs_column: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = "Number of PSMs by Charge State"
     xaxis_title = f"{groupby.capitalize()}s"
@@ -59,7 +74,7 @@ def plot_charge(
     hovertemplate = "Charge: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotStackedBar(
         data=data._prep_var_data(groupby, "charge", obs_column=obs_column),
         x=groupby,
@@ -88,12 +103,14 @@ def plot_charge(
 def plot_id(
     mdata: md.MuData,
     modality: str,
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     colorby: str | None = None,
     template: str = DEFAULT_TEMPLATE,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = f"Number of {format_modality(mdata, modality)}s"
     xaxis_title = f"{groupby.capitalize()}s"
@@ -101,7 +118,7 @@ def plot_id(
     hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y:,d}}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     if groupby != "fraction":
         plot = PlotBar(
             data=data._prep_id_data(groupby, obs_column=obs_column),
@@ -201,26 +218,28 @@ def plot_id_fraction(
 def plot_intensity(
     mdata: md.MuData,
     modality: str,
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     colorby: str | None = None,
     ptype: str = "hist",
     template: str = DEFAULT_TEMPLATE,
     bins: int = 30,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = f"{format_modality(mdata, modality)} Intensity Distribution"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
         yaxis_title = f"Number of {format_modality(mdata, modality)}s"
         bin_info = data._get_bin_info(data._get_data(), bins)
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
-            data=data._prep_intensity_data_hist(groupby, bins, obs_column=obs_column, bin_info=bin_info),
+            data=data._prep_intensity_data_hist(groupby, obs_column=obs_column, bin_info=bin_info),
             x="center",
             y="count",
             name="name",
@@ -232,14 +251,14 @@ def plot_intensity(
         xaxis_title = f"{groupby.capitalize()}s"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
-        plot = PlotBox(data=data._prep_intensity_data_box(groupby))
+        plot = PlotBox(data=data._prep_intensity_data_box(groupby, obs_column=obs_column))
         fig = plot.figure()
     elif ptype in ["vln", "violin"]:
         xaxis_title = f"{groupby.capitalize()}s"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
         plot = PlotViolin(
-            data=data._prep_intensity_data(groupby),
+            data=data._prep_intensity_data(groupby, obs_column=obs_column),
             x=groupby,
             y="_value",
             name=groupby,
@@ -284,9 +303,11 @@ def plot_intensity(
 def plot_missingness(
     mdata: md.MuData,
     modality: str,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    obs_column = resolve_obs_column(mdata, obs_column)
+
     # Set titles
     title_text = f"{format_modality(mdata, modality)} Level"
     xaxis_title = "Data Completeness (%)"
@@ -294,7 +315,7 @@ def plot_missingness(
     hovertemplate = f"Data Completeness ≤ %{{x:.2f}}%<br>{yaxis_title} : %{{y:.2f}}% (%{{meta}})<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotScatter(
         data=data._prep_missingness_data(obs_column=obs_column),
         x="missingness",
@@ -325,13 +346,15 @@ def plot_missingness(
 def plot_pca(
     mdata: md.MuData,
     modality: str = "protein",
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     colorby: str = None,
     template: str = DEFAULT_TEMPLATE,
     pcs: tuple[int, int] | list[int] = (1, 2),
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Get data
     pcs, pc_columns = _get_pc_cols(mdata, modality, pcs)
     variances = mdata[modality].uns["pca"]["variance_ratio"]
@@ -343,7 +366,7 @@ def plot_pca(
     hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y}}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotScatter(
         data=data._prep_pca_data(modality, groupby, pc_columns, obs_column=obs_column),
         x=pc_columns[0],
@@ -366,6 +389,7 @@ def plot_pca(
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         legend=dict(
+            title=f"{groupby.capitalize()}s",
             orientation="h",
             xanchor="right",
             yanchor="bottom",
@@ -414,7 +438,7 @@ def plot_purity(
         bin_info = data._get_bin_info(purity_data["purity"], bins)
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
-            data=data._prep_purity_data_hist(purity_data, groupby, bins, bin_info=bin_info),
+            data=data._prep_purity_data_hist(purity_data, groupby, bin_info=bin_info),
             x="center",
             y="count",
             name="name",
@@ -510,12 +534,14 @@ def plot_purity(
 def plot_umap(
     mdata: md.MuData,
     modality: str = "protein",
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     colorby: str = None,
     template: str = DEFAULT_TEMPLATE,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Get required data
     umap_columns = _get_umap_cols(mdata, modality)
 
@@ -526,7 +552,7 @@ def plot_umap(
     hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y}}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotScatter(
         data=data._prep_umap_data(modality, groupby, umap_columns, obs_column=obs_column),
         x=umap_columns[0],
@@ -549,6 +575,7 @@ def plot_umap(
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         legend=dict(
+            title=f"{groupby.capitalize()}s",
             orientation="h",
             xanchor="right",
             yanchor="bottom",
@@ -575,15 +602,16 @@ def plot_umap(
 
 def plot_peptide_length(
     mdata: md.MuData,
-    groupby: str = DEFAULT_COLUMN,
-    colorby: str = None,
+    groupby: str | None = None,
+    colorby: str | None = None,
     template: str = DEFAULT_TEMPLATE,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     ptype: str = "box",
     **kwargs,
 ) -> go.Figure:
     # Set mods
     modality: str = "peptide"
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
 
     # Set titles
     title_text = "Peptide Length Distribution"
@@ -592,11 +620,11 @@ def plot_peptide_length(
 
     # Draw plot
     if ptype in ["box", "boxplot"]:
-        data = PlotData(mdata, modality=modality)
+        data = PlotData(mdata, modality=modality, obs_column=obs_column)
         plot = PlotBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
         fig = plot.figure()
     elif ptype in ["vln", "violin"]:
-        data = PlotData(mdata, modality=modality)
+        data = PlotData(mdata, modality=modality, obs_column=obs_column)
         plot = PlotViolin(
             data=data._prep_peptide_length_data_vln(groupby, obs_column=obs_column),
             x=groupby,
@@ -642,10 +670,12 @@ def plot_peptide_length(
 def plot_missed_cleavage(
     mdata: md.MuData,
     modality: str = "feature",
-    groupby: str = DEFAULT_COLUMN,
-    obs_column: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = "Number of PSMs by Missed Cleavages"
     xaxis_title = f"{groupby.capitalize()}s"
@@ -653,7 +683,7 @@ def plot_missed_cleavage(
     hovertemplate = "Missed Cleavages: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotStackedBar(
         data=data._prep_var_data(groupby, "missed_cleavages", obs_column=obs_column),
         x=groupby,
@@ -683,19 +713,22 @@ def plot_upset(
     mdata: md.MuData,
     modality: str = "protein",
     subset: str = None,
-    subset_column: str = DEFAULT_COLUMN,
-    groupby: str = DEFAULT_COLUMN,
-    obs_column: str = DEFAULT_COLUMN,
+    subset_column: str | None = None,
+    groupby: str | None = None,
+    obs_column: str | None = None,
     **kwargs,
 ):
-    # Set titles
-    title_text = f"Intersection of Proteins among {groupby.capitalize()}s"
+    subset_column = resolve_obs_column(mdata, subset_column)
 
     if subset is not None:
         mdata = mdata[mdata.obs[subset_column] == subset].copy()
 
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
+    title_text = f"Intersection of Proteins among {groupby.capitalize()}s"
+
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotUpset(
         data=data._prep_upset_data(groupby, obs_column=obs_column),
     )
@@ -714,17 +747,18 @@ def plot_upset(
 
 def plot_correlation(
     mdata: md.MuData,
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     modality: str = "protein",
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ):
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
 
     # Set titles
     title_text = "Correlation Heatmap"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotHeatmap(
         data=data._prep_correlation_data(groupby, obs_column=obs_column),
         hovertemplate="<b>%{x} / %{y}</b><br>Pearson's <i>r</i> : %{z:.4f}<extra></extra>",
@@ -802,10 +836,12 @@ def plot_purity_metrics(
 def plot_tolerable_termini(
     mdata: md.MuData,
     modality: str = "feature",
-    groupby: str = DEFAULT_COLUMN,
-    obs_column: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = "Number of PSMs by tolerable termini"
     xaxis_title = f"{groupby.capitalize()}s"
@@ -813,7 +849,7 @@ def plot_tolerable_termini(
     hovertemplate = "Tolerable termini: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot_data = data._prep_var_data(groupby, "semi_enzymatic", obs_column=obs_column)
     plot_data["semi_enzymatic"] = plot_data["semi_enzymatic"].map({0: "fully", 1: "semi"})
     plot = PlotStackedBar(
