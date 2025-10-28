@@ -40,7 +40,7 @@ def resolve_obs_column(
         return _ensure_obs_categorical(mdata, fallback_name)
 
     fallback_values = pd.Index(mdata.obs.index).map(str)
-    mdata.obs[fallback_name] = pd.Categorical(fallback_values)
+    mdata.obs[fallback_name] = pd.Categorical(fallback_values, categories=pd.unique(fallback_values))
     return _ensure_obs_categorical(mdata, fallback_name)
 
 
@@ -49,7 +49,7 @@ def _ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
     if column not in mdata.obs.columns:
         raise KeyError(f"Column '{column}' not found in observations.")
     if not is_categorical_dtype(mdata.obs[column]):
-        mdata.obs[column] = mdata.obs[column].astype("category")
+        mdata.obs[column] = pd.Categorical(mdata.obs[column], categories=pd.unique(mdata.obs[column]))
     return column
 
 
