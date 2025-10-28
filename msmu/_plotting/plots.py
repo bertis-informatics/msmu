@@ -11,7 +11,7 @@ from ._utils import DEFAULT_COLUMN, _get_pc_cols, _get_umap_cols, _set_color
 
 def format_modality(mdata: md.MuData, modality: str) -> str:
     if modality == "feature":
-        if mdata['feature'].uns['search_engine'] == "Diann":
+        if mdata["feature"].uns["search_engine"] == "Diann":
             return "Precursor"
         else:
             return "PSM"
@@ -192,15 +192,15 @@ def plot_intensity(
     title_text = f"{format_modality(mdata, modality)} Intensity Distribution"
 
     # Draw plot
+    data = PlotData(mdata, modality=modality)
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
         yaxis_title = f"Number of {format_modality(mdata, modality)}s"
-
-        data = PlotData(mdata, modality=modality)
-        bin_info = data._get_bin_info(data._get_data(), bins)
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
+
+        bin_info = data._get_bin_info(data._get_data(), bins)
         plot = PlotHistogram(
-            data=data._prep_intensity_data_hist(groupby, bins, obs_column=obs_column),
+            data=data._prep_intensity_data_hist(groupby, obs_column=obs_column, bin_info=bin_info),
             x="center",
             y="count",
             name="name",
@@ -212,14 +212,12 @@ def plot_intensity(
         xaxis_title = f"{groupby.capitalize()}s"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
-        data = PlotData(mdata, modality=modality)
         plot = PlotBox(data=data._prep_intensity_data_box(groupby))
         fig = plot.figure()
     elif ptype in ["vln", "violin"]:
         xaxis_title = f"{groupby.capitalize()}s"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
-        data = PlotData(mdata, modality=modality)
         plot = PlotViolin(
             data=data._prep_intensity_data(groupby),
             x=groupby,
@@ -380,16 +378,16 @@ def plot_purity(
     threshold = [v["filter_purity"] for k, v in mdata[modality].uns["filter"].items()][0]
 
     # Draw plot
+    data = PlotData(mdata, modality=modality)
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Precursor Isolation Purity"
         yaxis_title = "Number of PSMs"
-
-        data = PlotData(mdata, modality=modality)
-        data._prep_purity_data(groupby)
-        bin_info = data._get_bin_info(data.X["purity"], bins)
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
+
+        purity_data = data._prep_purity_data(groupby)
+        bin_info = data._get_bin_info(purity_data["purity"], bins)
         plot = PlotHistogram(
-            data=data._prep_purity_data_hist(groupby, bins),
+            data=data._prep_purity_data_hist(purity_data, groupby, bin_info=bin_info),
             x="center",
             y="count",
             name="name",
@@ -397,7 +395,7 @@ def plot_purity(
         )
         fig = plot.figure()
 
-        if threshold is not np.nan:
+        if not np.isnan(threshold):
             fig.add_vline(
                 x=threshold,
                 line_dash="dash",
@@ -417,11 +415,10 @@ def plot_purity(
         xaxis_title = "Raw Filenames"
         yaxis_title = "Precursor Isolation Purity"
 
-        data = PlotData(mdata, modality=modality)
         plot = PlotBox(data=data._prep_purity_data_box(groupby))
         fig = plot.figure()
 
-        if threshold is not np.nan:
+        if not np.isnan(threshold):
             fig.add_hline(
                 y=threshold,
                 line_dash="dash",
@@ -438,7 +435,6 @@ def plot_purity(
         xaxis_title = "Raw Filenames"
         yaxis_title = "Precursor Isolation Purity"
 
-        data = PlotData(mdata, modality=modality)
         plot = PlotViolin(
             data=data._prep_purity_data_vln(groupby),
             x=groupby,
@@ -454,7 +450,7 @@ def plot_purity(
             meanline=dict(visible=True),
         )
 
-        if threshold is not np.nan:
+        if not np.isnan(threshold):
             fig.add_hline(
                 y=threshold,
                 line_dash="dash",
@@ -668,7 +664,7 @@ def plot_upset(
     # Draw plot
     data = PlotData(mdata, modality=modality)
     plot = PlotUpset(
-        data=data._prep_upset_data(groupby=groupby, obs_column=obs_column),
+        data=data._prep_upset_data(groupby, obs_column=obs_column),
     )
     fig = plot.figure()
 
@@ -699,7 +695,7 @@ def plot_correlation(
     # Draw plot
     data = PlotData(mdata, modality=modality)
     plot = PlotHeatmap(
-        data=data._prep_correlation_data(obs_column=obs_column, groupby=groupby),
+        data=data._prep_correlation_data(groupby, obs_column=obs_column),
         hovertemplate="<b>%{x} / %{y}</b><br>Pearson's <i>r</i> : %{z:.4f}<extra></extra>",
     )
     fig = plot.figure()
@@ -791,8 +787,8 @@ def plot_tolerable_termini(
 
     # Draw plot
     data = PlotData(mdata, modality=modality)
-    plot_data = (data._prep_var_data(groupby, "semi_enzymatic", obs_column=obs_column))
-    plot_data['semi_enzymatic'] = plot_data['semi_enzymatic'].map({0: "fully", 1: "semi"})
+    plot_data = data._prep_var_data(groupby, "semi_enzymatic", obs_column=obs_column)
+    plot_data["semi_enzymatic"] = plot_data["semi_enzymatic"].map({0: "fully", 1: "semi"})
     plot = PlotStackedBar(
         data=plot_data,
         x=groupby,
