@@ -2,11 +2,31 @@ import mudata as md
 import plotly.graph_objects as go
 import numpy as np
 
-from .._utils import get_modality_dict
 from .__pdata import PlotData
 from .__ptypes import *
 from ._template import DEFAULT_TEMPLATE
 from ._utils import DEFAULT_COLUMN, _get_pc_cols, _get_umap_cols, _set_color
+
+
+def _apply_layout_overrides(fig: go.Figure, layout_kwargs: dict) -> go.Figure:
+    if layout_kwargs:
+        fig.update_layout(**layout_kwargs)
+    return fig
+
+
+def _apply_color_if_needed(
+    fig: go.Figure,
+    *,
+    mdata: md.MuData,
+    modality: str,
+    groupby: str,
+    colorby: str | None,
+    obs_column: str,
+    template: str,
+) -> go.Figure:
+    if (colorby is not None) and (groupby == obs_column):
+        return _set_color(fig, mdata, modality, colorby, template)
+    return fig
 
 
 def format_modality(mdata: md.MuData, modality: str) -> str:
@@ -60,9 +80,7 @@ def plot_charge(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -121,13 +139,18 @@ def plot_id(
     fig.update_traces(texttemplate="%{y:,d}")
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
@@ -170,9 +193,7 @@ def plot_id_fraction(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -196,11 +217,10 @@ def plot_intensity(
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
         yaxis_title = f"Number of {format_modality(mdata, modality)}s"
-        hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
-
         bin_info = data._get_bin_info(data._get_data(), bins)
+        hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
-            data=data._prep_intensity_data_hist(groupby, obs_column=obs_column, bin_info=bin_info),
+            data=data._prep_intensity_data_hist(groupby, bins, obs_column=obs_column, bin_info=bin_info),
             x="center",
             y="count",
             name="name",
@@ -245,13 +265,18 @@ def plot_intensity(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
@@ -292,9 +317,7 @@ def plot_missingness(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -352,13 +375,18 @@ def plot_pca(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
@@ -382,12 +410,11 @@ def plot_purity(
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Precursor Isolation Purity"
         yaxis_title = "Number of PSMs"
-        hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
-
         purity_data = data._prep_purity_data(groupby)
         bin_info = data._get_bin_info(purity_data["purity"], bins)
+        hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
-            data=data._prep_purity_data_hist(purity_data, groupby, bin_info=bin_info),
+            data=data._prep_purity_data_hist(purity_data, groupby, bins, bin_info=bin_info),
             x="center",
             y="count",
             name="name",
@@ -475,9 +502,7 @@ def plot_purity(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -532,13 +557,18 @@ def plot_umap(
         ),
     )
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
@@ -593,13 +623,18 @@ def plot_peptide_length(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
@@ -639,9 +674,7 @@ def plot_missed_cleavage(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -674,9 +707,7 @@ def plot_upset(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -712,9 +743,7 @@ def plot_correlation(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -765,9 +794,7 @@ def plot_purity_metrics(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -810,8 +837,6 @@ def plot_tolerable_termini(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
