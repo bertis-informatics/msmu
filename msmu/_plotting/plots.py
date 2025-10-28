@@ -69,7 +69,7 @@ def plot_charge(
 
     # Set titles
     title_text = "Number of PSMs by Charge State"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = "Number of PSMs"
     hovertemplate = "Charge: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
@@ -113,7 +113,7 @@ def plot_id(
 
     # Set titles
     title_text = f"Number of {format_modality(mdata, modality)}s"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = f"Number of {format_modality(mdata, modality)}s"
     hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y:,d}}<extra></extra>"
 
@@ -149,7 +149,7 @@ def plot_id(
         yaxis_title=yaxis_title,
         yaxis_tickformat=",d",
         showlegend=True,
-        legend=dict(title_text=f"{groupby.capitalize()}s"),
+        legend=dict(title_text=f"{groupby.capitalize()}"),
     )
 
     # Update traces
@@ -248,13 +248,13 @@ def plot_intensity(
         fig = plot.figure()
 
     elif ptype == "box":
-        xaxis_title = f"{groupby.capitalize()}s"
+        xaxis_title = f"{groupby.capitalize()}"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
         plot = PlotBox(data=data._prep_intensity_data_box(groupby, obs_column=obs_column))
         fig = plot.figure()
     elif ptype in ["vln", "violin"]:
-        xaxis_title = f"{groupby.capitalize()}s"
+        xaxis_title = f"{groupby.capitalize()}"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
         plot = PlotViolin(
@@ -280,7 +280,7 @@ def plot_intensity(
         yaxis_title=yaxis_title,
         yaxis_tickformat=",d",
         showlegend=True,
-        legend=dict(title_text=f"{groupby.capitalize()}s"),
+        legend=dict(title_text=f"{groupby.capitalize()}"),
     )
 
     # Update layout with kwargs
@@ -389,7 +389,7 @@ def plot_pca(
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         legend=dict(
-            title=f"{groupby.capitalize()}s",
+            title=f"{groupby.capitalize()}",
             orientation="h",
             xanchor="right",
             yanchor="bottom",
@@ -575,7 +575,7 @@ def plot_umap(
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         legend=dict(
-            title=f"{groupby.capitalize()}s",
+            title=f"{groupby.capitalize()}",
             orientation="h",
             xanchor="right",
             yanchor="bottom",
@@ -615,7 +615,7 @@ def plot_peptide_length(
 
     # Set titles
     title_text = "Peptide Length Distribution"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = "Length"
 
     # Draw plot
@@ -647,7 +647,7 @@ def plot_peptide_length(
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         showlegend=True,
-        legend=dict(title_text=f"{groupby.capitalize()}s"),
+        legend=dict(title_text=f"{groupby.capitalize()}"),
     )
 
     # Update layout with kwargs
@@ -678,7 +678,7 @@ def plot_missed_cleavage(
 
     # Set titles
     title_text = "Number of PSMs by Missed Cleavages"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = "Number of PSMs"
     hovertemplate = "Missed Cleavages: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
@@ -725,7 +725,7 @@ def plot_upset(
 
     groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
 
-    title_text = f"Intersection of Proteins among {groupby.capitalize()}s"
+    title_text = f"Intersection of Proteins among {groupby.capitalize()}"
 
     # Draw plot
     data = PlotData(mdata, modality=modality, obs_column=obs_column)
@@ -844,7 +844,7 @@ def plot_tolerable_termini(
 
     # Set titles
     title_text = "Number of PSMs by tolerable termini"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = "Number of PSMs"
     hovertemplate = "Tolerable termini: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 

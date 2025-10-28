@@ -30,9 +30,12 @@ def resolve_obs_column(
     for name in candidates:
         if name in mdata.obs.columns:
             return _ensure_obs_categorical(mdata, name)
+        elif (name == requested) or (name == preferred):
+            print(f"[INFO] Requested obs column '{name}' not found in observations.")
 
     # Create a stable fallback using obs index
     fallback_name = requested or preferred or _FALLBACK_COLUMN
+    print(f"[INFO] Using fallback obs column '{fallback_name}' created from index.")
     if fallback_name in mdata.obs.columns:
         return _ensure_obs_categorical(mdata, fallback_name)
 
