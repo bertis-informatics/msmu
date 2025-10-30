@@ -127,7 +127,7 @@ class PlotData:
 
         return prep_df
 
-    def _prep_var_vln(
+    def _prep_var_box(
         self,
         groupby: str,
         var_column: str,
@@ -151,7 +151,7 @@ class PlotData:
 
         return prep_df
 
-    def _prep_var_box(
+    def _prep_var_simple_box(
         self,
         groupby: str,
         var_column: str,

@@ -51,7 +51,7 @@ class PlotBar(PlotTypes):
         return super().figure(go.Bar, **kwargs)
 
 
-class PlotBox(PlotTypes):
+class PlotSimpleBox(PlotTypes):
     def figure(self, **kwargs):
         self.layouts.update(dict(xaxis=dict(showticklabels=False)))
         return super().figure(go.Box, **kwargs)
@@ -62,7 +62,7 @@ class PlotBox(PlotTypes):
         self.fig.update_traces(boxpoints=False, hoverinfo="y")
 
 
-class PlotRealBox(PlotTypes):
+class PlotBox(PlotTypes):
     def figure(self, **kwargs):
         self.layouts.update(dict(xaxis=dict(showticklabels=False)))
         return super().figure(go.Box, **kwargs)

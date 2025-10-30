@@ -251,7 +251,7 @@ def plot_intensity(
         xaxis_title = f"{groupby.capitalize()}"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
-        plot = PlotBox(data=data._prep_intensity_data_box(groupby, obs_column=obs_column))
+        plot = PlotSimpleBox(data=data._prep_intensity_data_box(groupby, obs_column=obs_column))
         fig = plot.figure()
     elif ptype in ["vln", "violin"]:
         xaxis_title = f"{groupby.capitalize()}"
@@ -466,7 +466,7 @@ def plot_purity(
         xaxis_title = "Raw Filenames"
         yaxis_title = "Precursor Isolation Purity"
 
-        plot = PlotBox(data=data._prep_purity_data_box(groupby))
+        plot = PlotSimpleBox(data=data._prep_purity_data_box(groupby))
         fig = plot.figure()
 
         if not np.isnan(threshold):
@@ -620,7 +620,8 @@ def plot_peptide_length(
 
     # Draw plot
     if ptype in ["box", "boxplot"]:
-        plot = PlotBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
+        data = PlotData(mdata, modality=modality, obs_column=obs_column)
+        plot = PlotSimpleBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
         fig = plot.figure()
     elif ptype in ["vln", "violin"]:
         data = PlotData(mdata, modality=modality, obs_column=obs_column)
@@ -883,7 +884,7 @@ def plot_var(
     groupby: str | None = None,
     var_column: str = None,
     obs_column: str | None = None,
-    plot_type: str | None = None,
+    ptype: str | None = None,
     bins: int = 30,
     **kwargs,
 ) -> go.Figure:
@@ -895,11 +896,11 @@ def plot_var(
 
     if pd.api.types.is_numeric_dtype(mdata[modality].var[var_column]):
         if len(mdata[modality].var[var_column].unique()) > 20:
-            plot_type = plot_type or "box"
+            ptype = ptype or "box"
         else:
-            plot_type = plot_type or "bar"
+            ptype = ptype or "stack"
     else:
-        plot_type = plot_type or "bar"
+        ptype = ptype or "stack"
 
     # Set titles
     title_text = f"Number of {modality_label}s by {column_label}"
@@ -909,7 +910,7 @@ def plot_var(
 
     # Draw plot
     data = PlotData(mdata, modality=modality, obs_column=obs_column)
-    if plot_type == "bar":
+    if ptype in ["stack", "stackd", "stacked_bar"]:
         plot_data = data._prep_var_bar(groupby, var_column, obs_column=obs_column)
         plot = PlotStackedBar(
             data=plot_data,
@@ -919,26 +920,38 @@ def plot_var(
             meta=var_column,
             hovertemplate=hovertemplate,
         )
-    elif plot_type == "box":
+        fig = plot.figure()
+    elif ptype in ["box"]:
         plot_data = data._prep_var_box(groupby, var_column, obs_column=obs_column)
-        plot = PlotBox(data=plot_data)
-    elif plot_type in ["realbox"]:
-        plot_data = data._prep_var_vln(groupby, var_column, obs_column=obs_column)
-        plot = PlotRealBox(
+        plot = PlotBox(
             data=plot_data,
             x=groupby,
             y=var_column,
             name=groupby,
         )
-    elif plot_type in ["vln", "violin"]:
-        plot_data = data._prep_var_vln(groupby, var_column, obs_column=obs_column)
+        fig = plot.figure(
+            boxpoints="suspectedoutliers",
+        )
+    elif ptype in ["simple_box", "simplebox"]:
+        plot_data = data._prep_var_simple_box(groupby, var_column, obs_column=obs_column)
+        plot = PlotSimpleBox(data=plot_data)
+        fig = plot.figure()
+    elif ptype in ["vln", "violin"]:
+        plot_data = data._prep_var_box(groupby, var_column, obs_column=obs_column)
         plot = PlotViolin(
             data=plot_data,
             x=groupby,
             y=var_column,
             name=groupby,
         )
-    elif plot_type in ["hist", "histogram"]:
+        fig = plot.figure(
+            spanmode="hard",
+            points="suspectedoutliers",
+            marker=dict(line=dict(outlierwidth=0)),
+            box=dict(visible=True),
+            meanline=dict(visible=True),
+        )
+    elif ptype in ["hist", "histogram"]:
         bin_info = data._get_bin_info(data._get_var()[var_column], bins)
         plot_data = data._prep_var_hist(groupby, var_column, obs_column=obs_column, bin_info=bin_info)
         hovertemplate = f"<b>%{{meta}}</b><br>{column_label}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>Number of {modality_label}s: %{{y:2,d}}<extra></extra>"
@@ -949,8 +962,9 @@ def plot_var(
             name="name",
             hovertemplate=hovertemplate,
         )
-
-    fig = plot.figure()
+        fig = plot.figure()
+    else:
+        raise ValueError(f"Unknown plot type: {ptype}, choose from 'stack', 'box', 'simplebox', 'vln', 'hist'")
 
     # Update layout
     fig.update_layout(
