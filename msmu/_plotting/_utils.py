@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
-from pandas.api.types import is_categorical_dtype
 
 _FALLBACK_COLUMN = "__obs_idx__"
 _DEFAULT_OBS_PRIORITY = ("sample", "filename", _FALLBACK_COLUMN)
@@ -48,7 +47,7 @@ def _ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
     """Cast the obs column to categorical in-place if needed."""
     if column not in mdata.obs.columns:
         raise KeyError(f"Column '{column}' not found in observations.")
-    if not is_categorical_dtype(mdata.obs[column]):
+    if not pd.api.types.is_categorical_dtype(mdata.obs[column]):
         mdata.obs[column] = pd.Categorical(mdata.obs[column], categories=pd.unique(mdata.obs[column]))
     return column
 

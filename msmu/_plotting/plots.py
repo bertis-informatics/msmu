@@ -620,7 +620,6 @@ def plot_peptide_length(
 
     # Draw plot
     if ptype in ["box", "boxplot"]:
-        data = PlotData(mdata, modality=modality, obs_column=obs_column)
         plot = PlotBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
         fig = plot.figure()
     elif ptype in ["vln", "violin"]:
@@ -870,6 +869,96 @@ def plot_tolerable_termini(
         yaxis_title=yaxis_title,
         yaxis_tickformat=",d",
         legend=dict(title_text="Tolerable termini"),
+    )
+
+    # Update layout with kwargs
+    fig = _apply_layout_overrides(fig, kwargs)
+
+    return fig
+
+
+def plot_var(
+    mdata: md.MuData,
+    modality: str = "feature",
+    groupby: str | None = None,
+    var_column: str = None,
+    obs_column: str | None = None,
+    plot_type: str | None = None,
+    bins: int = 30,
+    **kwargs,
+) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
+    # Set labels
+    modality_label = format_modality(mdata, modality)
+    column_label = var_column.replace("_", " ").capitalize()
+
+    if pd.api.types.is_numeric_dtype(mdata[modality].var[var_column]):
+        if len(mdata[modality].var[var_column].unique()) > 20:
+            plot_type = plot_type or "box"
+        else:
+            plot_type = plot_type or "bar"
+    else:
+        plot_type = plot_type or "bar"
+
+    # Set titles
+    title_text = f"Number of {modality_label}s by {column_label}"
+    xaxis_title = f"{groupby.capitalize()}"
+    yaxis_title = f"Number of {modality_label}s"
+    hovertemplate = f"{column_label}: %{{meta}}<br>Number of {modality_label}s: %{{y:2,d}}<extra></extra>"
+
+    # Draw plot
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
+    if plot_type == "bar":
+        plot_data = data._prep_var_bar(groupby, var_column, obs_column=obs_column)
+        plot = PlotStackedBar(
+            data=plot_data,
+            x=groupby,
+            y="count",
+            name=var_column,
+            meta=var_column,
+            hovertemplate=hovertemplate,
+        )
+    elif plot_type == "box":
+        plot_data = data._prep_var_box(groupby, var_column, obs_column=obs_column)
+        plot = PlotBox(data=plot_data)
+    elif plot_type in ["realbox"]:
+        plot_data = data._prep_var_vln(groupby, var_column, obs_column=obs_column)
+        plot = PlotRealBox(
+            data=plot_data,
+            x=groupby,
+            y=var_column,
+            name=groupby,
+        )
+    elif plot_type in ["vln", "violin"]:
+        plot_data = data._prep_var_vln(groupby, var_column, obs_column=obs_column)
+        plot = PlotViolin(
+            data=plot_data,
+            x=groupby,
+            y=var_column,
+            name=groupby,
+        )
+    elif plot_type in ["hist", "histogram"]:
+        bin_info = data._get_bin_info(data._get_var()[var_column], bins)
+        plot_data = data._prep_var_hist(groupby, var_column, obs_column=obs_column, bin_info=bin_info)
+        hovertemplate = f"<b>%{{meta}}</b><br>{column_label}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>Number of {modality_label}s: %{{y:2,d}}<extra></extra>"
+        plot = PlotHistogram(
+            data=plot_data,
+            x="center",
+            y="count",
+            name="name",
+            hovertemplate=hovertemplate,
+        )
+
+    fig = plot.figure()
+
+    # Update layout
+    fig.update_layout(
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+        yaxis_tickformat=",d",
+        legend=dict(title_text=column_label),
     )
 
     # Update layout with kwargs

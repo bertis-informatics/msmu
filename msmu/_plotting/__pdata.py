@@ -99,6 +99,140 @@ class PlotData:
 
         return prep_df
 
+    def _prep_var_bar(
+        self,
+        groupby: str,
+        name: str,
+        obs_column: str,
+    ) -> pd.DataFrame:
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self._get_data()
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        prep_df = melt_df.merge(var_df[[name]], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+
+        prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
+        prep_df[groupby] = prep_df[groupby].values.tolist()
+
+        prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
+        prep_df = prep_df.sort_values(groupby)
+
+        return prep_df
+
+    def _prep_var_vln(
+        self,
+        groupby: str,
+        var_column: str,
+        obs_column: str,
+    ) -> pd.DataFrame:
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self.mdata[self.modality].to_df()
+
+        var_df = var_df[[var_column]]
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        prep_df = melt_df.merge(var_df[[var_column]], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+
+        return prep_df
+
+    def _prep_var_box(
+        self,
+        groupby: str,
+        var_column: str,
+        obs_column: str,
+    ) -> pd.DataFrame:
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self.mdata[self.modality].to_df()
+
+        var_df = var_df[[var_column]]
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        prep_df = melt_df.merge(var_df[var_column], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+
+        prep_df = prep_df.groupby(groupby, observed=True).describe().droplevel(level=0, axis=1)
+        prep_df.index = pd.CategoricalIndex(prep_df.index, categories=obs_df[groupby].unique())
+        return prep_df
+
+    def _prep_var_hist(
+        self,
+        groupby: str,
+        var_column: str,
+        obs_column: str,
+        bin_info: dict | None = None,
+    ) -> pd.DataFrame:
+        if bin_info is None:
+            raise ValueError("bin_info must be provided when preparing purity histogram data.")
+
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self._get_data()
+        n_bins = len(bin_info["labels"])
+        var_df = var_df[[var_column]]
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        prep_df = melt_df.merge(var_df[var_column], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+
+        prep_df["_bin_"] = pd.cut(
+            prep_df[var_column],
+            bins=bin_info["edges"],
+            labels=bin_info["labels"],
+            include_lowest=True,
+        )
+
+        grouped = prep_df.groupby([groupby, "_bin_"], observed=False).size().unstack(fill_value=0)
+        grouped = grouped[grouped.sum(axis=1) > 0]
+        grouped.index = pd.CategoricalIndex(grouped.index, categories=obs_df[groupby].unique())
+        grouped = grouped.sort_index(axis=0)
+
+        bin_counts = grouped.values.flatten()
+        bin_freqs = bin_counts / prep_df.shape[0]
+        bin_names = grouped.index.get_level_values(0).repeat(n_bins).tolist()
+
+        # make dataframe
+        prepped = pd.DataFrame(
+            {
+                "center": bin_info["centers"] * len(grouped),
+                "label": bin_info["labels"] * len(grouped),
+                "count": bin_counts,
+                "frequency": bin_freqs,
+                "name": bin_names,
+            }
+        )
+        prepped["name"] = pd.Categorical(prepped["name"], categories=obs_df[groupby].unique())
+
+        return prepped
+
     def _prep_id_data(
         self,
         groupby: str,
