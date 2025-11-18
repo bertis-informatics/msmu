@@ -49,6 +49,7 @@ def _assign_protein_id_info(mdata: md.MuData) -> md.MuData:
 class SearchResultSettings:
     """
     Dataclass to store search result settings.
+
     Attributes:
         search_engine (str): Name of the search engine used (e.g., "sage", "maxquant").
         quantification (str | None): Name of the quantification tool used (e.g., "sage", "maxquant", or None).
@@ -72,6 +73,7 @@ class SearchResultSettings:
     quantification_level:Literal["psm", "precursor", "peptide", "protein"] | None
     config_file:str | None
     feat_quant_merged:bool
+    has_decoy:bool = True
 
     @property
     def feature_path(self) -> Path | None:
@@ -105,6 +107,7 @@ class SearchResultSettings:
 class MuDataInput:
     """
     Dataclass to store inputs for creating a MuData object.
+
     Attributes:
         raw_feature_df (pd.DataFrame): Raw feature DataFrame (varm['search_result']).
         norm_feature_df (pd.DataFrame): Normalized feature DataFrame.
@@ -116,16 +119,19 @@ class MuDataInput:
     norm_feature_df: pd.DataFrame
     norm_quant_df: pd.DataFrame | None
     search_config: dict
+    decoy_df: pd.DataFrame | None
 
 
 class SearchResultReader:
     """
     Base class for reading and processing search engine results.
+
     Attributes:
-    search_settings (SearchResultSettings): Settings for the search results.
-    used_feature_cols (list[str]): List of columns to be used in the feature DataFrame.
-    base_level (Literal["psm", "precursor"] | None): Base level of the data (e.g., "psm" or "precursor").
-    _feature_rename_dict (dict): Dictionary for renaming feature columns.
+        search_settings (SearchResultSettings): Settings for the search results.
+        used_feature_cols (list[str]): List of columns to be used in the feature DataFrame.
+        base_level (Literal["psm", "precursor"] | None): Base level of the data (e.g., "psm" or "precursor").
+        _feature_rename_dict (dict): Dictionary for renaming feature columns.
+
     Methods:
         read() -> md.MuData:
             Reads and processes the search results into a MuData object.
@@ -275,19 +281,44 @@ class SearchResultReader:
             quantification_df = raw_dict["quantification"].copy() if self.search_settings.quantification is not None else None
 
         norm_feat_df = norm_feat_df.loc[:, self.used_feature_cols]
+        if self.search_settings.has_decoy:
+            if "decoy" not in norm_feat_df.columns:
+                # target_df = norm_feat_df.copy()
+                # logger.warning("Decoy column is expected but not found in the feature DataFrame. Proceeding without decoy separation.")
+                raise ValueError("Decoy column is expected but not found in the feature DataFrame.")
+            else:
+                target_df, decoy_df = self._separate_decoy_df(norm_feat_df)
+                logger.info(f"Decoy entries separated: {decoy_df.shape}")
+        else:
+            target_df = norm_feat_df.copy()
+            decoy_df = None
 
         raw_feature_df.index = norm_feat_df.index
+        raw_feature_df = raw_feature_df.loc[target_df.index, ]
 
         norm_quant_df = self._normalise_quantification_df(quantification_df) if quantification_df is not None else None
 
         mudata_input:MuDataInput = MuDataInput(
             raw_feature_df=raw_feature_df, # varm["search_result"]
-            norm_feature_df=norm_feat_df, # var
+            norm_feature_df=target_df, # var
             norm_quant_df=norm_quant_df, # X
+            decoy_df=decoy_df, # decoy entries
             search_config=raw_dict.get("config", dict()) if "config" in raw_dict else dict(),
         )
 
         return mudata_input
+    
+    def _separate_decoy_df(self, norm_feat_df:pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        if "decoy" not in norm_feat_df.columns:
+            raise ValueError("Decoy column not found in feature DataFrame.")
+        
+        decoy_df = norm_feat_df[norm_feat_df["decoy"] == 1].copy()
+        # decoy_df = decoy_df[["proteins","peptide","stripped_peptide", "filename", "scan_num", "score", "q_value"]].copy()
+
+        target_df = norm_feat_df[norm_feat_df["decoy"] == 0].copy()
+        target_df = target_df.drop(columns=["decoy"])
+
+        return target_df, decoy_df
 
     def _update_default_adata_uns(self, adata:ad.AnnData, config: dict | None) -> ad.AnnData:
         adata.uns.update(
@@ -296,6 +327,7 @@ class SearchResultReader:
                 "search_engine": self.search_settings.search_engine,
                 "quantification": self.search_settings.quantification,
                 "label": self.search_settings.label,
+                "acquisition": self.search_settings.acquisition,
                 "search_output_dir": str(self.search_settings.output_dir),
                 "search_config": config,
             }
@@ -311,6 +343,8 @@ class SearchResultReader:
             mod_adata.var = mudata_input.norm_feature_df.loc[common_index, :]
             mod_adata.varm["search_result"] = mudata_input.raw_feature_df.loc[common_index, :]
             mod_adata = self._update_default_adata_uns(mod_adata, mudata_input.search_config)
+            if mudata_input.decoy_df is not None:
+                mod_adata.uns["decoy"] = mudata_input.decoy_df
 
             if self.search_settings.quantification_level in ["psm", "precursor"]:
                 adata_dict["feature"] = mod_adata
@@ -327,6 +361,8 @@ class SearchResultReader:
             mod_adata.var = mudata_input.norm_feature_df
             mod_adata.varm["search_result"] = mudata_input.raw_feature_df
             mod_adata = self._update_default_adata_uns(mod_adata, mudata_input.search_config)
+            if mudata_input.decoy_df is not None:
+                mod_adata.uns["decoy"] = mudata_input.decoy_df
 
             adata_dict["feature"] = mod_adata
         
@@ -341,6 +377,7 @@ class SearchResultReader:
             feat_adata.var = mudata_input.norm_feature_df
             feat_adata.varm["search_result"] = mudata_input.raw_feature_df
             feat_adata = self._update_default_adata_uns(feat_adata, mudata_input.search_config)
+            feat_adata.uns["decoy"] = mudata_input.decoy_df
 
             if self.search_settings.feature_level in ["psm", "precursor"]:
                 adata_dict["feature"] = feat_adata
@@ -365,6 +402,7 @@ class SearchResultReader:
     def read(self) -> md.MuData:
         """
         Reads and processes the search results into a MuData object.
+
         Returns:
             md.MuData: A MuData object containing the processed search results.
         """

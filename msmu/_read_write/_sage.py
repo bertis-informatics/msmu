@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Literal
 import pandas as pd
+import numpy as np
 
 from ._base_reader import SearchResultReader, SearchResultSettings
 from . import label_info
@@ -10,7 +11,8 @@ from . import label_info
 class SageReader(SearchResultReader):
     """
     Reader for Sage output files.
-    Args:
+
+    Parameters:
         search_dir (str | Path): Path to the Sage output directory.
         label (Literal["tmt", "label_free"] | None): Label for the Sage output ('tmt' or 'label_free').
     """
@@ -32,19 +34,20 @@ class SageReader(SearchResultReader):
             quantification_level=None,
             #config_file="results.json",
             config_file=None,
-            feat_quant_merged=False
+            feat_quant_merged=False,
+            has_decoy=True,
         )
         self._feature_rename_dict: dict = {
             "peptide_len": "peptide_length",
+            "spectrum_q": "q_value"
         }
         self.used_feature_cols.extend([
             "missed_cleavages",
             "semi_enzymatic",
             "decoy",
             "contaminant",
-            "spectrum_q",
-            "peptide_q",
-            "protein_q",
+            "PEP",
+            "q_value",
         ])
 
     @staticmethod
@@ -76,6 +79,7 @@ class SageReader(SearchResultReader):
         feature_df["stripped_peptide"] = feature_df["peptide"].apply(self._make_stripped_peptide)
         feature_df["decoy"] = feature_df["label"].apply(self._label_decoy)
         feature_df["contaminant"] = feature_df["proteins"].apply(self._label_possible_contaminant)
+        feature_df["PEP"] = np.power(10, feature_df["posterior_error"]) # convert log10 PEP to PEP
 
         return feature_df.copy()
 
@@ -83,7 +87,8 @@ class SageReader(SearchResultReader):
 class TmtSageReader(SageReader):
     """
     Reader for TMT-labeled Sage output files.
-    Args:
+    
+    Parameters:
         search_dir (str | Path): Path to the Sage output directory.
     """
     def __init__(
@@ -118,7 +123,8 @@ class TmtSageReader(SageReader):
 class LfqSageReader(SageReader):
     """
     Reader for label-free Sage output files.
-    Args:
+
+    Parameters:
         search_dir (str | Path): Path to the Sage output directory.
         _quantification (bool): Whether to include quantification data (lfq.tsv). Default is True.
     """

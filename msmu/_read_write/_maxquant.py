@@ -1,6 +1,5 @@
 from pathlib import Path
 import pandas as pd
-import numpy as np
 
 from ._base_reader import SearchResultReader, SearchResultSettings
 from . import label_info
@@ -30,6 +29,7 @@ class MaxQuantReader(SearchResultReader):
             #config_file="combined/txt/parameters.txt",
             config_file=None,
             feat_quant_merged=True,
+            has_decoy=True,
         )
 
         self.used_feature_cols.extend([
@@ -37,6 +37,7 @@ class MaxQuantReader(SearchResultReader):
             "missed_cleavages",
             "decoy",
             "contaminant",
+            "score",
         ])
 
         self._feature_rename_dict: dict = {
@@ -49,6 +50,7 @@ class MaxQuantReader(SearchResultReader):
             "Raw file": "filename",
             "MSMS scan number": "scan_num",
             "Retention time": "rt",
+            "hyperscore": "score"
         }
 
         self._cols_to_stringify: list[str] = [
@@ -100,12 +102,6 @@ class MaxTmtReader(MaxQuantReader):
         super().__init__(search_dir)
         self.search_settings.label = "tmt"
         self.search_settings.acquisition = "dda"
-
-        # self.used_feature_cols.extend(
-        #     "spectrum_q",
-        #     "peptide_q",
-        #     "protein_q",
-        # )
 
     def _split_merged_feature_quantification(self, feature_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         split_feature_df = feature_df.copy()

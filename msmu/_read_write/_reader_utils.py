@@ -83,8 +83,10 @@ class ProteinIdParser:
 def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     """
     Merges multiple MuData objects into a single MuData object.
-    Args:
+    
+    Parameters:
         mdatas (dict[str, md.MuData]): Dictionary of MuData objects to merge.
+
     Returns:
         md.MuData: Merged MuData object.
     """

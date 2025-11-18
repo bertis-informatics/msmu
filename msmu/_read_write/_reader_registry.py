@@ -15,10 +15,12 @@ def read_sage(
 ) -> md.MuData:
     """
     Reads Sage output and returns a MuData object.
-    Args:
+
+    Parameters:
         search_dir (str | Path): Path to the Sage output directory.
         label (Literal["tmt", "label_free"]): Label for the Sage output ('tmt' or 'label_free').
         _quantification (bool): Whether to include quantification data. Default is True.
+
     Returns:
         md.MuData: A MuData object containing the Sage data.
     """
@@ -65,7 +67,18 @@ class _ReadDiannFacade:
         return DiannProteinGroupReader(search_dir=search_dir).read()
 
 read_diann: _ReadDiannFacade = _ReadDiannFacade()
+"""Alias for :class:`_ReadDiannFacade`.
 
+Parameters:
+    search_dir (str | Path): Path to the DIA-NN output directory.
+
+Returns:
+    md.MuData: A MuData object containing the DIA-NN data at precursor level
+
+Usage:
+    mdata_precursor = mm.read_diann(search_dir)
+    mdata_protein_group = mm.read_diann.from_pg(search_dir)
+"""
 
 # Working on it
 class _MaxQuantFacade:
@@ -115,6 +128,18 @@ class _MaxQuantFacade:
         raise NotImplementedError("MaxQuant protein group reader is not implemented yet.")
 
 read_maxquant: _MaxQuantFacade = _MaxQuantFacade()
+"""Alias for :class:`_MaxQuantFacade`.
+
+Parameters:
+    search_dir (str | Path): Path to the MaxQuant output directory.
+
+Returns:
+    md.MuData: A MuData object containing the MaxQuant data at precursor level
+
+Usage:
+    mdata_precursor = mm.read_maxquant(search_dir)
+    mdata_protein_group = mm.read_maxquant.from_pg(search_dir)
+"""
 
 
 class FragPipeFacade:
@@ -137,6 +162,18 @@ class FragPipeFacade:
         raise NotImplementedError("FragPipe protein group reader is not implemented yet.")
 
 read_fragpipe: FragPipeFacade = FragPipeFacade()
+"""Alias for :class:`FragPipeFacade`.
+
+Parameters:
+    search_dir (str | Path): Path to the FragPipe output directory.
+
+Returns:
+    md.MuData: A MuData object containing the FragPipe data at precursor level
+
+Usage:
+    mdata_precursor = mm.read_fragpipe(search_dir)
+    mdata_protein_group = mm.read_fragpipe.from_pg(search_dir)
+"""
 
 
 def read_h5mu(h5mu_file: str | Path) -> md.MuData:

@@ -7,7 +7,8 @@ from ._base_reader import SearchResultReader, SearchResultSettings
 class DiannReader(SearchResultReader):
     """
     Reader for DIA-NN output files.
-    Args:
+    
+    Parameters:
         search_dir (str | Path): Path to the DIA-NN output directory.
     """
     def __init__(
@@ -27,12 +28,13 @@ class DiannReader(SearchResultReader):
             quantification_level="precursor",
             config_file=None,
             feat_quant_merged=True,
+            has_decoy=False,
         )
 
         self.used_feature_cols.extend([
             # "protein_group",
-            "spectrum_q",
-            "protein_q",
+            "PEP",
+            "q_value",
         ])
 
         self._cols_to_stringify:list[str] = [
@@ -47,7 +49,6 @@ class DiannReader(SearchResultReader):
         ]
 
         self._mbr: bool | None = None
-        self._decoy: bool | None = None
 
     @property
     def _feature_rename_dict(self):
@@ -65,8 +66,8 @@ class DiannReader(SearchResultReader):
             "MS2.Scan": "scan_num",
             "Precursor.Charge": "charge",
             "Decoy": "decoy",
-            f"{q_value_prefix}.Q.Value": "spectrum_q",
-            f"{q_value_prefix}.PG.Q.Value": "protein_q",
+            f"{q_value_prefix}.Q.Value": "q_value",
+            # f"{q_value_prefix}.PG.Q.Value": "protein_q",
         }
         
         return rename_dict
@@ -102,7 +103,7 @@ class DiannReader(SearchResultReader):
         feature_df["missed_cleavages"] = feature_df["Stripped.Sequence"].apply(self._count_missed_cleavages)
         feature_df["peptide_length"] = feature_df["Stripped.Sequence"].apply(self._get_peptide_length)
 
-        if not self._decoy:
+        if not self.search_settings.has_decoy:
             feature_df["decoy"] = 0
 
         return feature_df
@@ -115,9 +116,9 @@ class DiannReader(SearchResultReader):
     
     def _set_decoy(self, feature_df: pd.DataFrame) -> None:
         if "Decoy" in feature_df.columns:
-            self._decoy = True
+            self.search_settings.has_decoy = True
         else:
-            self._decoy = False
+            self.search_settings.has_decoy = False
 
 
 class DiannProteinGroupReader(SearchResultReader):
