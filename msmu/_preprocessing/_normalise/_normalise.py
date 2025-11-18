@@ -37,24 +37,16 @@ def normalise(
 ):
     """
     Normalise data in MuData object.
-    Parameters
-    ----------
-    mdata: MuData
-        MuData object to normalise.
-    method: str
-        Normalisation method to use. Options are 'quantile', 'median', 'total_sum (not implemented)'.
-    modality: str
-        Modality to normalise. If None, all modalities at the specified level will be normalised.
-    fraction: bool
-        If True, normalise within fractions. If False, normalise across all data.
-        "fraction" yet supports fractionated TMT.
-    rescale: bool
-        If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
 
-    Returns
-    -------
-    mdata: MuData
-        Normalised MuData object.
+    Parameters:
+        mdata (MuData): MuData object to normalise.
+        method (str): Normalisation method to use. Options are 'quantile', 'median', 'total_sum (not implemented)'.
+        modality (str): Modality to normalise. If None, all modalities at the specified level will be normalised.
+        fraction (bool): If True, normalise within fractions. If False, normalise across all data. "fraction" yet supports fractionated TMT.
+        rescale (bool): If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
+
+    Returns:
+        mdata (MuData): Normalised MuData object.
     """
     axis: str = "obs"
 
@@ -106,24 +98,17 @@ def feature_scale(
 ) -> md.MuData:
     """
     Feature scale data in MuData object.
-    Parameters
-    ----------
-    mdata: MuData
-        MuData object to normalise.
-    method: str
-        Normalisation method to use. Options are 'gis', 'median_center'.
-    modality: str
-        Modality to normalise.
-    gis_prefix: str
-        Prefix for GIS samples. If None, all samples with 'gis' in the name will be used.
-    gis_col: str
-        Column name for GIS samples. If None, all samples with 'gis' in the name will be used.
-    rescale: bool
-        If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
-    Returns
-    -------
-    mdata: MuData
-        Normalised MuData object.
+
+    Parameters:
+        mdata (MuData): MuData object to normalise.
+        method (str): Normalisation method to use. Options are 'gis', 'median_center'.
+        modality (str): Modality to normalise.
+        gis_prefix (str | None): Prefix for GIS samples. If None, all samples with 'gis' in the name will be used.
+        gis_col (list[str] | None): Column name for GIS samples. If None, all samples with 'gis' in the name will be used.
+        rescale (bool): If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
+
+    Returns:
+        mdata (MuData): Normalised MuData object.
     """
     adata: ad.AnnData = mdata.mod[modality].copy()
     median_rescale_arr: np.array[float] = np.array([])
@@ -181,6 +166,10 @@ def normalise_gis(arr: np.ndarray, gis_idx: np.array) -> np.ndarray:
     gis_normalised_data[na_idx] = np.nan
 
     return gis_normalised_data
+
+
+# def normalise_gis(arr: np.ndarray, gis_idx: np.array) -> np.ndarray:
+#     gis
 
 
 class PTMProteinAdjuster:
@@ -300,25 +289,16 @@ def adjust_ptm_by_protein(
     """
     Estimation of PTM stoichiometry by using Global Protein Data.
 
-    Parameters
-    ----------
-    mdata: MuData
-        MuData object to normalise.
-    global_mdata: MuData
-        MuData object which contains global protein expression.
-    ptm_mod: str
-        PTM modality to normalise (e.g. phospho_site, {ptm}_site)
-    global_mod: str
-        Modality in global_mdata to normalise PTM site. Default is 'protein'.
-    method: str
-        A method for nomalisation. Options: ridge, ratio. Default is 'ridge'.
-    rescale: bool
-        If True, rescale the data after normalisation with median value across dataset. Default is True
-        
-    Returns
-    -------
-    mdata: MuData
-        Normalised MuData object.
+    Parameters:
+        mdata (MuData): MuData object to normalise.
+        global_mdata (MuData): MuData object which contains global protein expression.
+        ptm_mod (str): PTM modality to normalise (e.g. phospho_site, {ptm}_site).
+        global_mod (str): Modality in global_mdata to normalise PTM site. Default is 'protein'.
+        method (str): A method for normalisation. Options: ridge, ratio. Default is 'ridge'.
+        rescale (bool): If True, rescale the data after normalisation with median value across dataset. Default is True.
+
+    Returns:
+        mdata (MuData): Normalised MuData object.
     """
 
     ptm_adjuster:PTMProteinAdjuster = PTMProteinAdjuster(ptm_mdata=mdata, global_mdata=global_mdata, ptm_mod=ptm_mod, global_mod="protein")

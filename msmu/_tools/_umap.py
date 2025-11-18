@@ -16,6 +16,21 @@ def umap(
     min_dist: float = 0.1,
     random_state: int | None = 0,
 ) -> MuData:
+    """Calculate UMAP embedding for a given modality in MuData object.
+    
+    Parameters:
+        mdata (MuData): MuData object containing the data.
+        modality (str): The modality to perform UMAP on.
+        n_comps (int): Number of UMAP components to compute. Default is 2.
+        n_neighbors (int): Number of neighbors to use. If None, set to number of samples - 1. Default is None.
+        metric (str): Metric to use for UMAP. Default is 'euclidean'.
+        init (str): Initialization method for UMAP. Default is 'random'.
+        min_dist (float): Minimum distance parameter for UMAP. Default is 0.1.
+        random_state (int | None): Random state for reproducibility. Default is 0.
+
+    Returns:
+        MuData: Updated MuData object with UMAP results.
+    """
     # Drop columns with NaN values
     data = mdata[modality].to_df().dropna(axis=1)
 
