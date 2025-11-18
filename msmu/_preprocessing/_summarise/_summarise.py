@@ -1,248 +1,340 @@
 import warnings
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Literal
+import logging
 
 import anndata as ad
-import mudata as md
-import numpy as np
 import pandas as pd
 
+from ..._utils.utils import uns_logger
 from ..._read_write._reader_utils import add_modality
-from ..._utils.utils import get_modality_dict, uns_logger
-from ._summariser import PeptideSummariser, ProteinSummariser, PtmSummariser
+from ..._read_write._mdata_status import MuDataStatus
+from ._summariser import SummarisationPrep, PtmSummarisationPrep, Aggregator
+from ..._stats.target_decoy_q import estimate_q_values
+from ..._preprocessing._filter import add_filter, apply_filter
 
+# for type checking only
+import mudata as md
+from typing import Literal
+from pathlib import Path
+
+# ignore warnings in this module
 warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
 warnings.filterwarnings(action="ignore", message="Mean of empty slice")
+
+
+logger = logging.getLogger(__name__)
 
 
 @uns_logger
 def to_peptide(
     mdata: md.MuData,
-    sum_method: Literal["median", "mean", "sum"] = "median",
-    protein_col: str = "protein_group",
+    agg_method: Literal["median", "mean", "sum"] = "median",
+    calculate_q: bool = True,
+    score_method: Literal["best_pep"] = "best_pep",
+    purity_threshold: float | None = 0.7, # for tmt data
     top_n: int | None = None,
-    rank_method: str | None = None,
-) -> md.MuData:
-    """
-    Summarise peptide level data from PSM level data.
+    rank_method: Literal["total_intensity", "max_intensity", "median_intensity"] = "total_intensity",
+    _peptide_col: str = "peptide",
+    _protein_col: str = "proteins",
+    ) -> md.MuData:
+    """Summarise feature-level data to peptide-level data.
 
-    Args:
-        mdata (md.MuData): MuData object containing PSM level data.
-        rank_method (str | None): Method to rank PSMs. If None, no ranking is applied.
-        from_ (str): Level to summarise from. Default is "psm".
-        sum_method (str): Method to summarise quantification of PSMs. Default is "median".
-        protein_col (str): Column name for protein groups. Default is "protein_group" which is from msmu protein inference.
-        top_n (int | None): Number of top PSMs to keep after ranking. If None, all PSMs are kept.
-        keep_mbr_only (bool): For LFQ, MBR can be used for quantifiction. If True, keep peptide quantity without MSMS evidence. Default is False.
+    Usage:
+        mdata = mm.pp.to_peptide(
+            mdata,
+            agg_method="median",
+            calculate_q=True,
+            score_method="best_pep",
+            purity_threshold=0.7,
+        )
+
+    Parameters:
+        mdata (MuData): MuData object containing feature-level data.
+        agg_method (Literal["median", "mean", "sum"]): Aggregation method for quantification to use. Defaults to "median".
+        calculate_q (bool, optional): Whether to calculate q-values. Defaults to True.
+        score_method (Literal["best_pep"], optional): Method to combine scores. Defaults to "best_pep".
+        purity_threshold (float | None, optional): Purity threshold for TMT data quantification aggregation (does not filter out features). If None, no filtering is applied. Defaults to 0.7.
+        top_n (int | None, optional): Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
+        rank_method (Literal["total_intensity", "max_intensity", "median_intensity"], optional): Method to rank features when selecting top_n. Defaults to "total_intensity".
+        _peptide_col (str, optional): Column name for peptides in var DataFrame. Defaults to "peptide".
+        _protein_col (str, optional): Column name for proteins in var DataFrame. Defaults to "proteins".
 
     Returns:
-        md.MuData: MuData object containing peptide level data.
+        MuData: MuData object containing peptide-level data.
     """
-    adata = mdata.mod["feature"].copy()
-    label = adata.uns["label"]
-    search_engine = adata.uns["search_engine"]
+    adata_to_summarise:ad.AnnData = mdata["feature"].copy()
+    mstatus = MuDataStatus(mdata)
 
-    peptide_col = "peptide"
-    summ: PeptideSummariser = PeptideSummariser(
-        adata=adata,
-        peptide_col=peptide_col,
-        protein_col=protein_col,
-    )
-    data: pd.DataFrame = summ.get_data()
+    # Preparation
+    summarisation_prep = SummarisationPrep(
+        adata_to_summarise, 
+        col_to_groupby=_peptide_col, 
+        has_decoy=mstatus.feature.has_decoy
+        )
 
-    # get top n PSMs for each peptide
+    # Filtering for TMT purity in peptide quantification
+    if (mstatus.feature.label == "tmt"):
+        if mstatus.feature.has_purity == False:
+            logger.warning(
+                "Purity column not found in feature modality for TMT data. Skipping purity filtering."
+                )
+        elif purity_threshold is None:
+            logger.info(
+                "No purity threshold provided. Skipping purity filtering."
+                )
+        else:
+            summarisation_prep.filter_dict = {"purity": ("gt", purity_threshold)}
+
+    # Ranking for top_n features
     if top_n is not None:
-        data: pd.DataFrame = summ.rank_(data=data, rank_method=rank_method)
-        data: pd.DataFrame = summ.filter_by_rank(data=data, top_n=top_n)
+        summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
 
-    summarised_data: pd.DataFrame = summ.summarise_data(data=data, sum_method=sum_method)
-    peptide_adata: pd.DataFrame = summ.data2adata(data=summarised_data)
+    evid_df_prep, quant_df_prep, decoy_df_prep = summarisation_prep.prep()
 
-    # apply filtering for peptide values with no evidence in sage lfq
-    if label == "label_free" and search_engine == "sage":
-        peptide_arr: pd.DataFrame = mdata["peptide"].to_df().T.copy()
-        intersect_idx = peptide_arr.index.intersection(peptide_adata.var_names)
-        peptide_arr: pd.DataFrame = peptide_arr.loc[intersect_idx].T
-        peptide_adata: ad.AnnData = peptide_adata[:, intersect_idx].copy()
-        peptide_adata.X = peptide_arr.astype(float)
-
-        # make msms_evidence dataframe
-        msms_evidence: pd.DataFrame = adata.var[["peptide", "filename"]]
-
-        msms_evidence["evidence"] = 1
-        msms_evidence = msms_evidence.groupby(["peptide", "filename"], as_index=False, observed=False).agg("sum")
-        msms_evidence = msms_evidence.pivot(index="peptide", columns="filename", values="evidence")
-        msms_evidence = msms_evidence.rename_axis(index=None, columns=None)
-
-        rename_dict: dict = {filename: sample for filename, sample in zip(mdata.obs["tag"], mdata.obs_names)}
-        msms_evidence = msms_evidence.rename(columns=rename_dict)
-
-        # add no evidence obs columns
-        dropped_cols: list[str] = list(set(mdata.obs_names) - set(msms_evidence.columns))
-        for cols in dropped_cols:
-            msms_evidence[cols] = np.nan
-
-        # convert msms_evidence to int (1 for evidence, 0 for no evidence)
-        # and replace 0 with np.nan
-        msms_evidence = msms_evidence.fillna(0)
-
-        # convert to int and replace 0 with np.nan
-        # 0 means no evidence, 1 means evidence
-        msms_evidence = msms_evidence.notna().astype(int).replace({0: np.nan})
-
-        msms_evidence = msms_evidence.loc[peptide_adata.var_names, peptide_adata.obs_names]
-
-        # assign msms_evidence to a layer of adata (peptide_adata)
-        peptide_adata.layers["msms_evidence"] = msms_evidence.values.T
-
-        # filter out quantity without MSMS evidence if keep_mbr_only is False
-        peptide_adata.X = np.multiply(peptide_adata.X, msms_evidence.values.T).astype(float)
-
-    peptide_adata.uns["level"] = "peptide"
-
-    # add peptide_adata to mdata
-    peptide_mdata = mdata.copy()
-    peptide_mdata: md.MuData = add_modality(
-        mdata=peptide_mdata,
-        adata=peptide_adata,
-        mod_name="peptide",
-        parent_mods=["feature"],
+    # Aggregation
+    aggregator = Aggregator.peptide(
+        identification_df=evid_df_prep,
+        quantification_df=quant_df_prep,
+        decoy_df=decoy_df_prep,
+        agg_method=agg_method,
+        score_method=score_method,
+        protein_col=_protein_col,
+        peptide_col=_peptide_col,
     )
-    peptide_mdata.push_obs()
-    peptide_mdata.update_var()
 
-    return peptide_mdata
+    # Aggregate identification and quantification data
+    if mstatus.feature.has_var:
+        evid_df_agg = aggregator.aggregate_identification()
+    else:
+        logger.error("var is empty in feature modality. Cannot aggregate identification data.")
+        raise
+
+    # Aggregate decoy data if present
+    if mstatus.feature.has_decoy:
+        decoy_df_agg = aggregator.aggregate_decoy()
+    else:
+        logger.warning("Decoy data not found. Skipping decoy aggregation.")
+
+    # q-value calculation
+    if calculate_q:
+        if mstatus.feature.has_decoy is False:
+            logger.warning("Decoy data not found. Skipping q-value calculation.")
+        elif mstatus.feature.has_pep is False:
+            logger.warning("PEP column not found in identification data. Skipping q-value calculation.")
+        else:
+            evid_df_agg, decoy_df_agg = estimate_q_values(
+                identification_df=evid_df_agg,
+                decoy_df=decoy_df_agg,
+            )
+            logger.info(f"Peptide-level identifications: {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] <= 0.01)} at 1% FDR)")
+
+    # Aggregate quantification data
+    quant_df_agg = aggregator.aggregate_quantification()
+
+    # build peptide-level anndata
+    if (mstatus.feature.has_quant == False) & ("peptide" in mstatus.mod_names): # for lfq (dda) data with peptide quantification already existing
+        print("Using existing peptide quantification data.")
+        quant_df_agg = mdata["peptide"].to_df().T
+        quant_df_agg = pd.merge(evid_df_agg[[]], quant_df_agg, left_index=True, right_index=True, how="left")
+        peptide_adata = ad.AnnData(
+            X=quant_df_agg.T,
+            var=evid_df_agg,
+            )
+        mdata.mod["peptide"] = peptide_adata
+        # mdata["peptide"].var = evid_df_agg
+    else: # all other cases
+        print("Building new peptide quantification data.")
+        peptide_adata = ad.AnnData(
+            X=quant_df_agg.T,
+            var=evid_df_agg,
+            )
+
+        # add modality
+        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["feature"])
+    mdata["peptide"].uns["level"] = "peptide"
+
+    if mstatus.feature.has_decoy:
+        mdata["peptide"].uns["decoy"] = decoy_df_agg
+
+    return mdata
 
 
 @uns_logger
 def to_protein(
-    mdata,
-    protein_col="protein_group",
-    sum_method: Literal["median", "mean", "sum"] = "median",
-    top_n: int | None = None,
-    rank_method: str = "max_intensity",
-    min_n_peptides=1,
-    from_="peptide",
-    # keep_mbr_only: bool = False,  # TODO: add keep_mbr_only to protein level
-) -> md.MuData:
-    """
-    Summarise protein level data from peptide level data.
+    mdata: md.MuData,
+    agg_method: Literal["median", "mean", "sum"] = "median",
+    calculate_q: bool = True,
+    score_method: Literal["best_pep"] = "best_pep",
+    top_n: int | None = 3,
+    rank_method: Literal["total_intensity", "max_intensity", "median_intensity"] = "total_intensity",
+    _protein_col: str = "protein_group",
+    _shared_peptide: Literal["discard"] = "discard",
+    ) -> md.MuData:
+    """Summarise feature-level data to protein-level data. By default, uses `top 3` peptides in their `total_intensity` and `unique` (_shared_peptide = "discard") per protein_group for quantification aggregation with median.
 
-    Args:
-        mdata (md.MuData): MuData object containing peptide level data.
-        top_n (int | None): Number of top peptides to keep after ranking. If None, all peptides are kept.
-        rank_method (str): Method to rank peptides. Default is "" (no ranking).
-        protein_col (str): Column name for protein groups. Default is "protein_group" which is from msmu protein inference.
-        min_n_peptides (int): Minimum number of peptides required to keep a protein. Default is 1.
-        sum_method (str): Method to summarise quantification of peptides. Default is "median".
-        from_ (str): Level to summarise from. Default is "peptide".
+    Parameters:
+        mdata (MuData): MuData object containing feature-level data.
+        agg_method (Literal["median", "mean", "sum"], optional): Aggregation method to use. Defaults to "median".
+        calculate_q (bool, optional): Whether to calculate q-values. Defaults to True.
+        score_method (Literal["best_pep"], optional): Method to combine scores (PEP). Defaults to "best_pep".
+        top_n (int | None, optional): Number of top peptides to consider for summarisation. If None, all peptides are used. Defaults to None.
+        rank_method (Literal["total_intensity", "max_intensity", "median_intensity"], optional): Method to rank features when selecting top_n. Defaults to "total_intensity".
+        _protein_col (str, optional): Column name for proteins in var DataFrame. Defaults to "protein_group".
+        _shared_peptide (Literal["discard"], optional): How to handle shared peptides. Currently only "discard" is implemented. Defaults to "discard".
 
     Returns:
-        md.MuData: MuData object containing protein level data.
+        MuData: MuData object containing protein-level data.
     """
-    adata: ad.AnnData = mdata[from_].copy()
+    original_mdata = mdata.copy()
+    mstatus = MuDataStatus(original_mdata)
 
-    summ: ProteinSummariser = ProteinSummariser(adata=adata, protein_col=protein_col, from_=from_)
-    data: pd.DataFrame = summ.get_data()
-    unique_filtered_data: pd.DataFrame = summ.filter_unique_peptides(data=data)
+    # Handle shared peptides
+    # use unique peptides only
+    if _shared_peptide == "discard":
+        mdata = add_filter(
+            mdata=original_mdata,
+            modality="peptide",
+            column="peptide_type",
+            keep="eq",
+            value="unique",
+        )
+        mdata = apply_filter(
+            mdata=mdata,
+            modality="peptide",
+        )
+    else:
+        mdata = original_mdata
 
-    # get top n peptides for each protein
+    adata_to_summarise:ad.AnnData = mdata["peptide"].copy()
+
+    # Preparation
+    summarisation_prep = SummarisationPrep(
+        adata=adata_to_summarise, 
+        col_to_groupby=_protein_col, 
+        has_decoy=mstatus.peptide.has_decoy
+        )
+    
+    # Ranking for top_n features
     if top_n is not None:
-        unique_filtered_data: pd.DataFrame = summ.rank_(data=unique_filtered_data, rank_method=rank_method)
-        unique_filtered_data: pd.DataFrame = summ.filter_by_rank(data=unique_filtered_data, top_n=top_n)
+        summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g ("total_intensity", 3)
 
-    # summarise data
-    summarised_data: pd.DataFrame = summ.summarise_data(data=unique_filtered_data, sum_method=sum_method)
+    identification_df, quantification_df, decoy_df = summarisation_prep.prep()
 
-    # filter out proteins with less than min_n_peptides
-    summarised_data: pd.DataFrame = summ.filter_n_min_peptides(data=summarised_data, min_n_peptides=min_n_peptides)
-
-    protein_adata: ad.AnnData = summ.data2adata(data=summarised_data)
-
-    protein_mdata = mdata.copy()
-    protein_mdata: md.MuData = add_modality(
-        mdata=protein_mdata, adata=protein_adata, mod_name=summ._to, parent_mods=[from_]
+    # Aggregation
+    aggregator = Aggregator.protein(
+        identification_df=identification_df,
+        quantification_df=quantification_df,
+        decoy_df=decoy_df,
+        agg_method=agg_method,
+        score_method=score_method,
+        protein_col=_protein_col,
     )
-    protein_mdata.push_obs()
-    protein_mdata.update_var()
 
-    return protein_mdata
+    # Aggregate identification
+    evid_df_agg = aggregator.aggregate_identification()
+    if mstatus.peptide.has_decoy:
+        agg_decoy_df = aggregator.aggregate_decoy()
+    else:
+        logger.warning("Decoy data not found. Skipping decoy aggregation.")
+
+    # q-value calculation
+    if calculate_q:
+        if mstatus.peptide.has_decoy is False:
+            logger.warning("Decoy data not found. Skipping q-value calculation.")
+        elif mstatus.peptide.has_pep is False:
+            logger.warning("PEP column not found in identification data. Skipping q-value calculation.")
+        else:
+            evid_df_agg, agg_decoy_df = estimate_q_values(
+                identification_df=evid_df_agg,
+                decoy_df=agg_decoy_df,
+            )
+            logger.info(f"Protein-level identifications :  {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] <= 0.01)} at 1% FDR)")
+
+    quant_df_agg = aggregator.aggregate_quantification()
+
+    # build protein-level anndata
+    protein_adata = ad.AnnData(
+        X=quant_df_agg.T,
+        var=evid_df_agg,
+    )
+
+    # add modality
+    mdata = add_modality(mdata=original_mdata, adata=protein_adata, mod_name="protein", parent_mods=["peptide"])
+    mdata["protein"].uns["level"] = "protein"
+
+    if mstatus.peptide.has_decoy:
+        mdata["protein"].uns["decoy"] = agg_decoy_df
+
+    return mdata
 
 
-def to_ptm_site(
+@uns_logger
+def to_ptm(
     mdata: md.MuData,
     fasta_file: str | Path,
-    modification_name: str,
-    modification_mass: float | None = None,
-    protein_col: str = "protein_group",
-    sum_method: str = "median",
-) -> md.MuData:
-    """
-    Summarise PTM site level data from peptide level data.
+    modi_name: str,
+    modification: str,
+    agg_method: Literal["median", "mean", "sum"] = "median",
+    top_n: int | None = None,
+    rank_method: Literal["total_intensity", "max_intensity"] = "total_intensity",
+    ) -> md.MuData:
+    """Summarise feature-level data to PTM-level data.
 
-    Args:
-        mdata (md.MuData): MuData object containing peptide level data.
-        protein_col (str): Column name for protein groups. Default is "protein_group" which is from msmu protein inference.
-        fasta_file (str | Path): Path to the FASTA file for protein sequences used for protein site labeling.
-        modification_name (str): Name of the PTM modification (e.g. phospho, acetyl).
-        modification_mass (float | None): Mass of the PTM modification. If None, default mass will be used.
-        sum_method (str): Method to summarise quantification of peptides. Default is "median".
-
+    Parameters:
+        mdata (MuData): MuData object containing peptide-level data.
+        fasta_file (str | Path): Path to the FASTA file used for the search.
+        modi_name (str): Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
+        modification (str): Modification string (e.g., "[+79.96633]", "(unimod:21)").
+        agg_method (Literal["median", "mean", "sum"], optional): Aggregation method to use. Defaults to "median".
+    
     Returns:
-        md.MuData: MuData object containing PTM site level data. Modality name will be "{modification_name}_site".
+        MuData: MuData object containing PTM-level data.
     """
+    adata_to_summarise:ad.AnnData = mdata["peptide"].copy()
+    modality_name = f"{modi_name}_site"
+    mstatus = MuDataStatus(mdata)
 
-    if modification_mass is None:
-        if modification_name in PtmPreset.__dict__:
-            preset = getattr(PtmPreset, modification_name)()
-            modification_mass = preset.mass
-        else:
-            raise ValueError(f"Unknown modification name: {modification_name}. Please provide modification mass.")
-    else:
-        if modification_name in PtmPreset.__dict__:
-            warnings.warn(
-                f"Modification mass is provided for {modification_name}. "
-                f"Provided mass will be used instead of default mass."
-            )
-            preset = PtmPreset(name=modification_name, mass=modification_mass)
+    # Preparation
+    summarisation_prep = PtmSummarisationPrep(
+        adata_to_summarise,
+        modi_identifier=modification,
+        fasta_file=fasta_file,
+        )
 
-        elif modification_name not in PtmPreset.__dict__:  # user defined modification
-            preset = PtmPreset(name=modification_name, mass=modification_mass)
-        else:
-            raise ValueError(f"Unknown modification name: {modification_name}. Please provide modification mass.")
+    # Ranking for top_n features
+    if top_n is not None:
+        summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
 
-    peptide_adata = mdata.mod["peptide"].copy()
+    evid_df_prep, quant_df_prep = summarisation_prep.prep()
 
-    summ: PtmSummariser = PtmSummariser(adata=peptide_adata, protein_col=protein_col)
-    data: pd.DataFrame = summ.get_data()
-    ptm_label_df = summ.label_ptm_site(data=data, modification_mass=preset.mass, fasta_file=fasta_file)
-    ptm_df = summ.summarise_data(data=ptm_label_df, sum_method=sum_method)
-
-    ptm_adata: ad.AnnData = summ.data2adata(data=ptm_df)
-
-    ptm_mdata = mdata.copy()
-    ptm_mdata = add_modality(
-        mdata=ptm_mdata,
-        adata=ptm_adata,
-        mod_name=f"{modification_name}_site",
-        parent_mods=["peptide"],
+    # Aggregation
+    aggregator = Aggregator.ptm_site(
+        identification_df=evid_df_prep,
+        quantification_df=quant_df_prep,
+        agg_method=agg_method,
     )
-    ptm_mdata.push_obs()
-    ptm_mdata.update_var()
 
-    return ptm_mdata
+    # Aggregate identification and quantification data
+    if mstatus.feature.has_var:
+        evid_df_agg = aggregator.aggregate_identification()
+    else:
+        logger.error("var is empty in feature modality. Cannot aggregate identification data.")
+        raise
+
+    logger.info(f"{modi_name} site level identifications: {len(evid_df_agg)}")
+
+    # Aggregate quantification data
+    quant_df_agg = aggregator.aggregate_quantification()
+
+    # build ptm-level anndata
+    logger.info(f"Building new {modality_name} AnnData.")
+    ptm_adata = ad.AnnData(
+        X=quant_df_agg.T,
+        var=evid_df_agg,
+        )
+
+    # add modality
+    mdata = add_modality(mdata=mdata, adata=ptm_adata, mod_name=modality_name, parent_mods=["peptide"])
+    mdata[modality_name].uns["level"] = "ptm_site"
 
 
-@dataclass
-class PtmPreset:
-    name: str | None = field(default=None)
-    mass: float | None = field(default=None)
-
-    @classmethod
-    def phospho(cls):
-        return cls(name="phospho", mass=79.96633)
-
-    @classmethod
-    def acetyl(cls):
-        return cls(name="acetyl", mass=42.010565)
+    return mdata
