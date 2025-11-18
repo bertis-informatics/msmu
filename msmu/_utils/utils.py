@@ -7,6 +7,8 @@ import re
 import functools
 import datetime
 import numpy as np
+from Bio import SeqIO
+from pathlib import Path
 
 from .._read_write._reader_utils import add_modality
 
@@ -136,6 +138,19 @@ def get_fasta_meta(
     fasta_meta.index = fasta_meta["Entry Type"] + "|" + fasta_meta["Accession"] + "|" + fasta_meta["Protein ID"]
 
     return fasta_meta
+
+
+def read_fasta_seq(file: str | Path) -> dict[str, str]:
+    result: dict[str, str] = dict()
+    for record in SeqIO.parse(file, "fasta"):
+        ref_uniprot: list[str] = record.id.split("|")[1]
+        ref_seq: str = str(record.seq)
+        if ref_uniprot in result:
+            # print("skipping:", record.description)
+            continue
+        result[ref_uniprot] = ref_seq
+
+    return result
 
 
 def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame) -> pd.Series:
