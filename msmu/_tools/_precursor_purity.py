@@ -170,9 +170,8 @@ class PrecursorPurityCalculator:
         return exp
 
     def _get_ms2_spectra_indices_from_mdata(self) -> list[int]:
-        ms2_spectra:list[int] = self._var_df.loc[self._var_df["filename"] == self.mzml.name, "scan_num"].astype(int).tolist()
+        ms2_spectra:list[int] = self._var_df.loc[self._var_df["filename"] == self.mzml.name.strip(".mzML"), "scan_num"].astype(int).tolist()
         ms2_spectra = [i - 1 for i in ms2_spectra]
-
         return ms2_spectra
 
     def _get_ms2_spectra_indices_from_mzml(self) -> list[int]:

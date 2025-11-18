@@ -34,7 +34,7 @@ def compute_precursor_purity(
         )
     file_dict:dict = dict()
     for file in mdata["feature"].var["filename"].unique():
-        full_mzml = [x for x in mzml_paths if Path(x).name == file]
+        full_mzml = [x for x in mzml_paths if Path(x).name == f"{file}.mzML"]
         if not full_mzml:
             raise ValueError(f"File {file} not found in provided mzML paths.")
         if len(full_mzml) > 1:
@@ -60,7 +60,7 @@ def compute_precursor_purity(
     )
 
     purity_result_df = purity_result.to_df()
-    purity_result_df["index"] = purity_result_df["filename"].str.strip("mzML") + purity_result_df["scan_num"].astype(str)
+    purity_result_df["index"] = purity_result_df["filename"].astype(str).str.strip("mzML") + purity_result_df["scan_num"].astype(str)
     purity_result_df = purity_result_df.set_index("index", drop=True)
     purity_result_df = purity_result_df.rename_axis(None)
     purity_result_df["scan_num"] = purity_result_df["scan_num"].astype(int)
