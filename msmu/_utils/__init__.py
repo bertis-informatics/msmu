@@ -1,18 +1,20 @@
 from .subset import subset, split_tmt
-from .utils import get_modality_dict, get_fasta_meta, map_fasta, get_label, uns_logger, add_quant, rename_obs
+from .utils import get_modality_dict, get_label, uns_logger, add_quant, rename_obs
 from .peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
     _get_peptide_length,
     _make_stripped_peptide,
 )
+from .protein import select_repr_protein
+from .fasta import map_fasta, attach_fasta
 
 __all__ = [
     "subset",
     "split_tmt",
     "get_modality_dict",
-    "get_fasta_meta",
     "map_fasta",
+    "attach_fasta",
     "get_label",
     "uns_logger",
     "add_quant",
@@ -21,4 +23,5 @@ __all__ = [
     "_count_missed_cleavages",
     "_get_peptide_length",
     "_make_stripped_peptide",
+    "select_repr_protein",
 ]

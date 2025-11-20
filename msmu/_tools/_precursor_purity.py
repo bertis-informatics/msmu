@@ -1,7 +1,6 @@
-from typing import Iterable, Optional, Dict, List
-from pathlib import Path
-from tqdm import tqdm
 import os
+from tqdm import tqdm
+from pathlib import Path
 from threading import Lock
 import pandas as pd
 import numpy as np
@@ -82,7 +81,7 @@ class PrecursorPurityCalculator:
         self._exp_src: Path | None = None
         self._exp_mtime: float | None = None
         self._lock: Lock = Lock()
-        self._var_df: Optional[pd.DataFrame] = None
+        self._var_df: pd.DataFrame | None = None
 
     @classmethod
     def from_mudata(cls, mdata: md.MuData, tolerance: float = 20.0, unit_ppm: bool = True):
