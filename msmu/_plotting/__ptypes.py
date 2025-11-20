@@ -51,15 +51,50 @@ class PlotBar(PlotTypes):
         return super().figure(go.Bar, **kwargs)
 
 
+class PlotSimpleBox(PlotTypes):
+    def figure(self):
+        self.trace()
+        self.layout(**self.layouts)
+
+        return self.fig
+
+    def trace(self):
+        self.fig.add_traces(
+            [
+                go.Box(
+                    x=[idx],
+                    # "min": [row["min"]],
+                    lowerfence=[max(row["25%"] - 1.5 * (row["75%"] - row["25%"]), row["min"])],
+                    q1=[row["25%"]],
+                    median=[row["50%"]],
+                    q3=[row["75%"]],
+                    upperfence=[min(row["75%"] + 1.5 * (row["75%"] - row["25%"]), row["max"])],
+                    # "max": [row["max"]],
+                    name=idx,
+                    boxpoints=False,
+                    hoverinfo="y",
+                )
+                for idx, row in self.data.iterrows()
+            ]
+        )
+        self.fig.add_traces(
+            [
+                go.Scatter(
+                    x=[idx] * 2,
+                    y=[row["max"], row["min"]],
+                    mode="markers",
+                    marker=dict(size=4),
+                    name=idx,
+                )
+                for idx, row in self.data.iterrows()
+            ]
+        )
+
+
 class PlotBox(PlotTypes):
     def figure(self, **kwargs):
         self.layouts.update(dict(xaxis=dict(showticklabels=False)))
         return super().figure(go.Box, **kwargs)
-
-    def trace(self):
-        traces = TraceDescribed(data=self.data)
-        self.fig.add_traces([self.ptype(**trace) for trace in traces()])
-        self.fig.update_traces(boxpoints=False, hoverinfo="y")
 
 
 class PlotViolin(PlotTypes):

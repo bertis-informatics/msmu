@@ -2,16 +2,49 @@ import mudata as md
 import plotly.graph_objects as go
 import numpy as np
 
-from .._utils import get_modality_dict
 from .__pdata import PlotData
 from .__ptypes import *
 from ._template import DEFAULT_TEMPLATE
-from ._utils import DEFAULT_COLUMN, _get_pc_cols, _get_umap_cols, _set_color
+from ._utils import _DEFAULT_OBS_PRIORITY, _get_pc_cols, _get_umap_cols, _set_color, resolve_obs_column
+
+
+def _resolve_plot_columns(
+    mdata: md.MuData,
+    groupby: str | None,
+    obs_column: str | None,
+) -> tuple[str, str]:
+    resolved_obs = resolve_obs_column(mdata, obs_column)
+    resolved_groupby = groupby or resolved_obs
+
+    return resolved_groupby, resolved_obs
+
+
+def _apply_layout_overrides(fig: go.Figure, layout_kwargs: dict) -> go.Figure:
+    if layout_kwargs:
+        fig.update_layout(**layout_kwargs)
+    return fig
+
+
+def _apply_color_if_needed(
+    fig: go.Figure,
+    *,
+    mdata: md.MuData,
+    modality: str,
+    groupby: str,
+    colorby: str | None,
+    obs_column: str,
+    template: str,
+) -> go.Figure:
+    if (colorby is not None) and (groupby == obs_column):
+        return _set_color(fig, mdata, modality, colorby, obs_column, template)
+    elif (colorby is not None) and (groupby != obs_column):
+        print("[Warning] 'colorby' is only applicable when 'groupby' is not set. Ignoring 'colorby' parameter.")
+    return fig
 
 
 def format_modality(mdata: md.MuData, modality: str) -> str:
     if modality == "feature":
-        if mdata['feature'].uns['search_engine'] == "Diann":
+        if mdata["feature"].uns["search_engine"] == "Diann":
             return "Precursor"
         else:
             return "PSM"
@@ -28,18 +61,20 @@ def format_modality(mdata: md.MuData, modality: str) -> str:
 def plot_charge(
     mdata: md.MuData,
     modality: str = "feature",
-    groupby: str = DEFAULT_COLUMN,
-    obs_column: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = "Number of PSMs by Charge State"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = "Number of PSMs"
     hovertemplate = "Charge: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotStackedBar(
         data=data._prep_var_data(groupby, "charge", obs_column=obs_column),
         x=groupby,
@@ -60,9 +95,7 @@ def plot_charge(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -70,20 +103,22 @@ def plot_charge(
 def plot_id(
     mdata: md.MuData,
     modality: str,
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     colorby: str | None = None,
     template: str = DEFAULT_TEMPLATE,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = f"Number of {format_modality(mdata, modality)}s"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = f"Number of {format_modality(mdata, modality)}s"
     hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y:,d}}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     if groupby != "fraction":
         plot = PlotBar(
             data=data._prep_id_data(groupby, obs_column=obs_column),
@@ -114,20 +149,25 @@ def plot_id(
         yaxis_title=yaxis_title,
         yaxis_tickformat=",d",
         showlegend=True,
-        legend=dict(title_text=f"{groupby.capitalize()}s"),
+        legend=dict(title_text=f"{groupby.capitalize()}"),
     )
 
     # Update traces
     fig.update_traces(texttemplate="%{y:,d}")
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
@@ -170,9 +210,7 @@ def plot_id_fraction(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -180,27 +218,28 @@ def plot_id_fraction(
 def plot_intensity(
     mdata: md.MuData,
     modality: str,
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     colorby: str | None = None,
     ptype: str = "hist",
     template: str = DEFAULT_TEMPLATE,
     bins: int = 30,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = f"{format_modality(mdata, modality)} Intensity Distribution"
 
     # Draw plot
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
         yaxis_title = f"Number of {format_modality(mdata, modality)}s"
-
-        data = PlotData(mdata, modality=modality)
         bin_info = data._get_bin_info(data._get_data(), bins)
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
-            data=data._prep_intensity_data_hist(groupby, bins, obs_column=obs_column),
+            data=data._prep_intensity_data_hist(groupby, obs_column=obs_column, bin_info=bin_info),
             x="center",
             y="count",
             name="name",
@@ -209,19 +248,17 @@ def plot_intensity(
         fig = plot.figure()
 
     elif ptype == "box":
-        xaxis_title = f"{groupby.capitalize()}s"
+        xaxis_title = f"{groupby.capitalize()}"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
-        data = PlotData(mdata, modality=modality)
-        plot = PlotBox(data=data._prep_intensity_data_box(groupby))
+        plot = PlotSimpleBox(data=data._prep_intensity_data_box(groupby, obs_column=obs_column))
         fig = plot.figure()
     elif ptype in ["vln", "violin"]:
-        xaxis_title = f"{groupby.capitalize()}s"
+        xaxis_title = f"{groupby.capitalize()}"
         yaxis_title = "Intensity (log<sub>2</sub>)"
 
-        data = PlotData(mdata, modality=modality)
         plot = PlotViolin(
-            data=data._prep_intensity_data(groupby),
+            data=data._prep_intensity_data(groupby, obs_column=obs_column),
             x=groupby,
             y="_value",
             name=groupby,
@@ -243,17 +280,22 @@ def plot_intensity(
         yaxis_title=yaxis_title,
         yaxis_tickformat=",d",
         showlegend=True,
-        legend=dict(title_text=f"{groupby.capitalize()}s"),
+        legend=dict(title_text=f"{groupby.capitalize()}"),
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
@@ -261,9 +303,11 @@ def plot_intensity(
 def plot_missingness(
     mdata: md.MuData,
     modality: str,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    obs_column = resolve_obs_column(mdata, obs_column)
+
     # Set titles
     title_text = f"{format_modality(mdata, modality)} Level"
     xaxis_title = "Data Completeness (%)"
@@ -271,7 +315,7 @@ def plot_missingness(
     hovertemplate = f"Data Completeness ≤ %{{x:.2f}}%<br>{yaxis_title} : %{{y:.2f}}% (%{{meta}})<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotScatter(
         data=data._prep_missingness_data(obs_column=obs_column),
         x="missingness",
@@ -294,9 +338,7 @@ def plot_missingness(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -304,13 +346,15 @@ def plot_missingness(
 def plot_pca(
     mdata: md.MuData,
     modality: str = "protein",
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     colorby: str = None,
     template: str = DEFAULT_TEMPLATE,
     pcs: tuple[int, int] | list[int] = (1, 2),
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Get data
     pcs, pc_columns = _get_pc_cols(mdata, modality, pcs)
     variances = mdata[modality].uns["pca"]["variance_ratio"]
@@ -322,7 +366,7 @@ def plot_pca(
     hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y}}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotScatter(
         data=data._prep_pca_data(modality, groupby, pc_columns, obs_column=obs_column),
         x=pc_columns[0],
@@ -345,6 +389,7 @@ def plot_pca(
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         legend=dict(
+            title=f"{groupby.capitalize()}",
             orientation="h",
             xanchor="right",
             yanchor="bottom",
@@ -354,13 +399,18 @@ def plot_pca(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
@@ -380,16 +430,15 @@ def plot_purity(
     threshold = [v["filter_purity"] for k, v in mdata[modality].uns["filter"].items()][0]
 
     # Draw plot
+    data = PlotData(mdata, modality=modality)
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Precursor Isolation Purity"
         yaxis_title = "Number of PSMs"
-
-        data = PlotData(mdata, modality=modality)
-        data._prep_purity_data(groupby)
-        bin_info = data._get_bin_info(data.X["purity"], bins)
+        purity_data = data._prep_purity_data(groupby)
+        bin_info = data._get_bin_info(purity_data["purity"], bins)
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
-            data=data._prep_purity_data_hist(groupby, bins),
+            data=data._prep_purity_data_hist(purity_data, groupby, bin_info=bin_info),
             x="center",
             y="count",
             name="name",
@@ -397,7 +446,7 @@ def plot_purity(
         )
         fig = plot.figure()
 
-        if threshold is not np.nan:
+        if not np.isnan(threshold):
             fig.add_vline(
                 x=threshold,
                 line_dash="dash",
@@ -417,11 +466,10 @@ def plot_purity(
         xaxis_title = "Raw Filenames"
         yaxis_title = "Precursor Isolation Purity"
 
-        data = PlotData(mdata, modality=modality)
-        plot = PlotBox(data=data._prep_purity_data_box(groupby))
+        plot = PlotSimpleBox(data=data._prep_purity_data_box(groupby))
         fig = plot.figure()
 
-        if threshold is not np.nan:
+        if not np.isnan(threshold):
             fig.add_hline(
                 y=threshold,
                 line_dash="dash",
@@ -438,7 +486,6 @@ def plot_purity(
         xaxis_title = "Raw Filenames"
         yaxis_title = "Precursor Isolation Purity"
 
-        data = PlotData(mdata, modality=modality)
         plot = PlotViolin(
             data=data._prep_purity_data_vln(groupby),
             x=groupby,
@@ -454,7 +501,7 @@ def plot_purity(
             meanline=dict(visible=True),
         )
 
-        if threshold is not np.nan:
+        if not np.isnan(threshold):
             fig.add_hline(
                 y=threshold,
                 line_dash="dash",
@@ -479,9 +526,7 @@ def plot_purity(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -489,12 +534,14 @@ def plot_purity(
 def plot_umap(
     mdata: md.MuData,
     modality: str = "protein",
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     colorby: str = None,
     template: str = DEFAULT_TEMPLATE,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Get required data
     umap_columns = _get_umap_cols(mdata, modality)
 
@@ -505,7 +552,7 @@ def plot_umap(
     hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y}}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotScatter(
         data=data._prep_umap_data(modality, groupby, umap_columns, obs_column=obs_column),
         x=umap_columns[0],
@@ -528,6 +575,7 @@ def plot_umap(
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         legend=dict(
+            title=f"{groupby.capitalize()}",
             orientation="h",
             xanchor="right",
             yanchor="bottom",
@@ -536,41 +584,47 @@ def plot_umap(
         ),
     )
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
 
 def plot_peptide_length(
     mdata: md.MuData,
-    groupby: str = DEFAULT_COLUMN,
-    colorby: str = None,
+    groupby: str | None = None,
+    colorby: str | None = None,
     template: str = DEFAULT_TEMPLATE,
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     ptype: str = "box",
     **kwargs,
 ) -> go.Figure:
     # Set mods
     modality: str = "peptide"
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
 
     # Set titles
     title_text = "Peptide Length Distribution"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = "Length"
 
     # Draw plot
     if ptype in ["box", "boxplot"]:
-        data = PlotData(mdata, modality=modality)
-        plot = PlotBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
+        data = PlotData(mdata, modality=modality, obs_column=obs_column)
+        plot = PlotSimpleBox(data=data._prep_peptide_length_data(groupby, obs_column=obs_column))
         fig = plot.figure()
     elif ptype in ["vln", "violin"]:
-        data = PlotData(mdata, modality=modality)
+        data = PlotData(mdata, modality=modality, obs_column=obs_column)
         plot = PlotViolin(
             data=data._prep_peptide_length_data_vln(groupby, obs_column=obs_column),
             x=groupby,
@@ -593,17 +647,22 @@ def plot_peptide_length(
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
         showlegend=True,
-        legend=dict(title_text=f"{groupby.capitalize()}s"),
+        legend=dict(title_text=f"{groupby.capitalize()}"),
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     # Set color
-    if (colorby is not None) & (groupby in [obs_column]):
-        fig = _set_color(fig, mdata, modality, colorby, template)
+    fig = _apply_color_if_needed(
+        fig,
+        mdata=mdata,
+        modality=modality,
+        groupby=groupby,
+        colorby=colorby,
+        obs_column=obs_column,
+        template=template,
+    )
 
     return fig
 
@@ -611,18 +670,20 @@ def plot_peptide_length(
 def plot_missed_cleavage(
     mdata: md.MuData,
     modality: str = "feature",
-    groupby: str = DEFAULT_COLUMN,
-    obs_column: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = "Number of PSMs by Missed Cleavages"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = "Number of PSMs"
     hovertemplate = "Missed Cleavages: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotStackedBar(
         data=data._prep_var_data(groupby, "missed_cleavages", obs_column=obs_column),
         x=groupby,
@@ -643,9 +704,7 @@ def plot_missed_cleavage(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -654,21 +713,24 @@ def plot_upset(
     mdata: md.MuData,
     modality: str = "protein",
     subset: str = None,
-    subset_column: str = DEFAULT_COLUMN,
-    groupby: str = DEFAULT_COLUMN,
-    obs_column: str = DEFAULT_COLUMN,
+    subset_column: str | None = None,
+    groupby: str | None = None,
+    obs_column: str | None = None,
     **kwargs,
 ):
-    # Set titles
-    title_text = f"Intersection of Proteins among {groupby.capitalize()}s"
+    subset_column = resolve_obs_column(mdata, subset_column)
 
     if subset is not None:
         mdata = mdata[mdata.obs[subset_column] == subset].copy()
 
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
+    title_text = f"Intersection of Proteins among {groupby.capitalize()}"
+
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotUpset(
-        data=data._prep_upset_data(groupby=groupby, obs_column=obs_column),
+        data=data._prep_upset_data(groupby, obs_column=obs_column),
     )
     fig = plot.figure()
 
@@ -678,28 +740,27 @@ def plot_upset(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
 
 def plot_correlation(
     mdata: md.MuData,
-    groupby: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
     modality: str = "protein",
-    obs_column: str = DEFAULT_COLUMN,
+    obs_column: str | None = None,
     **kwargs,
 ):
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
 
     # Set titles
     title_text = "Correlation Heatmap"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
     plot = PlotHeatmap(
-        data=data._prep_correlation_data(obs_column=obs_column, groupby=groupby),
+        data=data._prep_correlation_data(groupby, obs_column=obs_column),
         hovertemplate="<b>%{x} / %{y}</b><br>Pearson's <i>r</i> : %{z:.4f}<extra></extra>",
     )
     fig = plot.figure()
@@ -716,9 +777,7 @@ def plot_correlation(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -769,9 +828,7 @@ def plot_purity_metrics(
     )
 
     # Update layout with kwargs
-    fig.update_layout(
-        **kwargs,
-    )
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -779,20 +836,22 @@ def plot_purity_metrics(
 def plot_tolerable_termini(
     mdata: md.MuData,
     modality: str = "feature",
-    groupby: str = DEFAULT_COLUMN,
-    obs_column: str = DEFAULT_COLUMN,
+    groupby: str | None = None,
+    obs_column: str | None = None,
     **kwargs,
 ) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
     # Set titles
     title_text = "Number of PSMs by tolerable termini"
-    xaxis_title = f"{groupby.capitalize()}s"
+    xaxis_title = f"{groupby.capitalize()}"
     yaxis_title = "Number of PSMs"
     hovertemplate = "Tolerable termini: %{meta}<br>Number of PSMs: %{y:2,d}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality=modality)
-    plot_data = (data._prep_var_data(groupby, "semi_enzymatic", obs_column=obs_column))
-    plot_data['semi_enzymatic'] = plot_data['semi_enzymatic'].map({0: "fully", 1: "semi"})
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
+    plot_data = data._prep_var_data(groupby, "semi_enzymatic", obs_column=obs_column)
+    plot_data["semi_enzymatic"] = plot_data["semi_enzymatic"].map({0: "fully", 1: "semi"})
     plot = PlotStackedBar(
         data=plot_data,
         x=groupby,
@@ -814,8 +873,109 @@ def plot_tolerable_termini(
     )
 
     # Update layout with kwargs
+    fig = _apply_layout_overrides(fig, kwargs)
+
+    return fig
+
+
+def plot_var(
+    mdata: md.MuData,
+    modality: str = "feature",
+    groupby: str | None = None,
+    var_column: str = None,
+    obs_column: str | None = None,
+    ptype: str | None = None,
+    bins: int = 30,
+    **kwargs,
+) -> go.Figure:
+    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+
+    # Set labels
+    modality_label = format_modality(mdata, modality)
+    column_label = var_column.replace("_", " ").capitalize()
+
+    if pd.api.types.is_numeric_dtype(mdata[modality].var[var_column]):
+        if len(mdata[modality].var[var_column].unique()) > 20:
+            ptype = ptype or "box"
+        else:
+            ptype = ptype or "stack"
+    else:
+        ptype = ptype or "stack"
+
+    # Set titles
+    title_text = f"Number of {modality_label}s by {column_label}"
+    xaxis_title = f"{groupby.capitalize()}"
+    yaxis_title = f"Number of {modality_label}s"
+    hovertemplate = f"{column_label}: %{{meta}}<br>Number of {modality_label}s: %{{y:2,d}}<extra></extra>"
+
+    # Draw plot
+    data = PlotData(mdata, modality=modality, obs_column=obs_column)
+    if ptype in ["stack", "stackd", "stacked_bar"]:
+        plot_data = data._prep_var_bar(groupby, var_column, obs_column=obs_column)
+        plot = PlotStackedBar(
+            data=plot_data,
+            x=groupby,
+            y="count",
+            name=var_column,
+            meta=var_column,
+            hovertemplate=hovertemplate,
+        )
+        fig = plot.figure()
+    elif ptype in ["box"]:
+        plot_data = data._prep_var_box(groupby, var_column, obs_column=obs_column)
+        plot = PlotBox(
+            data=plot_data,
+            x=groupby,
+            y=var_column,
+            name=groupby,
+        )
+        fig = plot.figure(
+            boxpoints="suspectedoutliers",
+        )
+    elif ptype in ["simple_box", "simplebox"]:
+        plot_data = data._prep_var_simple_box(groupby, var_column, obs_column=obs_column)
+        plot = PlotSimpleBox(data=plot_data)
+        fig = plot.figure()
+    elif ptype in ["vln", "violin"]:
+        plot_data = data._prep_var_box(groupby, var_column, obs_column=obs_column)
+        plot = PlotViolin(
+            data=plot_data,
+            x=groupby,
+            y=var_column,
+            name=groupby,
+        )
+        fig = plot.figure(
+            spanmode="hard",
+            points="suspectedoutliers",
+            marker=dict(line=dict(outlierwidth=0)),
+            box=dict(visible=True),
+            meanline=dict(visible=True),
+        )
+    elif ptype in ["hist", "histogram"]:
+        bin_info = data._get_bin_info(data._get_var()[var_column], bins)
+        plot_data = data._prep_var_hist(groupby, var_column, obs_column=obs_column, bin_info=bin_info)
+        hovertemplate = f"<b>%{{meta}}</b><br>{column_label}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>Number of {modality_label}s: %{{y:2,d}}<extra></extra>"
+        plot = PlotHistogram(
+            data=plot_data,
+            x="center",
+            y="count",
+            name="name",
+            hovertemplate=hovertemplate,
+        )
+        fig = plot.figure()
+    else:
+        raise ValueError(f"Unknown plot type: {ptype}, choose from 'stack', 'box', 'simplebox', 'vln', 'hist'")
+
+    # Update layout
     fig.update_layout(
-        **kwargs,
+        title_text=title_text,
+        xaxis_title=xaxis_title,
+        yaxis_title=yaxis_title,
+        yaxis_tickformat=",d",
+        legend=dict(title_text=column_label),
     )
+
+    # Update layout with kwargs
+    fig = _apply_layout_overrides(fig, kwargs)
 
     return fig

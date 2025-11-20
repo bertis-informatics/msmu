@@ -3,8 +3,9 @@ import itertools
 import mudata as md
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_categorical_dtype
 
-from ._utils import DEFAULT_COLUMN
+from ._utils import _DEFAULT_OBS_PRIORITY, resolve_obs_column
 
 
 class PlotData:
@@ -17,6 +18,7 @@ class PlotData:
         self.mdata = mdata
         self.modality = modality
         self.kwargs = kwargs
+        self._default_obs_column = resolve_obs_column(self.mdata, kwargs.get("obs_column"))
 
     def _get_data(self):
         return self.mdata[self.modality].to_df().copy()
@@ -30,10 +32,18 @@ class PlotData:
 
         return pd.concat([var_df, varm_df], axis=1)
 
-    def _get_obs(self, obs_column: str = DEFAULT_COLUMN):
+    def _resolve_obs_column(self, obs_column: str | None = None) -> str:
+        if obs_column is None:
+            return self._default_obs_column
+        return resolve_obs_column(self.mdata, obs_column)
+
+    def _get_obs(self, obs_column: str):
+        obs_column = self._resolve_obs_column(obs_column)
         obs_df = self.mdata.obs.copy()
         if "condition" in obs_df.columns:
             obs_df = obs_df.sort_values(["condition", obs_column])
+        if not is_categorical_dtype(obs_df[obs_column]):
+            obs_df[obs_column] = obs_df[obs_column].astype("category")
         obs_df[obs_column] = obs_df[obs_column].cat.remove_unused_categories()
         obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(obs_df[obs_column].values.tolist())
 
@@ -43,24 +53,24 @@ class PlotData:
         self,
         groupby: str,
         name: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
         orig_df = self._get_data()
 
-        if (np.nansum(orig_df) == 0) or (groupby == 'fraction'):
+        if (np.nansum(orig_df) == 0) or (groupby == "fraction"):
             prep_df = var_df.copy()
             if np.nansum(orig_df) == 0:
                 print("No data available for the selected modality. Counting from var.")
-            if groupby == 'fraction':
-                var_df['fraction'] = var_df['filename']
-                categories = pd.Categorical(var_df['fraction'].unique().sort_values())
+            if groupby == "fraction":
+                var_df["fraction"] = var_df["filename"]
+                categories = pd.Categorical(var_df["fraction"].unique().sort_values())
 
-                if self.modality != 'feature':
+                if self.modality != "feature":
                     raise ValueError("groupby: 'fraction' only supports modality: 'feature'")
-                if name == 'id_count':
-                    var_df['id_count'] = var_df['filename']
+                if name == "id_count":
+                    var_df["id_count"] = var_df["filename"]
             else:
                 categories = obs_df[groupby].unique()
 
@@ -89,10 +99,144 @@ class PlotData:
 
         return prep_df
 
+    def _prep_var_bar(
+        self,
+        groupby: str,
+        name: str,
+        obs_column: str,
+    ) -> pd.DataFrame:
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self._get_data()
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        prep_df = melt_df.merge(var_df[[name]], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+
+        prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
+        prep_df[groupby] = prep_df[groupby].values.tolist()
+
+        prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
+        prep_df = prep_df.sort_values(groupby)
+
+        return prep_df
+
+    def _prep_var_box(
+        self,
+        groupby: str,
+        var_column: str,
+        obs_column: str,
+    ) -> pd.DataFrame:
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self.mdata[self.modality].to_df()
+
+        var_df = var_df[[var_column]]
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        prep_df = melt_df.merge(var_df[[var_column]], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+
+        return prep_df
+
+    def _prep_var_simple_box(
+        self,
+        groupby: str,
+        var_column: str,
+        obs_column: str,
+    ) -> pd.DataFrame:
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self.mdata[self.modality].to_df()
+
+        var_df = var_df[[var_column]]
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        prep_df = melt_df.merge(var_df[var_column], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+
+        prep_df = prep_df.groupby(groupby, observed=True).describe().droplevel(level=0, axis=1)
+        prep_df.index = pd.CategoricalIndex(prep_df.index, categories=obs_df[groupby].unique())
+        return prep_df
+
+    def _prep_var_hist(
+        self,
+        groupby: str,
+        var_column: str,
+        obs_column: str,
+        bin_info: dict | None = None,
+    ) -> pd.DataFrame:
+        if bin_info is None:
+            raise ValueError("bin_info must be provided when preparing purity histogram data.")
+
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self._get_data()
+        n_bins = len(bin_info["labels"])
+        var_df = var_df[[var_column]]
+
+        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
+        merged_df = merged_df.groupby(groupby, observed=True).any()
+
+        melt_df = merged_df.stack().reset_index()
+        melt_df.columns = [groupby, "_var", "_exists"]
+
+        prep_df = melt_df.merge(var_df[var_column], left_on="_var", right_index=True)
+        prep_df = prep_df[prep_df["_exists"] > 0]
+        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
+
+        prep_df["_bin_"] = pd.cut(
+            prep_df[var_column],
+            bins=bin_info["edges"],
+            labels=bin_info["labels"],
+            include_lowest=True,
+        )
+
+        grouped = prep_df.groupby([groupby, "_bin_"], observed=False).size().unstack(fill_value=0)
+        grouped = grouped[grouped.sum(axis=1) > 0]
+        grouped.index = pd.CategoricalIndex(grouped.index, categories=obs_df[groupby].unique())
+        grouped = grouped.sort_index(axis=0)
+
+        bin_counts = grouped.values.flatten()
+        bin_freqs = bin_counts / prep_df.shape[0]
+        bin_names = grouped.index.get_level_values(0).repeat(n_bins).tolist()
+
+        # make dataframe
+        prepped = pd.DataFrame(
+            {
+                "center": bin_info["centers"] * len(grouped),
+                "label": bin_info["labels"] * len(grouped),
+                "count": bin_counts,
+                "frequency": bin_freqs,
+                "name": bin_names,
+            }
+        )
+        prepped["name"] = pd.Categorical(prepped["name"], categories=obs_df[groupby].unique())
+
+        return prepped
+
     def _prep_id_data(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ):
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
@@ -111,23 +255,26 @@ class PlotData:
 
         return prep_df
 
-
     def _prep_intensity_data_hist(
         self,
         groupby: str,
-        bins: int,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
+        bin_info: dict | None = None,
     ) -> pd.DataFrame:
+        if bin_info is None:
+            raise ValueError("bin_info must be provided when preparing intensity histogram data.")
+
         obs_df = self._get_obs(obs_column)
         orig_df = self._get_data().T
+        n_bins = len(bin_info["labels"])
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         melt_df = melt_df.join(obs_df, on="_obs", how="left")
 
         melt_df["_bin_"] = pd.cut(
             melt_df["_value"],
-            bins=self.bin_info["edges"],
-            labels=self.bin_info["labels"],
+            bins=bin_info["edges"],
+            labels=bin_info["labels"],
             include_lowest=True,
         )
 
@@ -138,13 +285,13 @@ class PlotData:
 
         bin_counts = grouped.values.flatten()
         bin_freqs = bin_counts / melt_df.shape[0]
-        bin_names = grouped.index.get_level_values(0).repeat(bins).tolist()
+        bin_names = grouped.index.get_level_values(0).repeat(n_bins).tolist()
 
         # make dataframe
         prepped = pd.DataFrame(
             {
-                "center": self.bin_info["centers"] * len(grouped),
-                "label": self.bin_info["labels"] * len(grouped),
+                "center": bin_info["centers"] * len(grouped),
+                "label": bin_info["labels"] * len(grouped),
                 "count": bin_counts,
                 "frequency": bin_freqs,
                 "name": bin_names,
@@ -156,27 +303,29 @@ class PlotData:
 
     def _get_bin_info(self, data: pd.DataFrame, bins: int) -> dict:
         # get bin data
-        min_value = np.min(data)
-        max_value = np.max(data)
+        values = np.asarray(data, dtype=float).flatten()
+        if values.size == 0:
+            raise ValueError("Cannot compute bin info for empty data.")
+
+        min_value = np.nanmin(values)
+        max_value = np.nanmax(values)
         data_range = max_value - min_value
-        bin_width = data_range / bins
+        bin_width = data_range / bins if bins > 0 else 0
         bin_edges = [min_value + bin_width * i for i in range(bins + 1)]
         bin_centers = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(bins)]
         bin_labels = [f"{bin_edges[i]} - {bin_edges[i + 1]}" for i in range(bins)]
 
-        self.bin_info = {
+        return {
             "width": bin_width,
             "edges": bin_edges,
             "centers": bin_centers,
             "labels": bin_labels,
         }
 
-        return self.bin_info
-
     def _prep_intensity_data(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs_df = self._get_obs(obs_column)
         orig_df = self.mdata[self.modality].to_df().T
@@ -191,7 +340,7 @@ class PlotData:
     def _prep_intensity_data_box(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs_df = self._get_obs(obs_column)
         orig_df = self.mdata[self.modality].to_df().T
@@ -207,7 +356,7 @@ class PlotData:
 
     def _prep_missingness_data(
         self,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs = self._get_obs(obs_column)
         n_sample = obs.shape[0]
@@ -233,7 +382,7 @@ class PlotData:
         modality: str,
         groupby: str,
         pc_columns: list[str],
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs = self._get_obs(obs_column)
 
@@ -249,7 +398,7 @@ class PlotData:
         modality: str,
         groupby: str,
         umap_columns: list[str],
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ) -> pd.DataFrame:
         obs = self._get_obs(obs_column)
 
@@ -272,49 +421,52 @@ class PlotData:
             data = data[["purity"]]
             data["_idx_"] = "Purity"
 
-        self.X = data[data["purity"] >= 0]
-
-        return self.X
+        return data[data["purity"] >= 0]
 
     def _prep_purity_data_hist(
         self,
+        data: pd.DataFrame,
         groupby: str = None,
-        bins: int = 50,
+        bin_info: dict | None = None,
     ):
-        data = self.X
+        if bin_info is None:
+            raise ValueError("bin_info must be provided when preparing purity histogram data.")
+
+        df = data.copy()
+        n_bins = len(bin_info["labels"])
 
         # Treat groupby
-        data["_bin_"] = pd.cut(
-            data["purity"],
-            bins=self.bin_info["edges"],
-            labels=self.bin_info["labels"],
+        df["_bin_"] = pd.cut(
+            df["purity"],
+            bins=bin_info["edges"],
+            labels=bin_info["labels"],
             include_lowest=True,
         )
         if groupby is not None:
-            grouped = data.groupby([groupby, "_bin_"], observed=False).size().unstack(fill_value=0)
+            grouped = df.groupby([groupby, "_bin_"], observed=False).size().unstack(fill_value=0)
             bin_counts = grouped.values.flatten()
-            bin_frequencies = bin_counts / data.shape[0]
-            bin_names = grouped.index.get_level_values(0).repeat(bins).tolist()
+            bin_frequencies = bin_counts / df.shape[0]
+            bin_names = grouped.index.get_level_values(0).repeat(n_bins).tolist()
 
             # make dataframe
             prepped = pd.DataFrame(
                 {
-                    "center": self.bin_info["centers"] * len(grouped),
-                    "label": self.bin_info["labels"] * len(grouped),
+                    "center": bin_info["centers"] * len(grouped),
+                    "label": bin_info["labels"] * len(grouped),
                     "count": bin_counts,
                     "frequency": bin_frequencies,
                     "name": bin_names,
                 }
             )
         else:
-            bin_counts = data["_bin_"].value_counts(sort=False).values
-            bin_frequencies = bin_counts / data.shape[0]
+            bin_counts = df["_bin_"].value_counts(sort=False).values
+            bin_frequencies = bin_counts / df.shape[0]
 
             # make dataframe
             prepped = pd.DataFrame(
                 {
-                    "center": self.bin_info["centers"],
-                    "label": self.bin_info["labels"],
+                    "center": bin_info["centers"],
+                    "label": bin_info["labels"],
                     "count": bin_counts,
                     "frequency": bin_frequencies,
                     "name": "Purity",
@@ -349,7 +501,7 @@ class PlotData:
     def _prep_peptide_length_data(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ):
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
@@ -374,7 +526,7 @@ class PlotData:
     def _prep_peptide_length_data_vln(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ):
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
@@ -396,7 +548,7 @@ class PlotData:
     def _prep_missed_cleavage(
         self,
         groupby: str,
-        obs_column: str = DEFAULT_COLUMN,
+        obs_column: str,
     ):
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
@@ -420,8 +572,8 @@ class PlotData:
 
     def _prep_upset_data(
         self,
-        groupby: str = DEFAULT_COLUMN,
-        obs_column: str = DEFAULT_COLUMN,
+        groupby: str,
+        obs_column: str,
     ):
         orig_df = self._get_data()
         obs_df = self._get_obs(obs_column)
@@ -441,7 +593,7 @@ class PlotData:
 
         return combination_counts, item_counts
 
-    def _prep_correlation_data(self, groupby: str, obs_column: str = DEFAULT_COLUMN):
+    def _prep_correlation_data(self, groupby: str, obs_column: str):
         orig_df = self._get_data()
         obs_df = self._get_obs(obs_column)
         corrs_df = orig_df.groupby(obs_df[groupby], observed=True).median().T.corr(method="pearson")
