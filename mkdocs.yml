@@ -1,5 +1,6 @@
 site_name: "msmu"
 site_description: "Proteomics Analysis Toolkit based on MuData"
+site_dir: "docs"
 
 repo_name: "msmu"
 repo_url: https://bitbucket.org/bertis/msmu
@@ -14,6 +15,8 @@ nav:
       - "DIA": "tutorials/dia.md"
       - "Visualization": "tutorials/visualization.md"
   - "API": "reference/" # From gen-files plugin
+
+docs_dir: "mkdocs"
 
 theme:
   name: material
