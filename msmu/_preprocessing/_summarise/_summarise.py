@@ -270,7 +270,6 @@ def to_protein(
 @uns_logger
 def to_ptm(
     mdata: md.MuData,
-    fasta_file: str | Path,
     modi_name: str,
     modification: str,
     agg_method: Literal["median", "mean", "sum"] = "median",
@@ -281,7 +280,6 @@ def to_ptm(
 
     Parameters:
         mdata (MuData): MuData object containing peptide-level data.
-        fasta_file (str | Path): Path to the FASTA file used for the search.
         modi_name (str): Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
         modification (str): Modification string (e.g., "[+79.96633]", "(unimod:21)").
         agg_method (Literal["median", "mean", "sum"], optional): Aggregation method to use. Defaults to "median".
@@ -294,10 +292,14 @@ def to_ptm(
     mstatus = MuDataStatus(mdata)
 
     # Preparation
+
+    if "protein_info" not in mdata.uns:
+        logger.error("protein_info not found in mdata.uns. Attach fasta to mdata with mm.utils.attach_fasta().")
+        raise
     summarisation_prep = PtmSummarisationPrep(
         adata_to_summarise,
         modi_identifier=modification,
-        fasta_file=fasta_file,
+        fasta=mdata.uns["protein_info"],
         )
 
     # Ranking for top_n features

@@ -1,16 +1,18 @@
 from typing import Iterable
-import anndata as ad
-import mudata as md
 from collections.abc import Mapping, Sequence
 import pandas as pd
-import re
 import functools
 import datetime
+import logging
 import numpy as np
-from Bio import SeqIO
-from pathlib import Path
+
+import anndata as ad
+import mudata as md
 
 from .._read_write._reader_utils import add_modality
+
+
+logger = logging.getLogger(__name__)
 
 
 def serialize(obj):
@@ -90,103 +92,6 @@ def get_label(mdata: md.MuData) -> str:
         raise ValueError("Multiple Label in Adatas! Please check label argument for reading search outputs!")
 
     return label
-
-
-def get_fasta_meta(
-    fasta: str | None = None
-    ) -> pd.DataFrame:
-    """
-    Parse a FASTA file to extract protein metadata robustly,
-    even if some fields (GN, OS, OX) are missing.
-
-    Args:
-        fasta (str | None): Path to the FASTA file.
-
-    Returns:
-        pd.DataFrame: DataFrame containing parsed protein metadata.
-    """
-    with open(fasta, "r") as f:
-        headers = [line.strip() for line in f if line.startswith(">")]
-
-    parsed_data = []
-    for header in headers:
-        # Parse initial identifier part: >sp|P12345|PROT_HUMAN Some protein name
-        m = re.match(r">(\w+)\|(\S+)\|(\S+)\s(.+)", header)
-        if not m:
-            continue  # skip if header malformed
-
-        entry_type, accession, protein_id, remaining = m.groups()
-
-        # Try to extract additional annotations (may be missing)
-        os_match = re.search(r"OS=([^=]+?)(?=\s\w+=|$)", remaining)
-        ox_match = re.search(r"OX=(\d+)", remaining)
-        gn_match = re.search(r"GN=([^\s]+)", remaining)
-
-        protein_name = remaining.split(" OS=")[0] if " OS=" in remaining else remaining
-
-        parsed_data.append({
-            "Entry Type": entry_type,
-            "Accession": accession,
-            "Protein ID": protein_id,
-            "Protein Name": protein_name.strip(),
-            "Organism": os_match.group(1).strip() if os_match else "Unknown",
-            "Taxonomy ID": ox_match.group(1) if ox_match else "Unknown",
-            "Gene": gn_match.group(1) if gn_match else "Unknown",
-        })
-
-    fasta_meta = pd.DataFrame(parsed_data)
-    fasta_meta.index = fasta_meta["Entry Type"] + "|" + fasta_meta["Accession"] + "|" + fasta_meta["Protein ID"]
-
-    return fasta_meta
-
-
-def read_fasta_seq(file: str | Path) -> dict[str, str]:
-    result: dict[str, str] = dict()
-    for record in SeqIO.parse(file, "fasta"):
-        ref_uniprot: list[str] = record.id.split("|")[1]
-        ref_seq: str = str(record.seq)
-        if ref_uniprot in result:
-            # print("skipping:", record.description)
-            continue
-        result[ref_uniprot] = ref_seq
-
-    return result
-
-
-def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame) -> pd.Series:
-    """
-    Map protein groups to gene names using a FASTA metadata DataFrame.
-
-    Args:
-        protein_group (str): Protein group.
-        fasta_meta (pd.DataFrame): DataFrame containing fasta metadata.
-
-    Returns:
-        pd.Series: Series containing gene names.
-    """
-    groups = protein_group.split(";")
-    transformed_groups = []
-
-    for group in groups:
-        members = group.split(",")
-        transformed_members = [fasta_meta["Gene"].get(member, None) for member in members]
-        transformed_groups.append(",".join(set(filter(None, transformed_members))))
-
-    return ";".join(transformed_groups)
-
-
-def map_fasta(protein_groups: pd.Series, fasta_meta: pd.DataFrame) -> pd.Series:
-    """
-    Map protein groups to gene names using a FASTA metadata DataFrame.
-
-    Args:
-        protein_groups (pd.Series): Series containing protein groups.
-        fasta_meta (pd.DataFrame): DataFrame containing fasta metadata.
-
-    Returns:
-        pd.Series: Series containing gene names.
-    """
-    return protein_groups.map(lambda x: _map_fasta(x, fasta_meta))
 
 
 def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool: str) -> md.MuData:

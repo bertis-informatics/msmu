@@ -10,7 +10,6 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
-from ._reader_utils import ProteinIdParser
 from .._utils.peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -32,17 +31,6 @@ def _get_separator(file_path: Path) -> str:
         stacklevel=2,
     )
     return "\t"
-
-
-def _assign_protein_id_info(mdata: md.MuData) -> md.MuData:
-    protein_id_info: ProteinIdParser = ProteinIdParser()
-    protein_id_info.parse(proteins=mdata["feature"].var["proteins"], source="uniprot")
-
-    protein_processed_mdata: md.MuData = mdata.copy()
-    protein_processed_mdata["feature"].var["proteins"] = protein_id_info.accessions
-    protein_processed_mdata.uns["protein_info"] = protein_id_info.protein_info
-
-    return protein_processed_mdata
 
 
 @dataclass
@@ -145,7 +133,7 @@ class SearchResultReader:
         self._count_missed_cleavages: Callable = _count_missed_cleavages
         self._make_stripped_peptide: Callable = _make_stripped_peptide
         self._get_peptide_length: Callable = _get_peptide_length
-        self._assign_protein_id_info: Callable = _assign_protein_id_info
+        # self._assign_protein_id_info: Callable = _assign_protein_id_info
 
         self.used_feature_cols: list[str] = [
             # "protein_group",
@@ -410,7 +398,5 @@ class SearchResultReader:
 
         mudata_input:MuDataInput = self._make_mudata_input()
         mdata:md.MuData = self._build_mudata(mudata_input=mudata_input)
-
-        mdata = self._assign_protein_id_info(mdata=mdata)
 
         return mdata

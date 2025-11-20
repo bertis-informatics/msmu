@@ -9,7 +9,6 @@ from . import _tools as tl
 from ._read_write._reader_utils import merge_mudata
 from ._read_write._reader_registry import read_h5mu, read_sage, read_diann, read_maxquant, read_fragpipe
 from . import _utils as utils
-from ._utils import get_fasta_meta, get_label, map_fasta, subset, add_quant, split_tmt, rename_obs
 
 try:
     from ._version import version as __version__

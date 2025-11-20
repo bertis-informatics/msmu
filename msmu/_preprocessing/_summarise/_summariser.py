@@ -5,12 +5,10 @@ import numpy as np
 import pandas as pd
 
 from .._filter import _mask_boolean_filter
-from ..._utils.utils import read_fasta_seq
 
 # for type checking only
 import anndata as ad
 from typing import Literal
-from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -408,10 +406,10 @@ class PtmSummarisationPrep(SummarisationPrep):
             self,
             adata:ad.AnnData,
             modi_identifier: str,
-            fasta_file: str | Path,
+            fasta: pd.DataFrame
             ) -> None:
         self._modi_identifier = modi_identifier
-        self._fasta_dict:dict = read_fasta_seq(file=fasta_file)
+        self._fasta_dict:dict = fasta["Sequence"].to_dict()
         self._col_to_groupby = "ptm_site"
 
         super().__init__(adata, self._col_to_groupby, has_decoy=False)

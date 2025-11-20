@@ -76,15 +76,6 @@ def infer_protein(
     mdata.uns["peptide_map"] = peptide_map
     mdata.uns["protein_map"] = protein_map
 
-    # Make protein information mapping dict from mdata.uns['protein_info']
-    # protein_info = mdata.uns["protein_info"].copy()
-    # protein_info.loc[protein_info["source"] == "", "source"] = "sp"
-    # protein_info["concated_accession"] = protein_info["source"] + "_" + protein_info["accession"]
-    # protein_info = protein_info.set_index("accession")
-    # protein_info = protein_info[["concated_accession"]]
-
-    # protein_info_dict = protein_info.to_dict(orient="dict")["concated_accession"]
-
     # Remap proteins and classify peptides
     mdata[modality].var["protein_group"] = (
         mdata[modality].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein_group"])
@@ -101,10 +92,6 @@ def infer_protein(
         mdata[modality].uns["decoy"]["peptide_type"] = [
             "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[modality].uns["decoy"]["protein_group"]
         ]
-
-    # mdata[modality].var["repr_protein"] = (
-    #     mdata[modality].var["protein_group"].apply(lambda x: select_representative(x, protein_info_dict))
-    # )
 
     return mdata
 

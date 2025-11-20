@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 
 from ._base_reader import SearchResultReader, SearchResultSettings
+from .._utils.fasta import parse_uniprot_accession
 from . import label_info
 
 
@@ -74,6 +75,7 @@ class SageReader(SearchResultReader):
         return config
 
     def _make_needed_columns_for_feature(self, feature_df: pd.DataFrame) -> pd.DataFrame:
+        feature_df["proteins"] = parse_uniprot_accession(feature_df["proteins"])
         feature_df["filename"] = feature_df["filename"].apply(self._strip_filename)
         feature_df["scan_num"] = feature_df["scannr"].apply(self._extract_scan_number)
         feature_df["stripped_peptide"] = feature_df["peptide"].apply(self._make_stripped_peptide)

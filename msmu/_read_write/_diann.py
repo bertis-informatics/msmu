@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 
 from ._base_reader import SearchResultReader, SearchResultSettings
+from .._utils.fasta import parse_uniprot_accession
 
 class DiannReader(SearchResultReader):
     """
@@ -58,7 +59,7 @@ class DiannReader(SearchResultReader):
             q_value_prefix = "Global"
 
         rename_dict = {
-            "Protein.Ids": "proteins",
+            # "Protein.Ids": "proteins",
             "Protein.Group": "protein_group",
             "Modified.Sequence": "peptide",
             "Stripped.Sequence": "stripped_peptide",
@@ -100,6 +101,8 @@ class DiannReader(SearchResultReader):
         self._set_mbr(feature_df) # set self._mbr for _feature_rename_dict
         self._set_decoy(feature_df)
 
+        feature_df["proteins"] = feature_df["Protein.Ids"]
+        feature_df["proteins"] = parse_uniprot_accession(feature_df["proteins"])
         feature_df["missed_cleavages"] = feature_df["Stripped.Sequence"].apply(self._count_missed_cleavages)
         feature_df["peptide_length"] = feature_df["Stripped.Sequence"].apply(self._get_peptide_length)
 

@@ -1,82 +1,9 @@
 from functools import reduce
-import re
 
-from dataclasses import dataclass
 import pandas as pd
 import numpy as np
 import mudata as md
 import anndata as ad
-
-
-class ProteinIdParser:
-    def _get_protein_info_from_fasta(
-            self,
-            # fasta: str | Path | None
-            ) -> pd.DataFrame: ...
-
-    def _parse_uniprot_accession(self, proteins: pd.Series) -> pd.DataFrame:
-        protein_df: pd.DataFrame = pd.DataFrame(proteins)
-        protein_df["index"] = range(len(protein_df))
-        protein_df["protein"] = protein_df["proteins"].apply(lambda x: x.split(";"))
-        protein_df = protein_df.explode("protein")
-
-        uniprot_id_category: list = ["source", "accession", "protein_name"]
-        for idx, cat_ in enumerate(uniprot_id_category):
-            protein_df[cat_] = protein_df["protein"].apply(lambda x: self._split_uniprot_fasta_entry(x)[idx])
-
-        protein_df["accession"] = protein_df.apply(
-            lambda x: (f"rev_{x['accession']}" if x["protein"].startswith("rev_") else x["accession"]),
-            axis=1,
-        )
-        protein_df["accession"] = protein_df.apply(
-            lambda x: (f"contam_{x['accession']}" if x["protein"].startswith("contam_") else x["accession"]),
-            axis=1,
-        )
-
-        return protein_df
-
-    @staticmethod
-    def _split_uniprot_fasta_entry(entry: str) -> tuple[str, str, str]:
-        """
-        Splits a Uniprot FASTA entry into its accession and protein name.
-
-        Args:
-            entry (str): The Uniprot FASTA entry.
-
-        Returns:
-            tuple[str, str]: A tuple containing the accession and protein name.
-        """
-        parts = entry.split("|")
-        if len(parts) == 3:
-            return parts[0], parts[1], parts[2]
-        else:
-            return "", parts[0], ""  # Handle cases where the format is different
-
-    def _make_protein_info(self, protein_df: pd.DataFrame) -> pd.DataFrame:
-        protein_info: pd.DataFrame = protein_df.copy()
-
-        protein_info = protein_info.drop_duplicates("accession")
-        protein_info = protein_info.drop(columns=["index", "proteins"])
-
-        protein_info = protein_info.loc[protein_info["source"].str.startswith("rev_") == False,]
-        protein_info = protein_info.loc[protein_info["source"].str.startswith("contam_") == False,]
-
-        protein_info = protein_info.sort_values("accession")
-        protein_info = protein_info.reset_index(drop=True)
-
-        return protein_info
-
-    def parse(self, proteins: pd.Series, source: str = "uniprot"):
-        if source == "uniprot":
-            protein_df: pd.DataFrame = self._parse_uniprot_accession(proteins=proteins)
-            protein_df_grouped = protein_df.groupby(["index", "proteins"], as_index=False).agg(";".join)
-            protein_df_grouped = protein_df_grouped.sort_values("index")
-
-            self.accessions: list[str] = protein_df_grouped["accession"].tolist()
-        else:
-            raise NotImplementedError("For now, protein parse only can be applied to uniprot fasta")
-
-        self.protein_info: pd.DataFrame = self._make_protein_info(protein_df=protein_df)
 
 
 # Utility functions for Readers
