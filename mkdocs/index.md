@@ -25,7 +25,9 @@ It supports PSM, peptide, and protein-level processing, integrates `MuData` (Ann
 ---
 
 ## File Structure and Input Format
+
 ### Accepted inputs
+
 - Sage: folder with PSM tables
 - DIA-NN: output folder
 - MaxQuant
@@ -33,27 +35,29 @@ It supports PSM, peptide, and protein-level processing, integrates `MuData` (Ann
 - DelPy
 
 ## Output
+
 - Integrated multi-level MuData object (`.h5mu`)
 - Summary plots and statistics
 - Differentially expressed proteins/sites with FDR
 
 ## Roadmap
-UPCOMING<br>
-    - ✅ Support DIA-NN and Sage formats<br>
-    - ✅ Normalize and aggregate pipeline<br>
-    - ✅ QC metric visualization<br>
-    - ✅ PTM stoichiometry inference<br>
+
+UPCOMING<br> - ✅ Support DIA-NN and Sage formats<br> - ✅ Normalize and aggregate pipeline<br> - ✅ QC metric visualization<br> - ✅ PTM stoichiometry inference<br>
 
 ## Citation
+
 UPCOMING<br>
 If you use msmu in your work, please cite:
->Choi and Lee et al., msmu: A Pythonic Framework for Modular Proteomics Analysis, in prep.
+
+> Choi and Lee et al., msmu: A Pythonic Framework for Modular Proteomics Analysis, in prep.
 
 ## License
+
 UPCOMING<br>
 MIT License. See LICENSE for details.
 
 ## Quick links
+
 - [빠른 시작](how-to/quickstart.md)
 - [API 레퍼런스](reference/)
 - [예제 노트북](examples/)

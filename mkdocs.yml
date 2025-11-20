@@ -3,7 +3,7 @@ site_description: "Proteomics Analysis Toolkit based on MuData"
 site_dir: "docs"
 
 repo_name: "msmu"
-repo_url: https://bitbucket.org/bertis/msmu
+repo_url: https://github.com/bertis-informatics/msmu
 
 nav:
   # - "INTRODUCTION": "index.md"
@@ -17,9 +17,12 @@ nav:
   - "API": "reference/" # From gen-files plugin
 
 docs_dir: "mkdocs"
+watch:
+  - "mkdocs/"
+  - "scripts/"
 
 theme:
-  name: material
+  name: "material"
   features:
     # - toc.integrate
     - navigation.tracking.off
@@ -41,7 +44,7 @@ theme:
         icon: material/weather-sunny
         name: "light mode"
   icon:
-    repo: fontawesome/brands/bitbucket
+    repo: fontawesome/brands/github
   nav:
     hide_icons: false
 
@@ -90,6 +93,4 @@ markdown_extensions:
   - pymdownx.tasklist
 
 extra_css:
-  - assets/extra.css
-  - assets/emoji.css
   - assets/jupyter-tweaks.css
