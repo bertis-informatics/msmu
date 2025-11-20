@@ -1,10 +1,8 @@
 site_name: "msmu"
-site_description: "MuData-centric proteomics analysis toolkit"
+site_description: "Proteomics Analysis Toolkit based on MuData"
 
 repo_name: "msmu"
-repo_url: https://bitbucket.org/bertis/msmu     # ❗️너의 리포로 교체
-repo_name: bitbucket
-# edit_uri: edit/main/docs/
+repo_url: https://bitbucket.org/bertis/msmu
 
 nav:
   # - "INTRODUCTION": "index.md"
@@ -15,33 +13,32 @@ nav:
       - "LFQ": "tutorials/lfq.md"
       - "DIA": "tutorials/dia.md"
       - "Visualization": "tutorials/visualization.md"
-  - "API": "reference/"   # 폴더 한 번만 마운트
+  - "API": "reference/" # From gen-files plugin
 
 theme:
-  name: readthedocs
+  name: material
   features:
-      # - toc.integrate
-      - navigation.tracking.off 
+    # - toc.integrate
+    - navigation.tracking.off
     # - navigation.expand
     # - navigation.sections
     # - content.action.edit     # 페이지 우상단 "Edit this page" 버튼
     # - content.action.view     # (선택) "View source" 버튼
   palette:
     - scheme: default
-      primary: indigo         # 라이트 모드 색상
+      primary: indigo # 라이트 모드 색상
       accent: indigo
       toggle:
         icon: material/weather-night
         name: "dark mode"
     - scheme: slate
-      primary: indigo         # 다크 모드 색상
+      primary: indigo # 다크 모드 색상
       accent: indigo
       toggle:
         icon: material/weather-sunny
         name: "light mode"
   icon:
     repo: fontawesome/brands/bitbucket
-  # ↓ 기본 내비게이션 아이콘 끄기
   nav:
     hide_icons: false
 
@@ -50,17 +47,13 @@ plugins:
       scripts:
         - "scripts/gen_ref_pages.py"
   - mkdocs-jupyter:
-      remove_tagged_cells: ["remove-input"]
-      remove_prompt: true
-      remove_prompt_numbers: true
-      execute: false          # 이미 실행된 노트북만 렌더링할 때
-      include_source: true    # 소스 코드 셀 표시
+      execute: false # 이미 실행된 노트북만 렌더링할 때
+      include_source: true # 소스 코드 셀 표시
       kernel_name: python3
       theme: dark
-      ignore_h1_titles: true  # 맨 위 h1 중복 방지
-
+      ignore_h1_titles: true # 맨 위 h1 중복 방지
+  - awesome-pages
   - literate-nav
-  - awesome-pages    
   # - section-index
   - mkdocstrings:
       handlers:
