@@ -17,20 +17,6 @@ for py in sorted(src_dir.rglob("*.py")):
     parts = list(rel.parts)  # ['plotting', '_pdata']
     ident = ".".join([PACKAGE] + parts)  # msmu.plotting._pdata
 
-    # 상위 디렉토리들에 대해 index.md 생성 (섹션 제목 고정)
-    for d in range(len(parts)):
-        dir_key = tuple(parts[:d])
-        dir_path = Path("reference", *dir_key, "index.md")
-        title = parts[d - 1] if d > 0 else PACKAGE
-
-        if dir_key not in dir_titles_done:
-            with mkdocs_gen_files.open(dir_path, "w") as f:
-                f.write("---\n")
-                f.write(f'title: "{title}"\n')  # 섹션 라벨 고정
-                f.write("---\n\n")
-                f.write(f"# {title}\n")
-            dir_titles_done.add(dir_key)
-
     # 모듈 페이지 생성
     mod_doc = Path("reference", *parts).with_suffix(".md")
     page_title = parts[-1]

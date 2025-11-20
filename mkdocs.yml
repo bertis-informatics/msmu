@@ -6,7 +6,7 @@ repo_name: "msmu"
 repo_url: https://github.com/bertis-informatics/msmu
 
 nav:
-  # - "INTRODUCTION": "index.md"
+  - "INTRODUCTION": "index.md"
   - "INSTALLATION": "installation.md"
   - "TUTORIALS":
       - "Quick Start": "tutorials/quick_start.ipynb"
@@ -47,6 +47,8 @@ theme:
     repo: fontawesome/brands/github
   nav:
     hide_icons: false
+  logo: "assets/favicon.svg"
+  favicon: "assets/favicon.svg"
 
 plugins:
   - gen-files:
