@@ -1,3 +1,0 @@
-/* 혹시 테마/플러그인이 ::before로 추가하는 아이콘을 숨김 (안전장치) */
-.md-nav__item .md-nav__link::before { content: none !important; }
-.md-nav__icon, .md-nav__link .md-icon { display: none !important; }

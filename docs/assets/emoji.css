@@ -1,4 +1,0 @@
-/* 이모지 지원 폰트를 nav에 강제 지정 */
-.md-nav, .md-nav__list, .md-nav__link {
-  font-family: var(--md-text-font), "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif !important;
-}
