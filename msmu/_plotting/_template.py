@@ -1,3 +1,7 @@
+"""
+Module for setting up Plotly templates for msmu visualizations.
+"""
+
 import plotly.graph_objects as go
 import plotly.io as pio
 
@@ -5,13 +9,19 @@ import plotly.io as pio
 DEFAULT_TEMPLATE = "msmu"
 
 
-def _set_templates():
-    _add_msmu_template()
-    _add_msmu_pastel_template()
-    _set_default_template(DEFAULT_TEMPLATE)
+def set_templates():
+    """
+    Registers msmu Plotly templates and sets the default template.
+    """
+    add_msmu_template()
+    add_msmu_pastel_template()
+    set_default_template(DEFAULT_TEMPLATE)
 
 
-def _add_msmu_template():
+def add_msmu_template():
+    """
+    Adds the default msmu Plotly template with predefined styling and colorway.
+    """
     pio.templates["msmu"] = go.layout.Template(
         layout={
             "autotypenumbers": "strict",
@@ -65,7 +75,10 @@ def _add_msmu_template():
     )
 
 
-def _add_msmu_pastel_template():
+def add_msmu_pastel_template():
+    """
+    Adds a pastel variant of the msmu Plotly template by reusing colorway settings.
+    """
     pio.templates["msmu_pastel"] = pio.templates["msmu"]
     pio.templates["msmu_pastel"].layout.colorway = [
         "#A6CEE3",
@@ -81,5 +94,11 @@ def _add_msmu_pastel_template():
     ]
 
 
-def _set_default_template(template_name: str):
+def set_default_template(template_name: str):
+    """
+    Sets the global Plotly default template.
+
+    Parameters:
+        template_name (str): Template name to set as default.
+    """
     pio.templates.default = template_name

@@ -1,8 +1,13 @@
+"""
+Module defining various plot types using Plotly.
+"""
+
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from typing import Any
 
-from .__trace import *
+from .__trace import Trace, TraceHeatmap, TracePie
 
 
 class PlotTypes:
@@ -15,7 +20,19 @@ class PlotTypes:
         meta: str | None = None,
         text: str | None = None,
         hovertemplate: str | None = None,
-    ):
+    ) -> None:
+        """
+        Sets up trace options and defaults for a plot type.
+
+        Parameters:
+            data: Prepared plotting data.
+            x: Column mapped to x-axis.
+            y: Column mapped to y-axis.
+            name: Column defining trace grouping.
+            meta: Column supplying hover metadata.
+            text: Column for text labels.
+            hovertemplate: Optional Plotly hovertemplate.
+        """
         # Initial setup
         self.data = data
         self.x = x
@@ -25,11 +42,25 @@ class PlotTypes:
         self.text = text
 
         self.fig = go.Figure()
-        self.ptype = None
-        self.options = dict(hovertemplate=hovertemplate)
-        self.layouts = {}
+        self.ptype: type[go.Trace] = go.Trace
+        self.options: dict[str, Any] = dict(hovertemplate=hovertemplate)
+        self.layouts: dict[str, Any] = {}
 
-    def figure(self, ptype, **kwargs):
+    def figure(
+        self,
+        ptype: type[go.Trace] | None = None,
+        **kwargs: Any,
+    ) -> go.Figure:
+        """
+        Builds and returns a Plotly figure of the specified type.
+
+        Parameters:
+            ptype: Plotly trace constructor (e.g., `go.Bar`).
+            **kwargs: Additional trace options.
+
+        Returns:
+            Completed Plotly figure.
+        """
         self.ptype = ptype
         self.options.update(**kwargs)
         self.trace()
@@ -37,28 +68,45 @@ class PlotTypes:
 
         return self.fig
 
-    def trace(self):
+    def trace(self) -> None:
+        """
+        Generates and adds traces to the figure using stored options.
+        """
         traces = Trace(data=self.data, x=self.x, y=self.y, name=self.name, meta=self.meta, text=self.text)
         traces.merge_trace_options(**self.options)
         self.fig.add_traces([self.ptype(**trace) for trace in traces()])
 
-    def layout(self, **kwargs):
+    def layout(self, **kwargs: Any) -> None:
+        """
+        Applies layout updates to the figure.
+
+        Parameters:
+            **kwargs: Layout keyword arguments passed to Plotly.
+        """
         self.fig.update_layout(**kwargs)
 
 
 class PlotBar(PlotTypes):
-    def figure(self, **kwargs):
+    """
+    Plot type for bar charts.
+    """
+
+    def figure(self, ptype=None, **kwargs) -> go.Figure:
         return super().figure(go.Bar, **kwargs)
 
 
 class PlotSimpleBox(PlotTypes):
-    def figure(self):
+    """
+    Plot type for box plots. Simplified version using go.Box with pre-calculated metrics.
+    """
+
+    def figure(self, ptype=None, **kwargs) -> go.Figure:
         self.trace()
         self.layout(**self.layouts)
 
         return self.fig
 
-    def trace(self):
+    def trace(self) -> None:
         self.fig.add_traces(
             [
                 go.Box(
@@ -92,39 +140,63 @@ class PlotSimpleBox(PlotTypes):
 
 
 class PlotBox(PlotTypes):
-    def figure(self, **kwargs):
+    """
+    Plot type for box plots.
+    """
+
+    def figure(self, ptype=go.Box, **kwargs) -> go.Figure:
         self.layouts.update(dict(xaxis=dict(showticklabels=False)))
-        return super().figure(go.Box, **kwargs)
+        return super().figure(ptype, **kwargs)
 
 
 class PlotViolin(PlotTypes):
-    def figure(self, **kwargs):
+    """
+    Plot type for violin plots.
+    """
+
+    def figure(self, ptype=go.Violin, **kwargs) -> go.Figure:
         self.layouts.update(dict(xaxis=dict(showticklabels=False)))
-        return super().figure(go.Violin, **kwargs)
+        return super().figure(ptype, **kwargs)
 
 
 class PlotHistogram(PlotTypes):
-    def figure(self, **kwargs):
-        return super().figure(go.Bar, **kwargs)
+    """
+    Plot type for histogram plots.
+    """
+
+    def figure(self, ptype=go.Bar, **kwargs) -> go.Figure:
+        return super().figure(ptype, **kwargs)
 
 
 class PlotScatter(PlotTypes):
-    def figure(self, **kwargs):
-        return super().figure(go.Scatter, **kwargs)
+    """
+    Plot type for scatter plots.
+    """
+
+    def figure(self, ptype=go.Scatter, **kwargs) -> go.Figure:
+        return super().figure(ptype, **kwargs)
 
 
 class PlotStackedBar(PlotTypes):
-    def figure(self, **kwargs):
+    """
+    Plot type for stacked bar plots.
+    """
+
+    def figure(self, ptype=go.Bar, **kwargs) -> go.Figure:
         self.layouts.update(dict(legend=dict(traceorder="normal"), barmode="stack"))
-        return super().figure(go.Bar, **kwargs)
+        return super().figure(ptype, **kwargs)
 
 
 class PlotHeatmap(PlotTypes):
-    def figure(self, **kwargs):
-        self.layouts.update(dict(yaxis=dict(autorange="reversed"))),
-        return super().figure(go.Heatmap, **kwargs)
+    """
+    Plot type for heatmap plots.
+    """
 
-    def trace(self):
+    def figure(self, ptype=go.Heatmap, **kwargs) -> go.Figure:
+        self.layouts.update(dict(yaxis=dict(autorange="reversed")))
+        return super().figure(ptype, **kwargs)
+
+    def trace(self) -> None:
         traces = TraceHeatmap(data=self.data)
         traces.merge_trace_options(**self.options)
         self.fig.add_traces([self.ptype(**trace) for trace in traces()])
@@ -133,10 +205,16 @@ class PlotHeatmap(PlotTypes):
 class PlotUpset(PlotTypes):
     def __init__(
         self,
-        data: tuple[pd.DataFrame, pd.DataFrame],
-    ):
+        data: tuple[pd.DataFrame, pd.Series],
+    ) -> None:
+        """
+        Plot type for Upset diagrams.
+
+        Parameters:
+            data: Combination counts and item counts.
+        """
         self.combination_counts, self.item_counts = data
-        super().__init__(data)
+        super().__init__(data)  # type: ignore
 
         self.fig = make_subplots(
             rows=2,
@@ -149,13 +227,17 @@ class PlotUpset(PlotTypes):
             horizontal_spacing=0,
         )
 
-    def figure(self):
+    def figure(
+        self,
+        ptype: type[go.Trace] | None = None,
+        **kwargs: Any,
+    ) -> go.Figure:
         self.trace()
         self.layout(**self.layouts)
 
         return self.fig
 
-    def trace(self):
+    def trace(self) -> None:
         self.fig.add_trace(
             go.Bar(
                 x=self.combination_counts["combination"].tolist(),
@@ -211,14 +293,14 @@ class PlotUpset(PlotTypes):
             col=1,
         )
 
-    def layout(self, **kwargs):
-        self.fig.update_xaxes(autorange="reversed", tickformat=",d", row=2, col=1)
-        self.fig.update_xaxes(ticklen=0, showticklabels=False, row=1, col=2)
-        self.fig.update_xaxes(ticklen=0, showticklabels=False, row=2, col=2)
+    def layout(self, **kwargs: bool) -> None:
+        self.fig.update_xaxes(autorange="reversed", tickformat=",d", row=2, col=1)  # type: ignore
+        self.fig.update_xaxes(ticklen=0, showticklabels=False, row=1, col=2)  # type: ignore
+        self.fig.update_xaxes(ticklen=0, showticklabels=False, row=2, col=2)  # type: ignore
 
-        self.fig.update_yaxes(autorange="reversed", showticklabels=False, ticklen=0, side="right", row=2, col=1)
-        self.fig.update_yaxes(side="right", tickformat=",d", showticklabels=True, row=1, col=2)
-        self.fig.update_yaxes(side="right", showticklabels=True, row=2, col=2)
+        self.fig.update_yaxes(autorange="reversed", showticklabels=False, ticklen=0, side="right", row=2, col=1)  # type: ignore
+        self.fig.update_yaxes(side="right", tickformat=",d", showticklabels=True, row=1, col=2)  # type: ignore
+        self.fig.update_yaxes(side="right", showticklabels=True, row=2, col=2)  # type: ignore
 
         # self.fig.update_yaxes(yaxis_tickformat=",d", row=1, col=1)
         # self.fig.update_layout(yaxis_tickformat=",d", row=2, col=1)
@@ -227,10 +309,14 @@ class PlotUpset(PlotTypes):
 
 
 class PlotPie(PlotTypes):
-    def figure(self, **kwargs):
-        return super().figure(go.Pie, **kwargs)
+    """
+    Plot type for pie charts.
+    """
 
-    def trace(self):
+    def figure(self, ptype=go.Pie, **kwargs) -> go.Figure:
+        return super().figure(ptype, **kwargs)
+
+    def trace(self) -> None:
         traces = TracePie(data=self.data)
         self.fig.add_traces([self.ptype(**trace) for trace in traces()])
         self.fig.update_traces(hoverinfo="label+percent+name", textinfo="percent", textposition="inside")

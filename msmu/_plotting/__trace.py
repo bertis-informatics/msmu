@@ -1,4 +1,9 @@
+"""
+Module defining trace classes for Plotly visualizations.
+"""
+
 import pandas as pd
+from typing import Any
 
 
 class Trace:
@@ -11,6 +16,17 @@ class Trace:
         meta: str | None = None,
         text: str | None = None,
     ):
+        """
+        Builds Plotly-compatible trace dictionaries from a DataFrame.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing plotting columns.
+            x (str | None): Column mapped to x-axis.
+            y (str | None): Column mapped to y-axis.
+            name (str | None): Column used to split traces.
+            meta (str | None): Column used for hover metadata.
+            text (str | None): Column used for text labels.
+        """
         self.data = data.copy()
         self.x = x
         self.y = y
@@ -28,6 +44,12 @@ class Trace:
         return f"Trace(x={self.x}, y={self.y}, name={self.name}, meta={self.meta})"
 
     def _get_traces(self):
+        """
+        Groups the data and constructs trace dictionaries.
+
+        Returns:
+            list[dict]: Plotly trace keyword dictionaries.
+        """
         grouped = self.data.groupby(self.name, observed=True)
         return [
             {
@@ -42,8 +64,17 @@ class Trace:
 
     def merge_trace_options(
         self,
-        **kwargs,
+        **kwargs: Any,
     ) -> list[dict]:
+        """
+        Merges shared trace options into all trace dictionaries.
+
+        Parameters:
+            **kwargs: Arbitrary Plotly trace options to merge.
+
+        Returns:
+            list[dict]: Updated trace dictionaries.
+        """
         self.traces = [{**trace, **kwargs} for trace in self.traces]
         return self.traces
 
@@ -53,9 +84,21 @@ class TraceDescribed(Trace):
         self,
         data: pd.DataFrame,
     ):
+        """
+        Base class for traces built from descriptive statistics.
+
+        Parameters:
+            data (pd.DataFrame): Summary statistics for traces.
+        """
         super().__init__(data)
 
     def _get_traces(self):
+        """
+        Constructs box/whisker descriptive traces from summary statistics.
+
+        Returns:
+            list[dict]: Trace definitions for Plotly box plots.
+        """
         return [
             {
                 "x": [idx],
@@ -77,10 +120,22 @@ class TraceHeatmap(Trace):
         self,
         data: pd.DataFrame,
     ):
+        """
+        Generates heatmap trace definitions from a DataFrame.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing heatmap values.
+        """
         self.data = data.copy()
         self.traces = self._get_traces()
 
     def _get_traces(self):
+        """
+        Generates a single heatmap trace with optional text labels.
+
+        Returns:
+            list[dict]: Heatmap trace definition.
+        """
         if len(self.data.index) < 20:
             texttemplate = "%{z:.2f}"
         else:
@@ -104,10 +159,22 @@ class TracePie(Trace):
         self,
         data: pd.DataFrame,
     ):
+        """
+        Builds pie chart trace definitions from categorical counts.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing pie chart values.
+        """
         self.data = data.copy()
         self.traces = self._get_traces()
 
     def _get_traces(self):
+        """
+        Builds pie chart trace definitions from categorical counts.
+
+        Returns:
+            list[dict]: Pie trace definition.
+        """
         return [
             {
                 "labels": self.data.index.tolist(),
