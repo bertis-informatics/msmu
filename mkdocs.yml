@@ -2,24 +2,10 @@ site_name: "msmu"
 site_description: "Proteomics Analysis Toolkit based on MuData"
 site_dir: "docs"
 
+docs_dir: "mkdocs"
+
 repo_name: "msmu"
 repo_url: https://github.com/bertis-informatics/msmu
-
-nav:
-  - "INTRODUCTION": "index.md"
-  - "INSTALLATION": "installation.md"
-  - "TUTORIALS":
-      - "Quick Start": "tutorials/quick_start.ipynb"
-      - "TMT": "tutorials/tmt.md"
-      - "LFQ": "tutorials/lfq.md"
-      - "DIA": "tutorials/dia.md"
-      - "Visualization": "tutorials/visualization.md"
-  - "API": "reference/" # From gen-files plugin
-
-docs_dir: "mkdocs"
-watch:
-  - "mkdocs/"
-  - "scripts/"
 
 theme:
   name: "material"
@@ -61,7 +47,8 @@ plugins:
       theme: dark
       ignore_h1_titles: true # 맨 위 h1 중복 방지
   - awesome-pages
-  - literate-nav
+  - literate-nav:
+      nav_file: "nav.md"
   # - section-index
   - mkdocstrings:
       handlers:
@@ -75,13 +62,15 @@ plugins:
             merge_init_into_class: true
             show_if_no_docstring: false
             # 필요 시 프라이빗 제외
-            # filters: ["!^_"]
+            filters: ["!^_"]
   - search
   - minify
   - git-revision-date-localized:
       fallback_to_build_date: true
 
 markdown_extensions:
+  - toc:
+      separator: "_"
   - admonition
   - footnotes
   - attr_list
@@ -93,6 +82,14 @@ markdown_extensions:
   - pymdownx.critic
   - pymdownx.emoji
   - pymdownx.tasklist
+  - pymdownx.escapeall:
+      hardbreak: True
+      nbsp: True
 
 extra_css:
   - assets/jupyter-tweaks.css
+
+watch:
+  - "mkdocs/"
+  - "scripts/"
+  - "msmu/"

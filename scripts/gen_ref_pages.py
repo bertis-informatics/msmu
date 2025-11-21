@@ -17,18 +17,43 @@ for py in sorted(src_dir.rglob("*.py")):
     parts = list(rel.parts)  # ['plotting', '_pdata']
     ident = ".".join([PACKAGE] + parts)  # msmu.plotting._pdata
 
+    # 폴더별 index.md (once per dir) 생성
+    for i in range(1, len(parts)):
+        dir_parts = parts[:i]
+        if tuple(dir_parts) in dir_titles_done:
+            continue
+        dir_titles_done.add(tuple(dir_parts))
+
+        index_doc = Path("reference", *dir_parts, "index.md")
+        dir_title = dir_parts[-1]
+        print(f"Generating index for {dir_title} at {index_doc}")
+        with mkdocs_gen_files.open(index_doc, "w") as f:
+            f.write("---\n")
+            f.write(f"title: '{dir_title}'\n")
+            f.write("---\n")
+
     # 모듈 페이지 생성
     mod_doc = Path("reference", *parts).with_suffix(".md")
     page_title = parts[-1]
     with mkdocs_gen_files.open(mod_doc, "w") as f:
         f.write("---\n")
-        f.write(f'title: "{page_title}"\n')  # 페이지 라벨 고정
+        f.write(f"title: '{page_title}'\n")
         f.write("---\n\n")
         f.write(f"# `{ident}`\n\n::: {ident}\n")
 
     # Nav 계층 유지: msmu / plotting / _pdata 처럼 트리로 구성
-    nav[parts] = Path(*parts).with_suffix(".md").as_posix()
+    nav[parts] = Path("reference", *parts).with_suffix(".md").as_posix()
 
-# # literate-nav용 SUMMARY 생성 (계층 유지)
-# with mkdocs_gen_files.open("reference/SUMMARY.md", "w") as nav_file:
-#     nav_file.writelines(nav.build_literate_nav())
+# 기존 nav.md 템플릿에 API 트리(indent) 붙이기
+nav_template = Path("mkdocs", "nav.md").read_text()
+if not nav_template.endswith("\n"):
+    nav_template += "\n"
+
+def format_api(line):
+    print(f"Processing line: {line}")
+    return "    " + line.replace("\\", "")
+
+api_nav = [format_api(line) for line in nav.build_literate_nav()]
+with mkdocs_gen_files.open("nav.md", "w") as nav_file:
+    nav_file.write(nav_template)
+    nav_file.writelines(api_nav)
