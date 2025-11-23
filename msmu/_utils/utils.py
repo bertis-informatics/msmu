@@ -94,8 +94,25 @@ def get_label(mdata: md.MuData) -> str:
     return label
 
 
-def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool: str) -> md.MuData:
-    # mdata_quant = mdata.copy()
+def add_quant(
+        mdata: md.MuData,
+        quant_data: str | pd.DataFrame, 
+        quant_tool: str,
+        index_name: str | None = None,
+        ) -> md.MuData:
+    """
+    Add quantification data to the MuData object as a new modality.
+
+    Parameters:
+        mdata: The MuData object to which the quantification data will be added.
+        quant_data: The quantification data, either as a file path or a DataFrame.
+        quant_tool: The tool used for quantification (e.g., "flashlfq").
+        index_name: Optional; the name of the index column in the quantification data (when changed obs.index with reindex_obs function). default is None.
+
+    Returns:
+        The modified MuData object with the added quantification modality.
+    """
+
     if isinstance(quant_data, str):
         quant = pd.read_csv(quant_data, sep="\t")
     elif isinstance(quant_data, pd.DataFrame):
@@ -112,10 +129,14 @@ def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool: str)
         input_arr = input_arr.replace(0, np.nan)
 
         obs_df = mdata.obs.copy()
-        filename = [x.split(".mzML")[0] for x in obs_df["tag"]]
+        if index_name is not None:
+            filename = [x.split(".mzML")[0] for x in obs_df[index_name]]
+        else:
+            filename = [x.split(".mzML")[0] for x in obs_df.index]
+
         rename_dict = {k: v for k, v in zip(filename, obs_df.index)}
-        col_order = list(rename_dict.values())
         input_arr = input_arr.rename(columns=rename_dict)
+        col_order = list(rename_dict.values())
         input_arr = input_arr[col_order]
         input_arr = input_arr.dropna(how="all")
 
@@ -124,49 +145,38 @@ def add_quant(mdata: md.MuData, quant_data: str | pd.DataFrame, quant_tool: str)
 
         mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["feature"])
 
+        logger.info(f"Added quantification modality 'peptide' using {quant_tool} data.")
+        logger.info(f"Quantification data shape: {input_arr.shape}\n")
+
     mdata.update_obs()
 
     return mdata
 
 
-def rename_obs(
-    mdata: md.MuData,
-    map: dict[str, str] | pd.Series | pd.DataFrame,
-) -> md.MuData:
+def reindex_obs(
+        mdata: md.MuData,
+        column: str,
+        ) -> md.MuData:
     """
-    Rename an observation (obs) column in the MuData object.
+    Reindex the observation (obs) of the MuData object to ensure consistency across modalities.
 
-    Parameters
-    ----------
-    mdata : md.MuData
-        The MuData object containing the observation to rename.
-    obs_name : str
-        The current name of the observation to rename.
-    new_obs_name : str
-        The new name for the observation.
+    Parameters:
+        mdata (md.MuData): The MuData object containing the observations to reindex.
+        column (str): The column name in mdata.obs to use for reindexing.
 
-    Returns
-    -------
-    md.MuData
-        The modified MuData object with the renamed observation.
+    Returns:
+        md.MuData: The modified MuData object with reindexed observations.
     """
     mdata = mdata.copy()
+    if column not in mdata.obs.columns:
+        logger.error(f"Column '{column}' not found in mdata.obs.")
+        raise
 
-    if isinstance(map, pd.Series):
-        map = map.to_dict()
-    elif isinstance(map, pd.DataFrame):
-        if len(map.columns) != 2:
-            raise ValueError("DataFrame must have exactly two columns.")
-        map = map.set_index(map.columns[0])[map.columns[1]].to_dict()
-    elif not isinstance(map, dict):
-        raise ValueError("Map must be a dictionary, pandas Series, or DataFrame.")
-
-    if not (set(mdata.obs.index) <= set(map.keys())):
-        raise ValueError("Map keys must contain the index of mdata.obs")
-
-    mdata.obs.index = mdata.obs.index.map(map)
-
-    for mod in mdata.mod:
-        mdata[mod].obs.index = mdata[mod].obs.index.map(map)
+    new_index = mdata.obs[column].astype(str)
+    mdata.obs.reset_index(drop=False, inplace=True)
+    mdata.obs.set_index(new_index, inplace=True, drop=False)
+    for mod in mdata.mod_names:
+        mdata[mod].obs.reset_index(drop=False, inplace=True)
+        mdata[mod].obs.set_index(new_index, inplace=True, drop=False)
 
     return mdata

@@ -31,11 +31,11 @@ def infer_protein(
     Infer protein grouping information and classify peptides.
 
     Parameters:
-        mdata (MuData): MuData object
-        propagated_from (MuData | str | None): mudata which contains inference info (for PTM normalisation with global proteins). Can be path to global data .h5mu or mudata object. Default is None
+        mdata: MuData object
+        propagated_from: mudata which contains inference info (for PTM normalisation with global proteins). Can be path to global data .h5mu or mudata object. Default is None
         
     Returns:
-        mdata (MuData): MuData object with updated protein mappings
+        MuData object with updated protein mappings
     """
     logger.info("Starting protein group inference")
 

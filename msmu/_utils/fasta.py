@@ -5,12 +5,21 @@ import logging
 
 import mudata as md
 
+
 logger = logging.getLogger(__name__)
 
 
-
-
 def attach_fasta(mdata: md.MuData, fasta_file: str | None) -> md.MuData:
+    """
+    Attach FASTA metadata to the MuData object.
+
+    Parameters:
+        mdata (md.MuData): MuData object to attach FASTA metadata to.
+        fasta_file (str | None): Path to the FASTA file. If None, fetch from UniProt (not implemented).
+
+    Returns:
+        md.MuData: MuData object with attached FASTA metadata.
+    """
     mdata = mdata.copy()
     if fasta_file is not None:
         fasta_meta = _get_protein_info_from_fasta(fasta_file)

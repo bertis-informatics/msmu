@@ -44,20 +44,20 @@ def select_repr_protein(mdata: md.MuData, modality) -> md.MuData:
         if modality == "protein":
             mdata["protein"].var["repr_protein"] = (
                 mdata["protein"].var.index.map(
-                    lambda x: select_representative(x, protein_info_dict)
+                    lambda x: _select_representative(x, protein_info_dict)
                     )
                     )
         else:
             mdata[modality].var["repr_protein"] = (
                 mdata[modality].var["protein_group"].apply(
-                    lambda x: select_representative(x, protein_info_dict)
+                    lambda x: _select_representative(x, protein_info_dict)
                     )
                     )
         
         return mdata
         
 
-def select_representative(protein_group: str, protein_info: dict[str, str]) -> str:
+def _select_representative(protein_group: str, protein_info: dict[str, str]) -> str:
     """
     Select canonical protein from protein list based on priority.
     canonical > swissprot > trembl > contam
