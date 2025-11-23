@@ -1,5 +1,5 @@
 from .subset import subset, split_tmt
-from .utils import get_modality_dict, get_label, uns_logger, add_quant, rename_obs
+from .utils import get_modality_dict, get_label, uns_logger, add_quant, rename_obs, reindex_obs
 from .peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -19,6 +19,7 @@ __all__ = [
     "uns_logger",
     "add_quant",
     "rename_obs",
+    "reindex_obs",
     "_calc_exp_mz",
     "_count_missed_cleavages",
     "_get_peptide_length",
