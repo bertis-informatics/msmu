@@ -55,9 +55,3 @@ If you use msmu in your work, please cite:
 
 UPCOMING<br>
 MIT License. See LICENSE for details.
-
-## Quick links
-
-- [빠른 시작](how-to/quickstart.md)
-- [API 레퍼런스](reference/)
-- [예제 노트북](examples/)

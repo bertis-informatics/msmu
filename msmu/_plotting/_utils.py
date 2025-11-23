@@ -1,6 +1,13 @@
+"""
+Utility functions for plotting with MuData and Plotly.
+"""
+
+from typing import TypedDict
+
 import mudata as md
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_categorical_dtype  # type: ignore
 import plotly.graph_objects as go
 import plotly.io as pio
 
@@ -8,14 +15,36 @@ _FALLBACK_COLUMN = "__obs_idx__"
 _DEFAULT_OBS_PRIORITY = ("sample", "filename", _FALLBACK_COLUMN)
 
 
+class BinInfo(TypedDict):
+    """
+    Encapsulates histogram bin metadata.
+
+    Attributes:
+        width: Width of each bin.
+        edges: Edges of the bins.
+        centers: Centers of the bins.
+        labels: Labels for each bin.
+    """
+
+    width: float
+    edges: list[float]
+    centers: list[float]
+    labels: list[str]
+
+
 def resolve_obs_column(
     mdata: md.MuData,
     requested: str | None = None,
 ) -> str:
     """
-    Determine a usable observation column for grouping/plotting.
-    Falls back through a priority list and finally creates a categorical
-    column from the obs index when nothing suitable exists.
+    Determines which observation column to use for grouping/plotting.
+
+    Parameters:
+        mdata: MuData object containing observation metadata.
+        requested: Specific observation column to prioritize when available.
+
+    Returns:
+        Name of the categorical observation column added/resolved in `mdata.obs`.
     """
     # Allow MuData to specify a default preference via uns
     plotting_defaults = mdata.uns.get("plotting", {}) if hasattr(mdata, "uns") else {}
@@ -28,7 +57,7 @@ def resolve_obs_column(
 
     for name in candidates:
         if name in mdata.obs.columns:
-            return _ensure_obs_categorical(mdata, name)
+            return ensure_obs_categorical(mdata, name)
         elif (name == requested) or (name == preferred):
             print(f"[INFO] Requested obs column '{name}' not found in observations.")
 
@@ -36,30 +65,53 @@ def resolve_obs_column(
     fallback_name = requested or preferred or _FALLBACK_COLUMN
     print(f"[INFO] Using fallback obs column '{fallback_name}' created from index.")
     if fallback_name in mdata.obs.columns:
-        return _ensure_obs_categorical(mdata, fallback_name)
+        return ensure_obs_categorical(mdata, fallback_name)
 
     fallback_values = pd.Index(mdata.obs.index).map(str)
     mdata.obs[fallback_name] = pd.Categorical(fallback_values, categories=pd.unique(fallback_values))
-    return _ensure_obs_categorical(mdata, fallback_name)
+    return ensure_obs_categorical(mdata, fallback_name)
 
 
-def _ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
-    """Cast the obs column to categorical in-place if needed."""
+def ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
+    """
+    Casts the observation column to a pandas categorical type if needed.
+
+    Parameters:
+        mdata: MuData object containing observation metadata.
+        column: Observation column name to cast.
+
+    Returns:
+        The validated categorical column name.
+    """
     if column not in mdata.obs.columns:
         raise KeyError(f"Column '{column}' not found in observations.")
-    if not pd.api.types.is_categorical_dtype(mdata.obs[column]):
+    if not is_categorical_dtype(mdata.obs[column]):
         mdata.obs[column] = pd.Categorical(mdata.obs[column], categories=pd.unique(mdata.obs[column]))
     return column
 
 
-def _set_color(
+def set_color(
     fig: go.Figure,
     mdata: md.MuData,
     modality: str,
     colorby: str,
     groupby_column: str,
-    template: str = None,
-):
+    template: str | None = None,
+) -> go.Figure:
+    """
+    Applies consistent colors to traces based on a categorical observation column.
+
+    Parameters:
+        fig: Plotly figure whose traces will be recolored.
+        mdata: MuData object providing observations and metadata.
+        modality: Modality key for accessing the appropriate AnnData object.
+        colorby: Observation column used to map groups to colors.
+        groupby_column: Observation column used to group traces.
+        template: Optional Plotly template name for extracting the colorway.
+
+    Returns:
+        Figure with trace colors and ordering updated.
+    """
     groupby_column = resolve_obs_column(mdata, groupby_column)
 
     # Ensure color column exists and is categorical
@@ -98,7 +150,9 @@ def _set_color(
     colormap_dict = {val: colors[i % len(colors)] for i, val in enumerate(categories)}
     group_to_category: dict[str, str] = {}
     group_to_color: dict[str, str] = {}
-    for group_value, category_value in zip(group_series, color_series):
+    group_values = group_series.to_numpy(dtype=object)
+    color_values = color_series.to_numpy(dtype=object)
+    for group_value, category_value in zip(group_values, color_values):
         if pd.isna(group_value) or pd.isna(category_value):
             continue
         if group_value not in group_to_category:
@@ -107,19 +161,19 @@ def _set_color(
 
     # Update figure
     for i, trace in enumerate(fig.data):
-        trace_name = getattr(trace, "name", None)
+        trace_name = getattr(trace, "name", "")
         color_value = group_to_color.get(trace_name)
         if hasattr(trace, "marker"):
-            trace.marker.color = color_value
+            trace.marker.color = color_value  # type: ignore
         if hasattr(trace, "line"):
-            trace.line.color = color_value
+            trace.line.color = color_value  # type: ignore
 
     order_dict = {value: index for index, value in enumerate(categories)}
     fig.data = tuple(
         sorted(
             fig.data,
             key=lambda trace: order_dict.get(
-                group_to_category.get(getattr(trace, "name", None)),
+                group_to_category.get(getattr(trace, "name", "")),
                 float("inf"),
             ),
         )
@@ -128,10 +182,20 @@ def _set_color(
     return fig
 
 
-def _merge_traces(
+def merge_traces(
     traces: list[dict],
     options: dict,
 ) -> list[dict]:
+    """
+    Merges a list of trace dictionaries with a common set of options.
+
+    Parameters:
+        traces: Trace dictionaries to merge.
+        options: Shared options applied to every trace.
+
+    Returns:
+        Updated trace definitions with merged options.
+    """
     merged_traces = []
     for trace in traces:
         merged_traces.append({**trace, **options})
@@ -139,29 +203,49 @@ def _merge_traces(
     return merged_traces
 
 
-def _get_bin_info(data: pd.DataFrame, bins: int) -> dict:
-    # get bin data
-    min_value = np.min(data)
-    max_value = np.max(data)
+def get_bin_info(data: pd.DataFrame, bins: int) -> BinInfo:
+    """
+    Computes histogram bin metadata for the provided numeric data.
+
+    Parameters:
+        data: DataFrame or Series containing numeric values.
+        bins: Number of bins to generate.
+
+    Returns:
+        BinInfo: Encapsulated bin width, edges, centers, and labels.
+    """
+    min_value = float(np.min(data))
+    max_value = float(np.max(data))
     data_range = max_value - min_value
-    bin_width = data_range / bins
+    bin_width = data_range / bins if bins > 0 else 0.0
     bin_edges = [min_value + bin_width * i for i in range(bins + 1)]
     bin_centers = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(bins)]
     bin_labels = [f"{bin_edges[i]} - {bin_edges[i + 1]}" for i in range(bins)]
 
-    return {
-        "width": bin_width,
-        "edges": bin_edges,
-        "centers": bin_centers,
-        "labels": bin_labels,
-    }
+    return BinInfo(
+        width=bin_width,
+        edges=bin_edges,
+        centers=bin_centers,
+        labels=bin_labels,
+    )
 
 
-def _get_pc_cols(
+def get_pc_cols(
     mdata: md.MuData,
     modality: str,
-    pcs: tuple[int, int],
-) -> list[str]:
+    pcs: tuple[int, int] | list[int],
+) -> tuple[tuple[int, int], list[str]]:
+    """
+    Validates requested principal components and returns column names.
+
+    Parameters:
+        mdata: MuData object containing PCA results in `obsm["X_pca"]`.
+        modality: Modality key for accessing the appropriate AnnData object.
+        pcs: Pair of principal component indices (1-based).
+
+    Returns:
+        Validated PC indices and their column names.
+    """
     # Check pcs length
     if len(pcs) != 2:
         raise ValueError("Only 2 PCs are allowed")
@@ -171,8 +255,9 @@ def _get_pc_cols(
         raise ValueError("PCs must be integers")
 
     # Sort pcs
+    pcs = (pcs[0], pcs[1])
     if pcs[0] == pcs[1]:
-        pcs[1] += 1
+        raise ValueError("PCs must be different")
     elif pcs[0] > pcs[1]:
         pcs = (pcs[1], pcs[0])
 
@@ -183,18 +268,28 @@ def _get_pc_cols(
     # Get PC columns
     pc_columns = [f"PC_{pc}" for pc in pcs]
 
-    if pc_columns[0] not in mdata[modality].obsm["X_pca"].columns:
+    if pc_columns[0] not in mdata[modality].obsm["X_pca"]["columns"]:
         raise ValueError(f"{pc_columns[0]} not found in {modality}")
-    if pc_columns[1] not in mdata[modality].obsm["X_pca"].columns:
+    if pc_columns[1] not in mdata[modality].obsm["X_pca"]["columns"]:
         raise ValueError(f"{pc_columns[1]} not found in {modality}")
 
     return pcs, pc_columns
 
 
-def _get_umap_cols(
+def get_umap_cols(
     mdata: md.MuData,
     modality: str,
 ) -> list[str]:
+    """
+    Validates UMAP embeddings and returns expected column names.
+
+    Parameters:
+        mdata: MuData object containing UMAP embeddings in `obsm["X_umap"]`.
+        modality: Modality key for accessing the appropriate AnnData object.
+
+    Returns:
+        List of UMAP column names used for plotting.
+    """
     # Check if UMAP exist
     if "X_umap" not in mdata[modality].obsm:
         raise ValueError(f"No UMAP found in {modality}")
@@ -202,9 +297,9 @@ def _get_umap_cols(
     # Get UMAP columns
     umap_columns = [f"UMAP_{pc}" for pc in [1, 2]]
 
-    if umap_columns[0] not in mdata[modality].obsm["X_umap"].columns:
+    if umap_columns[0] not in mdata[modality].obsm["X_umap"]["columns"]:
         raise ValueError(f"{umap_columns[0]} not found in {modality}")
-    if umap_columns[1] not in mdata[modality].obsm["X_umap"].columns:
+    if umap_columns[1] not in mdata[modality].obsm["X_umap"]["columns"]:
         raise ValueError(f"{umap_columns[1]} not found in {modality}")
 
     return umap_columns

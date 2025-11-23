@@ -22,7 +22,7 @@ logger.setLevel(LogLevel.INFO)
 setup_logger(level=LogLevel.INFO)
 
 mudata.set_options(pull_on_update=False)
-pl._set_templates()
+pl.set_templates()
 
 del LogLevel, logging, mudata
 
@@ -30,5 +30,5 @@ __all__ = [
     "pp",
     "pl",
     "tl",
-    "utils"
+    "utils",
 ]

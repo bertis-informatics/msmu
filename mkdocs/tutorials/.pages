@@ -1,9 +1,0 @@
-title: Tutorials
-collapse: false
-index: quick_start.md
-arrange:
-  - tmt.md
-  - lfq.md
-  - dia.md
-  # - visualization.md
-strict: true
