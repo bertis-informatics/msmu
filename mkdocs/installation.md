@@ -6,8 +6,12 @@
 pip install msmu
 ```
 
-## from Source
+## from Git
 
 ```bash
 git clone git@bitbucket.org:bertis/msmu.git
+
+cd msmu
+
+pip installl .
 ```
