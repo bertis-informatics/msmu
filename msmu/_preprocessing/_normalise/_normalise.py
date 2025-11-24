@@ -28,6 +28,7 @@ def log2_transform(
     return mdata
 
 
+@uns_logger
 def normalise(
     mdata: md.MuData,
     method: str,
@@ -88,6 +89,26 @@ def normalise(
     return mdata
 
 
+def normalize(
+    mdata: md.MuData,
+    method: str,
+    modality: str,
+    fraction: bool = False,
+    rescale: bool = True,
+) -> md.MuData:
+    """
+    Alias for normalise function to support American English spelling.
+    """
+    return normalise(
+        mdata=mdata,
+        method=method,
+        modality=modality,
+        fraction=fraction,
+        rescale=rescale,
+    )
+
+
+@uns_logger
 def feature_scale(
     mdata: md.MuData,
     method: str,
