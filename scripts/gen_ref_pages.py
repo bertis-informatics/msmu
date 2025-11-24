@@ -50,7 +50,6 @@ if not nav_template.endswith("\n"):
     nav_template += "\n"
 
 def format_api(line):
-    print(f"Processing line: {line}")
     return "    " + line.replace("\\", "")
 
 api_nav = [format_api(line) for line in nav.build_literate_nav()]
