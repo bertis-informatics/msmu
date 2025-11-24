@@ -16,6 +16,8 @@ theme:
     # - navigation.sections
     # - content.action.edit     # 페이지 우상단 "Edit this page" 버튼
     # - content.action.view     # (선택) "View source" 버튼
+    - content.tabs.link
+    - content.code.copy
   palette:
     - scheme: default
       primary: indigo # 라이트 모드 색상
@@ -85,6 +87,9 @@ markdown_extensions:
   - pymdownx.escapeall:
       hardbreak: True
       nbsp: True
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
 
 extra_css:
   - assets/jupyter-tweaks.css
