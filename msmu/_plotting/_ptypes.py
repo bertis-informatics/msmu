@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import Any
 
-from .__trace import Trace, TraceHeatmap, TracePie
+from ._trace import Trace, TraceHeatmap, TracePie
 
 
 class PlotTypes:

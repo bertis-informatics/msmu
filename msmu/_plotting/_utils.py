@@ -2,14 +2,13 @@
 Utility functions for plotting with MuData and Plotly.
 """
 
-from typing import TypedDict
-
 import mudata as md
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_categorical_dtype  # type: ignore
 import plotly.graph_objects as go
 import plotly.io as pio
+from typing import TypedDict
 
 _FALLBACK_COLUMN = "__obs_idx__"
 _DEFAULT_OBS_PRIORITY = ("sample", "filename", _FALLBACK_COLUMN)

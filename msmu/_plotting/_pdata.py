@@ -2,12 +2,12 @@
 Module for preparing plotting data from MuData objects.
 """
 
+import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
-from anndata import AnnData
 from pandas.api.types import is_categorical_dtype  # type: ignore
-from typing import TypedDict, cast
+from typing import cast
 
 from ._utils import resolve_obs_column, BinInfo
 
@@ -30,31 +30,35 @@ class PlotData:
         self.mdata = mdata
         self.modality = modality
         self.kwargs = kwargs
-        self._default_obs_column = resolve_obs_column(self.mdata, kwargs.get("obs_column"))
 
-    def get_adata(self) -> AnnData:
-        """Returns the modality-specific AnnData object with proper typing."""
-        return cast(AnnData, self.mdata[self.modality])
+    def _get_adata(self) -> ad.AnnData:
+        """
+        Returns the modality-specific AnnData object with proper typing.
+
+        Returns:
+            The AnnData object for the specified modality.
+        """
+        return cast(ad.AnnData, self.mdata[self.modality])
 
     def _get_data(self) -> pd.DataFrame:
         """
         Retrieves the expression/intensity DataFrame for the current modality.
 
         Returns:
-            pd.DataFrame: Copy of the modality's data matrix as a DataFrame.
+            Copy of the modality's data matrix as a DataFrame.
         """
-        return self.get_adata().to_df().copy()
+        return self._get_adata().to_df().copy()
 
-    def get_var(self) -> pd.DataFrame:
+    def _get_var(self) -> pd.DataFrame:
         """
         Retrieves the variable metadata for the current modality.
 
         Returns:
-            pd.DataFrame: Copy of the modality's `var` table.
+            Copy of the modality's `var` table.
         """
         return self.mdata[self.modality].var.copy()
 
-    def get_varm(self, column: str) -> pd.DataFrame:
+    def _get_varm(self, column: str) -> pd.DataFrame:
         """
         Retrieves a varm column and merges it with `var` for plotting.
 
@@ -64,26 +68,12 @@ class PlotData:
         Returns:
             Concatenated `var` and selected varm DataFrame.
         """
-        var_df: pd.DataFrame = self.get_var()
+        var_df: pd.DataFrame = self._get_var()
         varm_df: pd.DataFrame = pd.DataFrame(self.mdata[self.modality].varm[column].copy())
 
         return pd.concat([var_df, varm_df], axis=1)
 
-    def resolve_obs_column(self, obs_column: str | None = None) -> str:
-        """
-        Resolves and validates the observation column to use for grouping.
-
-        Parameters:
-            obs_column: Preferred observation column; falls back to default.
-
-        Returns:
-            elected observation column name.
-        """
-        if obs_column is None:
-            return self._default_obs_column
-        return resolve_obs_column(self.mdata, obs_column)
-
-    def get_obs(self, obs_column: str) -> pd.DataFrame:
+    def _get_obs(self, obs_column: str) -> pd.DataFrame:
         """
         Retrieves observation metadata sorted and cast to categorical.
 
@@ -93,7 +83,7 @@ class PlotData:
         Returns:
             Observation DataFrame with categorical ordering applied.
         """
-        obs_column = self.resolve_obs_column(obs_column)
+        obs_column = resolve_obs_column(self.mdata, obs_column)
         obs_df = self.mdata.obs.copy()
         if "condition" in obs_df.columns:
             obs_df = obs_df.sort_values(["condition", obs_column])
@@ -103,6 +93,36 @@ class PlotData:
         obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(obs_df[obs_column].values.tolist())
 
         return obs_df
+
+    def _get_bin_info(self, data: pd.Series, bins: int) -> BinInfo:
+        """
+        Computes histogram bin metadata for numeric intensity data.
+
+        Parameters:
+            data: Numeric data for binning.
+            bins: Number of bins to divide the data into.
+
+        Returns:
+            Bin width, edges, centers, and labels.
+        """
+        values = np.asarray(data, dtype=float).flatten()
+        if values.size == 0:
+            raise ValueError("Cannot compute bin info for empty data.")
+
+        min_value = np.nanmin(values)
+        max_value = np.nanmax(values)
+        data_range = max_value - min_value
+        bin_width = data_range / bins if bins > 0 else 0
+        bin_edges = [min_value + bin_width * i for i in range(bins + 1)]
+        bin_centers = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(bins)]
+        bin_labels = [f"{bin_edges[i]} - {bin_edges[i + 1]}" for i in range(bins)]
+
+        return {
+            "width": bin_width,
+            "edges": bin_edges,
+            "centers": bin_centers,
+            "labels": bin_labels,
+        }
 
     def prep_var_data(
         self,
@@ -121,8 +141,8 @@ class PlotData:
         Returns:
             Aggregated counts per group and variable category.
         """
-        obs_df = self.get_obs(obs_column)
-        var_df = self.get_var()
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
         orig_df = self._get_data()
 
         if (np.nansum(orig_df) == 0) or (groupby == "fraction"):
@@ -182,8 +202,8 @@ class PlotData:
         Returns:
             Counts of variable categories per observation group.
         """
-        obs_df = self.get_obs(obs_column)
-        var_df = self.get_var()
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
         orig_df = self._get_data()
 
         if np.nansum(orig_df) == 0:
@@ -193,6 +213,7 @@ class PlotData:
                 raise ValueError(f"Column '{groupby}' not found in var data.")
 
             categories = var_df[groupby].unique()
+            print(var_df[[groupby, var_column]].head())
             prep_df = var_df[[groupby, var_column]].groupby(groupby, observed=True).value_counts().reset_index()
             prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=categories)
             prep_df = prep_df.sort_values(groupby).reset_index(drop=True)
@@ -232,9 +253,9 @@ class PlotData:
         Returns:
             Box-plot-ready DataFrame with grouping labels.
         """
-        obs_df = self.get_obs(obs_column)
-        var_df = self.get_var()
-        orig_df = self.get_adata().to_df()
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self._get_adata().to_df()
 
         if np.nansum(orig_df) == 0:
             print("No data available for the selected modality. Counting from var.")
@@ -275,9 +296,9 @@ class PlotData:
         Returns:
             Descriptive statistics indexed by observation group.
         """
-        obs_df = self.get_obs(obs_column)
-        var_df = self.get_var()
-        orig_df = self.get_adata().to_df()
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
+        orig_df = self._get_adata().to_df()
 
         if np.nansum(orig_df) == 0:
             print("No data available for the selected modality. Counting from var.")
@@ -324,8 +345,8 @@ class PlotData:
         Returns:
             Histogram counts and frequencies per observation group.
         """
-        obs_df = self.get_obs(obs_column)
-        var_df = self.get_var()
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
         orig_df = self._get_data()
         n_bins = len(bin_info["labels"])
 
@@ -378,7 +399,7 @@ class PlotData:
 
         return prepped
 
-    def prep_id_data(
+    def prep_id_bar(
         self,
         groupby: str,
         obs_column: str,
@@ -393,8 +414,8 @@ class PlotData:
         Returns:
             Counts per observation group with column `_count`.
         """
-        obs_df = self.get_obs(obs_column)
-        var_df = self.get_var()
+        obs_df = self._get_obs(obs_column)
+        var_df = self._get_var()
         orig_df = self._get_data()
 
         if np.nansum(orig_df) == 0:
@@ -410,7 +431,7 @@ class PlotData:
 
         return prep_df
 
-    def prep_intensity_data_hist(self, groupby: str, obs_column: str, bin_info: BinInfo) -> pd.DataFrame:
+    def prep_intensity_hist(self, groupby: str, obs_column: str, bin_info: BinInfo) -> pd.DataFrame:
         """
         Calculates histogram bins for intensity distributions by group.
 
@@ -422,7 +443,7 @@ class PlotData:
         Returns:
             Histogram counts and frequencies per group and bin.
         """
-        obs_df = self.get_obs(obs_column)
+        obs_df = self._get_obs(obs_column)
         orig_df = self._get_data().T
         n_bins = len(bin_info["labels"])
 
@@ -459,37 +480,7 @@ class PlotData:
 
         return prepped
 
-    def get_bin_info(self, data: pd.Series, bins: int) -> BinInfo:
-        """
-        Computes histogram bin metadata for numeric intensity data.
-
-        Parameters:
-            data: Numeric data for binning.
-            bins: Number of bins to divide the data into.
-
-        Returns:
-            Bin width, edges, centers, and labels.
-        """
-        values = np.asarray(data, dtype=float).flatten()
-        if values.size == 0:
-            raise ValueError("Cannot compute bin info for empty data.")
-
-        min_value = np.nanmin(values)
-        max_value = np.nanmax(values)
-        data_range = max_value - min_value
-        bin_width = data_range / bins if bins > 0 else 0
-        bin_edges = [min_value + bin_width * i for i in range(bins + 1)]
-        bin_centers = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(bins)]
-        bin_labels = [f"{bin_edges[i]} - {bin_edges[i + 1]}" for i in range(bins)]
-
-        return {
-            "width": bin_width,
-            "edges": bin_edges,
-            "centers": bin_centers,
-            "labels": bin_labels,
-        }
-
-    def prep_intensity_data(
+    def prep_intensity_bar(
         self,
         groupby: str,
         obs_column: str,
@@ -504,8 +495,8 @@ class PlotData:
         Returns:
             Long-form DataFrame with intensity values and groups.
         """
-        obs_df = self.get_obs(obs_column)
-        orig_df = self.get_adata().to_df().T
+        obs_df = self._get_obs(obs_column)
+        orig_df = self._get_adata().to_df().T
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         join_df = melt_df.join(obs_df, on="_obs", how="left")
@@ -514,7 +505,7 @@ class PlotData:
 
         return prep_df
 
-    def prep_intensity_data_box(
+    def prep_intensity_simple_box(
         self,
         groupby: str,
         obs_column: str,
@@ -529,8 +520,8 @@ class PlotData:
         Returns:
             Descriptive statistics indexed by the grouping column.
         """
-        obs_df = self.get_obs(obs_column)
-        orig_df = self.get_adata().to_df().T
+        obs_df = self._get_obs(obs_column)
+        orig_df = self._get_adata().to_df().T
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         join_df = melt_df.join(obs_df, on="_obs", how="left")
@@ -541,7 +532,7 @@ class PlotData:
 
         return prep_df
 
-    def prep_missingness_data(
+    def prep_missingness_step(
         self,
         obs_column: str,
     ) -> pd.DataFrame:
@@ -554,11 +545,11 @@ class PlotData:
         Returns:
             Missingness ratios and counts ready for plotting.
         """
-        obs = self.get_obs(obs_column)
+        obs = self._get_obs(obs_column)
         n_sample = obs.shape[0]
 
         # Prepare data
-        orig_df = self.get_adata().to_df()
+        orig_df = self._get_adata().to_df()
         sum_list = orig_df.isna().sum(axis=0)
 
         count_list = sum_list.value_counts().sort_index().cumsum()
@@ -573,7 +564,7 @@ class PlotData:
 
         return prep_df
 
-    def prep_pca_data(
+    def prep_pca_scatter(
         self,
         modality: str,
         groupby: str,
@@ -592,7 +583,7 @@ class PlotData:
         Returns:
             PCA coordinates with grouping metadata.
         """
-        obs = self.get_obs(obs_column)
+        obs = self._get_obs(obs_column)
 
         # Prepare data
         orig_df = pd.DataFrame(self.mdata[modality].obsm["X_pca"][pc_columns])
@@ -601,7 +592,7 @@ class PlotData:
 
         return join_df
 
-    def prep_umap_data(
+    def prep_umap_scatter(
         self,
         modality: str,
         groupby: str,
@@ -620,7 +611,7 @@ class PlotData:
         Returns:
             UMAP coordinates with grouping metadata.
         """
-        obs = self.get_obs(obs_column)
+        obs = self._get_obs(obs_column)
 
         # Prepare data
         orig_df = pd.DataFrame(self.mdata[modality].obsm["X_umap"][umap_columns])
@@ -629,233 +620,7 @@ class PlotData:
 
         return join_df
 
-    def prep_purity_data(
-        self,
-        groupby: str,
-    ) -> pd.DataFrame:
-        """
-        Retrieves purity values optionally grouped by observation metadata.
-
-        Parameters:
-            groupby: Observation column to group by; None groups all together.
-
-        Returns:
-            Purity observations filtered to valid values.
-        """
-        data = self.get_var()
-
-        if groupby is not None:
-            data = data[[groupby, "purity"]]
-        else:
-            data = data[["purity"]]
-            data["_idx_"] = "Purity"
-
-        return data[data["purity"] >= 0]
-
-    def prep_purity_data_hist(
-        self,
-        data: pd.DataFrame,
-        bin_info: BinInfo,
-        groupby: str | None = None,
-    ) -> pd.DataFrame:
-        """
-        Prepares histogram bins for purity metrics.
-
-        Parameters:
-            data: Purity data containing a `purity` column.
-            bin_info: Precomputed bin metadata for binning.
-            groupby: Observation column to group by.
-
-        Returns:
-            Histogram counts/frequencies with labels per group.
-        """
-        df = data.copy()
-        n_bins = len(bin_info["labels"])
-
-        # Treat groupby
-        df["_bin_"] = pd.cut(
-            df["purity"],
-            bins=bin_info["edges"],
-            labels=bin_info["labels"],
-            include_lowest=True,
-        )
-        if groupby is not None:
-            grouped = df.groupby([groupby, "_bin_"], observed=False).size().unstack(fill_value=0)
-            bin_counts = np.asarray(grouped.values.flatten(), dtype=float)
-            bin_frequencies = bin_counts / float(df.shape[0])
-            bin_names = grouped.index.get_level_values(0).repeat(n_bins).tolist()
-
-            # make dataframe
-            prepped = pd.DataFrame(
-                {
-                    "center": bin_info["centers"] * len(grouped),
-                    "label": bin_info["labels"] * len(grouped),
-                    "count": bin_counts,
-                    "frequency": bin_frequencies,
-                    "name": bin_names,
-                }
-            )
-        else:
-            bin_counts = np.asarray(df["_bin_"].value_counts(sort=False).values, dtype=float)
-            bin_frequencies = bin_counts / float(df.shape[0])
-
-            # make dataframe
-            prepped = pd.DataFrame(
-                {
-                    "center": bin_info["centers"],
-                    "label": bin_info["labels"],
-                    "count": bin_counts,
-                    "frequency": bin_frequencies,
-                    "name": "Purity",
-                }
-            )
-        return prepped
-
-    def prep_purity_data_box(
-        self,
-        groupby: str,
-    ) -> pd.DataFrame:
-        """
-        Builds descriptive statistics for purity values by group.
-
-        Parameters:
-            groupby: Observation column to group purity values.
-
-        Returns:
-            Descriptive statistics for purity per group.
-        """
-        # Prepare data
-        orig_df = self.get_var()[[groupby, "purity"]]
-        orig_df[["purity"]] = orig_df[["purity"]][orig_df[["purity"]] >= 0]
-
-        prep_df = orig_df.groupby(groupby, observed=True).describe().droplevel(0, axis=1)
-
-        return prep_df
-
-    def prep_purity_data_vln(
-        self,
-        groupby: str,
-    ) -> pd.DataFrame:
-        """
-        Prepares raw purity values for violin plotting.
-
-        Parameters:
-            groupby: Observation column to group purity values.
-
-        Returns:
-            Purity values with grouping labels.
-        """
-        # Prepare data
-        orig_df = self.get_var()[[groupby, "purity"]]
-        orig_df[["purity"]] = orig_df[["purity"]][orig_df[["purity"]] >= 0]
-
-        prep_df = orig_df
-
-        return prep_df
-
-    def prep_peptide_length_data(
-        self,
-        groupby: str,
-        obs_column: str,
-    ) -> pd.DataFrame:
-        """
-        Derives peptide length distributions grouped by observations.
-
-        Parameters:
-            groupby: Observation column to group by.
-            obs_column: Observation column to align with variables.
-
-        Returns:
-            Descriptive statistics for peptide lengths per group.
-        """
-        obs_df = self.get_obs(obs_column)
-        var_df = self.get_var()
-        orig_df = self._get_data()
-        var_df["peptide_length"] = var_df["stripped_peptide"].str.len()
-
-        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
-        merged_df = merged_df.groupby(groupby, observed=True).any()
-
-        melt_df = merged_df.stack().reset_index()
-        melt_df.columns = [groupby, "_var", "_exists"]
-
-        prep_df = melt_df.merge(var_df[["peptide_length"]], left_on="_var", right_index=True)
-        prep_df = prep_df[prep_df["_exists"] > 0]
-        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
-        prep_df = prep_df.groupby(groupby, observed=True).describe().droplevel(0, axis=1)
-        prep_df.index = pd.CategoricalIndex(prep_df.index, categories=obs_df[groupby].unique())
-        prep_df = prep_df.sort_index(axis=0)
-
-        return prep_df
-
-    def prep_peptide_length_data_vln(
-        self,
-        groupby: str,
-        obs_column: str,
-    ) -> pd.DataFrame:
-        """
-        Prepares peptide length values for violin plots grouped by observations.
-
-        Parameters:
-            groupby: Observation column to group by.
-            obs_column: Observation column to align with variables.
-
-        Returns:
-            Peptide lengths with grouping labels for plotting.
-        """
-        obs_df = self.get_obs(obs_column)
-        var_df = self.get_var()
-        orig_df = self._get_data()
-        var_df["peptide_length"] = var_df["stripped_peptide"].str.len()
-
-        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
-        merged_df = merged_df.groupby(groupby, observed=True).any()
-
-        melt_df = merged_df.stack().reset_index()
-        melt_df.columns = [groupby, "_var", "_exists"]
-
-        prep_df = melt_df.merge(var_df[["peptide_length"]], left_on="_var", right_index=True)
-        prep_df = prep_df[prep_df["_exists"] > 0]
-        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
-
-        return prep_df
-
-    def prep_missed_cleavage(
-        self,
-        groupby: str,
-        obs_column: str,
-    ) -> pd.DataFrame:
-        """
-        Aggregates missed cleavages counts grouped by observations.
-
-        Parameters:
-            groupby: Observation column to group by.
-            obs_column: Observation column to align with variables.
-
-        Returns:
-            Missed cleavage counts per observation group.
-        """
-        obs_df = self.get_obs(obs_column)
-        var_df = self.get_var()
-        orig_df = self._get_data()
-
-        merged_df = orig_df.notna().join(obs_df[groupby], how="left")
-        merged_df = merged_df.groupby(groupby, observed=True).any()
-
-        melt_df = merged_df.stack().reset_index()
-        melt_df.columns = [groupby, "_var", "_exists"]
-
-        var_df["missed_cleavage"] = var_df["missed_cleavages"]
-        prep_df = melt_df.merge(var_df[["missed_cleavage"]], left_on="_var", right_index=True)
-        prep_df = prep_df[prep_df["_exists"] > 0]
-        prep_df = prep_df.drop(["_var", "_exists"], axis=1)
-        prep_df = prep_df.groupby(groupby, observed=True).value_counts().reset_index()
-        prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=obs_df[groupby].unique())
-        prep_df = prep_df.sort_index(axis=0)
-
-        return prep_df
-
-    def prep_upset_data(
+    def prep_id_upset(
         self,
         groupby: str,
         obs_column: str,
@@ -871,7 +636,7 @@ class PlotData:
             Combination counts and item counts.
         """
         orig_df = self._get_data()
-        obs_df = self.get_obs(obs_column)
+        obs_df = self._get_obs(obs_column)
 
         orig_df.index = pd.CategoricalIndex(orig_df.index, categories=obs_df.index)
         orig_df = orig_df.sort_index(axis=0)
@@ -888,7 +653,7 @@ class PlotData:
 
         return combination_counts, item_counts
 
-    def prep_correlation_data(self, groupby: str, obs_column: str) -> pd.DataFrame:
+    def prep_intensity_correlation(self, groupby: str, obs_column: str) -> pd.DataFrame:
         """
         Computes pairwise Pearson correlations between grouped median profiles.
 
@@ -900,7 +665,7 @@ class PlotData:
             Lower-triangular correlation matrix with NaNs above diagonal.
         """
         orig_df = self._get_data()
-        obs_df = self.get_obs(obs_column)
+        obs_df = self._get_obs(obs_column)
         corrs_df = orig_df.groupby(obs_df[groupby], observed=True).median().T.corr(method="pearson")
 
         for x in range(corrs_df.shape[0]):
@@ -911,36 +676,3 @@ class PlotData:
         corrs_df = corrs_df.sort_index(axis=0).sort_index(axis=1)
 
         return corrs_df
-
-    def prep_purity_metrics_data(
-        self,
-    ) -> pd.DataFrame:
-        """
-        Summarizes purity pass/fail metrics and ratios by filename.
-
-        Returns:
-            Purity classification counts and ratios per filename.
-        """
-        varm_df = self.get_varm("filter")
-
-        # Define conditions and choices for purity_result
-        conditions = [
-            varm_df["filter_purity"] == True,
-            (varm_df["filter_purity"] == False) & (varm_df["purity"] >= 0),
-            varm_df["purity"] == -1,
-            varm_df["purity"] == -2,
-        ]
-        choices = [
-            "High purity",
-            "Low purity",
-            "No isotope peak",
-            "No isolation peak",
-        ]
-        varm_df["purity_metrics"] = np.select(condlist=conditions, choicelist=choices, default="Unknown")
-
-        df = varm_df.groupby(["purity_metrics", "filename"], observed=True).size().reset_index(name="count")
-        df["purity_metrics"] = pd.Categorical(df["purity_metrics"], categories=choices)
-        df["ratio"] = df["count"] / df.groupby("filename", observed=False)["count"].transform("sum") * 100
-        df = df.sort_values(["filename", "purity_metrics"]).reset_index(drop=True)
-
-        return df
