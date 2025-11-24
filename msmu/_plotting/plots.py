@@ -5,7 +5,6 @@ Module providing various plotting functions for MuData objects using Plotly.
 import mudata as md
 import pandas as pd
 import plotly.graph_objects as go
-from typing import cast
 
 from ._pdata import PlotData
 from ._ptypes import (
@@ -20,103 +19,16 @@ from ._ptypes import (
     PlotHeatmap,
 )
 from ._template import DEFAULT_TEMPLATE
-from ._utils import get_pc_cols, get_umap_cols, set_color, resolve_obs_column
-
-
-def _resolve_plot_columns(
-    mdata: md.MuData,
-    groupby: str | None,
-    obs_column: str | None,
-) -> tuple[str, str]:
-    """
-    Resolves grouping and observation columns with sensible defaults.
-
-    Parameters:
-        mdata: MuData object holding observation metadata.
-        groupby: Requested grouping column; defaults to `obs_column` when None.
-        obs_column: Requested observation column; resolved via `resolve_obs_column`.
-
-    Returns:
-        Resolved `(groupby, obs_column)` pair.
-    """
-    resolved_obs = resolve_obs_column(mdata, obs_column)
-    resolved_groupby = groupby or resolved_obs
-
-    return resolved_groupby, resolved_obs
-
-
-def _apply_layout_overrides(fig: go.Figure, layout_kwargs: dict) -> go.Figure:
-    """
-    Applies optional layout keyword arguments to a figure.
-
-    Parameters:
-        fig: Figure to update.
-        layout_kwargs: Layout options to apply.
-
-    Returns:
-        Updated figure.
-    """
-    if layout_kwargs:
-        fig.update_layout(**layout_kwargs)
-    return fig
-
-
-def _apply_color_if_needed(
-    fig: go.Figure,
-    *,
-    mdata: md.MuData,
-    modality: str,
-    groupby: str,
-    colorby: str | None,
-    obs_column: str,
-    template: str,
-) -> go.Figure:
-    """
-    Applies trace colors when grouping and coloring on the same observation column.
-
-    Parameters:
-        fig: Figure whose traces may be recolored.
-        mdata: MuData object providing observation metadata.
-        modality: Modality key for the AnnData object.
-        groupby: Observation column used for grouping traces.
-        colorby: Observation column used for color mapping.
-        obs_column: Resolved observation column.
-        template: Plotly template name for colorway selection.
-
-    Returns:
-        Plotly figure with color applied when applicable.
-    """
-    if (colorby is not None) and (groupby == obs_column):
-        return set_color(fig, mdata, modality, colorby, obs_column, template)
-    elif (colorby is not None) and (groupby != obs_column):
-        print("[Warning] 'colorby' is only applicable when 'groupby' is not set. Ignoring 'colorby' parameter.")
-    return fig
-
-
-def format_modality(mdata: md.MuData, modality: str) -> str:
-    """
-    Formats modality keys into human-readable labels.
-
-    Parameters:
-        mdata: MuData object containing modality metadata.
-        modality: Modality key such as 'feature', 'peptide', or 'protein'.
-
-    Returns:
-        Display-ready modality label.
-    """
-    if modality == "feature":
-        if mdata["feature"].uns["search_engine"] == "Diann":
-            return "Precursor"
-        else:
-            return "PSM"
-    elif modality == "peptide":
-        return "Peptide"
-    elif modality == "protein":
-        return "Protein"
-    elif modality.endswith("_site"):
-        return modality.capitalize()
-    else:
-        raise ValueError(f"Unknown modality: {modality}, choose from 'feature', 'peptide', 'protein', '[ptm]_site'")
+from ._utils import (
+    apply_color_if_needed,
+    apply_layout_overrides,
+    format_modality,
+    get_pc_cols,
+    get_umap_cols,
+    resolve_obs_column,
+    resolve_plot_columns,
+)
+from .._utils.get import get_mdata
 
 
 def plot_id(
@@ -143,7 +55,7 @@ def plot_id(
     Returns:
         Bar chart of identification counts per group.
     """
-    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+    groupby, obs_column = resolve_plot_columns(mdata, groupby, obs_column)
 
     # Set titles
     title_text = f"Number of {format_modality(mdata, modality)}s"
@@ -178,10 +90,10 @@ def plot_id(
     fig.update_traces(texttemplate="%{y:,d}")
 
     # Update layout with kwargs
-    fig = _apply_layout_overrides(fig, kwargs)
+    fig = apply_layout_overrides(fig, kwargs)
 
     # Set color
-    fig = _apply_color_if_needed(
+    fig = apply_color_if_needed(
         fig,
         mdata=mdata,
         modality=modality,
@@ -222,7 +134,7 @@ def plot_intensity(
     Returns:
         Intensity distribution figure.
     """
-    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+    groupby, obs_column = resolve_plot_columns(mdata, groupby, obs_column)
 
     # Set titles
     title_text = f"{format_modality(mdata, modality)} Intensity Distribution"
@@ -279,10 +191,10 @@ def plot_intensity(
     )
 
     # Update layout with kwargs
-    fig = _apply_layout_overrides(fig, kwargs)
+    fig = apply_layout_overrides(fig, kwargs)
 
     # Set color
-    fig = _apply_color_if_needed(
+    fig = apply_color_if_needed(
         fig,
         mdata=mdata,
         modality=modality,
@@ -345,7 +257,7 @@ def plot_missingness(
     )
 
     # Update layout with kwargs
-    fig = _apply_layout_overrides(fig, kwargs)
+    fig = apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -376,7 +288,7 @@ def plot_pca(
     Returns:
         Scatter plot of PCA scores.
     """
-    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+    groupby, obs_column = resolve_plot_columns(mdata, groupby, obs_column)
 
     # Get data
     pcs, pc_columns = get_pc_cols(mdata, modality, pcs)
@@ -422,10 +334,10 @@ def plot_pca(
     )
 
     # Update layout with kwargs
-    fig = _apply_layout_overrides(fig, kwargs)
+    fig = apply_layout_overrides(fig, kwargs)
 
     # Set color
-    fig = _apply_color_if_needed(
+    fig = apply_color_if_needed(
         fig,
         mdata=mdata,
         modality=modality,
@@ -462,7 +374,7 @@ def plot_umap(
     Returns:
         Scatter plot of UMAP embeddings.
     """
-    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+    groupby, obs_column = resolve_plot_columns(mdata, groupby, obs_column)
 
     # Get required data
     umap_columns = get_umap_cols(mdata, modality)
@@ -506,10 +418,10 @@ def plot_umap(
         ),
     )
     # Update layout with kwargs
-    fig = _apply_layout_overrides(fig, kwargs)
+    fig = apply_layout_overrides(fig, kwargs)
 
     # Set color
-    fig = _apply_color_if_needed(
+    fig = apply_color_if_needed(
         fig,
         mdata=mdata,
         modality=modality,
@@ -549,9 +461,9 @@ def plot_upset(
     subset_column = resolve_obs_column(mdata, subset_column)
 
     if subset is not None:
-        mdata = cast(md.MuData, mdata[mdata.obs[subset_column] == subset].copy())
+        mdata = get_mdata(mdata[mdata.obs[subset_column] == subset].copy())
 
-    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+    groupby, obs_column = resolve_plot_columns(mdata, groupby, obs_column)
 
     title_text = f"Intersection of Proteins among {groupby.capitalize()}"
 
@@ -568,7 +480,7 @@ def plot_upset(
     )
 
     # Update layout with kwargs
-    fig = _apply_layout_overrides(fig, kwargs)
+    fig = apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -593,7 +505,7 @@ def plot_correlation(
     Returns:
         Heatmap of pairwise correlations.
     """
-    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+    groupby, obs_column = resolve_plot_columns(mdata, groupby, obs_column)
 
     # Set titles
     title_text = "Correlation Heatmap"
@@ -618,7 +530,7 @@ def plot_correlation(
     )
 
     # Update layout with kwargs
-    fig = _apply_layout_overrides(fig, kwargs)
+    fig = apply_layout_overrides(fig, kwargs)
 
     return fig
 
@@ -652,7 +564,7 @@ def plot_var(
     if var_column is None:
         raise ValueError("var_column must be specified.")
 
-    groupby, obs_column = _resolve_plot_columns(mdata, groupby, obs_column)
+    groupby, obs_column = resolve_plot_columns(mdata, groupby, obs_column)
 
     # Set labels
     modality_label = format_modality(mdata, modality)
@@ -740,6 +652,6 @@ def plot_var(
     )
 
     # Update layout with kwargs
-    fig = _apply_layout_overrides(fig, kwargs)
+    fig = apply_layout_overrides(fig, kwargs)
 
     return fig

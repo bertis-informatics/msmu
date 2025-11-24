@@ -71,6 +71,28 @@ def resolve_obs_column(
     return ensure_obs_categorical(mdata, fallback_name)
 
 
+def resolve_plot_columns(
+    mdata: md.MuData,
+    groupby: str | None,
+    obs_column: str | None,
+) -> tuple[str, str]:
+    """
+    Resolves grouping and observation columns with sensible defaults.
+
+    Parameters:
+        mdata: MuData object holding observation metadata.
+        groupby: Requested grouping column; defaults to `obs_column` when None.
+        obs_column: Requested observation column; resolved via `resolve_obs_column`.
+
+    Returns:
+        Resolved `(groupby, obs_column)` pair.
+    """
+    resolved_obs = resolve_obs_column(mdata, obs_column)
+    resolved_groupby = groupby or resolved_obs
+
+    return resolved_groupby, resolved_obs
+
+
 def ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
     """
     Casts the observation column to a pandas categorical type if needed.
@@ -87,6 +109,32 @@ def ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
     if not is_categorical_dtype(mdata.obs[column]):
         mdata.obs[column] = pd.Categorical(mdata.obs[column], categories=pd.unique(mdata.obs[column]))
     return column
+
+
+def format_modality(mdata: md.MuData, modality: str) -> str:
+    """
+    Formats modality keys into human-readable labels.
+
+    Parameters:
+        mdata: MuData object containing modality metadata.
+        modality: Modality key such as 'feature', 'peptide', or 'protein'.
+
+    Returns:
+        Display-ready modality label.
+    """
+    if modality == "feature":
+        if mdata["feature"].uns["search_engine"] == "Diann":
+            return "Precursor"
+        else:
+            return "PSM"
+    elif modality == "peptide":
+        return "Peptide"
+    elif modality == "protein":
+        return "Protein"
+    elif modality.endswith("_site"):
+        return modality.capitalize()
+    else:
+        raise ValueError(f"Unknown modality: {modality}, choose from 'feature', 'peptide', 'protein', '[ptm]_site'")
 
 
 def set_color(
@@ -227,6 +275,54 @@ def get_bin_info(data: pd.DataFrame, bins: int) -> BinInfo:
         centers=bin_centers,
         labels=bin_labels,
     )
+
+
+def apply_color_if_needed(
+    fig: go.Figure,
+    *,
+    mdata: md.MuData,
+    modality: str,
+    groupby: str,
+    colorby: str | None,
+    obs_column: str,
+    template: str,
+) -> go.Figure:
+    """
+    Applies trace colors when grouping and coloring on the same observation column.
+
+    Parameters:
+        fig: Figure whose traces may be recolored.
+        mdata: MuData object providing observation metadata.
+        modality: Modality key for the AnnData object.
+        groupby: Observation column used for grouping traces.
+        colorby: Observation column used for color mapping.
+        obs_column: Resolved observation column.
+        template: Plotly template name for colorway selection.
+
+    Returns:
+        Plotly figure with color applied when applicable.
+    """
+    if (colorby is not None) and (groupby == obs_column):
+        return set_color(fig, mdata, modality, colorby, obs_column, template)
+    elif (colorby is not None) and (groupby != obs_column):
+        print("[Warning] 'colorby' is only applicable when 'groupby' is not set. Ignoring 'colorby' parameter.")
+    return fig
+
+
+def apply_layout_overrides(fig: go.Figure, layout_kwargs: dict) -> go.Figure:
+    """
+    Applies optional layout keyword arguments to a figure.
+
+    Parameters:
+        fig: Figure to update.
+        layout_kwargs: Layout options to apply.
+
+    Returns:
+        Updated figure.
+    """
+    if layout_kwargs:
+        fig.update_layout(**layout_kwargs)
+    return fig
 
 
 def get_pc_cols(

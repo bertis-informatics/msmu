@@ -2,20 +2,19 @@
 Module for preparing plotting data from MuData objects.
 """
 
-import anndata as ad
-import mudata as md
+from mudata import MuData
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_categorical_dtype  # type: ignore
-from typing import cast
 
 from ._utils import resolve_obs_column, BinInfo
+from .._utils.get import get_adata
 
 
 class PlotData:
     def __init__(
         self,
-        mdata: md.MuData,
+        mdata: MuData,
         modality: str,
         **kwargs: str,
     ):
@@ -31,15 +30,6 @@ class PlotData:
         self.modality = modality
         self.kwargs = kwargs
 
-    def _get_adata(self) -> ad.AnnData:
-        """
-        Returns the modality-specific AnnData object with proper typing.
-
-        Returns:
-            The AnnData object for the specified modality.
-        """
-        return cast(ad.AnnData, self.mdata[self.modality])
-
     def _get_data(self) -> pd.DataFrame:
         """
         Retrieves the expression/intensity DataFrame for the current modality.
@@ -47,7 +37,7 @@ class PlotData:
         Returns:
             Copy of the modality's data matrix as a DataFrame.
         """
-        return self._get_adata().to_df().copy()
+        return get_adata(self.mdata, self.modality).to_df().copy()
 
     def _get_var(self) -> pd.DataFrame:
         """
@@ -255,7 +245,7 @@ class PlotData:
         """
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
-        orig_df = self._get_adata().to_df()
+        orig_df = get_adata(self.mdata, self.modality).to_df()
 
         if np.nansum(orig_df) == 0:
             print("No data available for the selected modality. Counting from var.")
@@ -298,7 +288,7 @@ class PlotData:
         """
         obs_df = self._get_obs(obs_column)
         var_df = self._get_var()
-        orig_df = self._get_adata().to_df()
+        orig_df = get_adata(self.mdata, self.modality).to_df()
 
         if np.nansum(orig_df) == 0:
             print("No data available for the selected modality. Counting from var.")
@@ -496,7 +486,7 @@ class PlotData:
             Long-form DataFrame with intensity values and groups.
         """
         obs_df = self._get_obs(obs_column)
-        orig_df = self._get_adata().to_df().T
+        orig_df = get_adata(self.mdata, self.modality).to_df().T
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         join_df = melt_df.join(obs_df, on="_obs", how="left")
@@ -521,7 +511,7 @@ class PlotData:
             Descriptive statistics indexed by the grouping column.
         """
         obs_df = self._get_obs(obs_column)
-        orig_df = self._get_adata().to_df().T
+        orig_df = get_adata(self.mdata, self.modality).to_df().T
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         join_df = melt_df.join(obs_df, on="_obs", how="left")
@@ -549,7 +539,7 @@ class PlotData:
         n_sample = obs.shape[0]
 
         # Prepare data
-        orig_df = self._get_adata().to_df()
+        orig_df = get_adata(self.mdata, self.modality).to_df()
         sum_list = orig_df.isna().sum(axis=0)
 
         count_list = sum_list.value_counts().sort_index().cumsum()
