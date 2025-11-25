@@ -1,13 +1,5 @@
 """
 Module for performing UMAP dimensionality reduction on MuData objects, based on umap-learn library.
-
-- [Repository](https://github.com/lmcinnes/umap)
-- [Documentation](https://umap-learn.readthedocs.io/en/latest/)
-
-References:
-    McInnes, L., Healy, J., & Melville, J. (2018).
-    UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction.
-    arXiv preprint arXiv:1802.03426.
 """
 
 import numpy as np
@@ -33,6 +25,14 @@ def umap(
     **kwargs: Any,
 ) -> MuData:
     """Calculate UMAP embedding for a given modality in MuData object.
+
+    - [Repository](https://github.com/lmcinnes/umap)
+    - [Documentation](https://umap-learn.readthedocs.io/en/latest/)
+
+    References:
+        McInnes, L., Healy, J., & Melville, J. (2018).
+        UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction.
+        arXiv preprint arXiv:1802.03426.
 
     Parameters:
         mdata: MuData object containing the data.

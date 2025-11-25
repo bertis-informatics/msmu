@@ -1,16 +1,5 @@
 """
 Module for performing Principal Component Analysis (PCA) on MuData objects, using scikit-learn's PCA implementation.
-
-- [Repository](https://github.com/scikit-learn/scikit-learn)
-- [Documentation](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html)
-
-References:
-    Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., ... & Duchesnay, E. (2011).
-    Scikit-learn: Machine learning in Python.
-    Journal of machine learning research, 12(Oct), 2825-2830.
-
-    Andrzej M., Waldemar R. (1993). Principal Component Analysis (PCA).
-    Computers & Geosciences, 19(3), 303-342.
 """
 
 import pandas as pd
@@ -33,6 +22,17 @@ def pca(
 ) -> MuData:
     """
     Perform Principal Component Analysis (PCA) on the specified modality of the MuData object.
+
+    - [Repository](https://github.com/scikit-learn/scikit-learn)
+    - [Documentation](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html)
+
+    References:
+        Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., ... & Duchesnay, E. (2011).
+        Scikit-learn: Machine learning in Python.
+        Journal of machine learning research, 12(Oct), 2825-2830.
+
+        Andrzej M., Waldemar R. (1993). Principal Component Analysis (PCA).
+        Computers & Geosciences, 19(3), 303-342.
 
     Parameters:
         mdata: MuData object containing the data.
