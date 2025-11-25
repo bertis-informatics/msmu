@@ -9,7 +9,7 @@ To manage these properties consistently, `msmu` adopts `MuData` from the `scvers
 
 `MuData`, together with its constituent `AnnData` objects, is widely used in scRNA-seq to manage complex data matrices and their associated metadata. The same structure fits proteomics naturally: identification-level attributes, quantification values, and sample information can all be stored cleanly and explored in an integrated way.
 
-`msmu` works with data formatted as a ![`MuData`](https://mudata.readthedocs.io/en/latest/) object composed of multiple ![`AnnData`](https://anndata.readthedocs.io/en/stable/) modalities.
+`msmu` works with data formatted as a [`MuData`](https://mudata.readthedocs.io/en/latest/) object composed of multiple [`AnnData`](https://anndata.readthedocs.io/en/stable/) modalities.
 Therefore, understanding the usage of `MuData` and `AnnData` helps when working with `msmu`.
 
 A `MuData` object used in `msmu` is organized by modalities, each corresponding to a specific processing level such as feature, peptide, and protein:
