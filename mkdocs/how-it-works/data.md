@@ -58,9 +58,9 @@ While each tool’s schema differs, all of them describe the same core identific
 - columns migrated into `mdata["feature"].var`
     - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q-value`
 
-- decoy evidences are isolated from `.var` and stored in `.uns["decoy]`
+- decoy evidences are isolated from `.var` and stored in `.uns["decoy"]` for later use in FDR calculation.
 - Quantification data for **LFQ (DDA)** is stored in `peptide` modality.
-- Raw information from a search tool is stored in `mdata["feature"].varm["search_result"]
+- Raw information from a search tool is stored in `mdata["feature"].varm["search_result"]`
 
 ### `read_sage()`
 

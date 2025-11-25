@@ -34,7 +34,7 @@ def _get_test_array(
 def permutation_test(
     mdata: md.MuData,
     category: str,
-    control: str,
+    ctrl: str,
     expr: str | None = None,
     modality: str = "protein",
     n_resamples: int = 1000,
@@ -53,7 +53,7 @@ def permutation_test(
         The modality to perform the test on. Default is 'protein'
     category : str
         The category column in the mdata.obs.
-    control : str
+    ctrl : str
         The control group label.
     expr : str | None
         The experimental group label. If None, all other groups are considered experimental. Default is None.
@@ -80,7 +80,7 @@ def permutation_test(
         mdata=mdata,
         modality=modality,
         catetory=category,
-        control=control,
+        control=ctrl,
         expr=expr,
     )
     if statistic not in ["welch", "student", "wilcoxon", "med_diff"]:
@@ -103,7 +103,7 @@ def permutation_test(
     perm_res: PermutationTestResult = perm_test.run(
         n_permutations=n_resamples, n_jobs=n_jobs, statistic=statistic
     )
-    perm_res.ctrl = control
+    perm_res.ctrl = ctrl
     perm_res.expr = expr if expr is not None else "all_other_groups"
     perm_res.features = mdata[modality].var.index.to_numpy()
 
