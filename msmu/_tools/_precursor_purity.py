@@ -11,7 +11,7 @@ import anndata as ad
 import mudata as md
 import pyopenms as oms
 
-from .._plotting.plots import plot_var
+from .._plotting._plots import plot_var
 import plotly.graph_objects as go
 
 
