@@ -4,21 +4,22 @@ from pathlib import Path
 from threading import Lock
 import pandas as pd
 import numpy as np
+
 # import concurrent.futures
 
 import anndata as ad
 import mudata as md
 import pyopenms as oms
 
-from .._plotting.plots import plot_purity
+from .._plotting.plots import plot_var
 import plotly.graph_objects as go
 
 
 class PurityResult:
     def __init__(self, purity: float, scan_num: int, filename: str):
-        self.filename:list[str] = filename
-        self.scan_num:list[int] = scan_num
-        self.purity:list[float] = purity
+        self.filename: list[str] = filename
+        self.scan_num: list[int] = scan_num
+        self.purity: list[float] = purity
 
     def __repr__(self) -> str:
         return f"PurityResult(purity={self.purity}, scan_num={self.scan_num}, filename='{self.filename}')"
@@ -26,22 +27,18 @@ class PurityResult:
     def to_df(self) -> pd.DataFrame:
         """
         Convert the PurityResult to a pandas DataFrame.
-        
+
         Returns:
             pd.DataFrame: DataFrame containing purity, scan_num, and filename.
         """
-        return pd.DataFrame({
-            "purity": self.purity,
-            "scan_num": self.scan_num,
-            "filename": self.filename
-        })
+        return pd.DataFrame({"purity": self.purity, "scan_num": self.scan_num, "filename": self.filename})
 
-    @property 
+    @property
     def _dummy_mdata(self) -> md.MuData:
         purity_df = self.to_df()
         purity_df.index = purity_df["filename"].str.strip(".mzML") + purity_df["scan_num"].astype(str)
 
-        purity_adata = ad.AnnData(purity_df[["purity"]].T, var = purity_df)
+        purity_adata = ad.AnnData(purity_df[["purity"]].T, var=purity_df)
         purity_mdata = md.MuData({"feature": purity_adata})
 
         purity_mdata["feature"].uns["filter"] = {"mdata": {"filter_purity": np.nan}}
@@ -49,11 +46,11 @@ class PurityResult:
         return purity_mdata
 
     def hist(self) -> go.Figure:
-        return plot_purity(mdata=self._dummy_mdata, groupby="filename", ptype="hist")
+        return plot_var(mdata=self._dummy_mdata, groupby="filename", ptype="hist", var_column="purity")
 
     def box(self) -> go.Figure:
-        return plot_purity(mdata=self._dummy_mdata, groupby="filename", ptype="box")
-        
+        return plot_var(mdata=self._dummy_mdata, groupby="filename", ptype="box", var_column="purity")
+
 
 class PrecursorPurityCalculator:
     """
@@ -76,7 +73,7 @@ class PrecursorPurityCalculator:
         self._tolerance = tolerance
         self._unit_ppm = unit_ppm
 
-        self._mzml:Path | None = None
+        self._mzml: Path | None = None
         self._exp: oms.MSExperiment | None = None
         self._exp_src: Path | None = None
         self._exp_mtime: float | None = None
@@ -87,7 +84,7 @@ class PrecursorPurityCalculator:
     def from_mudata(cls, mdata: md.MuData, tolerance: float = 20.0, unit_ppm: bool = True):
         """
         Initialize PrecursorPurityCalculator from a MuData object.
-        
+
         Parameters:
             mdata (md.MuData): MuData object containing PSM data.
             tolerance (float): Tolerance for precursor purity calculation.
@@ -96,10 +93,10 @@ class PrecursorPurityCalculator:
         instance = cls(tolerance=tolerance, unit_ppm=unit_ppm)
         if "feature" not in mdata.mod_names:
             raise ValueError("MuData object must contain 'feature' layer with PSM data.")
-        
+
         if "filename" not in mdata["feature"].var.columns:
             raise ValueError("MuData object must contain 'filename' in the feature variable data.")
-        
+
         if "scan_num" not in mdata["feature"].var.columns:
             raise ValueError("MuData object must contain 'scan_num' in the feature variable data.")
 
@@ -110,6 +107,7 @@ class PrecursorPurityCalculator:
     @property
     def tolerance(self) -> float:
         return self._tolerance
+
     @tolerance.setter
     def tolerance(self, value: float):
         if value <= 0:
@@ -119,6 +117,7 @@ class PrecursorPurityCalculator:
     @property
     def mzml(self) -> Path | None:
         return self._mzml
+
     @mzml.setter
     def mzml(self, value: str | Path):
         if isinstance(value, str):
@@ -160,21 +159,23 @@ class PrecursorPurityCalculator:
     @property
     def ms2_scan_num(self) -> list[int]:
         return np.array(self.ms2_indices) + 1
-    
+
     @staticmethod
     def _import_mzml(mzml_path: str | Path) -> oms.MSExperiment:
-        exp:oms.MSExperiment = oms.MSExperiment()
+        exp: oms.MSExperiment = oms.MSExperiment()
         oms.MzMLFile().load(str(mzml_path), exp)
 
         return exp
 
     def _get_ms2_spectra_indices_from_mdata(self) -> list[int]:
-        ms2_spectra:list[int] = self._var_df.loc[self._var_df["filename"] == self.mzml.name.strip(".mzML"), "scan_num"].astype(int).tolist()
+        ms2_spectra: list[int] = (
+            self._var_df.loc[self._var_df["filename"] == self.mzml.name.strip(".mzML"), "scan_num"].astype(int).tolist()
+        )
         ms2_spectra = [i - 1 for i in ms2_spectra]
         return ms2_spectra
 
     def _get_ms2_spectra_indices_from_mzml(self) -> list[int]:
-        ms2_spectra:list = []
+        ms2_spectra: list = []
         for i in range(0, self.exp.getNrSpectra()):
             if self.exp[i].getMSLevel() == 2:
                 ms2_spectra.append(i)
@@ -206,17 +207,17 @@ class PrecursorPurityCalculator:
         return purity_score.signal_proportion
 
     def calculate_precursor_isolation_purities(self) -> pd.DataFrame:
-        purities:pd.DataFrame = pd.DataFrame({"scan_num": self.ms2_scan_num, "scan_index": self.ms2_indices, "filename": self.mzml.name})
-        purities["purity"] = purities['scan_index'].apply(self._calculate_precursor_isolation_purity)
+        purities: pd.DataFrame = pd.DataFrame(
+            {"scan_num": self.ms2_scan_num, "scan_index": self.ms2_indices, "filename": self.mzml.name}
+        )
+        purities["purity"] = purities["scan_index"].apply(self._calculate_precursor_isolation_purity)
 
         return purities[["filename", "scan_num", "purity"]].reset_index(drop=True)
 
 
 def compute_precursor_purity(
-    mzml_paths: str | Path | list, 
-    tolerance: float = 20.0, 
-    unit_ppm: bool = True
-    ) -> PurityResult:
+    mzml_paths: str | Path | list, tolerance: float = 20.0, unit_ppm: bool = True
+) -> PurityResult:
     """
     Calculate precursor isolation purity for all MS2 scans in the given mzML file.
 
@@ -233,8 +234,8 @@ def compute_precursor_purity(
     if not isinstance(mzml_paths, list):
         raise TypeError("mzml_paths must be a string, Path, or list of strings/Paths.")
 
-    calculator:PrecursorPurityCalculator = PrecursorPurityCalculator(tolerance=tolerance, unit_ppm=unit_ppm)
-    purity_list:list = list()
+    calculator: PrecursorPurityCalculator = PrecursorPurityCalculator(tolerance=tolerance, unit_ppm=unit_ppm)
+    purity_list: list = list()
     tqdm_iter = tqdm(mzml_paths, total=len(mzml_paths))
     for mzml_path in mzml_paths:
         tqdm_iter.set_description(f"Compute for {mzml_path}")
@@ -244,14 +245,14 @@ def compute_precursor_purity(
             raise FileNotFoundError(f"The specified mzML file does not exist: {mzml_path}")
 
         calculator.mzml = mzml_path
-        purities:pd.DataFrame = calculator.calculate_precursor_isolation_purities()
+        purities: pd.DataFrame = calculator.calculate_precursor_isolation_purities()
         purity_list.append(purities)
-    
-    purity_concatenated:pd.DataFrame = pd.concat(purity_list, ignore_index=True)
-    purity_result:PurityResult = PurityResult(
+
+    purity_concatenated: pd.DataFrame = pd.concat(purity_list, ignore_index=True)
+    purity_result: PurityResult = PurityResult(
         purity=purity_concatenated["purity"].to_list(),
         scan_num=purity_concatenated["scan_num"].tolist(),
-        filename=purity_concatenated["filename"].tolist()
+        filename=purity_concatenated["filename"].tolist(),
     )
 
     return purity_result

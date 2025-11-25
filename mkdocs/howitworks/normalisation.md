@@ -1,3 +1,0 @@
-# Normalisation
-
-## Overview

@@ -26,6 +26,11 @@ class MuDataStatus:
     def __init__(self, mdata: md.MuData):
         self._mdata: md.MuData = mdata
         self.set_mudata_flags()
+
+        self.feature: AnnDataFlags | None = None
+        self.peptide: AnnDataFlags | None = None
+        self.protein: AnnDataFlags | None = None
+
         for mod_name in self.mod_names:
             self.set_anndata_flags(mod_name)
 
@@ -34,16 +39,20 @@ class MuDataStatus:
 
     def set_anndata_flags(self, mod_name: str):
         setattr(
-            self, 
-            mod_name, 
+            self,
+            mod_name,
             AnnDataFlags(
                 modality=mod_name,
                 label=self._mdata[mod_name].uns["label"] if "label" in self._mdata[mod_name].uns_keys() else None,
-                aquisition=self._mdata[mod_name].uns["acquisition"] if "acquisition" in self._mdata[mod_name].uns_keys() else None,
+                aquisition=(
+                    self._mdata[mod_name].uns["acquisition"]
+                    if "acquisition" in self._mdata[mod_name].uns_keys()
+                    else None
+                ),
                 has_purity="purity" in self._mdata[mod_name].var.columns,
                 has_decoy="decoy" in self._mdata[mod_name].uns_keys(),
                 has_pep="PEP" in self._mdata[mod_name].var.columns,
                 has_var=len(self._mdata[mod_name].var) > 0,
                 has_quant=~np.isnan(self._mdata[mod_name].X).all(),
-            )
-            )
+            ),
+        )

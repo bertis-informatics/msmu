@@ -25,29 +25,34 @@ class Mapping(TypedDict):
 @uns_logger
 def infer_protein(
     mdata: md.MuData,
-    propagated_from: md.MuData | str | None = None
+    modality: str = "peptide",
+    protein_colname: str = "proteins",
+    peptide_colname: str = "stripped_peptide",
+    propagated_from: md.MuData | str | None = None,
 ) -> md.MuData:
     """
-    Infer protein grouping information and classify peptides.
+    Infer protein-group mappings and annotate peptides with uniqueness.
 
     Parameters:
-        mdata: MuData object
-        propagated_from: mudata which contains inference info (for PTM normalisation with global proteins). Can be path to global data .h5mu or mudata object. Default is None
-        
+        mdata: MuData object to update
+        modality: modality holding peptide-level data
+        protein_colname: column in var with semicolon-delimited protein accessions
+        peptide_colname: column in var with stripped peptide sequences
+        propagated_from: optional MuData or path to reuse existing mappings (e.g., global reference for PTM work)
+
     Returns:
-        MuData object with updated protein mappings
+        MuData object with updated protein mappings and peptide annotations
     """
     logger.info("Starting protein group inference")
 
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
 
-    protein_colname: str = "proteins"
-    peptide_colname: str = "stripped_peptide"
+    if mstatus.peptide is None:
+        return mdata
 
-    modality: str = "peptide"
-
-    if propagated_from == None:
+    if propagated_from is None:
+        # Start from current peptide-level assignments; include decoys to keep mapping consistent
         target_peptides = mdata[modality].var[peptide_colname]
         target_proteins = mdata[modality].var[protein_colname]
 
@@ -60,14 +65,16 @@ def infer_protein(
             peptides = target_peptides
             proteins = target_proteins
 
-        # Get protein mapping information
+        # Derive peptide-to-protein group mapping from raw relationships
         peptide_map, protein_map = get_protein_mapping(peptides, proteins)
 
     elif isinstance(propagated_from, md.MuData):
+        # Reuse mapping from an existing MuData (e.g., global reference for PTM work)
         peptide_map = propagated_from.uns["peptide_map"]
         protein_map = propagated_from.uns["protein_map"]
 
     elif isinstance(propagated_from, str):
+        # Load external mapping from disk
         propagated_mdata = read_h5mu(propagated_from)
         peptide_map = propagated_mdata.uns["peptide_map"]
         protein_map = propagated_mdata.uns["protein_map"]
@@ -76,7 +83,7 @@ def infer_protein(
     mdata.uns["peptide_map"] = peptide_map
     mdata.uns["protein_map"] = protein_map
 
-    # Remap proteins and classify peptides
+    # Remap proteins and classify peptides by uniqueness within the updated groups
     mdata[modality].var["protein_group"] = (
         mdata[modality].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein_group"])
     )
@@ -85,8 +92,10 @@ def infer_protein(
     ]
 
     if mstatus.peptide.has_decoy:
+        # Apply the same mapping logic to decoys to keep QC and FDR flows aligned
         mdata[modality].uns["decoy"]["protein_group"] = (
-            mdata[modality].uns["decoy"][peptide_colname]
+            mdata[modality]
+            .uns["decoy"][peptide_colname]
             .map(peptide_map.set_index("peptide").to_dict()["protein_group"])
         )
         mdata[modality].uns["decoy"]["peptide_type"] = [
@@ -99,18 +108,17 @@ def infer_protein(
 def get_protein_mapping(
     peptides: pd.Series,
     proteins: pd.Series,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Infer protein grouping information.
+    Infer peptide-to-protein-group relationships from peptide and protein columns.
 
-    Args:
-        peptides (pd.Series): peptide information
-        proteins (pd.Series): protein information
+    Parameters:
+        peptides: peptide identifiers aligned to proteins
+        proteins: semicolon-separated accessions aligned to peptides
 
     Returns:
-        peptide_map (pd.DataFrame): peptide mapping information
-        protein_map (pd.DataFrame): protein mapping information
-        protein_info (pd.DataFrame): protein information
+        peptide mapping information
+        protein mapping information
     """
     # Initial load
     map_df = _get_map_df(peptides, proteins)
@@ -118,13 +126,14 @@ def get_protein_mapping(
     logger.info("Initial proteins: %d", len(initial_protein_df))
 
     # Find indistinguishable proteins
-    map_df, indist_map = _find_indistinguisable(map_df)
+    map_df, indist_map = _find_indistinguishable(map_df)
 
     # Find subsettable proteins
     map_df, subset_map = _find_subsettable(map_df)
 
     # Find subsumable proteins
     map_df, subsum_map, removed_proteins = _find_subsumable(map_df)
+    # Flatten merged names to drop fully subsumed proteins from the original list
     removed_proteins = [p for p2 in removed_proteins for p in p2.split(",")]
     initial_protein_df = initial_protein_df[~initial_protein_df["protein"].isin(removed_proteins)].reset_index(
         drop=True
@@ -147,14 +156,14 @@ def _get_map_df(
     proteins: pd.Series,
 ) -> pd.DataFrame:
     """
-    Returns peptide-to-protein mapping information.
+    Build a long-form peptide-to-protein mapping table from aligned peptide and protein columns.
 
-    Args:
-        peptides (pd.Series): peptide information
-        proteins (pd.Series): protein information
+    Parameters:
+        peptides: peptide information
+        proteins: protein information
 
     Returns:
-        map_df (pd.DataFrame): mapping information
+        mapping information
     """
     # Split proteins and explode the DataFrame
     map_df = pd.DataFrame({"protein": proteins, "peptide": peptides})
@@ -166,13 +175,13 @@ def _get_map_df(
 
 def _get_peptide_df(map_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Returns peptide information.
+    Summarize peptides and mark whether each peptide is unique to a single protein group.
 
-    Args:
-        map_df (pd.DataFrame): mapping information
+    Parameters:
+        map_df: mapping information
 
     Returns:
-        peptide_df (pd.DataFrame): peptide information
+        peptide information
     """
     # Group by peptide and count the number of proteins
     peptide_df = map_df[["protein", "peptide"]]
@@ -184,14 +193,14 @@ def _get_peptide_df(map_df: pd.DataFrame) -> pd.DataFrame:
 
 def _get_protein_df(map_df: pd.DataFrame, peptide_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Returns protein information.
+    Summarize proteins with counts of shared and unique peptides.
 
-    Args:
-        map_df (pd.DataFrame): mapping information
-        peptide_df (pd.DataFrame): peptide information
+    Parameters:
+        map_df: mapping information
+        peptide_df: peptide information
 
     Returns:
-        protein_df (pd.DataFrame): protein information
+        protein information
     """
     PEP_COLS = ["peptide", "is_unique"]
     GROUP_COLS = ["protein"]
@@ -213,14 +222,14 @@ def _get_protein_df(map_df: pd.DataFrame, peptide_df: pd.DataFrame) -> pd.DataFr
 
 def _get_df(map_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Returns peptide and protein information.
+    Convenience wrapper to produce both peptide and protein summaries.
 
-    Args:
-        map_df (pd.DataFrame): mapping information
+    Parameters:
+        map_df: mapping information
 
     Returns:
-        peptide_df (pd.DataFrame): peptide information
-        protein_df (pd.DataFrame): protein information
+        peptide information
+        protein information
     """
     peptide_df = _get_peptide_df(map_df=map_df)
     protein_df = _get_protein_df(map_df=map_df, peptide_df=peptide_df)
@@ -232,19 +241,20 @@ def _get_matrix(
     map_df: pd.DataFrame,
     peptide_df: pd.DataFrame,
     protein_df: pd.DataFrame,
-) -> tuple[sp.csr_matrix, np.ndarray]:
+) -> tuple[sp.csr_array, np.ndarray]:
     """
-    Calculate protein group inclusion relationship.
+    Calculate protein group inclusion relationships.
 
-    Args:
-        map_df (pd.DataFrame): mapping information
-        peptide_df (pd.DataFrame): peptide information
-        protein_df (pd.DataFrame): protein information
+    Parameters:
+        map_df: peptide-to-protein map
+        peptide_df: peptide summary
+        protein_df: protein summary
 
     Returns:
-        peptide_mat (sp.csr_matrix): peptide-protein matrix
-        protein_mat (np.ndarray): protein-protein matrix
+        peptide-protein matrix
+        protein-protein matrix
     """
+    # Build dense indexers so we can place entries in sparse matrices efficiently
     peptide_index = {pep: idx for idx, pep in enumerate(peptide_df["peptide"])}
     protein_index = {prot: idx for idx, prot in enumerate(protein_df["protein"])}
     coordinates = np.array(
@@ -260,24 +270,24 @@ def _get_matrix(
     peptide_mat[coordinates[0], coordinates[1]] = 1
     peptide_mat = peptide_mat.tocsr()
 
-    # Get protein-protein matrix
+    # Get protein-protein matrix (pairwise shared peptide counts)
     protein_mat = peptide_mat.dot(peptide_mat.T).toarray()
 
     return peptide_mat, protein_mat
 
 
-def _find_indistinguisable(
+def _find_indistinguishable(
     map_df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, Mapping]:
     """
-    Get indistinguishable group information.
+    Identify protein groups that share identical peptide sets and merge them under representative IDs.
 
-    Args:
-        map_df (pd.DataFrame): mapping information
+    Parameters:
+        map_df: mapping information
 
     Returns:
-        map_df (pd.DataFrame): filtered mapping information
-        indist_map (Mapping): indistinguishable mapping information
+        filtered mapping information
+        indistinguishable mapping information
     """
     # Prepare dataframe and matrix
     peptide_df, protein_df = _get_df(map_df)
@@ -290,7 +300,7 @@ def _find_indistinguisable(
     # Get indistinguishable mappings
     indist_map = _get_indist_map(indist_mat, protein_df)
 
-    # Update protein
+    # Update protein IDs to their indistinguishable representative names
     map_df["protein"] = map_df["protein"].map(indist_map["repr"]).fillna(map_df["protein"])
     map_df = map_df.drop_duplicates().reset_index(drop=True)
     peptide_df, protein_df = _get_df(map_df)
@@ -306,14 +316,14 @@ def _get_indist_map(
     protein_df: pd.DataFrame,
 ) -> Mapping:
     """
-    Returns indistinguishable group information.
+    Build mappings that collapse indistinguishable proteins into comma-joined representatives and track members.
 
-    Args:
-        indist_mat (np.ndarray): indistinguishable matrix
-        protein_df (pd.DataFrame): protein information
+    Parameters:
+        indist_mat: indistinguishable matrix
+        protein_df: protein information
 
     Returns:
-        indist_map (Mapping): indistinguishable mapping information
+        indistinguishable mapping information
     """
     # Initialize mappings
     indist_repr_map = {}
@@ -338,13 +348,13 @@ def _get_indist_map(
 
 def _build_graph(indist_mat: np.ndarray) -> dict[int, list[int]]:
     """
-    Build graph from indistinguishable matrix.
+    Build an undirected graph of proteins that are indistinguishable from one another.
 
-    Args:
-        indist_mat (np.ndarray): indistinguishable matrix
+    Parameters:
+        indist_mat: indistinguishable matrix
 
     Returns:
-        graph (dict[int, list[int]]): graph representation
+        graph representation
     """
     x_idx, y_idx = np.where(indist_mat)
     graph: dict[int, list[int]] = {}
@@ -358,13 +368,13 @@ def _build_graph(indist_mat: np.ndarray) -> dict[int, list[int]]:
 
 def _find_groups(graph: dict[int, list[int]]) -> list[list[int]]:
     """
-    Find groups in the graph.
+    Find connected components in the indistinguishability graph.
 
-    Args:
-        graph (dict[int, list[int]]): graph representation
+    Parameters:
+        graph: graph representation
 
     Returns:
-        groups (list[list[int]]): list of groups
+        list of groups
     """
     visited = set()
     groups = []
@@ -389,14 +399,14 @@ def _find_groups(graph: dict[int, list[int]]) -> list[list[int]]:
 
 def _find_subsettable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping]:
     """
-    Get subset group information.
+    Collapse proteins whose peptide sets are strict subsets of others.
 
-    Args:
-        map_df (pd.DataFrame): mapping information
+    Parameters:
+        map_df: mapping information
 
     Returns:
-        map_df (pd.DataFrame): filtered mapping information
-        subset_map (Mapping): subset mapping information
+        filtered mapping information
+        subset mapping information
     """
     # Prepare dataframe and matrix
     peptide_df, protein_df = _get_df(map_df)
@@ -409,7 +419,7 @@ def _find_subsettable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping]:
     # Get subset mappings
     subset_map = _get_subset_map(subset_mat, protein_df)
 
-    # Update protein
+    # Redirect subsetted proteins to their parent representatives
     map_df["protein"] = map_df["protein"].map(subset_map["repr"]).fillna(map_df["protein"])
     map_df = map_df.drop_duplicates().reset_index(drop=True)
     peptide_df, protein_df = _get_df(map_df)
@@ -425,14 +435,14 @@ def _get_subset_map(
     protein_df: pd.DataFrame,
 ) -> Mapping:
     """
-    Returns subset group information.
+    Build mappings that redirect subset proteins to their representative parents and record membership.
 
-    Args:
-        subset_mat (np.ndarray): subset matrix
-        protein_df (pd.DataFrame): protein information
+    Parameters:
+        subset_mat: subset matrix
+        protein_df: protein information
 
     Returns:
-        subset_map (Mapping): subset mapping information
+        subset mapping information
     """
     # Initialize mappings
     subset_repr_map = {}
@@ -456,13 +466,13 @@ def _get_subset_map(
 
 def _build_hierarchy(matrix: np.ndarray) -> dict[int, np.ndarray]:
     """
-    Build hierarchy from subset matrix.
+    Build a parent-to-children hierarchy from subset relationships.
 
-    Args:
-        matrix (np.ndarray): subset matrix
+    Parameters:
+        matrix: subset matrix
 
     Returns:
-        hierarchy (dict[int, np.ndarray]): hierarchy mapping
+        hierarchy mapping
     """
     p_idx, c_idx = np.where(matrix)
 
@@ -482,16 +492,17 @@ def _build_hierarchy(matrix: np.ndarray) -> dict[int, np.ndarray]:
     return hierarchy
 
 
-def _find_subsumable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping]:
+def _find_subsumable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping, list[str]]:
     """
-    Get subsumable protein information.
+    Merge proteins that only share peptides within a connected component and lack unique evidence.
 
-    Args:
-        map_df (pd.DataFrame): mapping information
+    Parameters:
+        map_df: mapping information
 
     Returns:
-        map_df (pd.DataFrame): filtered mapping information
-        subsum_map (Mapping): subsum mapping information
+        filtered mapping information
+        subsum mapping information
+        proteins dropped because they lack unique evidence
     """
     # Prepare dataframe and matrix
     peptide_df, protein_df = _get_df(map_df)
@@ -503,7 +514,7 @@ def _find_subsumable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping]:
     # Remove subsumable proteins
     map_df = map_df[~map_df["protein"].isin(removed_proteins)].reset_index(drop=True)
 
-    # Update protein
+    # Redirect subsumable proteins to their merged representatives
     map_df["protein"] = map_df["protein"].map(subsum_map["repr"]).fillna(map_df["protein"])
     map_df = map_df.drop_duplicates().reset_index(drop=True)
 
@@ -514,27 +525,29 @@ def _find_subsumable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping]:
 
 
 def _get_subsum_map(
-    peptide_mat: np.ndarray,
+    peptide_mat: sp.csr_array,
     protein_mat: np.ndarray,
     protein_df: pd.DataFrame,
-) -> Mapping:
+) -> tuple[Mapping, list[str]]:
     """
-    Returns subsumable group information.
+    Build mappings that merge subsumable proteins and list any removed due to absent unique peptides.
 
-    Args:
-        peptide_mat (np.ndarray): peptide-protein matrix
-        protein_df (pd.DataFrame): protein information
+    Parameters:
+        peptide_mat: peptide-protein matrix
+        protein_mat: protein-protein matrix
+        protein_df: protein information
 
     Returns:
-        subsum_map (Mapping): subsumable mapping information
+        subsumable mapping information
+        proteins removed for lacking unique support
     """
     # Initialize mappings
     subsum_repr_map = {}
     subsum_memb_map = {}
-    removed_proteins = []
+    removed_proteins: list[str] = []
 
     # Get connections
-    subsum_indices = protein_df.loc[protein_df["unique_peptides"] == 0].index
+    subsum_indices = protein_df.loc[protein_df["unique_peptides"] == 0].index.tolist()
     connections = _build_connection(protein_mat, subsum_indices)
 
     # Get mappings
@@ -554,6 +567,7 @@ def _get_subsum_map(
 
         # If there is no unique peptide, remove the protein
         if np.all(connection_mat[:, connection_mat_subsum].sum(axis=0) != 1):
+            # Entire component lacks discriminating peptides; drop subsumable members
             [removed_proteins.append(p) for p in protein_names[is_subsumable]]
             continue
 
@@ -568,41 +582,43 @@ def _get_subsum_map(
     return Mapping(repr=subsum_repr_map, memb=subsum_memb_map), removed_proteins
 
 
-def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[tuple[list[int], list[int]]]:
+def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[list[int]]:
     """
-    Build connections from peptide-protein matrix.
+    Build connected components from the protein–protein overlap graph and keep only those containing subsumable candidates.
 
-    Args:
-        protein_mat (np.ndarray): protein-protein matrix
-        indices (list[int]): list of indices
+    Parameters:
+        protein_mat: protein-protein matrix
+        indices: indices to consider for connectivity
 
     Returns:
-        connections (list[tuple[list[int], list[int]]]): list of connections
+        list of connected component indices
     """
     np.fill_diagonal(protein_mat, 0)
     protein_mat = protein_mat.astype(bool)
-    protein_mat_csr = sp.csr_matrix(protein_mat)
+    protein_mat_csr = sp.csr_array(protein_mat)
     n_components, labels = sp.csgraph.connected_components(csgraph=protein_mat_csr, directed=False, return_labels=True)
     components = [np.where(labels == i)[0].tolist() for i in range(n_components)]
+    # Keep only components that have at least one candidate subsumable protein
     connections = [comp for comp in components if (len(comp) > 1) & (any([i in indices for i in comp]))]
 
     return connections
 
 
-def select_canon_prot(protein_group: str, protein_info: pd.DataFrame) -> str:
+def select_canon_prot(protein_group: str, protein_info: dict[str, str]) -> str:
     """
-    DEPRECATED: Use `select_representative` instead.
+    > DEPRECATED: Use `select_representative` instead.
 
-    Select canonical protein from protein list based on priority.
-    canonical > swissprot > trembl > contam
+    Choose a representative protein accession from a group using priority:
 
-    Args:
-        protein_group (str): protein group (uniprot entry)
+    `canonical > swissprot > trembl > contam`.
+
+    Parameters:
+        protein_group: semicolon or comma-separated proteins (uniprot entries)
+        protein_info: mapping from accession to annotated identifier (e.g., sp_*, tr_*, contam_*)
 
     Returns:
-        protein_group (str): canonical protein group
+        canonical protein group
     """
-
     warnings.warn(
         "select_canon_prot is deprecated. Use select_representative instead.",
         DeprecationWarning,
@@ -614,32 +630,33 @@ def select_canon_prot(protein_group: str, protein_info: pd.DataFrame) -> str:
 
 def select_representative(protein_group: str, protein_info: dict[str, str]) -> str:
     """
-    Select canonical protein from protein list based on priority.
-    canonical > swissprot > trembl > contam
+    Choose a representative protein accession from a group using priority:
 
-    Args:
-        protein_list (list[str]): list of proteins (uniprot entry)
-        protein_info (pd.DataFrame): DataFrame of protein info from mdata.uns['protein_info']
+    `canonical > swissprot > trembl > contam`.
+
+    Parameters:
+        protein_group: semicolon or comma-separated proteins (uniprot entries)
+        protein_info: mapping from accession to annotated identifier (e.g., sp_*, tr_*, contam_*)
 
     Returns:
-        protein_group (str): canonical protein group
+        canonical protein group
     """
     protein_list = re.split(";|,", protein_group)
-    concated_protein_list: list[str] = [protein_info[k] for k in protein_list]
+    annotated_protein_list: list[str] = [protein_info[k] for k in protein_list]
 
-    swissprot_canon_ls = [prot for prot in concated_protein_list if prot.startswith("sp") and "-" not in prot]
+    swissprot_canon_ls = [prot for prot in annotated_protein_list if prot.startswith("sp") and "-" not in prot]
     if swissprot_canon_ls:
         return ",".join(swissprot_canon_ls).replace("sp_", "")
 
-    swissprot_ls = [prot for prot in concated_protein_list if prot.startswith("sp")]
+    swissprot_ls = [prot for prot in annotated_protein_list if prot.startswith("sp")]
     if swissprot_ls:
         return ",".join(swissprot_ls).replace("sp_", "")
 
-    trembl_ls = [prot for prot in concated_protein_list if prot.startswith("tr")]
+    trembl_ls = [prot for prot in annotated_protein_list if prot.startswith("tr")]
     if trembl_ls:
         return ",".join(trembl_ls).replace("tr_", "")
 
-    contam_ls = [prot for prot in concated_protein_list if prot.startswith("contam")]
+    contam_ls = [prot for prot in annotated_protein_list if prot.startswith("contam")]
     if contam_ls:
         return ",".join(contam_ls)
 
@@ -648,20 +665,20 @@ def select_representative(protein_group: str, protein_info: dict[str, str]) -> s
 
 def _make_peptide_map(map_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Create peptide mapping.
+    Create the final peptide map, concatenating all protein IDs per peptide into a group string.
 
-    Args:
-        map_df (pd.DataFrame): mapping information
+    Parameters:
+        map_df: mapping information
 
     Returns:
-        peptide_map (pd.DataFrame): peptide mapping information
+        peptide mapping information
     """
     # Make peptide mapping
     peptide_map = (
         map_df[["peptide", "protein"]]
         .drop_duplicates()
-        .groupby("peptide", as_index=False, observed=False)["protein"]
-        .agg(lambda x: ";".join(x))
+        .groupby("peptide", as_index=False, observed=False)
+        .agg({"protein": lambda x: ";".join(x)})
         .rename(columns={"protein": "protein_group"})
     )
 
@@ -675,16 +692,16 @@ def _make_protein_map(
     subsum_repr_map: dict[str, str],
 ) -> pd.DataFrame:
     """
-    Create protein mapping.
+    Create the protein mapping table with representative groups and flags indicating how each protein was handled.
 
-    Args:
-        initial_protein_df (pd.DataFrame): initial protein information
-        subset_repr_map (dict[str, str]): subset representative map
-        indist_repr_map (dict[str, str]): indistinguishable representative map
-        subsum_repr_map (dict[str, str]): subsumable representative map
+    Parameters:
+        initial_protein_df: initial protein information
+        subset_repr_map: subset representative map
+        indist_repr_map: indistinguishable representative map
+        subsum_repr_map: subsumable representative map
 
     Returns:
-        protein_map (pd.DataFrame): protein mapping information
+        protein mapping information
     """
     # Map protein groups
     protein_indist = initial_protein_df["protein"].map(indist_repr_map).fillna(initial_protein_df["protein"])
@@ -712,21 +729,20 @@ def _get_final_output(
     subset_repr_map: dict[str, str],
     indist_repr_map: dict[str, str],
     subsum_repr_map: dict[str, str],
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Returns final output dataframes.
+    Produce the final peptide and protein mapping tables after all grouping steps.
 
-    Args:
-        map_df (pd.DataFrame): mapping information
-        initial_protein_df (pd.DataFrame): protein information
-        subset_repr_map (dict[str, str]): subset member map
-        indist_repr_map (dict[str, str]): identical representative map
-        subsum_repr_map (dict[str, str]): subsumable representative map
+    Parameters:
+        map_df: mapping information
+        initial_protein_df: protein information
+        subset_repr_map: subset member map
+        indist_repr_map: identical representative map
+        subsum_repr_map: subsumable representative map
 
     Returns:
-        peptide_map (pd.DataFrame): peptide mapping information
-        protein_map (pd.DataFrame): protein mapping information
-        protein_info (pd.DataFrame): protein information
+        peptide mapping information
+        protein mapping information
     """
     # Make peptide mapping
     peptide_map = _make_peptide_map(map_df)
