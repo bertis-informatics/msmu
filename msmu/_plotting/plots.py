@@ -144,7 +144,7 @@ def plot_intensity(
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
         yaxis_title = f"Number of {format_modality(mdata, modality)}s"
-        bin_info = data._get_bin_info(data._get_data()["_value"], bins)
+        bin_info = data._get_bin_info(data._get_data(), bins)
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
             data=data.prep_intensity_hist(groupby, obs_column, bin_info),

@@ -363,9 +363,9 @@ def get_pc_cols(
     # Get PC columns
     pc_columns = [f"PC_{pc}" for pc in pcs]
 
-    if pc_columns[0] not in mdata[modality].obsm["X_pca"]["columns"]:
+    if pc_columns[0] not in mdata[modality].obsm["X_pca"].columns:  # type: ignore
         raise ValueError(f"{pc_columns[0]} not found in {modality}")
-    if pc_columns[1] not in mdata[modality].obsm["X_pca"]["columns"]:
+    if pc_columns[1] not in mdata[modality].obsm["X_pca"].columns:  # type: ignore
         raise ValueError(f"{pc_columns[1]} not found in {modality}")
 
     return pcs, pc_columns
@@ -392,9 +392,9 @@ def get_umap_cols(
     # Get UMAP columns
     umap_columns = [f"UMAP_{pc}" for pc in [1, 2]]
 
-    if umap_columns[0] not in mdata[modality].obsm["X_umap"]["columns"]:
+    if umap_columns[0] not in mdata[modality].obsm["X_umap"].columns:  # type: ignore
         raise ValueError(f"{umap_columns[0]} not found in {modality}")
-    if umap_columns[1] not in mdata[modality].obsm["X_umap"]["columns"]:
+    if umap_columns[1] not in mdata[modality].obsm["X_umap"].columns:  # type: ignore
         raise ValueError(f"{umap_columns[1]} not found in {modality}")
 
     return umap_columns

@@ -84,7 +84,7 @@ class PlotData:
 
         return obs_df
 
-    def _get_bin_info(self, data: pd.Series, bins: int) -> BinInfo:
+    def _get_bin_info(self, data: pd.DataFrame, bins: int) -> BinInfo:
         """
         Computes histogram bin metadata for numeric intensity data.
 
@@ -203,7 +203,6 @@ class PlotData:
                 raise ValueError(f"Column '{groupby}' not found in var data.")
 
             categories = var_df[groupby].unique()
-            print(var_df[[groupby, var_column]].head())
             prep_df = var_df[[groupby, var_column]].groupby(groupby, observed=True).value_counts().reset_index()
             prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=categories)
             prep_df = prep_df.sort_values(groupby).reset_index(drop=True)
