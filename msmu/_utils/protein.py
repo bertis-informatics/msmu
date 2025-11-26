@@ -1,10 +1,11 @@
 import logging
 import re
 
+from .._read_write._mdata_status import MuDataStatus
+
 # for type hints
 import mudata as md
 
-from .._read_write._mdata_status import MuDataStatus
 
 
 logger = logging.getLogger(__name__)
@@ -16,11 +17,11 @@ def select_repr_protein(mdata: md.MuData, modality) -> md.MuData:
     canonical > swissprot > trembl > contam
 
     Parameters:
-        mdata (MuData): MuData object with protein groups inferred
-        modality (str): Modality name for protein data
+        mdata: MuData object with protein groups inferred
+        modality: Modality name for protein data
 
     Returns:
-        mdata (MuData): MuData object with representative proteins selected
+        MuData object with representative proteins selected
     """
 
     mdata = mdata.copy()
@@ -36,7 +37,6 @@ def select_repr_protein(mdata: md.MuData, modality) -> md.MuData:
         protein_info = mdata.uns["protein_info"].copy()
         protein_info.loc[protein_info["Entry Type"] == "", "Entry Type"] = "sp"
         protein_info["concated_accession"] = protein_info["Entry Type"] + "_" + protein_info.index
-        # protein_info = protein_info.set_index("Accession")
         protein_info = protein_info[["concated_accession"]]
 
         protein_info_dict = protein_info.to_dict(orient="dict")["concated_accession"]
@@ -63,11 +63,11 @@ def _select_representative(protein_group: str, protein_info: dict[str, str]) -> 
     canonical > swissprot > trembl > contam
 
     Args:
-        protein_list (list[str]): list of proteins (uniprot entry)
-        protein_info (pd.DataFrame): DataFrame of protein info from mdata.uns['protein_info']
+        protein_list: list of proteins (uniprot entry)
+        protein_info: DataFrame of protein info from mdata.uns['protein_info']
 
     Returns:
-        protein_group (str): canonical protein group
+        canonical protein group
     """
     protein_list = re.split(";|,", protein_group)
     concated_protein_list: list[str] = [protein_info[k] for k in protein_list]

@@ -14,11 +14,11 @@ def attach_fasta(mdata: md.MuData, fasta_file: str | None) -> md.MuData:
     Attach FASTA metadata to the MuData object.
 
     Parameters:
-        mdata (md.MuData): MuData object to attach FASTA metadata to.
-        fasta_file (str | None): Path to the FASTA file. If None, fetch from UniProt (not implemented).
+        mdata: MuData object to attach FASTA metadata to.
+        fasta_file: Path to the FASTA file. If None, fetch from UniProt (not implemented).
 
     Returns:
-        md.MuData: MuData object with attached FASTA metadata.
+        MuData object with attached FASTA metadata.
     """
     mdata = mdata.copy()
     if fasta_file is not None:
@@ -101,11 +101,13 @@ def _split_uniprot_fasta_entry(entry: str) -> tuple[str, str, str]:
     """
     Splits a Uniprot FASTA entry into its accession and protein name.
 
-    Args:
-        entry (str): The Uniprot FASTA entry.
+    Parameters:
+        entry: The Uniprot FASTA entry.
 
     Returns:
-        tuple[str, str]: A tuple containing the accession and protein name.
+        protein entry type
+        protein accession
+        protein name
     """
     parts = entry.split("|")
     if len(parts) == 3:
@@ -118,12 +120,12 @@ def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> p
     """
     Map protein groups to gene names using a FASTA metadata DataFrame.
 
-    Args:
-        protein_group (str): Protein group.
-        fasta_meta (pd.DataFrame): DataFrame containing fasta metadata.
-
+    Parameters:
+        protein_group: Protein group.
+        fasta_meta: DataFrame containing fasta metadata.
+        category: Category to map from fasta metadata.
     Returns:
-        pd.Series: Series containing gene names.
+        Series containing gene names.
     """
     groups = protein_group.split(";")
     transformed_groups = []
@@ -145,12 +147,12 @@ def map_fasta(
     Map protein groups to gene names using a FASTA metadata DataFrame.
 
     Parameters:
-        mdata (md.MuData): MuData object containing the modality to map.
-        modality (str): The modality in the MuData object to map.
-        categories (list[str]): List of categories to map from fasta metadata.
+        mdata: MuData object containing the modality to map.
+        modality: The modality in the MuData object to map.
+        categories: List of categories to map from fasta metadata.
 
     Returns:
-        md.MuData: MuData object with updated modality var.
+        MuData object with updated modality var.
     """
     mdata = mdata.copy()
     fasta_meta = mdata.uns["protein_info"]
