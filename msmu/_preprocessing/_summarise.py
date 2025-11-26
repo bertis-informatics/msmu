@@ -4,17 +4,16 @@ import logging
 import anndata as ad
 import pandas as pd
 
-from ..._utils.utils import uns_logger
-from ..._read_write._reader_utils import add_modality
-from ..._read_write._mdata_status import MuDataStatus
-from ._summariser import SummarisationPrep, PtmSummarisationPrep, Aggregator
-from ..._stats.target_decoy_q import estimate_q_values
-from ..._preprocessing._filter import add_filter, apply_filter
+from .._utils.utils import uns_logger
+from .._read_write._reader_utils import add_modality
+from .._read_write._mdata_status import MuDataStatus
+from ._summarisation import SummarisationPrep, PtmSummarisationPrep, Aggregator
+from .._statistics._target_decoy_q import estimate_q_values
+from .._preprocessing._filter import add_filter, apply_filter
 
 # for type checking only
 import mudata as md
 from typing import Literal
-from pathlib import Path
 
 # ignore warnings in this module
 warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
@@ -28,11 +27,11 @@ logger = logging.getLogger(__name__)
 def to_peptide(
     mdata: md.MuData,
     agg_method: Literal["median", "mean", "sum"] = "median",
-    calculate_q: bool = True,
     score_method: Literal["best_pep"] = "best_pep",
     purity_threshold: float | None = 0.7, # for tmt data
     top_n: int | None = None,
     rank_method: Literal["total_intensity", "max_intensity", "median_intensity"] = "total_intensity",
+    calculate_q: bool = True,
     _peptide_col: str = "peptide",
     _protein_col: str = "proteins",
     ) -> md.MuData:
@@ -48,18 +47,18 @@ def to_peptide(
         )
 
     Parameters:
-        mdata (MuData): MuData object containing feature-level data.
-        agg_method (Literal["median", "mean", "sum"]): Aggregation method for quantification to use. Defaults to "median".
-        calculate_q (bool, optional): Whether to calculate q-values. Defaults to True.
-        score_method (Literal["best_pep"], optional): Method to combine scores. Defaults to "best_pep".
-        purity_threshold (float | None, optional): Purity threshold for TMT data quantification aggregation (does not filter out features). If None, no filtering is applied. Defaults to 0.7.
-        top_n (int | None, optional): Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
-        rank_method (Literal["total_intensity", "max_intensity", "median_intensity"], optional): Method to rank features when selecting top_n. Defaults to "total_intensity".
-        _peptide_col (str, optional): Column name for peptides in var DataFrame. Defaults to "peptide".
-        _protein_col (str, optional): Column name for proteins in var DataFrame. Defaults to "proteins".
+        mdata: MuData object containing feature-level data.
+        agg_method: Aggregation method for quantification to use. Defaults to "median".
+        calculate_q: Whether to calculate q-values. Defaults to True.
+        score_method: Method to combine scores. Defaults to "best_pep".
+        purity_threshold: Purity threshold for TMT data quantification aggregation (does not filter out features). If None, no filtering is applied. Defaults to 0.7.
+        top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
+        rank_method: Method to rank features when selecting top_n. Defaults to "total_intensity".
+        _peptide_col: Column name for peptides in var DataFrame. Defaults to "peptide".
+        _protein_col: Column name for proteins in var DataFrame. Defaults to "proteins".
 
     Returns:
-        MuData: MuData object containing peptide-level data.
+        MuData object containing peptide-level data.
     """
     adata_to_summarise:ad.AnnData = mdata["feature"].copy()
     mstatus = MuDataStatus(mdata)
@@ -125,7 +124,7 @@ def to_peptide(
                 identification_df=evid_df_agg,
                 decoy_df=decoy_df_agg,
             )
-            logger.info(f"Peptide-level identifications: {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] <= 0.01)} at 1% FDR)")
+            logger.info(f"Peptide-level identifications: {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] < 0.01)} at 1% FDR)")
 
     # Aggregate quantification data
     quant_df_agg = aggregator.aggregate_quantification()
@@ -162,27 +161,27 @@ def to_peptide(
 def to_protein(
     mdata: md.MuData,
     agg_method: Literal["median", "mean", "sum"] = "median",
-    calculate_q: bool = True,
     score_method: Literal["best_pep"] = "best_pep",
     top_n: int | None = 3,
     rank_method: Literal["total_intensity", "max_intensity", "median_intensity"] = "total_intensity",
+    calculate_q: bool = True,
     _protein_col: str = "protein_group",
     _shared_peptide: Literal["discard"] = "discard",
     ) -> md.MuData:
     """Summarise feature-level data to protein-level data. By default, uses `top 3` peptides in their `total_intensity` and `unique` (_shared_peptide = "discard") per protein_group for quantification aggregation with median.
 
     Parameters:
-        mdata (MuData): MuData object containing feature-level data.
-        agg_method (Literal["median", "mean", "sum"], optional): Aggregation method to use. Defaults to "median".
-        calculate_q (bool, optional): Whether to calculate q-values. Defaults to True.
-        score_method (Literal["best_pep"], optional): Method to combine scores (PEP). Defaults to "best_pep".
-        top_n (int | None, optional): Number of top peptides to consider for summarisation. If None, all peptides are used. Defaults to None.
-        rank_method (Literal["total_intensity", "max_intensity", "median_intensity"], optional): Method to rank features when selecting top_n. Defaults to "total_intensity".
-        _protein_col (str, optional): Column name for proteins in var DataFrame. Defaults to "protein_group".
-        _shared_peptide (Literal["discard"], optional): How to handle shared peptides. Currently only "discard" is implemented. Defaults to "discard".
+        mdata: MuData object containing feature-level data.
+        agg_method: Aggregation method to use. Defaults to "median".
+        calculate_q: Whether to calculate q-values. Defaults to True.
+        score_method: Method to combine scores (PEP). Defaults to "best_pep".
+        top_n: Number of top peptides to consider for summarisation. If None, all peptides are used. Defaults to None.
+        rank_method: Method to rank features when selecting top_n. Defaults to "total_intensity".
+        _protein_col: Column name for proteins in var DataFrame. Defaults to "protein_group".
+        _shared_peptide: How to handle shared peptides. Currently only "discard" is implemented. Defaults to "discard".
 
     Returns:
-        MuData: MuData object containing protein-level data.
+        MuData object containing protein-level data.
     """
     original_mdata = mdata.copy()
     mstatus = MuDataStatus(original_mdata)
@@ -247,7 +246,7 @@ def to_protein(
                 identification_df=evid_df_agg,
                 decoy_df=agg_decoy_df,
             )
-            logger.info(f"Protein-level identifications :  {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] <= 0.01)} at 1% FDR)")
+            logger.info(f"Protein-level identifications :  {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] < 0.01)} at 1% FDR)")
 
     quant_df_agg = aggregator.aggregate_quantification()
 
@@ -279,10 +278,10 @@ def to_ptm(
     """Summarise feature-level data to PTM-level data.
 
     Parameters:
-        mdata (MuData): MuData object containing peptide-level data.
-        modi_name (str): Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
-        modification (str): Modification string (e.g., "[+79.96633]", "(unimod:21)").
-        agg_method (Literal["median", "mean", "sum"], optional): Aggregation method to use. Defaults to "median".
+        mdata: MuData object containing peptide-level data.
+        modi_name: Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
+        modification: Modification string (e.g., "[+79.96633]", "(unimod:21)").
+        agg_method: Aggregation method to use. Defaults to "median".
     
     Returns:
         MuData: MuData object containing PTM-level data.

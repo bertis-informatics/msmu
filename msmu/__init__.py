@@ -27,6 +27,12 @@ pl.set_templates()
 del LogLevel, logging, mudata
 
 __all__ = [
+    "read_h5mu",
+    "read_sage",
+    "read_diann",
+    "read_maxquant",
+    "read_fragpipe",
+    "merge_mudata",
     "pp",
     "pl",
     "tl",

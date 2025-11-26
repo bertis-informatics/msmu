@@ -4,7 +4,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from .._filter import _mask_boolean_filter
+from ._filter import _mask_boolean_filter
 
 # for type checking only
 import anndata as ad
