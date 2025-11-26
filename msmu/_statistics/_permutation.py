@@ -1,144 +1,32 @@
 import math
-from dataclasses import dataclass
 from itertools import combinations
 
 import numpy as np
-import pandas as pd
-from numpy import floating
 from scipy.stats import percentileofscore
 from tqdm import tqdm
 
-from .StatTest import NullDistribution, StatResult, StatTest, PvalueCorrection
-
-
-class Dea:
-    """
-    Class to perform Differential Expression Analysis (DEA) using permutation tests.
-    This class is used to compare two groups of data (control and experimental) and
-    calculate statistics such as median differences, fold changes, and p-values.
-    """
-    def __init__(self):
-        self._de_available: bool = True
-
-    def validate_inputs(
-        self,
-        ctrl_arr: np.ndarray,
-        expr_arr: np.ndarray,
-    ) -> None:
-        if not isinstance(ctrl_arr, np.ndarray) or not isinstance(expr_arr, np.ndarray):
-            raise TypeError("Control and experimental arrays must be numpy arrays.")
-        if ctrl_arr.shape[1] == 0 or expr_arr.shape[1] == 0:
-            raise ValueError("Control and experimental arrays must have at least one feature.")
-        if ctrl_arr.shape[0] < 2 or expr_arr.shape[0] < 2:
-            print("Control and experimental arrays must have at least two samples each.")
-            print("Any statistics will not be performed. Results will only contain Fold Changes and Pct Expressions.")
-            self.de_available = False
-
-    def get_insufficient_feature_indices(self):
-        ...
-
-
-
-    @property
-    def de_available(self) -> bool:
-        """
-        Check if DEA is available based on the number of samples in control and experimental groups.
-        Returns True if DEA is available, False otherwise.
-        """
-        return self._de_available
-
-    @de_available.setter
-    def de_available(self, value: bool) -> None:
-        """
-        Set the availability of DEA.
-        Parameters
-        ----------
-        value : bool
-            True if DEA is available, False otherwise.
-        """
-        if not isinstance(value, bool):
-            raise TypeError("de_available must be a boolean value.")
-        self._de_available = value
-
-
-@dataclass
-class PermutationTestResult:
-    """
-    Data class to hold the results of a permutation test.
-    Attributes:
-    - permutation_method: Method used for permutation (exact or randomised).
-    - statistic: The statistic used for the test (e.g., t-test, wilcoxon, median_diff).
-    - features: Array of feature names (e.g., proteins, ptm sites).
-    - median_ctrl: Median values for control group.
-    - median_expr: Median values for experimental group.
-    - pct_ctrl: Percentage of non-missing values in control group.
-    - pct_expr: Percentage of non-missing values in experimental group.
-    - log2fc: Log2 fold change values.
-    - p_value: P-values for the permutation test.
-    - fc_pct_1: log2fc cutoff at 1%.
-    - fc_pct_5: log2fc cutoff at 5%.
-    """
-
-    permutation_method: str
-    statistic: str
-    ctrl: str | None
-    expr: str | None
-    features: np.ndarray
-    median_ctrl: np.ndarray
-    median_expr: np.ndarray
-    pct_ctrl: np.ndarray
-    pct_expr: np.ndarray
-    log2fc: np.ndarray
-    p_value: np.ndarray
-    q_value: np.ndarray
-    fc_pct_1: float | None
-    fc_pct_5: float | None
-
-    def to_df(self) -> pd.DataFrame:
-        contents: dict = {
-            "features": self.features,
-            "median_ctrl": self.median_ctrl,
-            "median_expr": self.median_expr,
-            "pct_ctrl": self.pct_ctrl,
-            "pct_expr": self.pct_expr,
-            "log2fc": self.log2fc,
-            "p_value": self.p_value,
-            "q_value": self.q_value,
-        }
-
-        df: pd.DataFrame = pd.DataFrame(contents)
-
-        return df
+from ._statistics import NullDistribution, StatResult, HypothesisTesting, calc_permutation_pvalue
+from ._multiple_test_correction import PvalueCorrection 
+from ._de_base import Dea, PermTestResult 
 
 
 class PermutationTest(Dea):
     """
     Class to perform permutation tests on two groups of data (control and experimental).
-    Parameters
-    ----------
-    ctrl_arr : np.ndarray
-        Array of control group data (n_features x n_samples_ctrl).
-    expr_arr : np.ndarray
-        Array of experimental group data (n_features x n_samples_expr).
-    n_resamples : int
-        Number of resamples for the permutation test.
-    force_resample : bool
-        If True, forces resampling even if the number of resamples exceeds the number of combinations.
+
+    Parameters:
+        ctrl_arr: Array of control group data (n_features x n_samples_ctrl).
+        expr_arr: Array of experimental group data (n_features x n_samples_expr).
+        n_resamples: Number of resamples for the permutation test.
+        _force_resample: If True, forces resampling even if the number of resamples exceeds the number of combinations.
 
     Attributes
-    ----------
-    ctrl_arr : np.ndarray
-        Control group data.
-    expr_arr : np.ndarray
-        Experimental group data.
-    possible_combination_count : int
-        Total number of possible combinations of control and experimental samples.
-    permutation_method : str
-        Method used for permutation (exact or randomised).
-    n_resamples : int
-        Number of resamples for the permutation test.
-    force_resample : bool
-        If True, forces resampling even if the number of resamples exceeds the number of combinations.
+        ctrl_arr: Array of control group data (n_features x n_samples_ctrl).
+        expr_arr: Array of experimental group data (n_features x n_samples_expr).
+        possible_combination_count: Total number of possible combinations of control and experimental samples.
+        permutation_method: Method used for permutation (exact or randomised).
+        n_resamples: Number of resamples for the permutation test.
+        _force_resample: If True, forces resampling even if the number of resamples exceeds the number of combinations.
     """
 
     def __init__(
@@ -146,7 +34,7 @@ class PermutationTest(Dea):
         ctrl_arr: np.ndarray,
         expr_arr: np.ndarray,
         n_resamples: int,
-        force_resample: bool,
+        _force_resample: bool,
         fdr: bool | str
     ):  
         super().__init__()
@@ -156,7 +44,7 @@ class PermutationTest(Dea):
 
         self._possible_combination_count: int = self._get_number_of_combinations()
         self._n_resamples: int = n_resamples
-        self._force_resample: bool = force_resample
+        self._force_resample: bool = _force_resample
         self._permutation_method: str = self._get_permutation_method()
         self.fdr: bool | str = fdr
 
@@ -215,13 +103,13 @@ class PermutationTest(Dea):
         self,
         concated_arr: np.ndarray,
         iterations: list,
-        statistic: str,
+        stat_method: str,
         n_jobs: int,
-    ) -> PermutationTestResult:
+    ) -> PermTestResult:
 
-        perm_test_res: PermutationTestResult = PermutationTestResult(
+        perm_test_res: PermTestResult = PermTestResult(
             permutation_method=self.permutation_method,
-            statistic=statistic,
+            stat_method=stat_method,
             ctrl=None,
             expr=None,
             features=np.array([]),
@@ -243,24 +131,24 @@ class PermutationTest(Dea):
             leave=True,
         )
 
-        obs_stats: StatResult = StatTest._stat_tests(
+        obs_stats: StatResult = HypothesisTesting.test(
             ctrl=self.ctrl_arr,
             expr=self.expr_arr,
-            statistic=statistic,
+            stat_method=stat_method,
         )
         # print(obs_stats.statistic)
-        obs_log2fc: StatResult = StatTest._stat_tests(
+        obs_log2fc: StatResult = HypothesisTesting.test(
             ctrl=self.ctrl_arr,
             expr=self.expr_arr,
-            statistic="med_diff",
+            stat_method="med_diff",
         )
 
         # Initialize NullDistribution objects for the statistic and log2fc and q values
         stat_null_dist = NullDistribution(
-            method=statistic, null_distribution=np.array([])
+            stat_method=stat_method, null_distribution=np.array([])
         )
         log2fc_null_dist = NullDistribution(
-            method="med_diff", null_distribution=np.array([])
+            stat_method="med_diff", null_distribution=np.array([])
         )
 
         # Iterate over the combinations or randomised permutations
@@ -269,7 +157,7 @@ class PermutationTest(Dea):
             tmp_stat: StatResult = self._sub_perm(
                 concated_arr=concated_arr,
                 combinations=combn,
-                statistic=statistic,
+                stat_method=stat_method,
             )
 
             # Add the result to the null distribution
@@ -279,12 +167,12 @@ class PermutationTest(Dea):
             tmp_log2fc: StatResult = self._sub_perm(
                 concated_arr=concated_arr,
                 combinations=combn,
-                statistic="med_diff",
+                stat_method="med_diff",
             )
             # Add the result to the log2fc null distribution
             log2fc_null_dist = log2fc_null_dist.add_permutation_result(tmp_log2fc)
 
-        pval_permutation = StatTest.calc_permutation_pvalue(
+        pval_permutation = calc_permutation_pvalue(
             stat_obs=obs_stats.statistic,
             null_dist=stat_null_dist.null_distribution
         )
@@ -326,17 +214,11 @@ class PermutationTest(Dea):
             low  = np.nanpercentile(x, p)               # e.g., 5th
             high = np.nanpercentile(x, 100.0 - p)       # e.g., 95th
             q = (abs(low) + abs(high)) / 2.0
+
             return round(float(q), 2)
-        # low_quantile: floating = np.nanpercentile(null_med_diff, percentile)
-        # high_quantile: floating = np.nanpercentile(null_med_diff, 100 - percentile)
-
-        # fc_cutoff: float = float(np.mean([abs(low_quantile), abs(high_quantile)]))
-        # rounded_cutoff: float = round(fc_cutoff, 2)
-
-        # return rounded_cutoff
 
     def _sub_perm(
-        self, concated_arr: np.ndarray, combinations: np.ndarray, statistic: str
+        self, concated_arr: np.ndarray, combinations: np.ndarray, stat_method: str
     ) -> StatResult:
         if self.permutation_method == "exact":
             total_index: np.ndarray = np.arange(len(self.ctrl_arr) + len(self.expr_arr))
@@ -350,8 +232,8 @@ class PermutationTest(Dea):
         perm_ctrl: np.ndarray = concated_arr[ctrl_idx, :]
         perm_expr: np.ndarray = concated_arr[expr_idx, :]
 
-        stat_res: StatResult = StatTest._stat_tests(
-            ctrl=perm_ctrl, expr=perm_expr, statistic=statistic
+        stat_res: StatResult = HypothesisTesting.test(
+            ctrl=perm_ctrl, expr=perm_expr, stat_method=stat_method
         )
 
         return stat_res
@@ -359,13 +241,13 @@ class PermutationTest(Dea):
     def run(
         self,
         n_permutations: int,
-        statistic: str,
+        stat_method: str,
         n_jobs: int,
-    ) -> PermutationTestResult:
+    ) -> PermTestResult:
         if not self.de_available:
-            perm_test_res: PermutationTestResult = PermutationTestResult(
+            perm_test_res: PermTestResult = PermTestResult(
                 permutation_method=None,
-                statistic=None,
+                stat_method=None,
                 ctrl=None,
                 expr=None,
                 features=np.array([]),
@@ -373,7 +255,7 @@ class PermutationTest(Dea):
                 median_expr=np.nanmedian(self.expr_arr, axis=0),
                 pct_ctrl=self._get_pct_expression(self.ctrl_arr),
                 pct_expr=self._get_pct_expression(self.expr_arr),
-                log2fc=StatTest._stat_tests(ctrl=self.ctrl_arr, expr=self.expr_arr, statistic="med_diff").statistic,
+                log2fc=HypothesisTesting.test(ctrl=self.ctrl_arr, expr=self.expr_arr, stat_method="med_diff").statistic,
                 p_value=np.full_like(self.ctrl_arr[0], np.nan),
                 q_value=np.full_like(self.ctrl_arr[0], np.nan),
                 fc_pct_1=None,
@@ -390,10 +272,10 @@ class PermutationTest(Dea):
             n_resamples=n_permutations,
         )
 
-        perm_test_res: PermutationTestResult = self._perm_test(
+        perm_test_res: PermTestResult = self._perm_test(
             concated_arr=concated_arr,
             iterations=iterations,
-            statistic=statistic,
+            stat_method=stat_method,
             n_jobs=n_jobs,
         )
 
@@ -418,6 +300,3 @@ class PermutationTest(Dea):
     @permutation_method.setter
     def permutation_method(self, method: str):
         self._permutation_method = method
-
-
-class Limma: ...
