@@ -7,58 +7,42 @@
 ## Overview
 
 `msmu` is a Python package for scalable, modular, and reproducible LC-MS/MS `proteomics` data analysis.  
-It supports PSM, peptide, and protein-level processing, integrates `MuData` (AnnData) structure, and enables stepwise normalization, batch correction, and statistical testing for biomarker discovery and systems biology.
+It supports PSM (precursor), peptide, and protein-level processing, integrates `MuData` (`AnnData`) structure, and enables stepwise normalization, batch correction, and statistical testing for biomarker discovery and systems biology.
+
+More Information about `msmu` can be found in the [Documentation](https://bertis-informatics.github.io/msmu/).
 
 ---
 
 ## Key Features
 
-- **Flexible data ingestion** from DIA-NN, Sage (now supporting), and other Database search tools (future)
+- **Flexible data ingestion** from DIA-NN, Sage and other popular DB search tools
 - **MuData/AnnData-compatible** object structure for multi-level omics
 - **Built-in QC**: precursor purity, peptide length, charge, missed cleavage
-- **Protein inference**: infer protein with ... rule
-- **Normalization options**: log2, quantile, median centering, GIS/IRS
+- **Protein-group inference**: infer protein-groups with parsimony rule
+- **Normalization options**: log2, median, quantile, GIS/IRS
+- **Batch correction**: GIS/IRS, median centering
 - **Statistical analysis**: permutation-based DE test and FDR
 - **PTM support** and stoichiometry adjustment with global dataset
 - **Visualization**: PCA, UMAP, volcano plots, heatmaps, QC metrics
 
 ---
 
-## Installation
-We recommend using `pipenv` to set up and manage the project environment.
+## Supporting DB Search Tools
 
-### (optional) pipenv:
-```bash
-pip install pipenv
-```
+- Sage: [https://sage-docs.vercel.app](https://sage-docs.vercel.app)
+- DIA-NN: [https://github.com/vdemichev/DIA-NN](https://github.com/vdemichev/DIA-NN)
+- MaxQuant: [https://www.maxquant.org/](https://www.maxquant.org/)
+- FragPipe: [https://fragpipe.nesvilab.org/](https://fragpipe.nesvilab.org/)
+- Delpy
 
-### msmu Installation:  
-```bash
-# make pipenv environment directory 
-# (any name for environment possible; in here, msmu)
-mkdir msmu && cd msmu
-
-# clone msmu git
-git clone git@bitbucket.org:bertis/msmu.git
-```
-
-``` bash
-# install msmu to your environment
-pipenv install msmu
-```
-
-## File Structure and Input Format
-### Accepted inputs
-- Sage: folder with PSM tables
-- DIA-NN: output folder
-
-## Documentation
-UPCOMING
+---
 
 ## Citation
 UPCOMING<br>
 If you use msmu in your work, please cite:
 >Choi and Lee et al., msmu: A Pythonic Framework for Modular Proteomics Analysis, in prep.
+
+---
 
 ## License
 UPCOMING<br>
