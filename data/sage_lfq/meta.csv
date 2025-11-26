@@ -1,0 +1,7 @@
+set,sample_id,sample_name,condition,replicate
+S1,QExHF04026,G1-1,G1,1
+S1,QExHF04028,G2-1,G2,1
+S1,QExHF04036,G1-2,G1,2
+S1,QExHF04038,G2-2,G2,2
+S1,QExHF04046,G1-3,G1,3
+S1,QExHF04048,G2-3,G2,3

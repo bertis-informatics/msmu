@@ -93,7 +93,7 @@ markdown_extensions:
       alternate_style: true
 
 extra_css:
-  - assets/jupyter-tweaks.css
+  - assets/custom.css
 
 watch:
   - "mkdocs/"

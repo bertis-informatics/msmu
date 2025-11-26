@@ -63,7 +63,7 @@ class PlotData:
 
         return pd.concat([var_df, varm_df], axis=1)
 
-    def _get_obs(self, obs_column: str) -> pd.DataFrame:
+    def _get_obs(self, obs_column: str, groupby: str = "") -> pd.DataFrame:
         """
         Retrieves observation metadata sorted and cast to categorical.
 
@@ -75,12 +75,18 @@ class PlotData:
         """
         obs_column = resolve_obs_column(self.mdata, obs_column)
         obs_df = self.mdata.obs.copy()
-        if "condition" in obs_df.columns:
-            obs_df = obs_df.sort_values(["condition", obs_column])
+
         if not is_categorical_dtype(obs_df[obs_column]):
-            obs_df[obs_column] = obs_df[obs_column].astype("category")
+            obs_df[obs_column] = pd.Categorical(obs_df[obs_column], categories=obs_df[obs_column].unique())
+
         obs_df[obs_column] = obs_df[obs_column].cat.remove_unused_categories()
         obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(obs_df[obs_column].values.tolist())
+
+        if groupby and groupby != obs_column:
+            if not is_categorical_dtype(obs_df[groupby]):
+                obs_df[groupby] = pd.Categorical(obs_df[groupby], categories=obs_df[groupby].unique())
+
+            obs_df[groupby] = obs_df[groupby].cat.remove_unused_categories()
 
         return obs_df
 
@@ -131,7 +137,7 @@ class PlotData:
         Returns:
             Aggregated counts per group and variable category.
         """
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         var_df = self._get_var()
         orig_df = self._get_data()
 
@@ -192,7 +198,7 @@ class PlotData:
         Returns:
             Counts of variable categories per observation group.
         """
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         var_df = self._get_var()
         orig_df = self._get_data()
 
@@ -242,7 +248,7 @@ class PlotData:
         Returns:
             Box-plot-ready DataFrame with grouping labels.
         """
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         var_df = self._get_var()
         orig_df = get_adata(self.mdata, self.modality).to_df()
 
@@ -285,7 +291,7 @@ class PlotData:
         Returns:
             Descriptive statistics indexed by observation group.
         """
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         var_df = self._get_var()
         orig_df = get_adata(self.mdata, self.modality).to_df()
 
@@ -334,7 +340,7 @@ class PlotData:
         Returns:
             Histogram counts and frequencies per observation group.
         """
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         var_df = self._get_var()
         orig_df = self._get_data()
         n_bins = len(bin_info["labels"])
@@ -403,7 +409,7 @@ class PlotData:
         Returns:
             Counts per observation group with column `_count`.
         """
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         var_df = self._get_var()
         orig_df = self._get_data()
 
@@ -432,7 +438,7 @@ class PlotData:
         Returns:
             Histogram counts and frequencies per group and bin.
         """
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         orig_df = self._get_data().T
         n_bins = len(bin_info["labels"])
 
@@ -484,7 +490,7 @@ class PlotData:
         Returns:
             Long-form DataFrame with intensity values and groups.
         """
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         orig_df = get_adata(self.mdata, self.modality).to_df().T
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
@@ -509,7 +515,7 @@ class PlotData:
         Returns:
             Descriptive statistics indexed by the grouping column.
         """
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         orig_df = get_adata(self.mdata, self.modality).to_df().T
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
@@ -572,7 +578,7 @@ class PlotData:
         Returns:
             PCA coordinates with grouping metadata.
         """
-        obs = self._get_obs(obs_column)
+        obs = self._get_obs(obs_column, groupby=groupby)
 
         # Prepare data
         orig_df = pd.DataFrame(self.mdata[modality].obsm["X_pca"][pc_columns])
@@ -600,7 +606,7 @@ class PlotData:
         Returns:
             UMAP coordinates with grouping metadata.
         """
-        obs = self._get_obs(obs_column)
+        obs = self._get_obs(obs_column, groupby=groupby)
 
         # Prepare data
         orig_df = pd.DataFrame(self.mdata[modality].obsm["X_umap"][umap_columns])
@@ -654,7 +660,7 @@ class PlotData:
             Lower-triangular correlation matrix with NaNs above diagonal.
         """
         orig_df = self._get_data()
-        obs_df = self._get_obs(obs_column)
+        obs_df = self._get_obs(obs_column, groupby=groupby)
         corrs_df = orig_df.groupby(obs_df[groupby], observed=True).median().T.corr(method="pearson")
 
         for x in range(corrs_df.shape[0]):
