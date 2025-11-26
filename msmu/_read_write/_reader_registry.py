@@ -9,29 +9,29 @@ from ._fragpipe import TmtFragPipeReader, LfqFragPipeReader
 
 
 def read_sage(
-    search_dir: str | Path,
+    evidence_file: str | Path,
     label: Literal["tmt", "label_free"],
-    _quantification: bool = True,
+    quantification_file: str | Path | None = None,
 ) -> md.MuData:
     """
     Reads Sage output and returns a MuData object.
 
     Parameters:
-        search_dir (str | Path): Path to the Sage output directory.
-        label (Literal["tmt", "label_free"]): Label for the Sage output ('tmt' or 'label_free').
-        _quantification (bool): Whether to include quantification data. Default is True.
-
+        search_dir: Path to the Sage output directory.
+        label: Label for the Sage output ('tmt' or 'label_free').
+        quantification_file: Whether to include quantification data. Default is None.
     Returns:
-        md.MuData: A MuData object containing the Sage data.
+        A MuData object containing the Sage data.
     """
     if label == "tmt":
         reader = TmtSageReader(
-            search_dir=search_dir,
+            evidence_file=evidence_file,
+            quantification_file=quantification_file,
         )
     elif label == "label_free":
         reader = LfqSageReader(
-            search_dir=search_dir,
-            _quantification=_quantification,
+            evidence_file=evidence_file,
+            quantification_file=quantification_file,
         )
     else:
         raise ValueError("Argument label should be one of 'tmt', 'label_free'.")
@@ -46,35 +46,37 @@ class _ReadDiannFacade:
     Facade class for reading DIA-NN data.
     Provides methods to read data at different levels (precursor and protein group).
     """
-    def __call__(self, search_dir: str | Path) -> md.MuData:
+    def __call__(self, evidence_file: str | Path) -> md.MuData:
         """
         Reads DIA-NN output and returns a MuData object.
-        Args:
-            search_dir (str | Path): Path to the DIA-NN output directory.
+
+        Parameters:
+            evidence_file: Path to the DIA-NN output directory.
+
         Returns:
-            md.MuData: A MuData object containing the DIA-NN data at precursor level.
+            A MuData object containing the DIA-NN data at precursor level.
         """
-        return DiannReader(search_dir=search_dir).read()
+        return DiannReader(evidence_file=evidence_file).read()
     
-    def from_pg(self, search_dir: str | Path) -> md.MuData:
+    def from_pg(self, evidence_file: str | Path) -> md.MuData:
         """
         Reads DIA-NN protein group output and returns a MuData object.
-        Args:
-            search_dir (str | Path): Path to the DIA-NN output directory.
+        
+        Parameters:
+            evidence_file: Path to the DIA-NN output directory.
         Returns:
-            md.MuData: A MuData object containing the DIA-NN data at protein group level.
+            A MuData object containing the DIA-NN data at protein group level.
         """
-        return DiannProteinGroupReader(search_dir=search_dir).read()
+        return DiannProteinGroupReader(evidence_file=evidence_file).read()
 
 read_diann: _ReadDiannFacade = _ReadDiannFacade()
 """Alias for :class:`_ReadDiannFacade`.
 
 Parameters:
-    search_dir (str | Path): Path to the DIA-NN output directory.
+    evidence_file: Path to the DIA-NN output directory.
 
 Returns:
-    md.MuData: A MuData object containing the DIA-NN data at precursor level
-
+    A MuData object containing the DIA-NN data at precursor level
 Usage:
     mdata_precursor = mm.read_diann(search_dir)
     mdata_protein_group = mm.read_diann.from_pg(search_dir)
@@ -88,7 +90,7 @@ class _MaxQuantFacade:
     """
     def __call__(
         self, 
-        search_dir: str | Path, 
+        evidence_file: str | Path,
         label: Literal["tmt", "label_free"], 
         acquisition: Literal["dda", "dia"], 
         _quantification: bool = True
@@ -96,7 +98,7 @@ class _MaxQuantFacade:
         """
         Reads MaxQuant output and returns a MuData object.
         Args:
-            search_dir (str | Path): Path to the MaxQuant output directory.
+            evidence_file (str | Path): Path to the MaxQuant output directory.
             label (Literal["tmt", "label_free"]): Label for the MaxQuant output ('tmt' or 'label_free').
             acquisition (Literal["dda", "dia"]): Acquisition method ('dda' or 'dia').
             _quantification (bool): Whether to include quantification data. Default is True.
@@ -105,16 +107,16 @@ class _MaxQuantFacade:
         """
         if label == "tmt" and acquisition == "dda":
             reader = MaxTmtReader(
-                search_dir=search_dir,
+                evidence_file=evidence_file,
             )
         elif label == "label_free" and acquisition == "dda":
             reader = MaxLfqReader(
-                search_dir=search_dir,
+                evidence_file=evidence_file,
                 _quantification=_quantification,
             )
         elif label == "label_free" and acquisition == "dia":
             # reader = MaxDiaReader(
-            #     search_dir=search_dir,
+            #     evidence_file=evidence_file,
             # )
             raise NotImplementedError("MaxQuant DIA reader is not implemented yet.")
         else:
@@ -131,10 +133,12 @@ read_maxquant: _MaxQuantFacade = _MaxQuantFacade()
 """Alias for :class:`_MaxQuantFacade`.
 
 Parameters:
-    search_dir (str | Path): Path to the MaxQuant output directory.
+    evidence_file: Path to the MaxQuant output directory.
+    label: Label for the MaxQuant output ('tmt' or 'label_free').
+    acquisition: Acquisition method ('dda' or 'dia').
 
 Returns:
-    md.MuData: A MuData object containing the MaxQuant data at precursor level
+    A MuData object containing the MaxQuant data at precursor level
 
 Usage:
     mdata_precursor = mm.read_maxquant(search_dir)
@@ -145,16 +149,16 @@ Usage:
 class FragPipeFacade:
     def __call__(
         self, 
-        search_dir: str | Path,
-        label: Literal["tmt", "lfq"],
+        evidence_file: str | Path,
+        label: Literal["tmt", "label_free"],
         acquisition: Literal["dda", "dia"]
         ) -> md.MuData:
         if label == "tmt" and acquisition == "dda":
-            reader = TmtFragPipeReader(search_dir=search_dir)
-        elif label == "lfq" and acquisition == "dda":
-            reader = LfqFragPipeReader(search_dir=search_dir)
+            reader = TmtFragPipeReader(evidence_file=evidence_file)
+        elif label == "label_free" and acquisition == "dda":
+            reader = LfqFragPipeReader(evidence_file=evidence_file)
         else:
-            raise ValueError("Argument label should be one of 'tmt', 'lfq' and acquisition should be one of 'dda', 'dia'.")
+            raise ValueError("Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'.")
 
         return reader.read()
     
@@ -165,10 +169,10 @@ read_fragpipe: FragPipeFacade = FragPipeFacade()
 """Alias for :class:`FragPipeFacade`.
 
 Parameters:
-    search_dir (str | Path): Path to the FragPipe output directory.
+    search_dir: Path to the FragPipe output directory.
 
 Returns:
-    md.MuData: A MuData object containing the FragPipe data at precursor level
+    A MuData object containing the FragPipe data at precursor level
 
 Usage:
     mdata_precursor = mm.read_fragpipe(search_dir)
@@ -180,11 +184,11 @@ def read_h5mu(h5mu_file: str | Path) -> md.MuData:
     """
     Reads an h5mu file (HDF5) and returns a MuData object.
 
-    Args:
-        h5mu_file (str | Path): Path to the H5MU file.
+    Parameters:
+        h5mu_file: Path to the H5MU file.
 
     Returns:
-        md.MuData: A MuData object.
+        A MuData object.
     """
     return md.read_h5mu(h5mu_file)
 

@@ -12,10 +12,10 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     Merges multiple MuData objects into a single MuData object.
     
     Parameters:
-        mdatas (dict[str, md.MuData]): Dictionary of MuData objects to merge.
+        mdatas: Dictionary of MuData objects to merge.
 
     Returns:
-        md.MuData: Merged MuData object.
+        Merged MuData object.
     """
     mdata_components = dict()
     adata_components = dict()
@@ -206,13 +206,13 @@ def add_modality(mdata: md.MuData, adata: ad.AnnData, mod_name: str, parent_mods
     Adds a new modality to a MuData object.
 
     Args:
-        mdata (md.MuData): Input MuData object.
-        adata (ad.AnnData): AnnData object to add as a modality.
-        mod_name (str): Name of the new modality.
-        parent_mods (list[str]): List of parent modalities.
+        mdata: Input MuData object.
+        adata: AnnData object to add as a modality.
+        mod_name: Name of the new modality.
+        parent_mods: List of parent modalities.
 
     Returns:
-        md.MuData: Updated MuData object with the new modality.
+        Updated MuData object with the new modality.
     """
     if not parent_mods:
         raise ValueError("parent_mods should not be empty.")
@@ -238,10 +238,10 @@ def to_categorical(df: pd.DataFrame) -> pd.DataFrame:
     Converts object-type columns in a DataFrame to categorical.
 
     Args:
-        df (pd.DataFrame): Input DataFrame.
+        df: Input DataFrame.
 
     Returns:
-        pd.DataFrame: DataFrame with object columns converted to categorical.
+        DataFrame with object columns converted to categorical.
     """
     df = df.copy()
     for col in df.select_dtypes(include=["object"]).columns:

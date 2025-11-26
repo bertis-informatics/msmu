@@ -14,7 +14,7 @@ class DiannReader(SearchResultReader):
     """
     def __init__(
         self,
-        search_dir: str | Path,
+        evidence_file: str | Path,
     ) -> None:
         super().__init__()
         self.search_settings: SearchResultSettings = SearchResultSettings(
@@ -22,18 +22,15 @@ class DiannReader(SearchResultReader):
             quantification="diann",
             label="label_free",
             acquisition="dia",
-            output_dir=Path(search_dir).absolute(),
-            feature_file="report.tsv",
-            feature_level="precursor",
+            evidence_file=Path(evidence_file).absolute(),
+            evidence_level="precursor",
             quantification_file=None,
             quantification_level="precursor",
-            config_file=None,
             feat_quant_merged=True,
             has_decoy=False,
         )
 
         self.used_feature_cols.extend([
-            # "protein_group",
             "PEP",
             "q_value",
         ])
@@ -59,7 +56,6 @@ class DiannReader(SearchResultReader):
             q_value_prefix = "Global"
 
         rename_dict = {
-            # "Protein.Ids": "proteins",
             "Protein.Group": "protein_group",
             "Modified.Sequence": "peptide",
             "Stripped.Sequence": "stripped_peptide",
@@ -68,7 +64,6 @@ class DiannReader(SearchResultReader):
             "Precursor.Charge": "charge",
             "Decoy": "decoy",
             f"{q_value_prefix}.Q.Value": "q_value",
-            # f"{q_value_prefix}.PG.Q.Value": "protein_q",
         }
         
         return rename_dict
@@ -81,11 +76,11 @@ class DiannReader(SearchResultReader):
 
         return df
 
-    def _split_merged_feature_quantification(self, feature_df:pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_feature_df = feature_df.copy()
-        split_feature_df = split_feature_df.drop(columns=["Precursor.Quantity"])
+    def _split_merged_evidence_quantification(self, evidence_df:pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        split_evidence_df = evidence_df.copy()
+        split_evidence_df = split_evidence_df.drop(columns=["Precursor.Quantity"])
 
-        split_quant_df = feature_df[["filename", "Precursor.Quantity"]].reset_index()
+        split_quant_df = evidence_df[["filename", "Precursor.Quantity"]].reset_index()
         split_quant_df = split_quant_df.pivot(
             index="index",
             columns="filename",
@@ -94,31 +89,29 @@ class DiannReader(SearchResultReader):
         split_quant_df = split_quant_df.rename_axis(index=None, columns=None)
         split_quant_df = split_quant_df.replace(0, np.nan)
 
-        return split_feature_df, split_quant_df
+        return split_evidence_df, split_quant_df
+    def _make_needed_columns_for_evidence(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
+        evidence_df = evidence_df.copy()
+        self._set_mbr(evidence_df) # set self._mbr for _feature_rename_dict
+        self._set_decoy(evidence_df)
 
-    def _make_needed_columns_for_feature(self, feature_df: pd.DataFrame) -> pd.DataFrame:
-        feature_df = feature_df.copy()
-        self._set_mbr(feature_df) # set self._mbr for _feature_rename_dict
-        self._set_decoy(feature_df)
-
-        feature_df["proteins"] = feature_df["Protein.Ids"]
-        feature_df["proteins"] = parse_uniprot_accession(feature_df["proteins"])
-        feature_df["missed_cleavages"] = feature_df["Stripped.Sequence"].apply(self._count_missed_cleavages)
-        feature_df["peptide_length"] = feature_df["Stripped.Sequence"].apply(self._get_peptide_length)
-
+        evidence_df["proteins"] = evidence_df["Protein.Ids"]
+        evidence_df["proteins"] = parse_uniprot_accession(evidence_df["proteins"])
+        evidence_df["missed_cleavages"] = evidence_df["Stripped.Sequence"].apply(self._count_missed_cleavages)
+        evidence_df["peptide_length"] = evidence_df["Stripped.Sequence"].apply(self._get_peptide_length)
         if not self.search_settings.has_decoy:
-            feature_df["decoy"] = 0
+            evidence_df["decoy"] = 0
 
-        return feature_df
+        return evidence_df
 
-    def _set_mbr(self, feature_df: pd.DataFrame) -> None:
-        if feature_df["Lib.Q.Value"].sum() == 0:
+    def _set_mbr(self, evidence_df: pd.DataFrame) -> None:
+        if evidence_df["Lib.Q.Value"].sum() == 0:
             self._mbr = False
         else:
             self._mbr = True
     
-    def _set_decoy(self, feature_df: pd.DataFrame) -> None:
-        if "Decoy" in feature_df.columns:
+    def _set_decoy(self, evidence_df: pd.DataFrame) -> None:
+        if "Decoy" in evidence_df.columns:
             self.search_settings.has_decoy = True
         else:
             self.search_settings.has_decoy = False

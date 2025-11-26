@@ -10,7 +10,7 @@ from ._base_reader import SearchResultReader, SearchResultSettings
 class FragPipeReader(SearchResultReader):
     def __init__(
         self,
-        search_dir: str | Path,
+        evidence_file: str | Path,
         label: Literal["tmt", "label_free"] | None = None
     ) -> None:
         super().__init__()
@@ -19,12 +19,10 @@ class FragPipeReader(SearchResultReader):
             quantification="fragpipe",
             label=label,
             acquisition="dda",
-            output_dir=Path(search_dir).absolute(),
-            feature_file="psm.tsv",
-            feature_level="psm",
+            evidence_file=Path(evidence_file).absolute(),
+            evidence_level="psm",
             quantification_file=None,
             quantification_level=None,
-            config_file=None,
             feat_quant_merged=True
         )
         self._feature_rename_dict: dict = {
@@ -55,21 +53,21 @@ class FragPipeReader(SearchResultReader):
             "decoy",
         ])
 
-    def _make_needed_columns_for_feature(self, feature_df: pd.DataFrame) -> pd.DataFrame:
-        feature_df["filename"] = feature_df["Spectrum"].apply(lambda x: x.split(".")[0])
-        feature_df["scan_num"] = feature_df["Spectrum"].apply(lambda x: int(x.split(".")[1]))
+    def _make_needed_columns_for_evidence(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
+        evidence_df["filename"] = evidence_df["Spectrum"].apply(lambda x: x.split(".")[0])
+        evidence_df["scan_num"] = evidence_df["Spectrum"].apply(lambda x: int(x.split(".")[1]))
 
-        feature_df["proteins"] = feature_df["Protein"].astype(str) + "," + feature_df["Mapped Proteins"].astype(str)
-        feature_df["proteins"] = feature_df["proteins"].apply(lambda x: [y.strip() for y in x.split(",") if y != "nan"])
-        feature_df["proteins"] = feature_df["proteins"].apply(lambda x: ",".join(x))
-        feature_df["proteins"] = feature_df["proteins"].apply(lambda x: x.replace(",", ";"))
+        evidence_df["proteins"] = evidence_df["Protein"].astype(str) + "," + evidence_df["Mapped Proteins"].astype(str)
+        evidence_df["proteins"] = evidence_df["proteins"].apply(lambda x: [y.strip() for y in x.split(",") if y != "nan"])
+        evidence_df["proteins"] = evidence_df["proteins"].apply(lambda x: ",".join(x))
+        evidence_df["proteins"] = evidence_df["proteins"].apply(lambda x: x.replace(",", ";"))
 
-        feature_df["peptide"] = feature_df["Modified Peptide"]
-        feature_df.loc[feature_df["peptide"].isna(), "peptide"] = feature_df.loc[feature_df["peptide"].isna(), "Peptide"]
+        evidence_df["peptide"] = evidence_df["Modified Peptide"]
+        evidence_df.loc[evidence_df["peptide"].isna(), "peptide"] = evidence_df.loc[evidence_df["peptide"].isna(), "Peptide"]
 
-        feature_df["decoy"] = feature_df["proteins"].apply(lambda x: 1 if "rev_" in str(x) else 0)
+        evidence_df["decoy"] = evidence_df["proteins"].apply(lambda x: 1 if "rev_" in str(x) else 0)
 
-        return feature_df
+        return evidence_df
     
 
 class TmtFragPipeReader(FragPipeReader):
@@ -80,15 +78,14 @@ class TmtFragPipeReader(FragPipeReader):
         super().__init__(search_dir, label="tmt")
         self.search_settings.quantification_level = "psm"
 
-    def _split_merged_feature_quantification(self, feature_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_feature_df = feature_df.copy()
+    def _split_merged_evidence_quantification(self, evidence_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        split_evidence_df = evidence_df.copy()
 
-        quant_cols = [x for x in feature_df.columns if x not in self.desc_cols]
-        split_quant_df = split_feature_df[quant_cols]
+        quant_cols = [x for x in evidence_df.columns if x not in self.desc_cols]
+        split_quant_df = split_evidence_df[quant_cols]
+        split_evidence_df = split_evidence_df.drop(columns=quant_cols)
 
-        split_feature_df = split_feature_df.drop(columns=quant_cols)
-
-        return split_feature_df, split_quant_df
+        return split_evidence_df, split_quant_df
     
 
 class LfqFragPipeReader(FragPipeReader): ...

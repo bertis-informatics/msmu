@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Literal
+
 import pandas as pd
 import numpy as np
 
@@ -14,27 +14,24 @@ class SageReader(SearchResultReader):
     Reader for Sage output files.
 
     Parameters:
-        search_dir (str | Path): Path to the Sage output directory.
-        label (Literal["tmt", "label_free"] | None): Label for the Sage output ('tmt' or 'label_free').
+        evidence_file: Path to the Sage output directory.
+        quantification_file: Path to the quantification file (if applicable).
     """
     def __init__(
         self,
-        search_dir: str | Path,
-        label: Literal["tmt", "label_free"] | None = None,
+        evidence_file: str | Path,
+        quantification_file: str | Path | None = None,
     ) -> None:
         super().__init__()
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="sage",
             quantification="sage",
-            label=label,
+            label=None,
             acquisition="dda",
-            output_dir=Path(search_dir).absolute(),
-            feature_file="results.sage.tsv",
-            feature_level="psm",
-            quantification_file=None,
+            evidence_file=Path(evidence_file).absolute(),
+            evidence_level="psm",
+            quantification_file=Path(quantification_file).absolute() if quantification_file is not None else None,
             quantification_level=None,
-            #config_file="results.json",
-            config_file=None,
             feat_quant_merged=False,
             has_decoy=True,
         )
@@ -74,16 +71,16 @@ class SageReader(SearchResultReader):
             config = json.load(f)
         return config
 
-    def _make_needed_columns_for_feature(self, feature_df: pd.DataFrame) -> pd.DataFrame:
-        feature_df["proteins"] = parse_uniprot_accession(feature_df["proteins"])
-        feature_df["filename"] = feature_df["filename"].apply(self._strip_filename)
-        feature_df["scan_num"] = feature_df["scannr"].apply(self._extract_scan_number)
-        feature_df["stripped_peptide"] = feature_df["peptide"].apply(self._make_stripped_peptide)
-        feature_df["decoy"] = feature_df["label"].apply(self._label_decoy)
-        feature_df["contaminant"] = feature_df["proteins"].apply(self._label_possible_contaminant)
-        feature_df["PEP"] = np.power(10, feature_df["posterior_error"]) # convert log10 PEP to PEP
+    def _make_needed_columns_for_evidence(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
+        evidence_df["proteins"] = parse_uniprot_accession(evidence_df["proteins"])
+        evidence_df["filename"] = evidence_df["filename"].apply(self._strip_filename)
+        evidence_df["scan_num"] = evidence_df["scannr"].apply(self._extract_scan_number)
+        evidence_df["stripped_peptide"] = evidence_df["peptide"].apply(self._make_stripped_peptide)
+        evidence_df["decoy"] = evidence_df["label"].apply(self._label_decoy)
+        evidence_df["contaminant"] = evidence_df["proteins"].apply(self._label_possible_contaminant)
+        evidence_df["PEP"] = np.power(10, evidence_df["posterior_error"]) # convert log10 PEP to PEP
 
-        return feature_df.copy()
+        return evidence_df.copy()
 
 
 class TmtSageReader(SageReader):
@@ -91,14 +88,15 @@ class TmtSageReader(SageReader):
     Reader for TMT-labeled Sage output files.
     
     Parameters:
-        search_dir (str | Path): Path to the Sage output directory.
+        search_dir: Path to the Sage output directory.
     """
     def __init__(
         self,
-        search_dir: str | Path,
+        evidence_file: str | Path,
+        quantification_file: str | Path | None = None,
     ) -> None:
-        super().__init__(search_dir, label="tmt")
-        self.search_settings.quantification_file = "tmt.tsv"
+        super().__init__(evidence_file, quantification_file)
+        self.search_settings.label = "tmt"
         self.search_settings.quantification_level = "psm"
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
@@ -127,17 +125,17 @@ class LfqSageReader(SageReader):
     Reader for label-free Sage output files.
 
     Parameters:
-        search_dir (str | Path): Path to the Sage output directory.
-        _quantification (bool): Whether to include quantification data (lfq.tsv). Default is True.
+        evidence_file: Path to the Sage output directory.
+        quantification_file: Path to the quantification file (if applicable).
     """
     def __init__(
         self,
-        search_dir: str | Path,
-        _quantification: bool = True,
+        evidence_file: str | Path,
+        quantification_file: str | Path | None = None,
     ) -> None:
-        super().__init__(search_dir, label="label_free")
-        if _quantification:
-            self.search_settings.quantification_file = "lfq.tsv"
+        super().__init__(evidence_file, quantification_file)
+        self.search_settings.label = "label_free"
+        if quantification_file is not None:
             self.search_settings.quantification_level = "peptide"
         else:
             self.search_settings.quantification = None
