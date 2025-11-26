@@ -10,15 +10,17 @@ def estimate_q_values(
     Estimate q-values for target and decoy identifications using target-decoy competition.
 
     Parameters:
-        identification_df (pd.DataFrame): DataFrame containing target identifications with 'score' column.
-        decoy_df (pd.DataFrame): DataFrame containing decoy identifications with 'score' column.
+        identification_df: DataFrame containing target identifications with 'score' column.
+        decoy_df: DataFrame containing decoy identifications with 'score' column.
 
     Returns:
-        tuple[pd.DataFrame, pd.DataFrame]: Tuple of DataFrames (identification_with_q, decoy_with_q)
+        identification_with_q
+        decoy_with_q
     """
     target_decoy = concat_target_decoy(identification_df, decoy_df)
-    # target_decoy["score"] = get_score_from_pep(target_decoy["pep"])
+
     q_vals = compute_fdr_q(target_decoy)
+    
     identification_df, decoy_df = retrieve_target_decoy_with_q_values(
         identification_df,
         decoy_df,
@@ -34,11 +36,13 @@ def concat_target_decoy(
     ) -> pd.DataFrame:
     """
     Concatenate target and decoy DataFrames with an 'is_decoy' column.
-    Args:
-        identification_df (pd.DataFrame): DataFrame containing target identifications.
-        decoy_df (pd.DataFrame): DataFrame containing decoy identifications.
+
+    Parameters:
+        identification_df: DataFrame containing target identifications.
+        decoy_df: DataFrame containing decoy identifications.
+        
     Returns:
-        pd.DataFrame: Concatenated DataFrame with 'is_decoy' column.
+        Concatenated DataFrame with 'is_decoy' column.
     """
     identification_df = identification_df.copy()
     decoy_df = decoy_df.copy()
@@ -54,10 +58,12 @@ def concat_target_decoy(
 def compute_fdr_q(target_decoy: pd.DataFrame) -> pd.DataFrame:
     """
     Compute FDR and q-values for the picked target-decoy pairs.
-    Args:
-        picked_target_decoy (pd.DataFrame): DataFrame with 'score' and 'is_decoy'
+
+    Parameters:
+        target_decoy: DataFrame with 'score' and 'is_decoy' columns.
+
     Returns:
-        pd.DataFrame: DataFrame with 'is_decoy' and 'q_value' columns.
+        DataFrame with 'is_decoy' and 'q_value' columns.
     """
     q_offset = 1
 
@@ -86,12 +92,15 @@ def retrieve_target_decoy_with_q_values(
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Retrieve target and decoy DataFrames with assigned q-values.
-    Args:
-        identification_df (pd.DataFrame): DataFrame containing target identifications.
-        decoy_df (pd.DataFrame): DataFrame containing decoy identifications.
-        q_vals (pd.DataFrame): DataFrame with 'is_decoy' and 'q_value' columns.
+
+    Parameters:
+        identification_df: DataFrame containing target identifications.
+        decoy_df: DataFrame containing decoy identifications.
+        q_vals: DataFrame with 'is_decoy' and 'q_value' columns.
+
     Returns:
-        tuple[pd.DataFrame, pd.DataFrame]: Tuple of DataFrames (identification_with_q, decoy_with_q)
+        identification_with_q
+        decoy_with_q
     """
     identification_with_q = identification_df.copy()
     decoy_with_q = decoy_df.copy()
