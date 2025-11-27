@@ -5,13 +5,15 @@ import numpy as np
 from ._base_reader import SearchResultReader, SearchResultSettings
 from .._utils.fasta import parse_uniprot_accession
 
+
 class DiannReader(SearchResultReader):
     """
     Reader for DIA-NN output files.
-    
+
     Parameters:
         search_dir (str | Path): Path to the DIA-NN output directory.
     """
+
     def __init__(
         self,
         evidence_file: str | Path,
@@ -22,7 +24,7 @@ class DiannReader(SearchResultReader):
             quantification="diann",
             label="label_free",
             acquisition="dia",
-            evidence_file=Path(evidence_file).absolute(),
+            evidence_file=Path(evidence_file),
             evidence_level="precursor",
             quantification_file=None,
             quantification_level="precursor",
@@ -30,12 +32,14 @@ class DiannReader(SearchResultReader):
             has_decoy=False,
         )
 
-        self.used_feature_cols.extend([
-            "PEP",
-            "q_value",
-        ])
+        self.used_feature_cols.extend(
+            [
+                "PEP",
+                "q_value",
+            ]
+        )
 
-        self._cols_to_stringify:list[str] = [
+        self._cols_to_stringify: list[str] = [
             "Protein.Names",
             "Protein.Group",
             "Genes",
@@ -65,34 +69,31 @@ class DiannReader(SearchResultReader):
             "Decoy": "decoy",
             f"{q_value_prefix}.Q.Value": "q_value",
         }
-        
+
         return rename_dict
-    
+
     @staticmethod
-    def _make_unique_index(input_df:pd.DataFrame) -> pd.DataFrame:
+    def _make_unique_index(input_df: pd.DataFrame) -> pd.DataFrame:
         df = input_df.copy()
-        df['tmp_index'] = df["filename"] + "." + df["scan_num"].astype(str) + "." + df["Precursor.Id"]
+        df["tmp_index"] = df["filename"] + "." + df["scan_num"].astype(str) + "." + df["Precursor.Id"]
         df = df.set_index("tmp_index", drop=True).rename_axis(index=None)
 
         return df
 
-    def _split_merged_evidence_quantification(self, evidence_df:pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def _split_merged_evidence_quantification(self, evidence_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         split_evidence_df = evidence_df.copy()
         split_evidence_df = split_evidence_df.drop(columns=["Precursor.Quantity"])
 
         split_quant_df = evidence_df[["filename", "Precursor.Quantity"]].reset_index()
-        split_quant_df = split_quant_df.pivot(
-            index="index",
-            columns="filename",
-            values="Precursor.Quantity"
-        )
+        split_quant_df = split_quant_df.pivot(index="index", columns="filename", values="Precursor.Quantity")
         split_quant_df = split_quant_df.rename_axis(index=None, columns=None)
         split_quant_df = split_quant_df.replace(0, np.nan)
 
         return split_evidence_df, split_quant_df
+
     def _make_needed_columns_for_evidence(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
         evidence_df = evidence_df.copy()
-        self._set_mbr(evidence_df) # set self._mbr for _feature_rename_dict
+        self._set_mbr(evidence_df)  # set self._mbr for _feature_rename_dict
         self._set_decoy(evidence_df)
 
         evidence_df["proteins"] = evidence_df["Protein.Ids"]
@@ -109,7 +110,7 @@ class DiannReader(SearchResultReader):
             self._mbr = False
         else:
             self._mbr = True
-    
+
     def _set_decoy(self, evidence_df: pd.DataFrame) -> None:
         if "Decoy" in evidence_df.columns:
             self.search_settings.has_decoy = True

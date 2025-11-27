@@ -17,6 +17,7 @@ class SageReader(SearchResultReader):
         evidence_file: Path to the Sage output directory.
         quantification_file: Path to the quantification file (if applicable).
     """
+
     def __init__(
         self,
         evidence_file: str | Path,
@@ -28,25 +29,24 @@ class SageReader(SearchResultReader):
             quantification="sage",
             label=None,
             acquisition="dda",
-            evidence_file=Path(evidence_file).absolute(),
+            evidence_file=Path(evidence_file),
             evidence_level="psm",
-            quantification_file=Path(quantification_file).absolute() if quantification_file is not None else None,
+            quantification_file=Path(quantification_file) if quantification_file is not None else None,
             quantification_level=None,
             feat_quant_merged=False,
             has_decoy=True,
         )
-        self._feature_rename_dict: dict = {
-            "peptide_len": "peptide_length",
-            "spectrum_q": "q_value"
-        }
-        self.used_feature_cols.extend([
-            "missed_cleavages",
-            "semi_enzymatic",
-            "decoy",
-            "contaminant",
-            "PEP",
-            "q_value",
-        ])
+        self._feature_rename_dict: dict = {"peptide_len": "peptide_length", "spectrum_q": "q_value"}
+        self.used_feature_cols.extend(
+            [
+                "missed_cleavages",
+                "semi_enzymatic",
+                "decoy",
+                "contaminant",
+                "PEP",
+                "q_value",
+            ]
+        )
 
     @staticmethod
     def _label_decoy(label: int) -> int:
@@ -54,7 +54,7 @@ class SageReader(SearchResultReader):
             return 1
         else:
             return 0
-        
+
     @staticmethod
     def _label_possible_contaminant(proteins: str) -> int:
         if "contam_" in proteins:
@@ -78,7 +78,7 @@ class SageReader(SearchResultReader):
         evidence_df["stripped_peptide"] = evidence_df["peptide"].apply(self._make_stripped_peptide)
         evidence_df["decoy"] = evidence_df["label"].apply(self._label_decoy)
         evidence_df["contaminant"] = evidence_df["proteins"].apply(self._label_possible_contaminant)
-        evidence_df["PEP"] = np.power(10, evidence_df["posterior_error"]) # convert log10 PEP to PEP
+        evidence_df["PEP"] = np.power(10, evidence_df["posterior_error"])  # convert log10 PEP to PEP
 
         return evidence_df.copy()
 
@@ -86,10 +86,11 @@ class SageReader(SearchResultReader):
 class TmtSageReader(SageReader):
     """
     Reader for TMT-labeled Sage output files.
-    
+
     Parameters:
         search_dir: Path to the Sage output directory.
     """
+
     def __init__(
         self,
         evidence_file: str | Path,
@@ -103,10 +104,7 @@ class TmtSageReader(SageReader):
         quantification_df["filename"] = quantification_df["filename"].apply(self._strip_filename)
         quantification_df["scan_num"] = quantification_df["scannr"].apply(self._extract_scan_number)
         quantification_df = self._make_unique_index(quantification_df)
-        quantification_df = quantification_df.drop(
-            ["filename", "scannr", "scan_num", "ion_injection_time"],
-            axis=1
-            )
+        quantification_df = quantification_df.drop(["filename", "scannr", "scan_num", "ion_injection_time"], axis=1)
 
         return quantification_df
 
@@ -128,6 +126,7 @@ class LfqSageReader(SageReader):
         evidence_file: Path to the Sage output directory.
         quantification_file: Path to the quantification file (if applicable).
     """
+
     def __init__(
         self,
         evidence_file: str | Path,
@@ -142,10 +141,7 @@ class LfqSageReader(SageReader):
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
         quantification_df = quantification_df.set_index("peptide", drop=True).rename_axis(index=None).copy()
-        quantification_df = quantification_df.drop(
-            ["charge", "proteins", "q_value", "score", "spectral_angle"], 
-            axis=1
-            )
+        quantification_df = quantification_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)
 
         return quantification_df
 
