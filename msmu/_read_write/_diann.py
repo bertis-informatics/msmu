@@ -24,7 +24,7 @@ class DiannReader(SearchResultReader):
             quantification="diann",
             label="label_free",
             acquisition="dia",
-            evidence_file=Path(evidence_file),
+            evidence_file=evidence_file,
             evidence_level="precursor",
             quantification_file=None,
             quantification_level="precursor",

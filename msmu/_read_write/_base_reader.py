@@ -21,10 +21,15 @@ from .._utils.peptide import (
 logger = logging.getLogger(__name__)
 
 
-def _get_separator(file_path: Path) -> str:
-    if file_path.suffix in {".tsv", ".txt"}:
+def _get_separator(file_path: Path | str) -> str:
+    if isinstance(file_path, Path):
+        file_path = str(file_path)
+
+    suffix = file_path.rsplit(".", maxsplit=1)[-1]
+
+    if suffix in ["tsv", "txt"]:
         return "\t"
-    if file_path.suffix == ".csv":
+    if suffix == "csv":
         return ","
     warnings.warn(
         f"File format of {file_path} is not supported. Defaulting to tab separator.",

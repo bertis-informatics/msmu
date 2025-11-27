@@ -16,7 +16,7 @@ class FragPipeReader(SearchResultReader):
             quantification="fragpipe",
             label=label,
             acquisition="dda",
-            evidence_file=Path(evidence_file),
+            evidence_file=evidence_file,
             evidence_level="psm",
             quantification_file=None,
             quantification_level=None,

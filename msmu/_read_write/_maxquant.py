@@ -23,7 +23,7 @@ class MaxQuantReader(SearchResultReader):
             quantification="maxquant",
             label=None,
             acquisition=None,
-            evidence_file=Path(evidence_file),
+            evidence_file=evidence_file,
             evidence_level="psm",
             quantification_file=None,
             quantification_level="psm",
