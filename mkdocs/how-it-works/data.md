@@ -2,7 +2,7 @@
 
 ## Overview
 
-In LC-MS/MS `proteomics`, data analysis typically follows a **hierarchical path**—starting from evidence-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, proteomics data naturally form a **multi-level** and **multi-dimensional** structure (e.g., PSM/precursor, peptide, protein; feature metadata; sample annotations; QC metrics).
+In LC-MS/MS shotgun `proteomics`, data analysis typically follows a **hierarchical path**—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a **multi-level** and **multi-dimensional** structure (e.g., PSM/precursor, peptide, protein; feature metadata; sample annotations; QC metrics).
 
 To manage these properties consistently, `msmu` adopts [`MuData`](https://mudata.readthedocs.io/en/latest/) from the `scverse` ecosystem as the fundamental data format.
 [`MuData`](https://mudata.readthedocs.io/en/latest/) provides a container that can store multiple [`AnnData`](https://anndata.readthedocs.io/en/stable/) objects together, which makes it suitable for proteomics workflows where different processing levels must remain connected and accessible within a single object.
@@ -12,14 +12,14 @@ To manage these properties consistently, `msmu` adopts [`MuData`](https://mudata
 `msmu` works with data formatted as a [`MuData`](https://mudata.readthedocs.io/en/latest/) object composed of multiple [`AnnData`](https://anndata.readthedocs.io/en/stable/) modalities.
 Therefore, understanding the usage of [`MuData`](https://mudata.readthedocs.io/en/latest/) and [`AnnData`](https://anndata.readthedocs.io/en/stable/) helps when working with `msmu`.
 
-A `MuData` object used in `msmu` is organized by modalities, each corresponding to a specific processing level such as feature, peptide, and protein:
+A `MuData` object used in `msmu` is organized by modalities, each corresponding to a specific processing level such as psm, peptide, and protein:
 
 ```python
 mdata
 ```
 
 ```python
-mdata["feature"]
+mdata["psm"]
 
 # or
 mdata["protein"]
@@ -27,7 +27,7 @@ mdata["protein"]
 
 As general AnnData object, each individual modality contains `.var`, `.obs`, `.X`, `uns`, and etc,. 
 
-- A `.var` attribute is filled with features of each level data. For example, in `feature` modality for PSMs, information describing scan number, filename, PEP, q-value, and etc, with `filename.scan` index.
+- A `.var` attribute is filled with features of each level data. For example, in `psm` modality for PSMs (or precursors), information describing scan number, filename, PEP, q-value, and etc, with `filename.scan` index.
 - In `.obs`, metainfo for samples can be stored and initially filenames or TMT channels are used as index.
 - `.X` Holds the **quantification** matrix.
 - All other unstructured data can be stored in `.uns`.
@@ -37,7 +37,7 @@ As general AnnData object, each individual modality contains `.var`, `.obs`, `.X
 
 Although different search tools output either one consolidated table or multiple separate tables, their contents can typically be organized into two main conceptual parts:
 
-- Evidence data - Identification data with feature-level annotations
+- Identification data - Identification data with feature-level annotations
 - Quantification data - Quantitative values for features across samples
 
 While each tool’s schema differs, all of them describe the same core identification and quantification features needed to construct peptide- and protein-level data suitable for comparative proteomics.
@@ -51,39 +51,39 @@ While each tool’s schema differs, all of them describe the same core identific
     - `read_fragpipe()`
 
 - Inputs
-    - `evidence_file`: A file path to evidence table
+    - `identification_file`: A file path to identification table
     - `quantification_file`: A file path to quantification table (if applicable) (for tools outputting separate quantification files like Sage)
     - `label`: used label ("tmt" or "label_free")
     - `acquisition`: acquisition method ("dda", or "dia") (for tools supporting both DDA and DIA like MaxQuant)
 - output
     - `mudata`: Data ingested mudata object
 
-- columns migrated into `mdata["feature"].var`
+- columns migrated into `mdata["psm"].var`
     - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q-value`
 
 - decoy features are isolated from `.var` and stored in `.uns["decoy"]` for later use in FDR calculation.
 - Quantification data for **LFQ (DDA)** is stored in `peptide` modality.
-- Raw information from a search tool is stored in `mdata["feature"].varm["search_result"]`
+- Raw information from a search tool is stored in `mdata["psm"].varm["search_result"]`
 
 ```python
 mdata = mm.read_sage(
-    evidence_file="path/to/results.sage.tsv",
+    identification_file="path/to/results.sage.tsv",
     quantification_file="path/to/tmt.tsv",
     label="tmt",               # or "label_free"
 )
 
 mdata = mm.read_diann(
-    evidence_file="path/to/report.tsv",
+    identification_file="path/to/report.tsv",
 )
 
 mdata = mm.read_maxquant(
-    evidence_file="path/to/evidence.txt",
+    identification_file="path/to/evidence.txt",
     label="tmt",               # or "label_free"
     acquisition="dda",         # or "dia"
 )
 
 mdata = mm.read_fragpipe(
-    evidence_file="path/to/evidence.txt",
+    identification_file="path/to/evidence.txt",
     label="tmt",               # or "label_free"
 )
 ```

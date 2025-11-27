@@ -16,16 +16,16 @@ In `msmu`, filtering features consists of 2 stages.
     - filter features based on boolean masks from `mdata[modality].varm["filter"]`
 
 ```python
-# filter features with q_value < 0.01
+# filter PSM with q_value < 0.01
 mdata = mm.pp.add_filter(
     mdata,
-    modality="feature",
+    modality="psm",
     column="q_value", # a column in .var
     keep="lt",
     value=0.01
     )
 
-mdata = mm.pp.apply_filter(mdata, modality="feature")
+mdata = mm.pp.apply_filter(mdata, modality="psm")
 ```
 
 

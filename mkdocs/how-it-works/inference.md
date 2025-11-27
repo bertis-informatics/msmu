@@ -1,8 +1,8 @@
-# Protein-group Inference
+# Protein Inference
 
-This page explains how `msmu` infers protein-groups from peptide-level evidence through [`msmu/_preprocessing/_infer_protein.py`](../reference/_preprocessing/_infer_protein.md).
+This page explains how `msmu` infers proteins from peptide-level features through [`msmu/_preprocessing/_infer_protein.py`](../reference/_preprocessing/_infer_protein.md).
 
-## How protein-groups are inferred
+## How protein are inferred
 
 1. **Merge indistinguishable proteins** (`_find_indistinguisable`)  
    Proteins with identical peptide sets are merged and named as a comma-joined list of members.
