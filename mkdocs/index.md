@@ -6,7 +6,7 @@
 
 ## Overview
 
-`msmu` is a Python package for scalable, modular, and reproducible LC-MS/MS `proteomics` data analysis.  
+`msmu` is a Python package for scalable, modular, and reproducible LC-MS/MS bottom-up `proteomics` data analysis.  
 It supports PSM (precursor), peptide, and protein-level processing, integrates `MuData` (`AnnData`) structure, and enables stepwise normalization, batch correction, and statistical testing for biomarker discovery and systems biology.
 
 ---
@@ -31,7 +31,7 @@ It supports PSM (precursor), peptide, and protein-level processing, integrates `
 - DIA-NN: [https://github.com/vdemichev/DIA-NN](https://github.com/vdemichev/DIA-NN)
 - MaxQuant: [https://www.maxquant.org/](https://www.maxquant.org/)
 - FragPipe: [https://fragpipe.nesvilab.org/](https://fragpipe.nesvilab.org/)
-- Delpy
+- DelPi
 
 ---
 
