@@ -19,6 +19,7 @@ class StatResult:
         statistic: Array of test statistics.
         p_value: Array of p-values.
     """
+
     stat_method: str
     statistic: np.ndarray
     p_value: np.ndarray
@@ -28,11 +29,12 @@ class StatResult:
 class NullDistribution:
     """
     Data class to store null distribution from permutation tests.
-    
+
     Attributes:
         method: The statistical method used.
         null_distribution: 2D array of null test statistics (shape: [n_permutations, n_features]).
     """
+
     stat_method: str
     null_distribution: np.ndarray
 
@@ -56,11 +58,11 @@ class NullDistribution:
             if nd2d.shape[1] != row.shape[1] and nd2d.shape[0] == row.shape[1]:
                 nd2d = nd2d.T
             nd2d = np.vstack([nd2d, row])
-        
-        return NullDistribution(stat_method=self.stat_method, null_distribution=nd2d)
-    
 
-def simple_test(ctrl: np.ndarray, expr: np.ndarray, stat_method: str, fdr: bool | str = "bh") -> StatResult:
+        return NullDistribution(stat_method=self.stat_method, null_distribution=nd2d)
+
+
+def simple_test(ctrl: np.ndarray, expr: np.ndarray, stat_method: str, fdr: bool | str = "bh") -> StatTestResult:
     """
     Perform a simple statistical test between two groups.
 
@@ -104,8 +106,13 @@ class HypothesisTesting:
     Attributes:
         method: The statistical method to use ('welch', 'student', 'wilcoxon', 'med_diff').
     """
+
     @staticmethod
-    def test(ctrl, expr, stat_method: str, ) -> StatResult:
+    def test(
+        ctrl,
+        expr,
+        stat_method: str,
+    ) -> StatResult:
         stat_dict: dict[str, Callable] = {
             "welch": HypothesisTesting.welch,
             "student": HypothesisTesting.student,
@@ -119,7 +126,7 @@ class HypothesisTesting:
         return StatResult(stat_method=stat_method, statistic=stat, p_value=pval)
 
     @staticmethod
-    def welch(ctrl: np.ndarray, expr: np.ndarray) -> tuple[np.ndarray, np.ndarray]: # welch
+    def welch(ctrl: np.ndarray, expr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:  # welch
         """
         Welch's t-test with NaN handling (manual implementation).
         Not using scipy because of time complexity.
@@ -156,9 +163,7 @@ class HypothesisTesting:
 
             # Degrees of freedom (Welch–Satterthwaite equation)
             df_num = (var_ctrl / n_ctrl + var_expr / n_expr) ** 2
-            df_denom = (var_ctrl**2 / ((n_ctrl**2) * (n_ctrl - 1))) + (
-                var_expr**2 / ((n_expr**2) * (n_expr - 1))
-            )
+            df_denom = (var_ctrl**2 / ((n_ctrl**2) * (n_ctrl - 1))) + (var_expr**2 / ((n_expr**2) * (n_expr - 1)))
             df = df_num / df_denom
 
             # Handle divisions by zero or invalid DOF
@@ -193,7 +198,7 @@ class HypothesisTesting:
         mean_expr = np.nanmean(expr, axis=0)
 
         # Variances (ddof=1 for sample variance)
-        with warnings.catch_warnings(): # make silent nan warnings
+        with warnings.catch_warnings():  # make silent nan warnings
             warnings.simplefilter("ignore", category=RuntimeWarning)
             var_ctrl = np.nanvar(ctrl, axis=0, ddof=1)
             var_expr = np.nanvar(expr, axis=0, ddof=1)
@@ -255,10 +260,7 @@ class HypothesisTesting:
         return med_diff, None
 
 
-def calc_permutation_pvalue(
-    stat_obs: np.ndarray, 
-    null_dist: np.ndarray
-    ) -> np.ndarray:
+def calc_permutation_pvalue(stat_obs: np.ndarray, null_dist: np.ndarray) -> np.ndarray:
     """
     Permutation-based empirical p-value calculation (two-sided).
 
@@ -279,12 +281,11 @@ def calc_permutation_pvalue(
     pooled_null = np.sort(pooled_null)
 
     pvals = np.full_like(stat_obs, np.nan, dtype=float)
-    left_idx = np.searchsorted(pooled_null, abs_stat_obs_valid, side="left") # left: ">="
+    left_idx = np.searchsorted(pooled_null, abs_stat_obs_valid, side="left")  # left: ">="
     exceeded = pooled_null.size - left_idx
     pvals[valid_mask] = (exceeded + 1) / (pooled_null.size + 1)
 
     return pvals
-
 
 
 class Limma: ...

@@ -3,9 +3,8 @@ import numpy as np
 from typing import Literal
 
 from .._statistics._permutation import PermutationTest
-from .._statistics._de_base import PermTestResult 
-from .._statistics._statistics import HypothesisTesting
-from .._statistics._de_base import StatTestResult
+from .._statistics._de_base import PermTestResult, StatTestResult
+from .._statistics._statistics import simple_test
 
 
 def _get_test_array(
@@ -16,18 +15,12 @@ def _get_test_array(
     expr: str | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     mod_mdata = mdata[modality].copy()
-    ctrl_samples = mod_mdata.obs.loc[
-        mod_mdata.obs[category] == control,
-    ].index.to_list()
+    ctrl_samples = mod_mdata.obs.loc[mod_mdata.obs[category] == control,].index.to_list()
 
     if expr is not None:
-        expr_samples = mod_mdata.obs.loc[
-            mod_mdata.obs[category] == expr,
-        ].index.to_list()
+        expr_samples = mod_mdata.obs.loc[mod_mdata.obs[category] == expr,].index.to_list()
     else:
-        expr_samples = mod_mdata.obs.loc[
-            mod_mdata.obs[category] != control,
-        ].index.to_list()
+        expr_samples = mod_mdata.obs.loc[mod_mdata.obs[category] != control,].index.to_list()
 
     ctrl_arr = mod_mdata.to_df().T[ctrl_samples].values.T
     expr_arr = mod_mdata.to_df().T[expr_samples].values.T
@@ -90,17 +83,13 @@ def run_de(
             fdr=fdr,
         )
 
-        de_res: PermTestResult = perm_test.run(
-            n_permutations=n_resamples,
-            n_jobs=n_jobs,
-            stat_method=stat_method
-        )
-        
+        de_res: PermTestResult = perm_test.run(n_permutations=n_resamples, n_jobs=n_jobs, stat_method=stat_method)
+
     elif stat_method == "limma":
         pass
 
     else:
-        de_res: StatTestResult = HypothesisTesting.simple_test(
+        de_res: StatTestResult = simple_test(
             ctrl=ctrl_arr,
             expr=expr_arr,
             stat_method=stat_method,
