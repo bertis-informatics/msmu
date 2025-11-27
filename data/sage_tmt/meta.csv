@@ -1,0 +1,7 @@
+set,tag,sample_id,sample_name,condition
+S1,126,t0h,t0h,t0
+S1,127,t1h,t1h,t1
+S1,128,t2h,t2h,t2
+S1,129,t6h,t6h,t6
+S1,130,t24h,t24h,t24
+S1,131,t120h,t120h,t120
