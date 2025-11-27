@@ -14,13 +14,13 @@ class SageReader(SearchResultReader):
     Reader for Sage output files.
 
     Parameters:
-        evidence_file: Path to the Sage output directory.
+        identification_file: Path to the Sage output directory.
         quantification_file: Path to the quantification file (if applicable).
     """
 
     def __init__(
         self,
-        evidence_file: str | Path,
+        identification_file: str | Path,
         quantification_file: str | Path | None = None,
     ) -> None:
         super().__init__()
@@ -29,11 +29,11 @@ class SageReader(SearchResultReader):
             quantification="sage",
             label=None,
             acquisition="dda",
-            evidence_file=Path(evidence_file),
-            evidence_level="psm",
-            quantification_file=Path(quantification_file) if quantification_file is not None else None,
+            identification_file=identification_file,
+            identification_level="psm",
+            quantification_file=quantification_file if quantification_file is not None else None,
             quantification_level=None,
-            feat_quant_merged=False,
+            ident_quant_merged=False,
             has_decoy=True,
         )
         self._feature_rename_dict: dict = {"peptide_len": "peptide_length", "spectrum_q": "q_value"}
@@ -71,16 +71,16 @@ class SageReader(SearchResultReader):
             config = json.load(f)
         return config
 
-    def _make_needed_columns_for_evidence(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
-        evidence_df["proteins"] = parse_uniprot_accession(evidence_df["proteins"])
-        evidence_df["filename"] = evidence_df["filename"].apply(self._strip_filename)
-        evidence_df["scan_num"] = evidence_df["scannr"].apply(self._extract_scan_number)
-        evidence_df["stripped_peptide"] = evidence_df["peptide"].apply(self._make_stripped_peptide)
-        evidence_df["decoy"] = evidence_df["label"].apply(self._label_decoy)
-        evidence_df["contaminant"] = evidence_df["proteins"].apply(self._label_possible_contaminant)
-        evidence_df["PEP"] = np.power(10, evidence_df["posterior_error"])  # convert log10 PEP to PEP
+    def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
+        identification_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
+        identification_df["filename"] = identification_df["filename"].apply(self._strip_filename)
+        identification_df["scan_num"] = identification_df["scannr"].apply(self._extract_scan_number)
+        identification_df["stripped_peptide"] = identification_df["peptide"].apply(self._make_stripped_peptide)
+        identification_df["decoy"] = identification_df["label"].apply(self._label_decoy)
+        identification_df["contaminant"] = identification_df["proteins"].apply(self._label_possible_contaminant)
+        identification_df["PEP"] = np.power(10, identification_df["posterior_error"])  # convert log10 PEP to PEP
 
-        return evidence_df.copy()
+        return identification_df.copy()
 
 
 class TmtSageReader(SageReader):
@@ -93,10 +93,10 @@ class TmtSageReader(SageReader):
 
     def __init__(
         self,
-        evidence_file: str | Path,
+        identification_file: str | Path,
         quantification_file: str | Path | None = None,
     ) -> None:
-        super().__init__(evidence_file, quantification_file)
+        super().__init__(identification_file, quantification_file)
         self.search_settings.label = "tmt"
         self.search_settings.quantification_level = "psm"
 
@@ -123,16 +123,16 @@ class LfqSageReader(SageReader):
     Reader for label-free Sage output files.
 
     Parameters:
-        evidence_file: Path to the Sage output directory.
+        identification_file: Path to the Sage output directory.
         quantification_file: Path to the quantification file (if applicable).
     """
 
     def __init__(
         self,
-        evidence_file: str | Path,
+        identification_file: str | Path,
         quantification_file: str | Path | None = None,
     ) -> None:
-        super().__init__(evidence_file, quantification_file)
+        super().__init__(identification_file, quantification_file)
         self.search_settings.label = "label_free"
         if quantification_file is not None:
             self.search_settings.quantification_level = "peptide"

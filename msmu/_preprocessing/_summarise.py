@@ -32,10 +32,8 @@ def to_peptide(
     top_n: int | None = None,
     rank_method: Literal["total_intensity", "max_intensity", "median_intensity"] = "total_intensity",
     calculate_q: bool = True,
-    _peptide_col: str = "peptide",
-    _protein_col: str = "proteins",
 ) -> md.MuData:
-    """Summarise feature-level data to peptide-level data.
+    """Summarise PSM-level data to peptide-level data.
 
     Usage:
         mdata = mm.pp.to_peptide(
@@ -47,21 +45,21 @@ def to_peptide(
         )
 
     Parameters:
-        mdata: MuData object containing feature-level data.
+        mdata: MuData object containing PSM-level data.
         agg_method: Aggregation method for quantification to use. Defaults to "median".
         calculate_q: Whether to calculate q-values. Defaults to True.
         score_method: Method to combine scores. Defaults to "best_pep".
         purity_threshold: Purity threshold for TMT data quantification aggregation (does not filter out features). If None, no filtering is applied. Defaults to 0.7.
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "total_intensity".
-        _peptide_col: Column name for peptides in var DataFrame. Defaults to "peptide".
-        _protein_col: Column name for proteins in var DataFrame. Defaults to "proteins".
 
     Returns:
         MuData object containing peptide-level data.
     """
-    adata_to_summarise: ad.AnnData = mdata["feature"].copy()
+    adata_to_summarise: ad.AnnData = mdata["psm"].copy()
     mstatus = MuDataStatus(mdata)
+    _peptide_col: str = "peptide"
+    _protein_col: str = "proteins"
 
     # Preparation
     summarisation_prep = SummarisationPrep(
@@ -81,13 +79,13 @@ def to_peptide(
     if top_n is not None:
         summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
 
-    evid_df_prep, quant_df_prep, decoy_df_prep = summarisation_prep.prep()
+    identification_df, quantification_df, decoy_df = summarisation_prep.prep()
 
     # Aggregation
     aggregator = Aggregator.peptide(
-        identification_df=evid_df_prep,
-        quantification_df=quant_df_prep,
-        decoy_df=decoy_df_prep,
+        identification_df=identification_df,
+        quantification_df=quantification_df,
+        decoy_df=decoy_df,
         agg_method=agg_method,
         score_method=score_method,
         protein_col=_protein_col,
@@ -163,10 +161,9 @@ def to_protein(
     top_n: int | None = 3,
     rank_method: Literal["total_intensity", "max_intensity", "median_intensity"] = "total_intensity",
     calculate_q: bool = True,
-    _protein_col: str = "protein_group",
     _shared_peptide: Literal["discard"] = "discard",
 ) -> md.MuData:
-    """Summarise feature-level data to protein-level data. By default, uses `top 3` peptides in their `total_intensity` and `unique` (_shared_peptide = "discard") per protein_group for quantification aggregation with median.
+    """Summarise peptide-level data to protein-level data. By default, uses `top 3` peptides in their `total_intensity` and `unique` (_shared_peptide = "discard") per protein_group for quantification aggregation with median.
 
     Parameters:
         mdata: MuData object containing feature-level data.
@@ -175,7 +172,6 @@ def to_protein(
         score_method: Method to combine scores (PEP). Defaults to "best_pep".
         top_n: Number of top peptides to consider for summarisation. If None, all peptides are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "total_intensity".
-        _protein_col: Column name for proteins in var DataFrame. Defaults to "protein_group".
         _shared_peptide: How to handle shared peptides. Currently only "discard" is implemented. Defaults to "discard".
 
     Returns:
@@ -183,6 +179,7 @@ def to_protein(
     """
     original_mdata = mdata.copy()
     mstatus = MuDataStatus(original_mdata)
+    _protein_col: str = "protein_group"
 
     # Handle shared peptides
     # use unique peptides only
@@ -273,7 +270,7 @@ def to_ptm(
     top_n: int | None = None,
     rank_method: Literal["total_intensity", "max_intensity"] = "total_intensity",
 ) -> md.MuData:
-    """Summarise feature-level data to PTM-level data.
+    """Summarise peptide-level data to PTM-level data.
 
     Parameters:
         mdata: MuData object containing peptide-level data.

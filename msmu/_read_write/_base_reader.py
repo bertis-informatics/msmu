@@ -42,22 +42,22 @@ class SearchResultSettings:
         search_engine: Name of the search engine used (e.g., "sage", "maxquant").
         quantification: Name of the quantification tool used (e.g., "sage", "maxquant", or None).
         label: Labeling method used (e.g., "tmt", "label_free").
-        evidence_file: evidence file path.
-        evidence_level: Level of the evidence data (e.g., "psm", "precursor", "peptide", "protein").
-        quantification_file: evidence file path (if applicable).
+        identification_file: identification file path.
+        identification_level: Level of the identification data (e.g., "psm", "precursor", "peptide", "protein").
+        quantification_file: identification file path (if applicable).
         quantification_level: Level of the quantification data (e.g., "psm", "precursor", "peptide", "protein", or None).
-        feat_quant_merged: Indicates if evidence and quantification are merged in a single file.
+        ident_quant_merged: Indicates if identification and quantification are merged in a single file.
     """
 
     search_engine: str
     quantification: str | None
     label: Literal["tmt", "label_free"] | None
     acquisition: Literal["dda", "dia"] | None
-    evidence_file: str | Path
-    evidence_level: Literal["psm", "precursor", "peptide", "protein"]
+    identification_file: str | Path
+    identification_level: Literal["psm", "precursor", "peptide", "protein"]
     quantification_file: str | None
     quantification_level: Literal["psm", "precursor", "peptide", "protein"] | None
-    feat_quant_merged: bool
+    ident_quant_merged: bool
     has_decoy: bool = True
 
 
@@ -67,14 +67,14 @@ class MuDataInput:
     Dataclass to store inputs for creating a MuData object.
 
     Attributes:
-        raw_evidence_df: Raw evidence DataFrame (varm['search_result']).
-        norm_evidence_df: Normalized evidence DataFrame.
+        raw_identification_df: Raw evidence DataFrame (varm['search_result']).
+        norm_identification_df: Normalized evidence DataFrame.
         norm_quant_df: Normalized quantification DataFrame.
         search_result: Original search result DataFrame.
     """
 
-    raw_evidence_df: pd.DataFrame
-    norm_evidence_df: pd.DataFrame
+    raw_identification_df: pd.DataFrame
+    norm_identification_df: pd.DataFrame
     norm_quant_df: pd.DataFrame | None
     decoy_df: pd.DataFrame | None
 
@@ -142,7 +142,7 @@ class SearchResultReader:
 
     def _validate_search_outputs(self) -> None:
         output_list: list[Path | None] = [
-            self.search_settings.evidence_file,
+            self.search_settings.identification_file,
             self.search_settings.quantification_file,
         ]
         for file_path in output_list:
@@ -151,9 +151,9 @@ class SearchResultReader:
             if not file_path.exists():
                 raise FileNotFoundError(f"{file_path} does not exist!")
 
-    def _read_evidence_file(self) -> pd.DataFrame:
-        tmp_sep = self._get_separator(self.search_settings.evidence_file)
-        evidence_df = pd.read_csv(self.search_settings.evidence_file, sep=tmp_sep)
+    def _read_identification_file(self) -> pd.DataFrame:
+        tmp_sep = self._get_separator(self.search_settings.identification_file)
+        evidence_df = pd.read_csv(self.search_settings.identification_file, sep=tmp_sep)
         evidence_df = self._stringify_cols(evidence_df)
 
         return evidence_df
@@ -164,8 +164,8 @@ class SearchResultReader:
     def _import_search_results(self) -> dict:
         output_dict: dict = dict()
 
-        if self.search_settings.evidence_file is not None:
-            evidence_df = self._read_evidence_file()
+        if self.search_settings.identification_file is not None:
+            evidence_df = self._read_identification_file()
             logger.info(f"Evidence file loaded: {evidence_df.shape}")
 
             if self.search_settings.quantification_file is not None:
@@ -175,31 +175,33 @@ class SearchResultReader:
             else:
                 quantification_df = None
         else:
-            raise ValueError("Evidence file path is not provided.")
+            raise ValueError("Identification file path is not provided.")
 
         output_dict["evidence"] = evidence_df
         output_dict["quantification"] = quantification_df
 
         return output_dict
 
-    def _split_merged_evidence_quantification(self, evidence_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def _split_merged_identification_quantification(
+        self, identification_df: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         raise NotImplementedError(
-            "_split_merged_evidence_quantification method needs to be implemented in inherited class."
+            "_split_merged_identification_quantification method needs to be implemented in inherited class."
         )
 
-    def _make_needed_columns_for_evidence(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
+    def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError(
-            "_make_needed_columns_for_evidence method needs to be implemented in inherited class."
+            "_make_needed_columns_for_identification method needs to be implemented in inherited class."
         )
 
-    def _normalise_evidence_df(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
-        norm_evidence_df = self._make_needed_columns_for_evidence(
-            evidence_df.copy()
+    def _normalise_identification_df(self, identification_df: pd.DataFrame) -> pd.DataFrame:
+        norm_identification_df = self._make_needed_columns_for_identification(
+            identification_df.copy()
         )  # this will be method overriden in inherited class
-        norm_evidence_df = norm_evidence_df.rename(columns=self._feature_rename_dict)
-        norm_evidence_df = self._make_unique_index(norm_evidence_df)
+        norm_identification_df = norm_identification_df.rename(columns=self._feature_rename_dict)
+        norm_identification_df = self._make_unique_index(norm_identification_df)
 
-        return norm_evidence_df
+        return norm_identification_df
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
         # flow through function, can be overriden in inherited class
@@ -223,56 +225,60 @@ class SearchResultReader:
 
     def _make_mudata_input(self) -> MuDataInput:
         """
-        Creates a MuDataInput object containing raw (.varm)and normalized feature (.var) and quantification (.X) DataFrames.
+        Creates a MuDataInput object containing raw (.varm)and normalized psm (.var) and quantification (.X) DataFrames.
         Returns:
             MuDataInput: A MuDataInput object with raw and normalized data.
         """
         raw_dict: dict = self._import_search_results()
-        raw_evidence_df: pd.DataFrame = raw_dict["evidence"].copy()
+        raw_identification_df: pd.DataFrame = raw_dict["evidence"].copy()
 
-        norm_evidence_df: pd.DataFrame = self._normalise_evidence_df(raw_evidence_df)
-        if self.search_settings.feat_quant_merged:
-            evidence_df, quantification_df = self._split_merged_evidence_quantification(norm_evidence_df)
-            logger.info(f"Evidence and quantification data split: {evidence_df.shape}, {quantification_df.shape}")
+        norm_identification_df: pd.DataFrame = self._normalise_identification_df(raw_identification_df)
+        if self.search_settings.ident_quant_merged:
+            identification_df, quantification_df = self._split_merged_identification_quantification(
+                norm_identification_df
+            )
+            logger.info(
+                f"Identification and quantification data split: {identification_df.shape}, {quantification_df.shape}"
+            )
         else:
-            evidence_df = norm_evidence_df.copy()
+            identification_df = norm_identification_df.copy()
             quantification_df = (
                 raw_dict["quantification"].copy() if self.search_settings.quantification is not None else None
             )
 
-        norm_evidence_df = norm_evidence_df.loc[:, self.used_feature_cols]
+        norm_identification_df = norm_identification_df.loc[:, self.used_feature_cols]
         if self.search_settings.has_decoy:
-            if "decoy" not in norm_evidence_df.columns:
+            if "decoy" not in norm_identification_df.columns:
                 logger.error("Decoy column is expected but not found in the evidence DataFrame.")
                 raise
             else:
-                target_df, decoy_df = self._separate_decoy_df(norm_evidence_df)
+                target_df, decoy_df = self._separate_decoy_df(norm_identification_df)
                 logger.info(f"Decoy entries separated: {decoy_df.shape}")
         else:
-            target_df = norm_evidence_df.copy()
+            target_df = norm_identification_df.copy()
             decoy_df = None
 
-        raw_evidence_df.index = norm_evidence_df.index
-        raw_evidence_df = raw_evidence_df.loc[target_df.index,]
+        raw_identification_df.index = norm_identification_df.index
+        raw_identification_df = raw_identification_df.loc[target_df.index,]
 
         norm_quant_df = self._normalise_quantification_df(quantification_df) if quantification_df is not None else None
 
         mudata_input: MuDataInput = MuDataInput(
-            raw_evidence_df=raw_evidence_df,  # varm["search_result"]
-            norm_evidence_df=target_df,  # var
+            raw_identification_df=raw_identification_df,  # varm["search_result"]
+            norm_identification_df=target_df,  # var
             norm_quant_df=norm_quant_df,  # X
             decoy_df=decoy_df,  # decoy entries
         )
 
         return mudata_input
 
-    def _separate_decoy_df(self, norm_evidence_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        if "decoy" not in norm_evidence_df.columns:
+    def _separate_decoy_df(self, norm_identification_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        if "decoy" not in norm_identification_df.columns:
             raise ValueError("Decoy column not found in evidence DataFrame.")
 
-        decoy_df = norm_evidence_df[norm_evidence_df["decoy"] == 1].copy()
+        decoy_df = norm_identification_df[norm_identification_df["decoy"] == 1].copy()
 
-        target_df = norm_evidence_df[norm_evidence_df["decoy"] == 0].copy()
+        target_df = norm_identification_df[norm_identification_df["decoy"] == 0].copy()
         target_df = target_df.drop(columns=["decoy"])
 
         return target_df, decoy_df
@@ -280,12 +286,12 @@ class SearchResultReader:
     def _update_default_adata_uns(self, adata: ad.AnnData) -> ad.AnnData:
         adata.uns.update(
             {
-                "level": self.search_settings.evidence_level,
+                "level": self.search_settings.identification_level,
                 "search_engine": self.search_settings.search_engine,
                 "quantification": self.search_settings.quantification,
                 "label": self.search_settings.label,
                 "acquisition": self.search_settings.acquisition,
-                "evidence_file": str(self.search_settings.evidence_file),
+                "identification_file": str(self.search_settings.identification_file),
                 "quantification_file": (
                     str(self.search_settings.quantification_file)
                     if self.search_settings.quantification_file is not None
@@ -298,51 +304,51 @@ class SearchResultReader:
     def _build_mudata(self, mudata_input: MuDataInput) -> md.MuData:
         adata_dict = {}
         # both feature and quantification are available in the same level
-        if self.search_settings.quantification_level == self.search_settings.evidence_level:
-            common_index = mudata_input.norm_evidence_df.index.intersection(mudata_input.norm_quant_df.index)
+        if self.search_settings.quantification_level == self.search_settings.identification_level:
+            common_index = mudata_input.norm_identification_df.index.intersection(mudata_input.norm_quant_df.index)
             mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T)
-            mod_adata.var = mudata_input.norm_evidence_df.loc[common_index, :]
-            mod_adata.varm["search_result"] = mudata_input.raw_evidence_df.loc[common_index, :]
+            mod_adata.var = mudata_input.norm_identification_df.loc[common_index, :]
+            mod_adata.varm["search_result"] = mudata_input.raw_identification_df.loc[common_index, :]
             mod_adata = self._update_default_adata_uns(mod_adata)
             if mudata_input.decoy_df is not None:
                 mod_adata.uns["decoy"] = mudata_input.decoy_df
 
             if self.search_settings.quantification_level in ["psm", "precursor"]:
-                adata_dict["feature"] = mod_adata
+                adata_dict["psm"] = mod_adata
             else:
                 adata_dict[self.search_settings.quantification_level] = mod_adata
 
         # only feature is available
         elif self.search_settings.quantification_level is None:
             dummy_quantification_df = pd.DataFrame(
-                index=mudata_input.norm_evidence_df.index,
-                columns=mudata_input.norm_evidence_df["filename"].unique().tolist(),
+                index=mudata_input.norm_identification_df.index,
+                columns=mudata_input.norm_identification_df["filename"].unique().tolist(),
             )
             mod_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
-            mod_adata.var = mudata_input.norm_evidence_df
-            mod_adata.varm["search_result"] = mudata_input.raw_evidence_df
+            mod_adata.var = mudata_input.norm_identification_df
+            mod_adata.varm["search_result"] = mudata_input.raw_identification_df
             mod_adata = self._update_default_adata_uns(mod_adata)
             if mudata_input.decoy_df is not None:
                 mod_adata.uns["decoy"] = mudata_input.decoy_df
 
-            adata_dict["feature"] = mod_adata
+            adata_dict["psm"] = mod_adata
 
         # feature and quantification are available in different levels
         # (e.g., feature: psm, quantification: peptide)
         else:
             dummy_quantification_df = pd.DataFrame(
-                index=mudata_input.norm_evidence_df.index, columns=mudata_input.norm_quant_df.columns
+                index=mudata_input.norm_identification_df.index, columns=mudata_input.norm_quant_df.columns
             )
             feat_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
-            feat_adata.var = mudata_input.norm_evidence_df
-            feat_adata.varm["search_result"] = mudata_input.raw_evidence_df
+            feat_adata.var = mudata_input.norm_identification_df
+            feat_adata.varm["search_result"] = mudata_input.raw_identification_df
             feat_adata = self._update_default_adata_uns(feat_adata)
             feat_adata.uns["decoy"] = mudata_input.decoy_df
 
-            if self.search_settings.evidence_level in ["psm", "precursor"]:
-                adata_dict["feature"] = feat_adata
+            if self.search_settings.identification_level in ["psm", "precursor"]:
+                adata_dict["psm"] = feat_adata
             else:
-                adata_dict[self.search_settings.evidence_level] = feat_adata
+                adata_dict[self.search_settings.identification_level] = feat_adata
 
             quant_adata = ad.AnnData(mudata_input.norm_quant_df.T.astype(np.float32))
             quant_adata.uns.update(
@@ -351,7 +357,7 @@ class SearchResultReader:
                 }
             )
             if self.search_settings.quantification_level in ["psm", "precursor"]:
-                adata_dict["feature"] = quant_adata
+                adata_dict["psm"] = quant_adata
             else:
                 adata_dict[self.search_settings.quantification_level] = quant_adata
 

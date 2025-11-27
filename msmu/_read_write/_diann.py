@@ -11,12 +11,12 @@ class DiannReader(SearchResultReader):
     Reader for DIA-NN output files.
 
     Parameters:
-        search_dir (str | Path): Path to the DIA-NN output directory.
+        identification_file (str | Path): Path to the DIA-NN output directory.
     """
 
     def __init__(
         self,
-        evidence_file: str | Path,
+        identification_file: str | Path,
     ) -> None:
         super().__init__()
         self.search_settings: SearchResultSettings = SearchResultSettings(
@@ -24,11 +24,11 @@ class DiannReader(SearchResultReader):
             quantification="diann",
             label="label_free",
             acquisition="dia",
-            evidence_file=Path(evidence_file),
-            evidence_level="precursor",
+            identification_file=identification_file,
+            identification_level="precursor",
             quantification_file=None,
             quantification_level="precursor",
-            feat_quant_merged=True,
+            ident_quant_merged=True,
             has_decoy=False,
         )
 
@@ -80,39 +80,43 @@ class DiannReader(SearchResultReader):
 
         return df
 
-    def _split_merged_evidence_quantification(self, evidence_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_evidence_df = evidence_df.copy()
-        split_evidence_df = split_evidence_df.drop(columns=["Precursor.Quantity"])
+    def _split_merged_identification_quantification(
+        self, identification_df: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        split_identification_df = identification_df.copy()
+        split_identification_df = split_identification_df.drop(columns=["Precursor.Quantity"])
 
-        split_quant_df = evidence_df[["filename", "Precursor.Quantity"]].reset_index()
+        split_quant_df = identification_df[["filename", "Precursor.Quantity"]].reset_index()
         split_quant_df = split_quant_df.pivot(index="index", columns="filename", values="Precursor.Quantity")
         split_quant_df = split_quant_df.rename_axis(index=None, columns=None)
         split_quant_df = split_quant_df.replace(0, np.nan)
 
-        return split_evidence_df, split_quant_df
+        return split_identification_df, split_quant_df
 
-    def _make_needed_columns_for_evidence(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
-        evidence_df = evidence_df.copy()
-        self._set_mbr(evidence_df)  # set self._mbr for _feature_rename_dict
-        self._set_decoy(evidence_df)
+    def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
+        identification_df = identification_df.copy()
+        self._set_mbr(identification_df)  # set self._mbr for _feature_rename_dict
+        self._set_decoy(identification_df)
 
-        evidence_df["proteins"] = evidence_df["Protein.Ids"]
-        evidence_df["proteins"] = parse_uniprot_accession(evidence_df["proteins"])
-        evidence_df["missed_cleavages"] = evidence_df["Stripped.Sequence"].apply(self._count_missed_cleavages)
-        evidence_df["peptide_length"] = evidence_df["Stripped.Sequence"].apply(self._get_peptide_length)
+        identification_df["proteins"] = identification_df["Protein.Ids"]
+        identification_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
+        identification_df["missed_cleavages"] = identification_df["Stripped.Sequence"].apply(
+            self._count_missed_cleavages
+        )
+        identification_df["peptide_length"] = identification_df["Stripped.Sequence"].apply(self._get_peptide_length)
         if not self.search_settings.has_decoy:
-            evidence_df["decoy"] = 0
+            identification_df["decoy"] = 0
 
-        return evidence_df
+        return identification_df
 
-    def _set_mbr(self, evidence_df: pd.DataFrame) -> None:
-        if evidence_df["Lib.Q.Value"].sum() == 0:
+    def _set_mbr(self, identification_df: pd.DataFrame) -> None:
+        if identification_df["Lib.Q.Value"].sum() == 0:
             self._mbr = False
         else:
             self._mbr = True
 
-    def _set_decoy(self, evidence_df: pd.DataFrame) -> None:
-        if "Decoy" in evidence_df.columns:
+    def _set_decoy(self, identification_df: pd.DataFrame) -> None:
+        if "Decoy" in identification_df.columns:
             self.search_settings.has_decoy = True
         else:
             self.search_settings.has_decoy = False

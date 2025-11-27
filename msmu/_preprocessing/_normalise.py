@@ -112,7 +112,7 @@ def normalize(
 
 
 @uns_logger
-def scale_feature(
+def correct_batch_effect(
     mdata: md.MuData,
     modality: str,
     method: Literal["gis", "median_center"],
@@ -121,7 +121,7 @@ def scale_feature(
     rescale: bool = True,
 ) -> md.MuData:
     """
-    Feature scale data in MuData object.
+    correct_batch_effect in MuData object.
 
     Parameters:
         mdata: MuData object to normalise.

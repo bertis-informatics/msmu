@@ -39,9 +39,9 @@ class PurityResult:
         purity_df.index = purity_df["filename"].str.strip(".mzML") + purity_df["scan_num"].astype(str)
 
         purity_adata = ad.AnnData(purity_df[["purity"]].T, var=purity_df)
-        purity_mdata = md.MuData({"feature": purity_adata})
+        purity_mdata = md.MuData({"psm": purity_adata})
 
-        purity_mdata["feature"].uns["filter"] = {"mdata": {"filter_purity": np.nan}}
+        purity_mdata["psm   "].uns["filter"] = {"mdata": {"filter_purity": np.nan}}
 
         return purity_mdata
 
@@ -91,16 +91,15 @@ class PrecursorPurityCalculator:
             unit_ppm: Whether to use ppm for tolerance.
         """
         instance = cls(tolerance=tolerance, unit_ppm=unit_ppm)
-        if "feature" not in mdata.mod_names:
-            raise ValueError("MuData object must contain 'feature' layer with PSM data.")
+        if "psm" not in mdata.mod_names:
+            raise ValueError("MuData object must contain 'psm' layer with PSM data.")
 
-        if "filename" not in mdata["feature"].var.columns:
-            raise ValueError("MuData object must contain 'filename' in the feature variable data.")
+        if "filename" not in mdata["psm"].var.columns:
+            raise ValueError("MuData object must contain 'filename' in the psm variable data.")
+        if "scan_num" not in mdata["psm"].var.columns:
+            raise ValueError("MuData object must contain 'scan_num' in the psm variable data.")
 
-        if "scan_num" not in mdata["feature"].var.columns:
-            raise ValueError("MuData object must contain 'scan_num' in the feature variable data.")
-
-        instance._var_df = mdata["feature"].var.copy()
+        instance._var_df = mdata["psm"].var.copy()
 
         return instance
 
@@ -215,7 +214,7 @@ class PrecursorPurityCalculator:
         return purities[["filename", "scan_num", "purity"]].reset_index(drop=True)
 
 
-def compute_precursor_purity_from_mzml(
+def compute_precursor_isolation_purity_from_mzml(
     mzml_paths: str | Path | list, tolerance: float = 20.0, unit_ppm: bool = True
 ) -> PurityResult:
     """
@@ -258,7 +257,7 @@ def compute_precursor_purity_from_mzml(
     return purity_result
 
 
-def compute_precursor_purity(
+def compute_precursor_isolation_purity(
     mdata: md.MuData, mzml_paths: str | Path | list, tolerance: float = 20.0, unit_ppm: bool = True
 ) -> md.MuData:
     """
@@ -283,7 +282,7 @@ def compute_precursor_purity(
         mdata, tolerance=tolerance, unit_ppm=unit_ppm
     )
     file_dict: dict = dict()
-    for file in mdata["feature"].var["filename"].unique():
+    for file in mdata["psm"].var["filename"].unique():
         full_mzml = [x for x in mzml_paths if Path(x).name == f"{file}.mzML"]
         if not full_mzml:
             raise ValueError(f"File {file} not found in provided mzML paths.")
@@ -318,6 +317,6 @@ def compute_precursor_purity(
     purity_result_df["scan_num"] = purity_result_df["scan_num"].astype(int)
 
     purity_mdata = mdata.copy()
-    purity_mdata["feature"].var["purity"] = purity_result_df["purity"]
+    purity_mdata["psm"].var["purity"] = purity_result_df["purity"]
 
     return purity_mdata
