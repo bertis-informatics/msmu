@@ -20,6 +20,7 @@ def read_sage(
         search_dir: Path to the Sage output directory.
         label: Label for the Sage output ('tmt' or 'label_free').
         quantification_file: Whether to include quantification data. Default is None.
+
     Returns:
         A MuData object containing the Sage data.
     """
@@ -36,7 +37,7 @@ def read_sage(
     else:
         raise ValueError("Argument label should be one of 'tmt', 'label_free'.")
 
-    mdata:md.MuData = reader.read()
+    mdata: md.MuData = reader.read()
 
     return mdata
 
@@ -46,6 +47,9 @@ class _ReadDiannFacade:
     Facade class for reading DIA-NN data.
     Provides methods to read data at different levels (precursor and protein group).
     """
+
+    __name__ = "read_diann"
+
     def __call__(self, evidence_file: str | Path) -> md.MuData:
         """
         Reads DIA-NN output and returns a MuData object.
@@ -57,17 +61,19 @@ class _ReadDiannFacade:
             A MuData object containing the DIA-NN data at precursor level.
         """
         return DiannReader(evidence_file=evidence_file).read()
-    
+
     def from_pg(self, evidence_file: str | Path) -> md.MuData:
         """
         Reads DIA-NN protein group output and returns a MuData object.
-        
+
         Parameters:
             evidence_file: Path to the DIA-NN output directory.
+
         Returns:
             A MuData object containing the DIA-NN data at protein group level.
         """
         return DiannProteinGroupReader(evidence_file=evidence_file).read()
+
 
 read_diann: _ReadDiannFacade = _ReadDiannFacade()
 """Alias for :class:`_ReadDiannFacade`.
@@ -77,10 +83,12 @@ Parameters:
 
 Returns:
     A MuData object containing the DIA-NN data at precursor level
+
 Usage:
     mdata_precursor = mm.read_diann(search_dir)
     mdata_protein_group = mm.read_diann.from_pg(search_dir)
 """
+
 
 # Working on it
 class _MaxQuantFacade:
@@ -88,22 +96,27 @@ class _MaxQuantFacade:
     Facade class for reading MaxQuant data.
     Provides methods to read data with different labels and acquisition methods.
     """
+
+    __name__ = "read_maxquant"
+
     def __call__(
-        self, 
+        self,
         evidence_file: str | Path,
-        label: Literal["tmt", "label_free"], 
-        acquisition: Literal["dda", "dia"], 
-        _quantification: bool = True
-        ) -> md.MuData:
+        label: Literal["tmt", "label_free"],
+        acquisition: Literal["dda", "dia"],
+        _quantification: bool = True,
+    ) -> md.MuData:
         """
         Reads MaxQuant output and returns a MuData object.
-        Args:
-            evidence_file (str | Path): Path to the MaxQuant output directory.
-            label (Literal["tmt", "label_free"]): Label for the MaxQuant output ('tmt' or 'label_free').
-            acquisition (Literal["dda", "dia"]): Acquisition method ('dda' or 'dia').
-            _quantification (bool): Whether to include quantification data. Default is True.
+
+        Parameters:
+            evidence_file: Path to the MaxQuant output directory.
+            label: Label for the MaxQuant output ('tmt' or 'label_free').
+            acquisition: Acquisition method ('dda' or 'dia').
+            _quantification: Whether to include quantification data. Default is True.
+
         Returns:
-            md.MuData: A MuData object containing the MaxQuant data.
+            A MuData object containing the MaxQuant data.
         """
         if label == "tmt" and acquisition == "dda":
             reader = MaxTmtReader(
@@ -120,7 +133,9 @@ class _MaxQuantFacade:
             # )
             raise NotImplementedError("MaxQuant DIA reader is not implemented yet.")
         else:
-            raise ValueError("Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'.")
+            raise ValueError(
+                "Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'."
+            )
         return reader.read()
 
     def from_pg(self, *args: Any, **kwds: Any) -> md.MuData:
@@ -128,6 +143,7 @@ class _MaxQuantFacade:
         Reads MaxQuant protein group output and returns a MuData object.
         """
         raise NotImplementedError("MaxQuant protein group reader is not implemented yet.")
+
 
 read_maxquant: _MaxQuantFacade = _MaxQuantFacade()
 """Alias for :class:`_MaxQuantFacade`.
@@ -147,23 +163,26 @@ Usage:
 
 
 class FragPipeFacade:
+
+    __name__ = "read_fragpipe"
+
     def __call__(
-        self, 
-        evidence_file: str | Path,
-        label: Literal["tmt", "label_free"],
-        acquisition: Literal["dda", "dia"]
-        ) -> md.MuData:
+        self, evidence_file: str | Path, label: Literal["tmt", "label_free"], acquisition: Literal["dda", "dia"]
+    ) -> md.MuData:
         if label == "tmt" and acquisition == "dda":
             reader = TmtFragPipeReader(evidence_file=evidence_file)
         elif label == "label_free" and acquisition == "dda":
             reader = LfqFragPipeReader(evidence_file=evidence_file)
         else:
-            raise ValueError("Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'.")
+            raise ValueError(
+                "Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'."
+            )
 
         return reader.read()
-    
+
     def from_pg(self):
         raise NotImplementedError("FragPipe protein group reader is not implemented yet.")
+
 
 read_fragpipe: FragPipeFacade = FragPipeFacade()
 """Alias for :class:`FragPipeFacade`.
