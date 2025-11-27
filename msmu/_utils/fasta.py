@@ -36,7 +36,7 @@ def _get_protein_info_from_fasta(fasta_file: str) -> pd.DataFrame:
     for record in SeqIO.parse(fasta_file, "fasta"):
         desc: str = record.description
         ref_uniprot: str = record.id.split("|")[1]
-        seq_:str = str(record.seq)
+        seq_: str = str(record.seq)
 
         entry_type, accession, protein_id = _split_uniprot_fasta_entry(record.id)
         if entry_type.startswith("contam_"):
@@ -114,7 +114,7 @@ def _split_uniprot_fasta_entry(entry: str) -> tuple[str, str, str]:
         return parts[0], parts[1], parts[2]
     else:
         return "", parts[0], ""  # Handle cases where the format is different
-    
+
 
 def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> pd.Series:
     """
@@ -139,10 +139,8 @@ def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> p
 
 
 def map_fasta(
-        mdata,
-        modality: str,
-        categories: list[str] = ["Protein ID", "Gene", "Description", "Organism"]
-        ) -> md.MuData:
+    mdata, modality: str, categories: list[str] = ["Protein ID", "Gene", "Description", "Organism"]
+) -> md.MuData:
     """
     Map protein groups to gene names using a FASTA metadata DataFrame.
 
@@ -163,12 +161,10 @@ def map_fasta(
             continue
 
         if modality == "protein":
-            mdata[modality].var[category] = mdata[modality].var.index.map(
-                lambda x: _map_fasta(x, fasta_meta, category)
-                )
+            mdata[modality].var[category] = mdata[modality].var.index.map(lambda x: _map_fasta(x, fasta_meta, category))
         else:
-            mdata[modality].var[category] = mdata[modality].var["protein_group"].map(
-                lambda x: _map_fasta(x, fasta_meta, category)
-                )
-        
+            mdata[modality].var[category] = (
+                mdata[modality].var["protein_group"].map(lambda x: _map_fasta(x, fasta_meta, category))
+            )
+
     return mdata

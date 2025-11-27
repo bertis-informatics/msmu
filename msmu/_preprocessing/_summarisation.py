@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class FeatureRanker:
     """Ranking methods for selecting top features based on quantification data."""
+
     @staticmethod
     def total_intensity(identification_df, quantification_df, col_to_groupby):
         """
@@ -31,12 +32,10 @@ class FeatureRanker:
         """
         sum_intensity = quantification_df.sum(axis=1)
         identification_df.loc[:, "rank_score"] = sum_intensity
-        identification_df.loc[:, "rank"] = identification_df.groupby(col_to_groupby)[
-            "rank_score"
-        ].rank(ascending=False)
+        identification_df.loc[:, "rank"] = identification_df.groupby(col_to_groupby)["rank_score"].rank(ascending=False)
 
         return identification_df
-    
+
     @staticmethod
     def max_intensity(identification_df, quantification_df, col_to_groupby):
         """
@@ -52,12 +51,10 @@ class FeatureRanker:
         """
         max_intensity = quantification_df.max(axis=1)
         identification_df.loc[:, "rank_score"] = max_intensity
-        identification_df.loc[:, "rank"] = identification_df.groupby(col_to_groupby)[
-            "rank_score"
-        ].rank(ascending=False)
+        identification_df.loc[:, "rank"] = identification_df.groupby(col_to_groupby)["rank_score"].rank(ascending=False)
 
         return identification_df
-    
+
     @staticmethod
     def median_intensity(identification_df, quantification_df, col_to_groupby):
         """
@@ -73,15 +70,14 @@ class FeatureRanker:
         """
         median_intensity = quantification_df.median(axis=1)
         identification_df.loc[:, "rank_score"] = median_intensity
-        identification_df.loc[:, "rank"] = identification_df.groupby(col_to_groupby)[
-            "rank_score"
-        ].rank(ascending=False)
+        identification_df.loc[:, "rank"] = identification_df.groupby(col_to_groupby)["rank_score"].rank(ascending=False)
 
         return identification_df
 
 
 class Scorer:
     """Scoring methods for aggregating PSM scores to peptide/protein scores."""
+
     EPS = 1e-10
 
     def __init__(self, pep: float | np.ndarray | list[float]):
@@ -140,12 +136,13 @@ class Scorer:
             return lambda x: cls.combined(x).picked_pep
         else:
             raise ValueError(f"Scoring method '{method}' not recognized.")
-    
+
 
 class Aggregator:
     """
     Base class for aggregating identification and quantification data.
     """
+
     def __init__(
         self,
         identification_df: pd.DataFrame,
@@ -154,15 +151,15 @@ class Aggregator:
         agg_method: Literal["median", "mean", "sum"],
         score_method: Literal["best_pep", "fisher", "stouffer", "combined"],
     ) -> None:
-        self._id_df:pd.DataFrame = identification_df.copy()
-        self._quant_df:pd.DataFrame = quantification_df.copy()
-        self._decoy_id_df:pd.DataFrame = decoy_df.copy() if decoy_df is not None else pd.DataFrame()
+        self._id_df: pd.DataFrame = identification_df.copy()
+        self._quant_df: pd.DataFrame = quantification_df.copy()
+        self._decoy_id_df: pd.DataFrame = decoy_df.copy() if decoy_df is not None else pd.DataFrame()
         self._agg_method: Literal["median", "mean", "sum"] = agg_method
         self._score_method: Literal["best_pep", "fisher", "stouffer", "combined"] = score_method
 
         self._id_agg_dict: dict = dict()  # placeholder
-        self._col_to_groupby: str = "" # placeholder
-        self._decoy_agg_dict: dict = dict() # placeholder
+        self._col_to_groupby: str = ""  # placeholder
+        self._decoy_agg_dict: dict = dict()  # placeholder
 
     @classmethod
     def peptide(
@@ -198,11 +195,11 @@ class Aggregator:
         aggregator._decoy_agg_dict = {
             aggregator._protein_col: (aggregator._protein_col, "first"),
             "stripped_peptide": ("stripped_peptide", "first"),
-            "PEP": ("PEP", Scorer.func(score_method))
+            "PEP": ("PEP", Scorer.func(score_method)),
         }
 
         return aggregator
-    
+
     @classmethod
     def protein(
         cls,
@@ -225,12 +222,10 @@ class Aggregator:
             "PEP": ("PEP", Scorer.func(score_method)),
         }
 
-        aggregator._decoy_agg_dict = {
-            "PEP": ("PEP", Scorer.func(score_method))
-        }
+        aggregator._decoy_agg_dict = {"PEP": ("PEP", Scorer.func(score_method))}
 
         return aggregator
-    
+
     @classmethod
     def ptm_site(
         cls,
@@ -255,33 +250,27 @@ class Aggregator:
         return aggregator
 
     def aggregate_identification(self) -> pd.DataFrame:
-        agg_id_df:pd.DataFrame = self._id_df.copy()
+        agg_id_df: pd.DataFrame = self._id_df.copy()
         col_to_groupby = self._col_to_groupby
 
-        agg_id_df = agg_id_df.groupby(
-            col_to_groupby, observed=False
-        ).agg(**self._id_agg_dict)
+        agg_id_df = agg_id_df.groupby(col_to_groupby, observed=False).agg(**self._id_agg_dict)
 
         agg_id_df = agg_id_df.rename_axis(index=None)
 
         return agg_id_df
 
     def aggregate_quantification(self) -> pd.DataFrame:
-        agg_quant_df:pd.DataFrame = self._quant_df.copy()
+        agg_quant_df: pd.DataFrame = self._quant_df.copy()
         agg_quant_df[self._col_to_groupby] = self._id_df[self._col_to_groupby]
-        agg_quant_df = agg_quant_df.groupby(
-            self._col_to_groupby, observed=False
-        ).agg(self._agg_method)
+        agg_quant_df = agg_quant_df.groupby(self._col_to_groupby, observed=False).agg(self._agg_method)
 
         agg_quant_df = agg_quant_df.rename_axis(index=None)
 
         return agg_quant_df
-    
+
     def aggregate_decoy(self) -> pd.DataFrame:
-        agg_decoy_df:pd.DataFrame = self._decoy_id_df.copy()
-        agg_decoy_df = agg_decoy_df.groupby(
-            self._col_to_groupby, observed=False
-        ).agg(**self._decoy_agg_dict)
+        agg_decoy_df: pd.DataFrame = self._decoy_id_df.copy()
+        agg_decoy_df = agg_decoy_df.groupby(self._col_to_groupby, observed=False).agg(**self._decoy_agg_dict)
 
         agg_decoy_df = agg_decoy_df.rename_axis(index=None)
 
@@ -289,106 +278,92 @@ class Aggregator:
 
 
 class SummarisationPrep:
-        """
-        Preparation steps for summarisation.
-        
-        Attributes:
-            mdata (MuData): MuData object containing feature-level data.
-            filter_dict (dict): Dictionary specifying filtering criteria.
-            rank_dict (dict): Dictionary specifying ranking criteria.
-        """
-        def __init__(
-                self, 
-                adata:ad.AnnData,
-                col_to_groupby: str,
-                has_decoy: bool
-                ) -> None:
-            self.adata:ad.AnnData = adata.copy()
-            self._col_to_groupby = col_to_groupby
+    """
+    Preparation steps for summarisation.
 
-            self._filter_dict:dict = {} # {"column_name": (keep, value)} | {"purity": ("gt", 0.7)}
-            self._rank_tuple:tuple = ()   # ("method", num_top) | ("max_intensity", 3)
-            self._has_decoy: bool = has_decoy
+    Attributes:
+        mdata (MuData): MuData object containing feature-level data.
+        filter_dict (dict): Dictionary specifying filtering criteria.
+        rank_dict (dict): Dictionary specifying ranking criteria.
+    """
 
-        @property
-        def filter_dict(self) -> dict:
-            return self._filter_dict
-        
-        @filter_dict.setter
-        def filter_dict(self, new_filter_dict: dict) -> None:
-            logger.info(f"Applying filter criteria: {new_filter_dict}")
-            self._filter_dict = new_filter_dict
+    def __init__(self, adata: ad.AnnData, col_to_groupby: str, has_decoy: bool) -> None:
+        self.adata: ad.AnnData = adata.copy()
+        self._col_to_groupby = col_to_groupby
 
-        @property
-        def rank_tuple(self) -> tuple:
-            return self._rank_tuple
+        self._filter_dict: dict = {}  # {"column_name": (keep, value)} | {"purity": ("gt", 0.7)}
+        self._rank_tuple: tuple = ()  # ("method", num_top) | ("max_intensity", 3)
+        self._has_decoy: bool = has_decoy
 
-        @rank_tuple.setter
-        def rank_tuple(self, new_rank_tuple: tuple) -> None:
-            logger.info(
-                f"Ranking features by '{new_rank_tuple[0]}' to select top {new_rank_tuple[1]} features."
-            )
-            self._rank_tuple = new_rank_tuple
+    @property
+    def filter_dict(self) -> dict:
+        return self._filter_dict
 
-        def prepare_data_to_summarise(self) -> pd.DataFrame:
-            identification_df:pd.DataFrame = self.adata.var.copy()
-            quantification_df:pd.DataFrame = self.adata.to_df().transpose().copy()
-            if self._has_decoy:
-                decoy_df:pd.DataFrame = self.adata.uns["decoy"].copy()
+    @filter_dict.setter
+    def filter_dict(self, new_filter_dict: dict) -> None:
+        logger.info(f"Applying filter criteria: {new_filter_dict}")
+        self._filter_dict = new_filter_dict
 
-            return identification_df, quantification_df, decoy_df if self._has_decoy else None
-        
-        def _make_filter_mask(self, id_df:pd.DataFrame):
-            filter_indices = pd.Series(False, index=id_df.index)
+    @property
+    def rank_tuple(self) -> tuple:
+        return self._rank_tuple
 
-            for column, (keep, value) in self._filter_dict.items():
-                column_mask = _mask_boolean_filter(
-                    series_to_mask=id_df[column],
-                    keep=keep,
-                    value=value
-                )
-                filter_indices = filter_indices | column_mask
+    @rank_tuple.setter
+    def rank_tuple(self, new_rank_tuple: tuple) -> None:
+        logger.info(f"Ranking features by '{new_rank_tuple[0]}' to select top {new_rank_tuple[1]} features.")
+        self._rank_tuple = new_rank_tuple
 
-            return filter_indices
+    def prepare_data_to_summarise(self) -> pd.DataFrame:
+        identification_df: pd.DataFrame = self.adata.var.copy()
+        quantification_df: pd.DataFrame = self.adata.to_df().transpose().copy()
+        if self._has_decoy:
+            decoy_df: pd.DataFrame = self.adata.uns["decoy"].copy()
 
-        def _make_rank_mask(self) -> pd.Series:
-            rank_method, top_n = self.rank_tuple
+        return identification_df, quantification_df, decoy_df if self._has_decoy else None
 
-            ranked_id_df = FeatureRanker().__getattribute__(rank_method)(
-                identification_df=self.adata.var,
-                quantification_df=self.adata.to_df().transpose(),
-                col_to_groupby=self._col_to_groupby
-            )
+    def _make_filter_mask(self, id_df: pd.DataFrame):
+        filter_indices = pd.Series(False, index=id_df.index)
 
-            rank_mask = _mask_boolean_filter(
-                series_to_mask=ranked_id_df["rank"],
-                keep="le",
-                value=top_n
-            )
+        for column, (keep, value) in self._filter_dict.items():
+            column_mask = _mask_boolean_filter(series_to_mask=id_df[column], keep=keep, value=value)
+            filter_indices = filter_indices | column_mask
 
-            return rank_mask
+        return filter_indices
 
-        def _mask_quantification(self, quant_df:pd.DataFrame, mask_indices:pd.Series) -> pd.DataFrame:
-            mask_with_nan_quant = quant_df.copy()
-            mask_with_nan_quant.loc[~mask_indices, :] = np.nan
+    def _make_rank_mask(self) -> pd.Series:
+        rank_method, top_n = self.rank_tuple
 
-            return mask_with_nan_quant
-        
-        def prep(self):
-            identification_df, quantification_df, decoy_df = self.prepare_data_to_summarise()
+        ranked_id_df = FeatureRanker().__getattribute__(rank_method)(
+            identification_df=self.adata.var,
+            quantification_df=self.adata.to_df().transpose(),
+            col_to_groupby=self._col_to_groupby,
+        )
 
-            # make filter mask
-            if self._filter_dict:
-                filter_mask = self._make_filter_mask(identification_df)
-                quantification_df = self._mask_quantification(quantification_df, filter_mask)
+        rank_mask = _mask_boolean_filter(series_to_mask=ranked_id_df["rank"], keep="le", value=top_n)
 
-            # make rank mask
-            if self.rank_tuple:
-                rank_mask = self._make_rank_mask()
-                quantification_df = self._mask_quantification(quantification_df, rank_mask)
+        return rank_mask
 
-            return identification_df, quantification_df, decoy_df if self._has_decoy else None
-        
+    def _mask_quantification(self, quant_df: pd.DataFrame, mask_indices: pd.Series) -> pd.DataFrame:
+        mask_with_nan_quant = quant_df.copy()
+        mask_with_nan_quant.loc[~mask_indices, :] = np.nan
+
+        return mask_with_nan_quant
+
+    def prep(self):
+        identification_df, quantification_df, decoy_df = self.prepare_data_to_summarise()
+
+        # make filter mask
+        if self._filter_dict:
+            filter_mask = self._make_filter_mask(identification_df)
+            quantification_df = self._mask_quantification(quantification_df, filter_mask)
+
+        # make rank mask
+        if self.rank_tuple:
+            rank_mask = self._make_rank_mask()
+            quantification_df = self._mask_quantification(quantification_df, rank_mask)
+
+        return identification_df, quantification_df, decoy_df if self._has_decoy else None
+
 
 class PtmSummarisationPrep(SummarisationPrep):
     """
@@ -402,14 +377,10 @@ class PtmSummarisationPrep(SummarisationPrep):
         7. Group by modified peptide and its peptide site
         8. Merge data with peptide value indexed by peptide
     """
-    def __init__(
-            self,
-            adata:ad.AnnData,
-            modi_identifier: str,
-            fasta: pd.DataFrame
-            ) -> None:
+
+    def __init__(self, adata: ad.AnnData, modi_identifier: str, fasta: pd.DataFrame) -> None:
         self._modi_identifier = modi_identifier
-        self._fasta_dict:dict = fasta["Sequence"].to_dict()
+        self._fasta_dict: dict = fasta["Sequence"].to_dict()
         self._col_to_groupby = "ptm_site"
 
         super().__init__(adata, self._col_to_groupby, has_decoy=False)
@@ -439,21 +410,19 @@ class PtmSummarisationPrep(SummarisationPrep):
         return labelled_ptm_df, quantification_df
 
     def _extract_modi_peptide_df(
-            self,
-            data: pd.DataFrame,
-        ) -> pd.DataFrame:
+        self,
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
         extracted_df: pd.DataFrame = data.copy()
-        extracted_df = extracted_df.loc[
-            extracted_df["peptide"].str.contains(re.escape(self._modi_identifier))
-            ].copy()
+        extracted_df = extracted_df.loc[extracted_df["peptide"].str.contains(re.escape(self._modi_identifier))].copy()
         logger.info(f"Extracted modified peptides: {len(extracted_df)} / {len(data)}")
 
         return extracted_df
 
     def label_ptm_site(
-            self,
-            data: pd.DataFrame,
-        ) -> pd.DataFrame:
+        self,
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
         """
         Label PTM site to each single protein and get data arranged by peptide - peptide site
 
@@ -465,14 +434,10 @@ class PtmSummarisationPrep(SummarisationPrep):
         """
         ptm_info: pd.DataFrame = data.copy()
 
-        ptm_info["peptide_site"] = ptm_info["peptide"].apply(
-            lambda x: self._get_mod_sites(x, self._modi_identifier)
-        )
+        ptm_info["peptide_site"] = ptm_info["peptide"].apply(lambda x: self._get_mod_sites(x, self._modi_identifier))
 
         # label peptide site
-        ptm_info["peptide_site"] = ptm_info["peptide_site"].apply(
-            lambda x: self._label_peptide_site(x)
-        )
+        ptm_info["peptide_site"] = ptm_info["peptide_site"].apply(lambda x: self._label_peptide_site(x))
 
         # explode data to single protein for label protein site
         ptm_info = self._explode_mod_site(ptm_info)
@@ -490,9 +455,7 @@ class PtmSummarisationPrep(SummarisationPrep):
             axis=1,
         )
         ptm_info = ptm_info.loc[ptm_info["protein_site"].str.len() > 0].copy()
-        ptm_info["modified_protein"] = ptm_info["protein_site"].apply(
-            lambda x: x.split("|")[0]
-        )
+        ptm_info["modified_protein"] = ptm_info["protein_site"].apply(lambda x: x.split("|")[0])
 
         # wrap up single protein to single protein group
         ptm_info = self._implode_protein_group(ptm_info)
@@ -519,9 +482,7 @@ class PtmSummarisationPrep(SummarisationPrep):
 
         return sites
 
-    def _label_protein_site(
-        self, protein: str, peptide: str, pep_site: str, fasta_dict: dict
-    ) -> str:
+    def _label_protein_site(self, protein: str, peptide: str, pep_site: str, fasta_dict: dict) -> str:
         aa: str = pep_site[0]
         pos: int = int(pep_site[1:])
         prot_site: str = ""

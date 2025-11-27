@@ -6,8 +6,8 @@ from scipy.stats import percentileofscore
 from tqdm import tqdm
 
 from ._statistics import NullDistribution, StatResult, HypothesisTesting, calc_permutation_pvalue
-from ._multiple_test_correction import PvalueCorrection 
-from ._de_base import Dea, PermTestResult 
+from ._multiple_test_correction import PvalueCorrection
+from ._de_base import Dea, PermTestResult
 
 
 class PermutationTest(Dea):
@@ -30,13 +30,8 @@ class PermutationTest(Dea):
     """
 
     def __init__(
-        self,
-        ctrl_arr: np.ndarray,
-        expr_arr: np.ndarray,
-        n_resamples: int,
-        _force_resample: bool,
-        fdr: bool | str
-    ):  
+        self, ctrl_arr: np.ndarray, expr_arr: np.ndarray, n_resamples: int, _force_resample: bool, fdr: bool | str
+    ):
         super().__init__()
         self._ctrl_arr: np.ndarray = ctrl_arr
         self._expr_arr: np.ndarray = expr_arr
@@ -53,13 +48,9 @@ class PermutationTest(Dea):
             permutation_method = "exact"
         elif self._n_resamples == self._possible_combination_count:
             permutation_method = "exact"
-        elif (
-            self._n_resamples > self._possible_combination_count
-        ) and not self._force_resample:
+        elif (self._n_resamples > self._possible_combination_count) and not self._force_resample:
             permutation_method = "exact"
-        elif (
-            self._n_resamples > self._possible_combination_count
-        ) and self._force_resample:
+        elif (self._n_resamples > self._possible_combination_count) and self._force_resample:
             permutation_method = "randomised"
         else:
             permutation_method = "randomised"
@@ -81,15 +72,10 @@ class PermutationTest(Dea):
         if method == "exact":
             return self._get_combinations()
         elif method == "randomised":
-            return [
-                np.random.permutation(range(len(self.ctrl_arr) + len(self.expr_arr)))
-                for _ in range(n_resamples)
-            ]
+            return [np.random.permutation(range(len(self.ctrl_arr) + len(self.expr_arr))) for _ in range(n_resamples)]
 
     def _get_fc_percentile(self, obs_med_diff, null_med_diff) -> np.ndarray:
-        return percentileofscore(
-            null_med_diff, obs_med_diff, kind="rank", nan_policy="omit"
-        )
+        return percentileofscore(null_med_diff, obs_med_diff, kind="rank", nan_policy="omit")
 
     def _calc_two_sided_p_value(self, stat_obs, stat_perm):
         return np.mean(np.abs(stat_perm) >= np.abs(stat_obs), axis=0)
@@ -144,12 +130,8 @@ class PermutationTest(Dea):
         )
 
         # Initialize NullDistribution objects for the statistic and log2fc and q values
-        stat_null_dist = NullDistribution(
-            stat_method=stat_method, null_distribution=np.array([])
-        )
-        log2fc_null_dist = NullDistribution(
-            stat_method="med_diff", null_distribution=np.array([])
-        )
+        stat_null_dist = NullDistribution(stat_method=stat_method, null_distribution=np.array([]))
+        log2fc_null_dist = NullDistribution(stat_method="med_diff", null_distribution=np.array([]))
 
         # Iterate over the combinations or randomised permutations
         for combn in tqdm_iter:
@@ -173,20 +155,17 @@ class PermutationTest(Dea):
             log2fc_null_dist = log2fc_null_dist.add_permutation_result(tmp_log2fc)
 
         pval_permutation = calc_permutation_pvalue(
-            stat_obs=obs_stats.statistic,
-            null_dist=stat_null_dist.null_distribution
+            stat_obs=obs_stats.statistic, null_dist=stat_null_dist.null_distribution
         )
 
-        if self.fdr == 'empirical':
+        if self.fdr == "empirical":
             q_vals = PvalueCorrection.empirical(
-                stat_obs=obs_stats.statistic, 
-                null_dist=stat_null_dist.null_distribution, 
+                stat_obs=obs_stats.statistic,
+                null_dist=stat_null_dist.null_distribution,
                 # pvals=pval_permutation,
-                )
-        elif self.fdr == 'bh':
-            q_vals = PvalueCorrection.bh(
-                pvals=pval_permutation
             )
+        elif self.fdr == "bh":
+            q_vals = PvalueCorrection.bh(pvals=pval_permutation)
 
         # put results to PermutationTestResult
         perm_test_res.log2fc = obs_log2fc.statistic
@@ -196,30 +175,27 @@ class PermutationTest(Dea):
         # Calculate the fold change percentile
         fc_pct_criteria = [1, 5]  # 1% and 5% thresholds
         perm_test_res.fc_pct_1, perm_test_res.fc_pct_5 = [
-            self._get_fc_threshold(log2fc_null_dist.null_distribution, x)
-            for x in fc_pct_criteria
+            self._get_fc_threshold(log2fc_null_dist.null_distribution, x) for x in fc_pct_criteria
         ]
 
         return perm_test_res
 
     @staticmethod
     def _get_fc_threshold(null_med_diff: np.ndarray, percentile: int) -> float:
-            x = np.asarray(null_med_diff)
-            if x.ndim == 2:
-                x = x.ravel()
-            x = x[~np.isnan(x)]
-            if x.size == 0:
-                return float("nan")
-            p = float(percentile)
-            low  = np.nanpercentile(x, p)               # e.g., 5th
-            high = np.nanpercentile(x, 100.0 - p)       # e.g., 95th
-            q = (abs(low) + abs(high)) / 2.0
+        x = np.asarray(null_med_diff)
+        if x.ndim == 2:
+            x = x.ravel()
+        x = x[~np.isnan(x)]
+        if x.size == 0:
+            return float("nan")
+        p = float(percentile)
+        low = np.nanpercentile(x, p)  # e.g., 5th
+        high = np.nanpercentile(x, 100.0 - p)  # e.g., 95th
+        q = (abs(low) + abs(high)) / 2.0
 
-            return round(float(q), 2)
+        return round(float(q), 2)
 
-    def _sub_perm(
-        self, concated_arr: np.ndarray, combinations: np.ndarray, stat_method: str
-    ) -> StatResult:
+    def _sub_perm(self, concated_arr: np.ndarray, combinations: np.ndarray, stat_method: str) -> StatResult:
         if self.permutation_method == "exact":
             total_index: np.ndarray = np.arange(len(self.ctrl_arr) + len(self.expr_arr))
             ctrl_idx = list(combinations)
@@ -232,9 +208,7 @@ class PermutationTest(Dea):
         perm_ctrl: np.ndarray = concated_arr[ctrl_idx, :]
         perm_expr: np.ndarray = concated_arr[expr_idx, :]
 
-        stat_res: StatResult = HypothesisTesting.test(
-            ctrl=perm_ctrl, expr=perm_expr, stat_method=stat_method
-        )
+        stat_res: StatResult = HypothesisTesting.test(ctrl=perm_ctrl, expr=perm_expr, stat_method=stat_method)
 
         return stat_res
 
@@ -263,9 +237,7 @@ class PermutationTest(Dea):
             )
             return perm_test_res
 
-        concated_arr: np.ndarray = np.concatenate(
-            (self.ctrl_arr, self.expr_arr), axis=0
-        )
+        concated_arr: np.ndarray = np.concatenate((self.ctrl_arr, self.expr_arr), axis=0)
 
         iterations: list = self._get_iterations(
             method=self.permutation_method,

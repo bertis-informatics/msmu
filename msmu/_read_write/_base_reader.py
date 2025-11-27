@@ -48,16 +48,17 @@ class SearchResultSettings:
         quantification_level: Level of the quantification data (e.g., "psm", "precursor", "peptide", "protein", or None).
         feat_quant_merged: Indicates if evidence and quantification are merged in a single file.
     """
-    search_engine:str
-    quantification:str | None
-    label:Literal["tmt", "label_free"] | None
-    acquisition:Literal["dda", "dia"] | None
-    evidence_file:str | Path
-    evidence_level:Literal["psm", "precursor", "peptide", "protein"]
-    quantification_file:str | None
-    quantification_level:Literal["psm", "precursor", "peptide", "protein"] | None
-    feat_quant_merged:bool
-    has_decoy:bool = True
+
+    search_engine: str
+    quantification: str | None
+    label: Literal["tmt", "label_free"] | None
+    acquisition: Literal["dda", "dia"] | None
+    evidence_file: str | Path
+    evidence_level: Literal["psm", "precursor", "peptide", "protein"]
+    quantification_file: str | None
+    quantification_level: Literal["psm", "precursor", "peptide", "protein"] | None
+    feat_quant_merged: bool
+    has_decoy: bool = True
 
 
 @dataclass
@@ -71,6 +72,7 @@ class MuDataInput:
         norm_quant_df: Normalized quantification DataFrame.
         search_result: Original search result DataFrame.
     """
+
     raw_evidence_df: pd.DataFrame
     norm_evidence_df: pd.DataFrame
     norm_quant_df: pd.DataFrame | None
@@ -91,6 +93,7 @@ class SearchResultReader:
         read() -> md.MuData:
             Reads and processes the search results into a MuData object.
     """
+
     def __init__(self):
         md.set_options(pull_on_update=False)
         self.search_settings: SearchResultSettings
@@ -111,12 +114,12 @@ class SearchResultReader:
             "peptide_length",
         ]
 
-        self._cols_to_stringify: list[str] = [] # placeholder, will be defined in inherited class
+        self._cols_to_stringify: list[str] = []  # placeholder, will be defined in inherited class
 
     @staticmethod
-    def _make_unique_index(input_df:pd.DataFrame) -> pd.DataFrame:
+    def _make_unique_index(input_df: pd.DataFrame) -> pd.DataFrame:
         df = input_df.copy()
-        df['tmp_index'] = df["filename"] + "." + df["scan_num"].astype(str)
+        df["tmp_index"] = df["filename"] + "." + df["scan_num"].astype(str)
         df = df.set_index("tmp_index", drop=True).rename_axis(index=None)
 
         return df
@@ -124,8 +127,8 @@ class SearchResultReader:
     @staticmethod
     def _strip_filename(filename: str) -> str:
         return Path(filename).name.rsplit(".", 1)[0]
-    
-    def _stringify_cols(self, df:pd.DataFrame) -> pd.DataFrame:
+
+    def _stringify_cols(self, df: pd.DataFrame) -> pd.DataFrame:
         # Convert specified columns to string type to avoid potential issues with mixed types
         if len(self._cols_to_stringify) == 0:
             return df
@@ -138,7 +141,7 @@ class SearchResultReader:
         return df
 
     def _validate_search_outputs(self) -> None:
-        output_list:list[Path | None] = [
+        output_list: list[Path | None] = [
             self.search_settings.evidence_file,
             self.search_settings.quantification_file,
         ]
@@ -154,17 +157,17 @@ class SearchResultReader:
         evidence_df = self._stringify_cols(evidence_df)
 
         return evidence_df
-    
+
     def _read_config_file(self):
         raise NotImplementedError("_read_config_file method needs to be implemented in inherited class.")
 
     def _import_search_results(self) -> dict:
-        output_dict:dict = dict()
+        output_dict: dict = dict()
 
         if self.search_settings.evidence_file is not None:
             evidence_df = self._read_evidence_file()
             logger.info(f"Evidence file loaded: {evidence_df.shape}")
-            
+
             if self.search_settings.quantification_file is not None:
                 tmp_sep = self._get_separator(self.search_settings.quantification_file)
                 quantification_df = pd.read_csv(self.search_settings.quantification_file, sep=tmp_sep)
@@ -173,39 +176,49 @@ class SearchResultReader:
                 quantification_df = None
         else:
             raise ValueError("Evidence file path is not provided.")
-        
+
         output_dict["evidence"] = evidence_df
         output_dict["quantification"] = quantification_df
 
         return output_dict
 
-    def _split_merged_evidence_quantification(self, evidence_df:pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        raise NotImplementedError("_split_merged_evidence_quantification method needs to be implemented in inherited class.")
+    def _split_merged_evidence_quantification(self, evidence_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        raise NotImplementedError(
+            "_split_merged_evidence_quantification method needs to be implemented in inherited class."
+        )
 
-    def _make_needed_columns_for_evidence(self, evidence_df:pd.DataFrame) -> pd.DataFrame:
-        raise NotImplementedError("_make_needed_columns_for_evidence method needs to be implemented in inherited class.")
+    def _make_needed_columns_for_evidence(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
+        raise NotImplementedError(
+            "_make_needed_columns_for_evidence method needs to be implemented in inherited class."
+        )
 
-    def _normalise_evidence_df(self, evidence_df:pd.DataFrame) -> pd.DataFrame:
-        norm_evidence_df = self._make_needed_columns_for_evidence(evidence_df.copy()) # this will be method overriden in inherited class
+    def _normalise_evidence_df(self, evidence_df: pd.DataFrame) -> pd.DataFrame:
+        norm_evidence_df = self._make_needed_columns_for_evidence(
+            evidence_df.copy()
+        )  # this will be method overriden in inherited class
         norm_evidence_df = norm_evidence_df.rename(columns=self._feature_rename_dict)
         norm_evidence_df = self._make_unique_index(norm_evidence_df)
-        
+
         return norm_evidence_df
-    
-    def _make_needed_columns_for_quantification(self, quantification_df:pd.DataFrame) -> pd.DataFrame:
+
+    def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
         # flow through function, can be overriden in inherited class
         return quantification_df
 
-    def _make_rename_dict_for_obs(self, quantification_df:pd.DataFrame) -> dict:
+    def _make_rename_dict_for_obs(self, quantification_df: pd.DataFrame) -> dict:
         # flow through function, can be overriden in inherited class
         return dict()
 
     def _normalise_quantification_df(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        norm_quant_df = self._make_needed_columns_for_quantification(quantification_df.copy()) # this will be method overriden in inherited classs
-        quant_rename_dict = self._make_rename_dict_for_obs(norm_quant_df) # this will be method overriden in inherited class
+        norm_quant_df = self._make_needed_columns_for_quantification(
+            quantification_df.copy()
+        )  # this will be method overriden in inherited classs
+        quant_rename_dict = self._make_rename_dict_for_obs(
+            norm_quant_df
+        )  # this will be method overriden in inherited class
         norm_quant_df = norm_quant_df.rename(columns=quant_rename_dict)
         norm_quant_df = norm_quant_df.replace(0, np.nan)
-        
+
         return norm_quant_df
 
     def _make_mudata_input(self) -> MuDataInput:
@@ -214,16 +227,18 @@ class SearchResultReader:
         Returns:
             MuDataInput: A MuDataInput object with raw and normalized data.
         """
-        raw_dict:dict = self._import_search_results()
-        raw_evidence_df:pd.DataFrame = raw_dict["evidence"].copy()
+        raw_dict: dict = self._import_search_results()
+        raw_evidence_df: pd.DataFrame = raw_dict["evidence"].copy()
 
-        norm_evidence_df:pd.DataFrame = self._normalise_evidence_df(raw_evidence_df)
+        norm_evidence_df: pd.DataFrame = self._normalise_evidence_df(raw_evidence_df)
         if self.search_settings.feat_quant_merged:
             evidence_df, quantification_df = self._split_merged_evidence_quantification(norm_evidence_df)
             logger.info(f"Evidence and quantification data split: {evidence_df.shape}, {quantification_df.shape}")
         else:
             evidence_df = norm_evidence_df.copy()
-            quantification_df = raw_dict["quantification"].copy() if self.search_settings.quantification is not None else None
+            quantification_df = (
+                raw_dict["quantification"].copy() if self.search_settings.quantification is not None else None
+            )
 
         norm_evidence_df = norm_evidence_df.loc[:, self.used_feature_cols]
         if self.search_settings.has_decoy:
@@ -238,23 +253,23 @@ class SearchResultReader:
             decoy_df = None
 
         raw_evidence_df.index = norm_evidence_df.index
-        raw_evidence_df = raw_evidence_df.loc[target_df.index, ]
+        raw_evidence_df = raw_evidence_df.loc[target_df.index,]
 
         norm_quant_df = self._normalise_quantification_df(quantification_df) if quantification_df is not None else None
 
-        mudata_input:MuDataInput = MuDataInput(
-            raw_evidence_df=raw_evidence_df, # varm["search_result"]
-            norm_evidence_df=target_df, # var
-            norm_quant_df=norm_quant_df, # X
-            decoy_df=decoy_df, # decoy entries
+        mudata_input: MuDataInput = MuDataInput(
+            raw_evidence_df=raw_evidence_df,  # varm["search_result"]
+            norm_evidence_df=target_df,  # var
+            norm_quant_df=norm_quant_df,  # X
+            decoy_df=decoy_df,  # decoy entries
         )
 
         return mudata_input
-    
-    def _separate_decoy_df(self, norm_evidence_df:pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+
+    def _separate_decoy_df(self, norm_evidence_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         if "decoy" not in norm_evidence_df.columns:
             raise ValueError("Decoy column not found in evidence DataFrame.")
-        
+
         decoy_df = norm_evidence_df[norm_evidence_df["decoy"] == 1].copy()
 
         target_df = norm_evidence_df[norm_evidence_df["decoy"] == 0].copy()
@@ -262,7 +277,7 @@ class SearchResultReader:
 
         return target_df, decoy_df
 
-    def _update_default_adata_uns(self, adata:ad.AnnData) -> ad.AnnData:
+    def _update_default_adata_uns(self, adata: ad.AnnData) -> ad.AnnData:
         adata.uns.update(
             {
                 "level": self.search_settings.evidence_level,
@@ -271,12 +286,16 @@ class SearchResultReader:
                 "label": self.search_settings.label,
                 "acquisition": self.search_settings.acquisition,
                 "evidence_file": str(self.search_settings.evidence_file),
-                "quantification_file": str(self.search_settings.quantification_file) if self.search_settings.quantification_file is not None else None,
+                "quantification_file": (
+                    str(self.search_settings.quantification_file)
+                    if self.search_settings.quantification_file is not None
+                    else None
+                ),
             }
         )
         return adata
 
-    def _build_mudata(self, mudata_input:MuDataInput) -> md.MuData: 
+    def _build_mudata(self, mudata_input: MuDataInput) -> md.MuData:
         adata_dict = {}
         # both feature and quantification are available in the same level
         if self.search_settings.quantification_level == self.search_settings.evidence_level:
@@ -296,9 +315,9 @@ class SearchResultReader:
         # only feature is available
         elif self.search_settings.quantification_level is None:
             dummy_quantification_df = pd.DataFrame(
-                index=mudata_input.norm_evidence_df.index, 
-                columns=mudata_input.norm_evidence_df["filename"].unique().tolist()
-                )
+                index=mudata_input.norm_evidence_df.index,
+                columns=mudata_input.norm_evidence_df["filename"].unique().tolist(),
+            )
             mod_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
             mod_adata.var = mudata_input.norm_evidence_df
             mod_adata.varm["search_result"] = mudata_input.raw_evidence_df
@@ -307,14 +326,13 @@ class SearchResultReader:
                 mod_adata.uns["decoy"] = mudata_input.decoy_df
 
             adata_dict["feature"] = mod_adata
-        
-        # feature and quantification are available in different levels 
+
+        # feature and quantification are available in different levels
         # (e.g., feature: psm, quantification: peptide)
         else:
             dummy_quantification_df = pd.DataFrame(
-                index=mudata_input.norm_evidence_df.index, 
-                columns=mudata_input.norm_quant_df.columns
-                )
+                index=mudata_input.norm_evidence_df.index, columns=mudata_input.norm_quant_df.columns
+            )
             feat_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
             feat_adata.var = mudata_input.norm_evidence_df
             feat_adata.varm["search_result"] = mudata_input.raw_evidence_df
@@ -348,9 +366,9 @@ class SearchResultReader:
         Returns:
             A MuData object containing the processed search results.
         """
-        self._validate_search_outputs()
+        # self._validate_search_outputs()
 
-        mudata_input:MuDataInput = self._make_mudata_input()
-        mdata:md.MuData = self._build_mudata(mudata_input=mudata_input)
+        mudata_input: MuDataInput = self._make_mudata_input()
+        mdata: md.MuData = self._build_mudata(mudata_input=mudata_input)
 
         return mdata

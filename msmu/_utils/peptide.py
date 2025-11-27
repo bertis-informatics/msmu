@@ -32,4 +32,3 @@ def _calc_exp_mz(expmass: float, charge: int) -> float:
 def _get_peptide_length(peptide: str) -> int:
     """Return the length of a stripped peptide sequence."""
     return len(peptide)
-

@@ -66,14 +66,14 @@ def normalise(
         for frac in np.unique(adata.var["filename"]):
             fraction_idx = adata.var["filename"] == frac
 
-            arr = adata.X[:, fraction_idx].copy()  
+            arr = adata.X[:, fraction_idx].copy()
 
             not_all_nan_rows = ~np.all(np.isnan(arr), axis=1)
             indices = np.where(not_all_nan_rows)[0]
-            
+
             arr = arr[indices, :].copy()
             fraction_normalised_data = norm_cls.normalise(arr=arr)
-            
+
             for i, r in enumerate(indices):
                 normalised_arr[r, fraction_idx] = fraction_normalised_data[i]
             # normalised_arr[indices, fraction_idx] = fraction_normalised_data
@@ -148,9 +148,7 @@ def scale_feature(
         if gis_idx.sum() == 0:
             raise ValueError(f"No GIS samples found in {modality}")
 
-        gis_normalised_data: np.array[float] = _normalise_gis(
-            arr=adata.X, gis_idx=gis_idx
-        )
+        gis_normalised_data: np.array[float] = _normalise_gis(arr=adata.X, gis_idx=gis_idx)
 
         gis_drop_mod = adata[~gis_idx]
         gis_drop_mod.X = gis_normalised_data
@@ -167,9 +165,7 @@ def scale_feature(
         median_rescale_arr = np.append(median_rescale_arr, adata.X.flatten())
 
     else:
-        raise ValueError(
-            f"Method {method} not recognised. Please choose from 'gis' or 'median_center'"
-        )
+        raise ValueError(f"Method {method} not recognised. Please choose from 'gis' or 'median_center'")
 
     if rescale:
         all_gis_median = np.nanmedian(median_rescale_arr.flatten())
@@ -194,12 +190,12 @@ def _normalise_gis(arr: np.ndarray, gis_idx: np.array) -> np.ndarray:
 
 @uns_logger
 def adjust_ptm_by_protein(
-    mdata: md.MuData, 
-    global_mdata: md.MuData, 
-    ptm_mod:str = "phospho_site", 
-    method:Literal["ridge", "ratio"] = "ridge",
-    rescale:bool = True
-    ) -> md.MuData:
+    mdata: md.MuData,
+    global_mdata: md.MuData,
+    ptm_mod: str = "phospho_site",
+    method: Literal["ridge", "ratio"] = "ridge",
+    rescale: bool = True,
+) -> md.MuData:
     """
     Estimation of PTM stoichiometry by using Global Protein Data.
 
@@ -215,11 +211,12 @@ def adjust_ptm_by_protein(
         Normalised MuData object.
     """
 
-    ptm_adjuster:PTMProteinAdjuster = PTMProteinAdjuster(ptm_mdata=mdata, global_mdata=global_mdata, ptm_mod=ptm_mod, global_mod="protein")
-    adj_ptm_mdata:md.MuData = ptm_adjuster.adjust(method=method, rescale=rescale)
+    ptm_adjuster: PTMProteinAdjuster = PTMProteinAdjuster(
+        ptm_mdata=mdata, global_mdata=global_mdata, ptm_mod=ptm_mod, global_mod="protein"
+    )
+    adj_ptm_mdata: md.MuData = ptm_adjuster.adjust(method=method, rescale=rescale)
 
     return adj_ptm_mdata
-
 
     # class FractionNormalisation(Normalisation):
     #    def __init__(self, method: str) -> None:

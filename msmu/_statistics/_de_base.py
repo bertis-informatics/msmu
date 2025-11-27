@@ -18,6 +18,7 @@ class Dea:
     This class is used to compare two groups of data (control and experimental) and
     calculate statistics such as median differences, fold changes, and p-values.
     """
+
     def __init__(self):
         self._de_available: bool = True
 
@@ -34,12 +35,13 @@ class Dea:
             raise
         if ctrl_arr.shape[0] < 2 or expr_arr.shape[0] < 2:
             logger.warning("Control and experimental arrays must have at least two samples each.")
-            logger.warning("Any statistics will not be performed. Results will only contain Fold Changes and Pct Expressions.")
+            logger.warning(
+                "Any statistics will not be performed. Results will only contain Fold Changes and Pct Expressions."
+            )
 
             self.de_available = False
 
-    def get_insufficient_feature_indices(self):
-        ...
+    def get_insufficient_feature_indices(self): ...
 
     @property
     def de_available(self) -> bool:
@@ -83,6 +85,7 @@ class StatTestResult:
         to_df: Convert the results to a pandas DataFrame.
         plot_volcano: Plot a volcano plot of the DEA results.
     """
+
     stat_method: str
     ctrl: str | None
     expr: str | None = None
@@ -96,23 +99,22 @@ class StatTestResult:
     q_value: np.ndarray | None = None
 
     def to_df(self) -> pd.DataFrame:
-        return pd.DataFrame({
-            "features": self.features,
-            "median_ctrl": self.median_ctrl,
-            "median_expr": self.median_expr,
-            "pct_ctrl": self.pct_ctrl,
-            "pct_expr": self.pct_expr,
-            "log2fc": self.log2fc,
-            "p_value": self.p_value,
-            "q_value": self.q_value,
-        })
-    
+        return pd.DataFrame(
+            {
+                "features": self.features,
+                "median_ctrl": self.median_ctrl,
+                "median_expr": self.median_expr,
+                "pct_ctrl": self.pct_ctrl,
+                "pct_expr": self.pct_expr,
+                "log2fc": self.log2fc,
+                "p_value": self.p_value,
+                "q_value": self.q_value,
+            }
+        )
+
     def plot_volcano(
-            self,
-            log2fc_threshold:float | None = None, 
-            pval_threshold:float = 0.05, 
-            label_top: int | None = None
-            ) -> go.Figure:
+        self, log2fc_threshold: float | None = None, pval_threshold: float = 0.05, label_top: int | None = None
+    ) -> go.Figure:
         """
         Plots a volcano plot for the DEA results.
 
@@ -124,7 +126,7 @@ class StatTestResult:
         Returns:
             Plotly Figure object containing the volcano plot.
         """
-        
+
         df = self.to_df().copy()
 
         if log2fc_threshold == None:
@@ -143,8 +145,8 @@ class StatTestResult:
         df.loc[up_cond & sig_cond, "de"] = "UP"
         df.loc[down_cond & sig_cond, "de"] = "DOWN"
 
-        up_count = len(df.loc[df["de"] == "UP", ])
-        down_count = len(df.loc[df["de"] == "DOWN", ])
+        up_count = len(df.loc[df["de"] == "UP",])
+        down_count = len(df.loc[df["de"] == "DOWN",])
 
         p = PlotScatter(
             data=df,
@@ -153,32 +155,26 @@ class StatTestResult:
             name="de",
             meta="features",
             text="p_value",
-            hovertemplate="<b>%{meta}</b><br>Log<sub>2</sub>FC: %{x}<br>p-value: %{text}"
+            hovertemplate="<b>%{meta}</b><br>Log<sub>2</sub>FC: %{x}<br>p-value: %{text}",
         )
 
         f = p.figure(mode="markers")
 
-        f.update_xaxes(
-            title="log<sub>2</sub>FC"
-        )
-        f.update_yaxes(
-            title="-log<sub>10</sub>p"
-        )
+        f.update_xaxes(title="log<sub>2</sub>FC")
+        f.update_yaxes(title="-log<sub>10</sub>p")
+
+        f.update_traces(marker=dict(color="#E15759"), selector=dict(name="UP"))
+        f.update_traces(marker=dict(color="#4E79A7"), selector=dict(name="DOWN"))
+        f.update_traces(marker=dict(color="#BAB0AC"), selector=dict(name="nonDE"))
 
         f.update_traces(
-            marker=dict(color="#E15759"),selector=dict(name="UP")
+            marker=dict(
+                size=4,
             )
-        f.update_traces(
-            marker=dict(color="#4E79A7"),selector=dict(name="DOWN")
-            )
-        f.update_traces(
-            marker=dict(color="#BAB0AC"),selector=dict(name="nonDE")
-            )
-
-        f.update_traces(marker=dict(size=4, ))
+        )
 
         f.update_layout(
-            title = f"{self.ctrl} vs. {self.expr}",
+            title=f"{self.ctrl} vs. {self.expr}",
             width=600,
             height=500,
         )
@@ -186,27 +182,24 @@ class StatTestResult:
         f.add_hline(
             y=-np.log10(pval_threshold),
             line=dict(color="grey", dash="dot", width=1),
-            )
+        )
         f.add_vline(
             x=log2fc_threshold,
             line=dict(color="grey", dash="dot", width=1),
-            )
+        )
         f.add_vline(
             x=-log2fc_threshold,
             line=dict(color="grey", dash="dot", width=1),
-            )
+        )
 
         f.add_annotation(
-                x=float(df["log2fc"].min()),
-                y=float(df["logp"].min()),
-                text=f"{self.ctrl} ({down_count})",
-                showarrow=False,
+            x=float(df["log2fc"].min()),
+            y=float(df["logp"].min()),
+            text=f"{self.ctrl} ({down_count})",
+            showarrow=False,
         )
         f.add_annotation(
-                x=float(df["log2fc"].max()),
-                y=float(df["logp"].min()),
-                text=f"{self.expr} ({up_count})",
-                showarrow=False
+            x=float(df["log2fc"].max()), y=float(df["logp"].min()), text=f"{self.expr} ({up_count})", showarrow=False
         )
 
         if label_top is not None:
@@ -216,13 +209,7 @@ class StatTestResult:
             concated_tops = pd.concat([up_top, down_top])
 
             for _, row in concated_tops.iterrows():
-                f.add_annotation(
-                    x=row["log2fc"],
-                    y=row["logp"],
-                    text=row["features"],
-                    arrowhead=0,
-                    arrowwidth=1
-                )
+                f.add_annotation(x=row["log2fc"], y=row["logp"], text=row["features"], arrowhead=0, arrowwidth=1)
 
         return f
 
@@ -239,6 +226,7 @@ class PermTestResult(StatTestResult):
         fc_pct_1: Fold change at the 1st percentile.
         fc_pct_5: Fold change at the 5th percentile.
     """
+
     permutation_method: Literal["exact", "randomised"] | None = None
     n_permutations: int | None = None
     fc_pct_1: float | None = None

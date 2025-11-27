@@ -7,7 +7,6 @@ from .._read_write._mdata_status import MuDataStatus
 import mudata as md
 
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -26,7 +25,7 @@ def select_repr_protein(mdata: md.MuData, modality) -> md.MuData:
 
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
-    
+
     if modality not in mstatus.mod_names:
         logger.error(f"{modality} modality not found in MuData object.")
         raise
@@ -42,20 +41,16 @@ def select_repr_protein(mdata: md.MuData, modality) -> md.MuData:
         protein_info_dict = protein_info.to_dict(orient="dict")["concated_accession"]
 
         if modality == "protein":
-            mdata["protein"].var["repr_protein"] = (
-                mdata["protein"].var.index.map(
-                    lambda x: _select_representative(x, protein_info_dict)
-                    )
-                    )
+            mdata["protein"].var["repr_protein"] = mdata["protein"].var.index.map(
+                lambda x: _select_representative(x, protein_info_dict)
+            )
         else:
             mdata[modality].var["repr_protein"] = (
-                mdata[modality].var["protein_group"].apply(
-                    lambda x: _select_representative(x, protein_info_dict)
-                    )
-                    )
-        
+                mdata[modality].var["protein_group"].apply(lambda x: _select_representative(x, protein_info_dict))
+            )
+
         return mdata
-        
+
 
 def _select_representative(protein_group: str, protein_info: dict[str, str]) -> str:
     """
@@ -89,5 +84,3 @@ def _select_representative(protein_group: str, protein_info: dict[str, str]) -> 
         return ",".join(contam_ls).replace("contam_sp_", "")
 
     return ""
-
-

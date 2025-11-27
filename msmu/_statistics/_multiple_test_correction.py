@@ -11,6 +11,7 @@ class PvalueCorrection:
         storey : Storey's q-value estimation with pi0 estimation.
         empirical : Permutation-based empirical FDR estimation.
     """
+
     @staticmethod
     def bh(pvals: np.ndarray) -> np.ndarray:
         """
@@ -18,7 +19,7 @@ class PvalueCorrection:
 
         Parameters:
             pvals: Array of p-values (can include NaN).
-        
+
         Returns:
             qvals: Array of q-values (NaN-filled where p was NaN).
         """
@@ -32,11 +33,8 @@ class PvalueCorrection:
 
     @staticmethod
     def storey(
-        p_values: np.ndarray, 
-        lambda_: float = 0.5, 
-        alpha: float = 0.05, 
-        return_mask: bool = False
-        ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
+        p_values: np.ndarray, lambda_: float = 0.5, alpha: float = 0.05, return_mask: bool = False
+    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
         """
         Storey (2002) q-value estimation with pi0 estimation.
 
@@ -86,9 +84,8 @@ class PvalueCorrection:
 
     @staticmethod
     def estimate_pi0_storey(
-        p_values: np.ndarray,
-        lambdas: np.ndarray=np.linspace(0.5, 0.95, 10)
-        ) -> tuple[float, np.ndarray]:
+        p_values: np.ndarray, lambdas: np.ndarray = np.linspace(0.5, 0.95, 10)
+    ) -> tuple[float, np.ndarray]:
         """
         Storey's estimator of pi0 (proportion of true nulls) from observed p-values.
         https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
@@ -107,7 +104,7 @@ class PvalueCorrection:
         valid_mask = ~np.isnan(p_values)
         p_values = p_values[valid_mask]
         m = len(p_values)
-        
+
         pi0_by_lambda = []
         for lam in lambdas:
             count = np.sum(p_values > lam)
@@ -120,11 +117,7 @@ class PvalueCorrection:
         return pi0, pi0_by_lambda
 
     @staticmethod
-    def estimate_pi0_null(
-        stat_valid: np.ndarray,
-        null_matrix_valid: np.ndarray, 
-        percentile:int=95
-        ) -> float:
+    def estimate_pi0_null(stat_valid: np.ndarray, null_matrix_valid: np.ndarray, percentile: int = 95) -> float:
         """
         Estimate pi0 (proportion of true null hypotheses) using permutation-based statistic exceedance method.
         https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
@@ -144,7 +137,7 @@ class PvalueCorrection:
 
         s = np.sum(stat_valid >= threshold)
         s_star = np.mean(np.sum(null_matrix_valid >= threshold, axis=0))
-        denominator = 1 - (s_star / m) 
+        denominator = 1 - (s_star / m)
         pi0 = (1 - s / m) / denominator if denominator != 0 else 1.0
         pi0 = min(max(pi0, 0.0), 1.0)
 
@@ -191,7 +184,9 @@ class PvalueCorrection:
         null_matrix_valid = np.abs(null_matrix_valid) if two_sided else null_matrix_valid
 
         # pi0 estimation (direct pi0 estimation from null distribution)
-        pi0 = PvalueCorrection.estimate_pi0_null(stat_valid=stat_valid, null_matrix_valid=null_matrix_valid, percentile=95)
+        pi0 = PvalueCorrection.estimate_pi0_null(
+            stat_valid=stat_valid, null_matrix_valid=null_matrix_valid, percentile=95
+        )
 
         # # pi0 estimation (storey's)
         # pi0, _ = PvalueCorrection.estimate_pi0_storey(p_values=pvals)

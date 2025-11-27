@@ -28,13 +28,13 @@ def to_peptide(
     mdata: md.MuData,
     agg_method: Literal["median", "mean", "sum"] = "median",
     score_method: Literal["best_pep"] = "best_pep",
-    purity_threshold: float | None = 0.7, # for tmt data
+    purity_threshold: float | None = 0.7,  # for tmt data
     top_n: int | None = None,
     rank_method: Literal["total_intensity", "max_intensity", "median_intensity"] = "total_intensity",
     calculate_q: bool = True,
     _peptide_col: str = "peptide",
     _protein_col: str = "proteins",
-    ) -> md.MuData:
+) -> md.MuData:
     """Summarise feature-level data to peptide-level data.
 
     Usage:
@@ -60,26 +60,20 @@ def to_peptide(
     Returns:
         MuData object containing peptide-level data.
     """
-    adata_to_summarise:ad.AnnData = mdata["feature"].copy()
+    adata_to_summarise: ad.AnnData = mdata["feature"].copy()
     mstatus = MuDataStatus(mdata)
 
     # Preparation
     summarisation_prep = SummarisationPrep(
-        adata_to_summarise, 
-        col_to_groupby=_peptide_col, 
-        has_decoy=mstatus.feature.has_decoy
-        )
+        adata_to_summarise, col_to_groupby=_peptide_col, has_decoy=mstatus.feature.has_decoy
+    )
 
     # Filtering for TMT purity in peptide quantification
-    if (mstatus.feature.label == "tmt"):
+    if mstatus.feature.label == "tmt":
         if mstatus.feature.has_purity == False:
-            logger.warning(
-                "Purity column not found in feature modality for TMT data. Skipping purity filtering."
-                )
+            logger.warning("Purity column not found in feature modality for TMT data. Skipping purity filtering.")
         elif purity_threshold is None:
-            logger.info(
-                "No purity threshold provided. Skipping purity filtering."
-                )
+            logger.info("No purity threshold provided. Skipping purity filtering.")
         else:
             summarisation_prep.filter_dict = {"purity": ("gt", purity_threshold)}
 
@@ -124,28 +118,32 @@ def to_peptide(
                 identification_df=evid_df_agg,
                 decoy_df=decoy_df_agg,
             )
-            logger.info(f"Peptide-level identifications: {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] < 0.01)} at 1% FDR)")
+            logger.info(
+                f"Peptide-level identifications: {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] < 0.01)} at 1% FDR)"
+            )
 
     # Aggregate quantification data
     quant_df_agg = aggregator.aggregate_quantification()
 
     # build peptide-level anndata
-    if (mstatus.feature.has_quant == False) & ("peptide" in mstatus.mod_names): # for lfq (dda) data with peptide quantification already existing
+    if (mstatus.feature.has_quant == False) & (
+        "peptide" in mstatus.mod_names
+    ):  # for lfq (dda) data with peptide quantification already existing
         print("Using existing peptide quantification data.")
         quant_df_agg = mdata["peptide"].to_df().T
         quant_df_agg = pd.merge(evid_df_agg[[]], quant_df_agg, left_index=True, right_index=True, how="left")
         peptide_adata = ad.AnnData(
             X=quant_df_agg.T,
             var=evid_df_agg,
-            )
+        )
         mdata.mod["peptide"] = peptide_adata
         # mdata["peptide"].var = evid_df_agg
-    else: # all other cases
+    else:  # all other cases
         print("Building new peptide quantification data.")
         peptide_adata = ad.AnnData(
             X=quant_df_agg.T,
             var=evid_df_agg,
-            )
+        )
 
         # add modality
         mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["feature"])
@@ -167,7 +165,7 @@ def to_protein(
     calculate_q: bool = True,
     _protein_col: str = "protein_group",
     _shared_peptide: Literal["discard"] = "discard",
-    ) -> md.MuData:
+) -> md.MuData:
     """Summarise feature-level data to protein-level data. By default, uses `top 3` peptides in their `total_intensity` and `unique` (_shared_peptide = "discard") per protein_group for quantification aggregation with median.
 
     Parameters:
@@ -203,15 +201,13 @@ def to_protein(
     else:
         mdata = original_mdata
 
-    adata_to_summarise:ad.AnnData = mdata["peptide"].copy()
+    adata_to_summarise: ad.AnnData = mdata["peptide"].copy()
 
     # Preparation
     summarisation_prep = SummarisationPrep(
-        adata=adata_to_summarise, 
-        col_to_groupby=_protein_col, 
-        has_decoy=mstatus.peptide.has_decoy
-        )
-    
+        adata=adata_to_summarise, col_to_groupby=_protein_col, has_decoy=mstatus.peptide.has_decoy
+    )
+
     # Ranking for top_n features
     if top_n is not None:
         summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g ("total_intensity", 3)
@@ -246,7 +242,9 @@ def to_protein(
                 identification_df=evid_df_agg,
                 decoy_df=agg_decoy_df,
             )
-            logger.info(f"Protein-level identifications :  {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] < 0.01)} at 1% FDR)")
+            logger.info(
+                f"Protein-level identifications :  {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] < 0.01)} at 1% FDR)"
+            )
 
     quant_df_agg = aggregator.aggregate_quantification()
 
@@ -274,7 +272,7 @@ def to_ptm(
     agg_method: Literal["median", "mean", "sum"] = "median",
     top_n: int | None = None,
     rank_method: Literal["total_intensity", "max_intensity"] = "total_intensity",
-    ) -> md.MuData:
+) -> md.MuData:
     """Summarise feature-level data to PTM-level data.
 
     Parameters:
@@ -282,11 +280,11 @@ def to_ptm(
         modi_name: Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
         modification: Modification string (e.g., "[+79.96633]", "(unimod:21)").
         agg_method: Aggregation method to use. Defaults to "median".
-    
+
     Returns:
         MuData: MuData object containing PTM-level data.
     """
-    adata_to_summarise:ad.AnnData = mdata["peptide"].copy()
+    adata_to_summarise: ad.AnnData = mdata["peptide"].copy()
     modality_name = f"{modi_name}_site"
     mstatus = MuDataStatus(mdata)
 
@@ -299,7 +297,7 @@ def to_ptm(
         adata_to_summarise,
         modi_identifier=modification,
         fasta=mdata.uns["protein_info"],
-        )
+    )
 
     # Ranking for top_n features
     if top_n is not None:
@@ -331,11 +329,10 @@ def to_ptm(
     ptm_adata = ad.AnnData(
         X=quant_df_agg.T,
         var=evid_df_agg,
-        )
+    )
 
     # add modality
     mdata = add_modality(mdata=mdata, adata=ptm_adata, mod_name=modality_name, parent_mods=["peptide"])
     mdata[modality_name].uns["level"] = "ptm_site"
-
 
     return mdata

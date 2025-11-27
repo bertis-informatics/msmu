@@ -95,11 +95,11 @@ def get_label(mdata: md.MuData) -> str:
 
 
 def add_quant(
-        mdata: md.MuData,
-        quant_data: str | pd.DataFrame, 
-        quant_tool: str,
-        index_name: str | None = None,
-        ) -> md.MuData:
+    mdata: md.MuData,
+    quant_data: str | pd.DataFrame,
+    quant_tool: str,
+    index_name: str | None = None,
+) -> md.MuData:
     """
     Add quantification data to the MuData object as a new modality.
 
@@ -154,9 +154,9 @@ def add_quant(
 
 
 def reindex_obs(
-        mdata: md.MuData,
-        column: str,
-        ) -> md.MuData:
+    mdata: md.MuData,
+    column: str,
+) -> md.MuData:
     """
     Reindex the observation (obs) of the MuData object to ensure consistency across modalities.
 

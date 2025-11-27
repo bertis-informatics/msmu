@@ -6,8 +6,8 @@ from ._reader_registry import (
 )
 
 __all__ = [
-    "read_sage", 
+    "read_sage",
     "read_diann",
     "read_maxquant",
     "read_fragpipe",
-    ]
+]

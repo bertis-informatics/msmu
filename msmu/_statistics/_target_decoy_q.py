@@ -2,10 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def estimate_q_values(
-        identification_df: pd.DataFrame, 
-        decoy_df: pd.DataFrame
-        ) -> tuple[pd.DataFrame, pd.DataFrame]:
+def estimate_q_values(identification_df: pd.DataFrame, decoy_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Estimate q-values for target and decoy identifications using target-decoy competition.
 
@@ -20,27 +17,20 @@ def estimate_q_values(
     target_decoy = concat_target_decoy(identification_df, decoy_df)
 
     q_vals = compute_fdr_q(target_decoy)
-    
-    identification_df, decoy_df = retrieve_target_decoy_with_q_values(
-        identification_df,
-        decoy_df,
-        q_vals
-    )
+
+    identification_df, decoy_df = retrieve_target_decoy_with_q_values(identification_df, decoy_df, q_vals)
 
     return identification_df, decoy_df
 
 
-def concat_target_decoy(
-        identification_df: pd.DataFrame,
-        decoy_df: pd.DataFrame
-    ) -> pd.DataFrame:
+def concat_target_decoy(identification_df: pd.DataFrame, decoy_df: pd.DataFrame) -> pd.DataFrame:
     """
     Concatenate target and decoy DataFrames with an 'is_decoy' column.
 
     Parameters:
         identification_df: DataFrame containing target identifications.
         decoy_df: DataFrame containing decoy identifications.
-        
+
     Returns:
         Concatenated DataFrame with 'is_decoy' column.
     """
@@ -86,10 +76,8 @@ def compute_fdr_q(target_decoy: pd.DataFrame) -> pd.DataFrame:
 
 
 def retrieve_target_decoy_with_q_values(
-        identification_df: pd.DataFrame,
-        decoy_df: pd.DataFrame,
-        q_vals: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    identification_df: pd.DataFrame, decoy_df: pd.DataFrame, q_vals: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Retrieve target and decoy DataFrames with assigned q-values.
 
