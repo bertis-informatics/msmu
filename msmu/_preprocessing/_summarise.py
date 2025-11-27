@@ -63,13 +63,13 @@ def to_peptide(
 
     # Preparation
     summarisation_prep = SummarisationPrep(
-        adata_to_summarise, col_to_groupby=_peptide_col, has_decoy=mstatus.feature.has_decoy
+        adata_to_summarise, col_to_groupby=_peptide_col, has_decoy=mstatus.psm.has_decoy
     )
 
     # Filtering for TMT purity in peptide quantification
-    if mstatus.feature.label == "tmt":
-        if mstatus.feature.has_purity == False:
-            logger.warning("Purity column not found in feature modality for TMT data. Skipping purity filtering.")
+    if mstatus.psm.label == "tmt":
+        if mstatus.psm.has_purity == False:
+            logger.warning("Purity column not found in psm modality for TMT data. Skipping purity filtering.")
         elif purity_threshold is None:
             logger.info("No purity threshold provided. Skipping purity filtering.")
         else:
@@ -93,61 +93,61 @@ def to_peptide(
     )
 
     # Aggregate identification and quantification data
-    if mstatus.feature.has_var:
-        evid_df_agg = aggregator.aggregate_identification()
+    if mstatus.psm.has_var:
+        ident_df_agg = aggregator.aggregate_identification()
     else:
-        logger.error("var is empty in feature modality. Cannot aggregate identification data.")
+        logger.error("var is empty in psm modality. Cannot aggregate identification data.")
         raise
 
     # Aggregate decoy data if present
-    if mstatus.feature.has_decoy:
+    if mstatus.psm.has_decoy:
         decoy_df_agg = aggregator.aggregate_decoy()
     else:
         logger.warning("Decoy data not found. Skipping decoy aggregation.")
 
     # q-value calculation
     if calculate_q:
-        if mstatus.feature.has_decoy is False:
+        if mstatus.psm.has_decoy is False:
             logger.warning("Decoy data not found. Skipping q-value calculation.")
-        elif mstatus.feature.has_pep is False:
+        elif mstatus.psm.has_pep is False:
             logger.warning("PEP column not found in identification data. Skipping q-value calculation.")
         else:
-            evid_df_agg, decoy_df_agg = estimate_q_values(
-                identification_df=evid_df_agg,
+            ident_df_agg, decoy_df_agg = estimate_q_values(
+                identification_df=ident_df_agg,
                 decoy_df=decoy_df_agg,
             )
             logger.info(
-                f"Peptide-level identifications: {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] < 0.01)} at 1% FDR)"
+                f"Peptide-level identifications: {len(ident_df_agg)} ({sum(ident_df_agg['q_value'] < 0.01)} at 1% FDR)"
             )
 
     # Aggregate quantification data
     quant_df_agg = aggregator.aggregate_quantification()
 
     # build peptide-level anndata
-    if (mstatus.feature.has_quant == False) & (
+    if (mstatus.psm.has_quant == False) & (
         "peptide" in mstatus.mod_names
     ):  # for lfq (dda) data with peptide quantification already existing
         print("Using existing peptide quantification data.")
         quant_df_agg = mdata["peptide"].to_df().T
-        quant_df_agg = pd.merge(evid_df_agg[[]], quant_df_agg, left_index=True, right_index=True, how="left")
+        quant_df_agg = pd.merge(ident_df_agg[[]], quant_df_agg, left_index=True, right_index=True, how="left")
         peptide_adata = ad.AnnData(
             X=quant_df_agg.T,
-            var=evid_df_agg,
+            var=ident_df_agg,
         )
         mdata.mod["peptide"] = peptide_adata
-        # mdata["peptide"].var = evid_df_agg
+        # mdata["peptide"].var = ident_df_agg
     else:  # all other cases
         print("Building new peptide quantification data.")
         peptide_adata = ad.AnnData(
             X=quant_df_agg.T,
-            var=evid_df_agg,
+            var=ident_df_agg,
         )
 
         # add modality
-        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["feature"])
+        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["psm"])
     mdata["peptide"].uns["level"] = "peptide"
 
-    if mstatus.feature.has_decoy:
+    if mstatus.psm.has_decoy:
         mdata["peptide"].uns["decoy"] = decoy_df_agg
 
     return mdata
@@ -166,7 +166,7 @@ def to_protein(
     """Summarise peptide-level data to protein-level data. By default, uses `top 3` peptides in their `total_intensity` and `unique` (_shared_peptide = "discard") per protein_group for quantification aggregation with median.
 
     Parameters:
-        mdata: MuData object containing feature-level data.
+        mdata: MuData object containing Peptide-level data.
         agg_method: Aggregation method to use. Defaults to "median".
         calculate_q: Whether to calculate q-values. Defaults to True.
         score_method: Method to combine scores (PEP). Defaults to "best_pep".
@@ -222,7 +222,7 @@ def to_protein(
     )
 
     # Aggregate identification
-    evid_df_agg = aggregator.aggregate_identification()
+    ident_df_agg = aggregator.aggregate_identification()
     if mstatus.peptide.has_decoy:
         agg_decoy_df = aggregator.aggregate_decoy()
     else:
@@ -235,12 +235,12 @@ def to_protein(
         elif mstatus.peptide.has_pep is False:
             logger.warning("PEP column not found in identification data. Skipping q-value calculation.")
         else:
-            evid_df_agg, agg_decoy_df = estimate_q_values(
-                identification_df=evid_df_agg,
+            ident_df_agg, agg_decoy_df = estimate_q_values(
+                identification_df=ident_df_agg,
                 decoy_df=agg_decoy_df,
             )
             logger.info(
-                f"Protein-level identifications :  {len(evid_df_agg)} ({sum(evid_df_agg['q_value'] < 0.01)} at 1% FDR)"
+                f"Protein-level identifications :  {len(ident_df_agg)} ({sum(ident_df_agg['q_value'] < 0.01)} at 1% FDR)"
             )
 
     quant_df_agg = aggregator.aggregate_quantification()
@@ -248,7 +248,7 @@ def to_protein(
     # build protein-level anndata
     protein_adata = ad.AnnData(
         X=quant_df_agg.T,
-        var=evid_df_agg,
+        var=ident_df_agg,
     )
 
     # add modality
@@ -300,23 +300,23 @@ def to_ptm(
     if top_n is not None:
         summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
 
-    evid_df_prep, quant_df_prep = summarisation_prep.prep()
+    identification_df, quantification_df = summarisation_prep.prep()
 
     # Aggregation
     aggregator = Aggregator.ptm_site(
-        identification_df=evid_df_prep,
-        quantification_df=quant_df_prep,
+        identification_df=identification_df,
+        quantification_df=quantification_df,
         agg_method=agg_method,
     )
 
     # Aggregate identification and quantification data
-    if mstatus.feature.has_var:
-        evid_df_agg = aggregator.aggregate_identification()
+    if mstatus.peptide.has_var:
+        ident_df_agg = aggregator.aggregate_identification()
     else:
-        logger.error("var is empty in feature modality. Cannot aggregate identification data.")
+        logger.error("var is empty in peptide modality. Cannot aggregate identification data.")
         raise
 
-    logger.info(f"{modi_name} site level identifications: {len(evid_df_agg)}")
+    logger.info(f"{modi_name} site level identifications: {len(ident_df_agg)}")
 
     # Aggregate quantification data
     quant_df_agg = aggregator.aggregate_quantification()
@@ -325,7 +325,7 @@ def to_ptm(
     logger.info(f"Building new {modality_name} AnnData.")
     ptm_adata = ad.AnnData(
         X=quant_df_agg.T,
-        var=evid_df_agg,
+        var=ident_df_agg,
     )
 
     # add modality

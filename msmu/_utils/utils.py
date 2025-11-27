@@ -83,7 +83,7 @@ def get_modality_dict(
 
 
 def get_label(mdata: md.MuData) -> str:
-    psm_mdatas: Iterable[ad.AnnData] = get_modality_dict(mdata=mdata, modality="feature").values()
+    psm_mdatas: Iterable[ad.AnnData] = get_modality_dict(mdata=mdata, modality="psm").values()
     label_list: list[str] = [x.uns["label"] for x in psm_mdatas]
 
     if len(set(label_list)) == 1:
@@ -143,7 +143,7 @@ def add_quant(
         peptide_adata = ad.AnnData(X=input_arr.T)
         peptide_adata.uns["level"] = "peptide"
 
-        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["feature"])
+        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["psm"])
 
         logger.info(f"Added quantification modality 'peptide' using {quant_tool} data.")
         logger.info(f"Quantification data shape: {input_arr.shape}\n")

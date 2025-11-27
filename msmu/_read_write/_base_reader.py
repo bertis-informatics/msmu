@@ -72,8 +72,8 @@ class MuDataInput:
     Dataclass to store inputs for creating a MuData object.
 
     Attributes:
-        raw_identification_df: Raw evidence DataFrame (varm['search_result']).
-        norm_identification_df: Normalized evidence DataFrame.
+        raw_identification_df: Raw identification DataFrame (varm['search_result']).
+        norm_identification_df: Normalized identification DataFrame.
         norm_quant_df: Normalized quantification DataFrame.
         search_result: Original search result DataFrame.
     """
@@ -158,10 +158,10 @@ class SearchResultReader:
 
     def _read_identification_file(self) -> pd.DataFrame:
         tmp_sep = self._get_separator(self.search_settings.identification_file)
-        evidence_df = pd.read_csv(self.search_settings.identification_file, sep=tmp_sep)
-        evidence_df = self._stringify_cols(evidence_df)
+        identification_df = pd.read_csv(self.search_settings.identification_file, sep=tmp_sep)
+        identification_df = self._stringify_cols(identification_df)
 
-        return evidence_df
+        return identification_df
 
     def _read_config_file(self):
         raise NotImplementedError("_read_config_file method needs to be implemented in inherited class.")
@@ -170,8 +170,8 @@ class SearchResultReader:
         output_dict: dict = dict()
 
         if self.search_settings.identification_file is not None:
-            evidence_df = self._read_identification_file()
-            logger.info(f"Evidence file loaded: {evidence_df.shape}")
+            identification_df = self._read_identification_file()
+            logger.info(f"Identification file loaded: {identification_df.shape}")
 
             if self.search_settings.quantification_file is not None:
                 tmp_sep = self._get_separator(self.search_settings.quantification_file)
@@ -182,7 +182,7 @@ class SearchResultReader:
         else:
             raise ValueError("Identification file path is not provided.")
 
-        output_dict["evidence"] = evidence_df
+        output_dict["identification"] = identification_df
         output_dict["quantification"] = quantification_df
 
         return output_dict
@@ -235,7 +235,7 @@ class SearchResultReader:
             MuDataInput: A MuDataInput object with raw and normalized data.
         """
         raw_dict: dict = self._import_search_results()
-        raw_identification_df: pd.DataFrame = raw_dict["evidence"].copy()
+        raw_identification_df: pd.DataFrame = raw_dict["identification"].copy()
 
         norm_identification_df: pd.DataFrame = self._normalise_identification_df(raw_identification_df)
         if self.search_settings.ident_quant_merged:
@@ -254,7 +254,7 @@ class SearchResultReader:
         norm_identification_df = norm_identification_df.loc[:, self.used_feature_cols]
         if self.search_settings.has_decoy:
             if "decoy" not in norm_identification_df.columns:
-                logger.error("Decoy column is expected but not found in the evidence DataFrame.")
+                logger.error("Decoy column is expected but not found in the identification DataFrame.")
                 raise
             else:
                 target_df, decoy_df = self._separate_decoy_df(norm_identification_df)
@@ -279,7 +279,7 @@ class SearchResultReader:
 
     def _separate_decoy_df(self, norm_identification_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         if "decoy" not in norm_identification_df.columns:
-            raise ValueError("Decoy column not found in evidence DataFrame.")
+            raise ValueError("Decoy column not found in identification DataFrame.")
 
         decoy_df = norm_identification_df[norm_identification_df["decoy"] == 1].copy()
 

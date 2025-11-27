@@ -43,7 +43,7 @@ def infer_protein(
     Returns:
         MuData object with updated protein mappings and peptide annotations
     """
-    logger.info("Starting protein group inference")
+    logger.info("Starting protein inference")
 
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
