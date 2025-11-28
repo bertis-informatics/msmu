@@ -39,6 +39,8 @@ class DiannReader(SearchResultReader):
             ]
         )
 
+        self.used_feature_cols.remove("scan_num")
+
         self._cols_to_stringify: list[str] = [
             "Protein.Names",
             "Protein.Group",
@@ -64,7 +66,6 @@ class DiannReader(SearchResultReader):
             "Modified.Sequence": "peptide",
             "Stripped.Sequence": "stripped_peptide",
             "Run": "filename",
-            "MS2.Scan": "scan_num",
             "Precursor.Charge": "charge",
             "Decoy": "decoy",
             f"{q_value_prefix}.Q.Value": "q_value",
@@ -75,7 +76,7 @@ class DiannReader(SearchResultReader):
     @staticmethod
     def _make_unique_index(input_df: pd.DataFrame) -> pd.DataFrame:
         df = input_df.copy()
-        df["tmp_index"] = df["filename"] + "." + df["scan_num"].astype(str) + "." + df["Precursor.Id"]
+        df["tmp_index"] = df["filename"] + "." + df["Precursor.Id"]
         df = df.set_index("tmp_index", drop=True).rename_axis(index=None)
 
         return df
