@@ -27,7 +27,7 @@ class MuDataStatus:
         self._mdata: md.MuData = mdata
         self.set_mudata_flags()
 
-        self.feature: AnnDataFlags | None = None
+        self.psm: AnnDataFlags | None = None
         self.peptide: AnnDataFlags | None = None
         self.protein: AnnDataFlags | None = None
 
