@@ -119,7 +119,7 @@ class DiannReader(SearchResultReader):
     def _set_decoy(self, identification_df: pd.DataFrame) -> None:
         self.search_settings.has_decoy = False
         if "Decoy" in (identification_df.columns):
-            if identification_df["Decoy"].sum() > 0:
+            if identification_df["Decoy"].any():
                 self.search_settings.has_decoy = True
 
 
