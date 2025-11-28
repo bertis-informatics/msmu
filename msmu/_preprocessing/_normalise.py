@@ -37,7 +37,6 @@ def normalise(
     method: str,
     modality: str,
     fraction: bool = False,
-    rescale: bool = True,
 ):
     """
     Normalise data in MuData object.
@@ -47,7 +46,6 @@ def normalise(
         method: Normalisation method to use. Options are 'quantile', 'median', 'total_sum (not implemented)'.
         modality: Modality to normalise. If None, all modalities at the specified level will be normalised.
         fraction: If True, normalise within fractions. If False, normalise across all data. "fraction" yet supports fractionated TMT.
-        rescale: If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
 
     Returns:
         Normalised MuData object.
@@ -83,11 +81,6 @@ def normalise(
         normalised_arr = norm_cls.normalise(arr=arr)
 
     mdata.mod[modality].X = normalised_arr
-
-    # rescale function for median normalisation
-    if (method == "median") & rescale:
-        all_median = np.nanmedian(rescale_arr.flatten())
-        mdata.mod[modality].X = mdata[modality].X + all_median
 
     return mdata
 

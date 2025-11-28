@@ -17,6 +17,13 @@ class Normalisation:
         return normalise_quantile(arr=arr)
 
     def _median(self, arr) -> np.ndarray:
+        all_median = np.nanmedian(arr.flatten())
+        arr = normalise_median_center(arr=arr)  # median center
+        arr = arr + all_median  # add scalar to preserve overall scale
+
+        return arr
+
+    def _median_center(self, arr) -> np.ndarray:
         return normalise_median_center(arr=arr)
 
     def _total_sum(self, arr) -> np.ndarray:
