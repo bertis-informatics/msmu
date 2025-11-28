@@ -43,9 +43,9 @@ def add_filter(
         mdata[modality].varm["filter"][filter_name] = mask
 
     if "filter" not in mdata[modality].uns_keys():
-        mdata[modality].uns["filter"] = {filter_name: (keep, value)}
+        mdata[modality].uns["filter"] = [filter_name]
     else:
-        mdata[modality].uns["filter"][filter_name] = (keep, value)
+        mdata[modality].uns["filter"].append(filter_name)
 
     # add filter for decoy
     if mstatus.__getattribute__(modality).has_decoy:
