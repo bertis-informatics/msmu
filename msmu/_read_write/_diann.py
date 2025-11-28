@@ -34,6 +34,7 @@ class DiannReader(SearchResultReader):
 
         self.used_feature_cols.extend(
             [
+                "decoy",
                 "PEP",
                 "q_value",
             ]
