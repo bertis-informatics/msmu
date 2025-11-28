@@ -23,6 +23,7 @@ dependencies = [
     "scikit-learn",
     "umap-learn",
     "pyopenms",
+    "fastparquet",
 ]
 dynamic = ["version"]
 
