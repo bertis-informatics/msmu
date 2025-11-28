@@ -21,21 +21,35 @@ from .._utils.peptide import (
 logger = logging.getLogger(__name__)
 
 
-def _get_separator(file_path: Path | str) -> str:
-    if isinstance(file_path, Path):
-        file_path = str(file_path)
+def _read_file(path: str | Path, **kwargs) -> pd.DataFrame:
+    """
+    Reads a file into a pandas DataFrame based on the file extension.
 
-    suffix = file_path.rsplit(".", maxsplit=1)[-1]
+    Parameters:
+        path: The file path to read.
+        **kwargs: Additional keyword arguments to pass to the pandas read function.
 
-    if suffix in ["tsv", "txt"]:
-        return "\t"
-    if suffix == "csv":
-        return ","
-    warnings.warn(
-        f"File format of {file_path} is not supported. Defaulting to tab separator.",
-        stacklevel=2,
-    )
-    return "\t"
+    Returns:
+        A pandas DataFrame containing the data from the file.
+    """
+
+    if isinstance(path, Path):
+        path = str(path)
+
+    suffix = path.rsplit(".", maxsplit=1)[-1]
+
+    if suffix in ["csv"]:
+        return pd.read_csv(path, **kwargs)
+    elif suffix in ["tsv", "tab"]:
+        return pd.read_csv(path, sep="\t", **kwargs)
+    elif suffix in ["xlsx", "xls"]:
+        return pd.read_excel(path, **kwargs)
+    elif suffix in ["parquet"]:
+        return pd.read_parquet(path, **kwargs)
+    elif suffix in ["json"]:
+        return pd.read_json(path, **kwargs)
+    else:
+        raise ValueError(f"Unknown file type: {suffix}")
 
 
 @dataclass
@@ -103,7 +117,6 @@ class SearchResultReader:
         md.set_options(pull_on_update=False)
         self.search_settings: SearchResultSettings
 
-        self._get_separator: Callable = _get_separator
         self._calc_exp_mz: Callable = _calc_exp_mz
         self._count_missed_cleavages: Callable = _count_missed_cleavages
         self._make_stripped_peptide: Callable = _make_stripped_peptide
@@ -157,8 +170,7 @@ class SearchResultReader:
                 raise FileNotFoundError(f"{file_path} does not exist!")
 
     def _read_identification_file(self) -> pd.DataFrame:
-        tmp_sep = self._get_separator(self.search_settings.identification_file)
-        identification_df = pd.read_csv(self.search_settings.identification_file, sep=tmp_sep)
+        identification_df = _read_file(self.search_settings.identification_file)
         identification_df = self._stringify_cols(identification_df)
 
         return identification_df
@@ -174,8 +186,7 @@ class SearchResultReader:
             logger.info(f"Identification file loaded: {identification_df.shape}")
 
             if self.search_settings.quantification_file is not None:
-                tmp_sep = self._get_separator(self.search_settings.quantification_file)
-                quantification_df = pd.read_csv(self.search_settings.quantification_file, sep=tmp_sep)
+                quantification_df = _read_file(self.search_settings.quantification_file)
                 logger.info(f"Quantification file loaded: {quantification_df.shape}")
             else:
                 quantification_df = None
