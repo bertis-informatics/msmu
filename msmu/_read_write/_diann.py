@@ -117,10 +117,9 @@ class DiannReader(SearchResultReader):
             self._mbr = True
 
     def _set_decoy(self, identification_df: pd.DataFrame) -> None:
-        if "Decoy" in identification_df.columns:
+        self.search_settings.has_decoy = False
+        if "Decoy" in (identification_df.columns) & (identification_df["Decoy"].sum() > 0):
             self.search_settings.has_decoy = True
-        else:
-            self.search_settings.has_decoy = False
 
 
 class DiannProteinGroupReader(SearchResultReader):
