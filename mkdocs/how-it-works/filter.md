@@ -2,7 +2,7 @@
 
 ## on `.var`
 
-Functions related to filtering feature (`.var`) are implemented in [`msmu._preprocessing._filter`](../reference/_preprocessing/_filter.md)
+Functions related to filtering feature (`.var`) are implemented in [`msmu.pp.add_filter`](/reference/pp/add_filter/) and [`msmu.pp.apply_filter`](/reference/pp/apply_filter/).
 
 In `msmu`, filtering features consists of 2 stages.
 

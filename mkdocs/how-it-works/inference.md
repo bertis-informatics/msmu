@@ -1,6 +1,6 @@
 # Protein Inference
 
-This page explains how `msmu` infers proteins from peptide-level features through [`msmu/_preprocessing/_infer_protein.py`](../reference/_preprocessing/_infer_protein.md).
+This page explains how `msmu` infers proteins from peptide-level features through [`msmu.pp.add_filter`](/reference/pp/add_filter/).
 
 ## How protein are inferred
 

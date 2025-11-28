@@ -21,7 +21,7 @@ log2 fold-change (`log2FC`) between the two groups is calculated as the differen
 `q-value` with `empirical` FDR is calculated by `E[FDR] = pi0 * E[FP] / E[TP]` referred from [Yang Xie et al., Bioinformatics, 2011.](https://academic.oup.com/bioinformatics/article/21/23/4280/194680) and [Storey et al., 2003](https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100).
 
 
-See more details in the [msmu.tl.run_de](msmu.tl.run_de).
+See more details in the [`msmu.tl.run_de`](/reference/tl/run_de/) and usage examples in the tutorial [`DE Analysis`](/tutorials/dea/).
 
 ```python
 de_res = mm.tl.run_de(
