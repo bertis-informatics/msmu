@@ -45,7 +45,7 @@ def plot_id(
 
     Parameters:
         mdata: MuData object containing the modality to visualize.
-        modality: Target modality (feature, peptide, protein, or site).
+        modality: Target modality (psm, peptide, protein, or site).
         groupby: Observation column used to group bars.
         colorby: Observation column used for coloring (when applicable).
         template: Plotly template for colorway.
@@ -122,7 +122,7 @@ def plot_intensity(
 
     Parameters:
         mdata: MuData object containing the modality to visualize.
-        modality: Target modality (feature, peptide, protein, or site).
+        modality: Target modality (psm, peptide, protein, or site).
         groupby: Observation column used to group traces.
         colorby: Observation column used for coloring (when applicable).
         ptype: Plot type: 'hist', 'box', or 'vln'.
@@ -218,7 +218,7 @@ def plot_missingness(
 
     Parameters:
         mdata: MuData object containing the modality to visualize.
-        modality: Target modality (feature, peptide, protein, or site).
+        modality: Target modality (psm, peptide, protein, or site).
         obs_column: Observation column used to order samples.
         **kwargs: Additional layout options forwarded to Plotly.
 
@@ -537,7 +537,7 @@ def plot_correlation(
 
 def plot_var(
     mdata: md.MuData,
-    modality: str = "feature",
+    modality: str = "psm",
     groupby: str | None = None,
     var_column: str | None = None,
     obs_column: str | None = None,
@@ -550,7 +550,7 @@ def plot_var(
 
     Parameters:
         mdata: MuData object containing the modality to visualize.
-        modality: Target modality; defaults to 'feature'.
+        modality: Target modality; defaults to 'psm'.
         groupby: Observation column used to group traces.
         var_column: Variable column to visualize.
         obs_column: Observation column used for labeling/group resolution.
