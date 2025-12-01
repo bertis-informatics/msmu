@@ -134,8 +134,10 @@ def to_peptide(
             X=quant_df_agg.T,
             var=ident_df_agg,
         )
+        mdata = mdata[:, [v not in mdata["peptide"].var_names for v in mdata.var_names]].copy()
         mdata.mod["peptide"] = peptide_adata
         # mdata["peptide"].var = ident_df_agg
+
     else:  # all other cases
         print("Building new peptide quantification data.")
         peptide_adata = ad.AnnData(
