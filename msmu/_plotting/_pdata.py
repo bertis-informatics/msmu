@@ -149,8 +149,8 @@ class PlotData:
                 var_df["fraction"] = var_df["filename"]
                 categories = pd.Categorical(pd.Index(var_df["fraction"].unique()).sort_values())
 
-                if self.modality != "feature":
-                    raise ValueError("groupby: 'fraction' only supports modality: 'feature'")
+                if self.modality != "psm":
+                    raise ValueError("groupby: 'fraction' only supports modality: 'psm'")
                 if name == "id_count":
                     var_df["id_count"] = var_df["filename"]
             else:

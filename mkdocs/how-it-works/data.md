@@ -22,13 +22,12 @@ mdata["psm"]
 mdata["protein"]
 ```
 
-As general AnnData object, each individual modality contains `.var`, `.obs`, `.X`, `uns`, and etc,. 
+As general AnnData object, each individual modality contains `.var`, `.obs`, `.X`, `uns`, and etc,.
 
 - A `.var` attribute is filled with features of each level data. For example, in `psm` modality for PSMs (or precursors), information describing scan number, filename, PEP, q-value, and etc, with `filename.scan` index.
 - In `.obs`, metainfo for samples can be stored and initially filenames or TMT channels are used as index.
 - `.X` Holds the **quantification** matrix.
 - All other unstructured data can be stored in `.uns`.
-
 
 ## Data Ingestion from DB search tools
 
@@ -42,21 +41,24 @@ While each tool’s schema differs, all of them describe the same core identific
 `read_*` functions in msmu extract the essential columns required for QC and downstream processing and migrate them into the `.var` of the `feature` modality. `read_*` functions are implemented in `msmu/_read_write/_reader_registry`
 
 - `read_*` functions (currently available)
-    - `read_sage()`
-    - `read_diann()`
-    - `read_maxquant()`
-    - `read_fragpipe()`
+
+  - `read_sage()`
+  - `read_diann()`
+  - `read_maxquant()`
+  - `read_fragpipe()`
 
 - Inputs
-    - `identification_file`: A file path to identification table
-    - `quantification_file`: A file path to quantification table (if applicable) (for tools outputting separate quantification files like Sage)
-    - `label`: used label ("tmt" or "label_free")
-    - `acquisition`: acquisition method ("dda", or "dia") (for tools supporting both DDA and DIA like MaxQuant)
+  - `identification_file`: A file path to identification table
+  - `quantification_file`: A file path to quantification table (if applicable) (for tools outputting separate quantification files like Sage)
+  - `label`: used label ("tmt" or "label_free")
+  - `acquisition`: acquisition method ("dda", or "dia") (for tools supporting both DDA and DIA like MaxQuant)
 - output
-    - `mudata`: Data ingested mudata object
+
+  - `mudata`: Data ingested mudata object
 
 - columns migrated into `mdata["psm"].var`
-    - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q-value`
+
+  - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q-value`
 
 - decoy features are isolated from `.var` and stored in `.uns["decoy"]` for later use in FDR calculation.
 - Quantification data for **LFQ (DDA)** is stored in `peptide` modality.
@@ -66,7 +68,7 @@ While each tool’s schema differs, all of them describe the same core identific
 mdata = mm.read_sage(
     identification_file="path/to/results.sage.tsv",
     quantification_file="path/to/tmt.tsv",
-    label="tmt",               # or "label_free"
+    label="tmt",  # or "label_free"
 )
 
 mdata = mm.read_diann(
@@ -74,13 +76,13 @@ mdata = mm.read_diann(
 )
 
 mdata = mm.read_maxquant(
-    identification_file="path/to/evidence.txt",
-    label="tmt",               # or "label_free"
-    acquisition="dda",         # or "dia"
+    identification_file="path/to/output_file",
+    label="tmt",  # or "label_free"
+    acquisition="dda",  # or "dia"
 )
 
 mdata = mm.read_fragpipe(
-    identification_file="path/to/evidence.txt",
-    label="tmt",               # or "label_free"
+    identification_file="path/to/output_file",
+    label="tmt",  # or "label_free"
 )
 ```
