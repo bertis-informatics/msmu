@@ -21,7 +21,7 @@ from .._utils.peptide import (
 logger = logging.getLogger(__name__)
 
 
-def _read_file(path: str | Path, **kwargs) -> pd.DataFrame:
+def _read_file(path: str | Path | pd.DataFrame, **kwargs) -> pd.DataFrame:
     """
     Reads a file into a pandas DataFrame based on the file extension.
 
@@ -32,6 +32,9 @@ def _read_file(path: str | Path, **kwargs) -> pd.DataFrame:
     Returns:
         A pandas DataFrame containing the data from the file.
     """
+
+    if isinstance(path, pd.DataFrame):
+        return path
 
     if isinstance(path, Path):
         path = str(path)
