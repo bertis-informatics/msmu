@@ -5,7 +5,6 @@ Module for preparing plotting data from MuData objects.
 from mudata import MuData
 import numpy as np
 import pandas as pd
-from pandas.api.types import is_categorical_dtype  # type: ignore
 
 from ._utils import resolve_obs_column, BinInfo
 from .._utils.get import get_adata
@@ -76,14 +75,14 @@ class PlotData:
         obs_column = resolve_obs_column(self.mdata, obs_column)
         obs_df = self.mdata.obs.copy()
 
-        if not is_categorical_dtype(obs_df[obs_column]):
+        if not isinstance(obs_df[obs_column].dtype, pd.CategoricalDtype):
             obs_df[obs_column] = pd.Categorical(obs_df[obs_column], categories=obs_df[obs_column].unique())
 
         obs_df[obs_column] = obs_df[obs_column].cat.remove_unused_categories()
         obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(obs_df[obs_column].values.tolist())
 
         if groupby and groupby != obs_column:
-            if not is_categorical_dtype(obs_df[groupby]):
+            if not isinstance(obs_df[groupby].dtype, pd.CategoricalDtype):
                 obs_df[groupby] = pd.Categorical(obs_df[groupby], categories=obs_df[groupby].unique())
 
             obs_df[groupby] = obs_df[groupby].cat.remove_unused_categories()

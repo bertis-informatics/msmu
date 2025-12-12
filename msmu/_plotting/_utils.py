@@ -5,7 +5,6 @@ Utility functions for plotting with MuData and Plotly.
 import mudata as md
 import numpy as np
 import pandas as pd
-from pandas.api.types import is_categorical_dtype  # type: ignore
 import plotly.graph_objects as go
 import plotly.io as pio
 from typing import TypedDict
@@ -106,7 +105,7 @@ def ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
     """
     if column not in mdata.obs.columns:
         raise KeyError(f"Column '{column}' not found in observations.")
-    if not is_categorical_dtype(mdata.obs[column]):
+    if not isinstance(mdata.obs[column].dtype, pd.CategoricalDtype):
         mdata.obs[column] = pd.Categorical(mdata.obs[column], categories=pd.unique(mdata.obs[column]))
     return column
 
@@ -166,14 +165,14 @@ def set_color(
         raise KeyError(f"Column '{colorby}' not found in observations.")
     color_series = mdata.obs[colorby].copy()
 
-    if not is_categorical_dtype(color_series):
+    if not isinstance(color_series.dtype, pd.CategoricalDtype):
         color_series = color_series.astype("category")
         mdata.obs[colorby] = color_series
     else:
         mdata.obs[colorby] = color_series.cat.remove_unused_categories()
 
     group_series = mdata.obs[groupby_column].copy()
-    if not is_categorical_dtype(group_series):
+    if not isinstance(group_series.dtype, pd.CategoricalDtype):
         group_series = group_series.astype("category")
         mdata.obs[groupby_column] = group_series
     else:
