@@ -1,15 +1,17 @@
 from pathlib import Path
 from typing import Literal
 import pandas as pd
-import numpy as np
 
 from ._base_reader import SearchResultReader, SearchResultSettings
 
-# from . import label_info
-
 
 class FragPipeReader(SearchResultReader):
-    def __init__(self, identification_file: str | Path, label: Literal["tmt", "label_free"] | None = None) -> None:
+    def __init__(
+        self,
+        identification_file: str | Path,
+        quantification_file: str | Path | None,
+        label: Literal["tmt", "label_free"] | None = None,
+    ) -> None:
         super().__init__()
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="fragpipe",
@@ -18,7 +20,7 @@ class FragPipeReader(SearchResultReader):
             acquisition="dda",
             identification_file=identification_file,
             identification_level="psm",
-            quantification_file=None,
+            quantification_file=quantification_file if quantification_file is not None else None,
             quantification_level=None,
             ident_quant_merged=True,
         )
@@ -27,6 +29,7 @@ class FragPipeReader(SearchResultReader):
             "Peptide Length": "peptide_length",
             "Number of Missed Cleavages": "missed_cleavages",
             "Peptide": "stripped_peptide",
+            "Calculated Peptide Mass": "calcmass",
         }
 
         self.desc_cols = [
@@ -87,6 +90,13 @@ class FragPipeReader(SearchResultReader):
             ]
         )
 
+    @staticmethod
+    def _label_decoy(label: int) -> int:
+        if "rev_" in str(label):
+            return 1
+        else:
+            return 0
+
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
         identification_df["filename"] = identification_df["Spectrum"].apply(lambda x: x.split(".")[0])
         identification_df["scan_num"] = identification_df["Spectrum"].apply(lambda x: int(x.split(".")[1]))
@@ -105,14 +115,18 @@ class FragPipeReader(SearchResultReader):
             identification_df["peptide"].isna(), "Peptide"
         ]
 
-        identification_df["decoy"] = identification_df["proteins"].apply(lambda x: 1 if "rev_" in str(x) else 0)
+        identification_df["decoy"] = identification_df["proteins"].apply(self._label_decoy)
+        if identification_df["decoy"].unique().tolist() == [0]:
+            self.search_settings.has_decoy = False
+
+        identification_df["rt"] = identification_df["Retention"] / 60.0  # convert to minutes
 
         return identification_df
 
 
 class TmtFragPipeReader(FragPipeReader):
-    def __init__(self, search_dir: str | Path) -> None:
-        super().__init__(search_dir, label="tmt")
+    def __init__(self, identification_file: str | Path) -> None:
+        super().__init__(identification_file=identification_file, label="tmt")
         self.search_settings.quantification_level = "psm"
 
     def _split_merged_identification_quantification(
@@ -127,4 +141,33 @@ class TmtFragPipeReader(FragPipeReader):
         return split_identification_df, split_quant_df
 
 
-class LfqFragPipeReader(FragPipeReader): ...
+class LfqFragPipeReader(FragPipeReader):
+    def __init__(self, identification_file: str | Path, quantification_file: str | Path | None) -> None:
+        super().__init__(identification_file, quantification_file)
+        self.search_settings.label = "label_free"
+        self.search_settings.ident_quant_merged = False
+
+        self.used_feature_cols.extend(
+            [
+                "rt",
+                "calcmass",
+            ]
+        )
+
+        if quantification_file is not None:
+            self.search_settings.quantification_level = "peptide"
+        else:
+            self.search_settings.quantification = None
+
+    def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
+        quantification_df = quantification_df.set_index("Modified Sequence", drop=True).rename_axis(index=None).copy()
+        intensity_cols = [col for col in quantification_df.columns if col.endswith(" Intensity")]
+        quantification_df = quantification_df[intensity_cols]
+
+        return quantification_df
+
+    def _make_rename_dict_for_obs(self, quantification_df):
+        original_cols = quantification_df.columns.tolist()
+        rename_dict = {col: col.removesuffix(" Intensity") for col in original_cols}
+
+        return rename_dict
