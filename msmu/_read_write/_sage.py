@@ -21,7 +21,7 @@ class SageReader(SearchResultReader):
     def __init__(
         self,
         identification_file: str | Path,
-        quantification_file: str | Path | None = None,
+        quantification_file: str | Path | None,
     ) -> None:
         super().__init__()
         self.search_settings: SearchResultSettings = SearchResultSettings(
@@ -94,7 +94,7 @@ class TmtSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
-        quantification_file: str | Path | None = None,
+        quantification_file: str | Path | None,
     ) -> None:
         super().__init__(identification_file, quantification_file)
         self.search_settings.label = "tmt"
@@ -130,10 +130,17 @@ class LfqSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
-        quantification_file: str | Path | None = None,
+        quantification_file: str | Path | None,
     ) -> None:
         super().__init__(identification_file, quantification_file)
         self.search_settings.label = "label_free"
+        self.used_feature_cols.extend(
+            [
+                "rt",
+                "calcmass",
+            ]
+        )
+
         if quantification_file is not None:
             self.search_settings.quantification_level = "peptide"
         else:

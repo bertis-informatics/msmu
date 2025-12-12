@@ -70,6 +70,8 @@ class DiannReader(SearchResultReader):
             "Precursor.Charge": "charge",
             "Decoy": "decoy",
             f"{q_value_prefix}.Q.Value": "q_value",
+            "RT": "rt",
+            "Precursor.Mass": "calcmass",
         }
 
         return rename_dict
