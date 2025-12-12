@@ -167,12 +167,16 @@ class FragPipeFacade:
     __name__ = "read_fragpipe"
 
     def __call__(
-        self, identification_file: str | Path, label: Literal["tmt", "label_free"], acquisition: Literal["dda", "dia"]
+        self,
+        identification_file: str | Path,
+        label: Literal["tmt", "label_free"],
+        acquisition: Literal["dda", "dia"],
+        quantification_file: str | Path | None = None,
     ) -> md.MuData:
         if label == "tmt" and acquisition == "dda":
-            reader = TmtFragPipeReader(identification_file=identification_file)
+            reader = TmtFragPipeReader(identification_file=identification_file, quantification_file=quantification_file)
         elif label == "label_free" and acquisition == "dda":
-            reader = LfqFragPipeReader(identification_file=identification_file)
+            reader = LfqFragPipeReader(identification_file=identification_file, quantification_file=quantification_file)
         else:
             raise ValueError(
                 "Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'."
@@ -188,14 +192,16 @@ read_fragpipe: FragPipeFacade = FragPipeFacade()
 """Alias for :class:`FragPipeFacade`.
 
 Parameters:
-    search_dir: Path to the FragPipe output directory.
+    identification_file: Path to the FragPipe output directory.
+    quantification_file: Path to the FragPipe quantification file (if applicable, for LFQ).
+    label: Label for the FragPipe output ('tmt' or 'label_free').
+    acquisition: Acquisition method ('dda' or 'dia').
 
 Returns:
-    A MuData object containing the FragPipe data at precursor level
+    A MuData object containing the FragPipe data at PSM level
 
 Usage:
-    mdata_precursor = mm.read_fragpipe(search_dir)
-    mdata_protein_group = mm.read_fragpipe.from_pg(search_dir)
+    mdata = mm.read_fragpipe(identification_file, quantification_file, label, acquisition)
 """
 
 
