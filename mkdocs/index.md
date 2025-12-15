@@ -13,13 +13,13 @@ It supports PSM (precursor), peptide, and protein-level processing, integrates `
 - **MuData/AnnData-compatible** object structure for multi-level omics
 - **Built-in QC**: precursor purity, peptide length, charge, missed cleavage
 - **Protein inference**: infer protein with parsimony rule
-- **Normalization options**: log2, median, quantile, GIS/IRS
+- **Normalization options**: log2 transformation, median, quantile, GIS/IRS
 - **Batch correction**: GIS/IRS, median centering
 - **Statistical analysis**: permutation-based DE test and FDR
 - **PTM support** and stoichiometry adjustment with global dataset
 - **Visualization**: PCA, UMAP, volcano plots, heatmaps, QC metrics
 
-## Supported DB Search Tools
+## Supporting DB Search Tools
 
 - Sage: [https://sage-docs.vercel.app](https://sage-docs.vercel.app)
 - DIA-NN: [https://github.com/vdemichev/DIA-NN](https://github.com/vdemichev/DIA-NN)

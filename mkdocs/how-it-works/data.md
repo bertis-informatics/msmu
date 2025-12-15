@@ -82,7 +82,8 @@ mdata = mm.read_maxquant(
 )
 
 mdata = mm.read_fragpipe(
-    identification_file="path/to/output_file",
+    identification_file="path/to/output_file/psm.tsv",
+    quantification_file="path/to/quantification_file/combined_modified_peptide.tsv", # for LFQ
     label="tmt",  # or "label_free"
 )
 ```
