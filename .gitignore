@@ -143,5 +143,7 @@ dmypy.json
 .DS_Store
 
 # Data files
+*/data/
+*.hdf5
 *.h5ad
 *.h5mu
