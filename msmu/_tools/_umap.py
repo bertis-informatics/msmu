@@ -16,6 +16,7 @@ from .._utils.get import get_adata
 def umap(
     mdata: MuData,
     modality: str,
+    layer: str | None = None,
     n_components: int = 2,
     n_neighbors: int | None = 15,
     metric: str = "euclidean",
@@ -47,6 +48,8 @@ def umap(
             result in more global views of the manifold, while smaller
             values result in more local data being preserved. In general
             values should be in the range 2 to 100.
+        layer:
+            Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         metric:
             The metric to use to compute distances in high dimensional space.
             If a string is passed it must match a valid predefined metric. If
@@ -116,7 +119,10 @@ def umap(
         Updated MuData object with UMAP results.
     """
     # Drop columns with NaN values
-    data = get_adata(mdata, modality).to_df().dropna(axis=1)
+    adata = get_adata(mdata, modality).copy()
+    if layer is not None:
+        adata.X = adata.layers[layer]
+    data = adata.to_df().dropna(axis=1)
 
     # Set n_neighbors
     if n_neighbors is None:

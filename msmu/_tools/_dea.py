@@ -13,17 +13,20 @@ def _get_test_array(
     category: str,
     control: str,
     expr: str | None = None,
+    layer: str | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    mod_mdata = mdata[modality].copy()
-    ctrl_samples = mod_mdata.obs.loc[mod_mdata.obs[category] == control,].index.to_list()
+    mod_adata = mdata[modality].copy()
+    if layer is not None:
+        mod_adata.X = mod_adata.layers[layer]
+    ctrl_samples = mod_adata.obs.loc[mod_adata.obs[category] == control,].index.to_list()
 
     if expr is not None:
-        expr_samples = mod_mdata.obs.loc[mod_mdata.obs[category] == expr,].index.to_list()
+        expr_samples = mod_adata.obs.loc[mod_adata.obs[category] == expr,].index.to_list()
     else:
-        expr_samples = mod_mdata.obs.loc[mod_mdata.obs[category] != control,].index.to_list()
+        expr_samples = mod_adata.obs.loc[mod_adata.obs[category] != control,].index.to_list()
 
-    ctrl_arr = mod_mdata.to_df().T[ctrl_samples].values.T
-    expr_arr = mod_mdata.to_df().T[expr_samples].values.T
+    ctrl_arr = mod_adata.to_df().T[ctrl_samples].values.T
+    expr_arr = mod_adata.to_df().T[expr_samples].values.T
 
     return ctrl_arr, expr_arr
 
@@ -34,6 +37,7 @@ def run_de(
     category: str,
     ctrl: str,
     expr: str | None = None,
+    layer: str | None = None,
     stat_method: Literal["welch", "student", "wilcoxon", "med_diff", "limma"] = "welch",
     n_resamples: int | None = 1000,
     fdr: bool | Literal["empirical", "bh", "storey"] = "empirical",
@@ -49,6 +53,7 @@ def run_de(
         category: Observation category to define groups.
         ctrl: Name of the control group.
         expr: Name of the experimental group. If None, all other groups are used.
+        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         statistic: Statistical test to use ("welch", "student", "wilcoxon", "med_diff", "limma").
         n_resamples: Number of resamples for permutation test. If None, no permutation test is performed.
         fdr: Method for multiple test correction ("empirical", "bh", "storey", or False).
@@ -72,6 +77,7 @@ def run_de(
         category=category,
         control=ctrl,
         expr=expr,
+        layer=layer,
     )
 
     if n_resamples is not None:

@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 @uns_logger
 def to_peptide(
     mdata: md.MuData,
+    layer: str | None = None,
     agg_method: Literal["median", "mean", "sum"] = "median",
     score_method: Literal["best_pep"] = "best_pep",
     purity_threshold: float | None = 0.7,  # for tmt data
@@ -46,6 +47,7 @@ def to_peptide(
 
     Parameters:
         mdata: MuData object containing PSM-level data.
+        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         agg_method: Aggregation method for quantification to use. Defaults to "median".
         calculate_q: Whether to calculate q-values. Defaults to True.
         score_method: Method to combine scores. Defaults to "best_pep".
@@ -57,6 +59,9 @@ def to_peptide(
         MuData object containing peptide-level data.
     """
     adata_to_summarise: ad.AnnData = mdata["psm"].copy()
+    if layer is not None:
+        adata_to_summarise.X = adata_to_summarise.layers[layer]
+
     mstatus = MuDataStatus(mdata)
     _peptide_col: str = "peptide"
     _protein_col: str = "proteins"
@@ -158,6 +163,7 @@ def to_peptide(
 @uns_logger
 def to_protein(
     mdata: md.MuData,
+    layer: str | None = None,
     agg_method: Literal["median", "mean", "sum"] = "median",
     score_method: Literal["best_pep"] = "best_pep",
     top_n: int | None = 3,
@@ -169,6 +175,7 @@ def to_protein(
 
     Parameters:
         mdata: MuData object containing Peptide-level data.
+        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         agg_method: Aggregation method to use. Defaults to "median".
         calculate_q: Whether to calculate q-values. Defaults to True.
         score_method: Method to combine scores (PEP). Defaults to "best_pep".
@@ -180,6 +187,7 @@ def to_protein(
         MuData object containing protein-level data.
     """
     original_mdata = mdata.copy()
+
     mstatus = MuDataStatus(original_mdata)
     _protein_col: str = "protein_group"
 
@@ -201,6 +209,8 @@ def to_protein(
         mdata = original_mdata
 
     adata_to_summarise: ad.AnnData = mdata["peptide"].copy()
+    if layer is not None:
+        adata_to_summarise.X = adata_to_summarise.layers[layer]
 
     # Preparation
     summarisation_prep = SummarisationPrep(
@@ -268,6 +278,7 @@ def to_ptm(
     mdata: md.MuData,
     modi_name: str,
     modification: str,
+    layer: str | None = None,
     agg_method: Literal["median", "mean", "sum"] = "median",
     top_n: int | None = None,
     rank_method: Literal["total_intensity", "max_intensity"] = "total_intensity",
@@ -278,12 +289,18 @@ def to_ptm(
         mdata: MuData object containing peptide-level data.
         modi_name: Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
         modification: Modification string (e.g., "[+79.96633]", "(unimod:21)").
+        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         agg_method: Aggregation method to use. Defaults to "median".
+        top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
+        rank_method: Method to rank features when selecting top_n. Defaults to "total_intensity".
 
     Returns:
         MuData: MuData object containing PTM-level data.
     """
     adata_to_summarise: ad.AnnData = mdata["peptide"].copy()
+    if layer is not None:
+        adata_to_summarise.X = adata_to_summarise.layers[layer]
+
     modality_name = f"{modi_name}_site"
     mstatus = MuDataStatus(mdata)
 

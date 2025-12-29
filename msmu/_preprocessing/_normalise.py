@@ -32,12 +32,47 @@ def log2_transform(
 
 
 @uns_logger
+def scale_data(
+    mdata: md.MuData,
+    modality: str,
+    layer: str | None = None,
+) -> md.MuData:
+    """
+    Scale data in MuData object to have zero mean and unit variance.
+
+    Parameters:
+        mdata: MuData object to scale.
+        modality: Modality to scale.
+        layer: Layer to scale. If None, the default layer (.X) will be used.
+
+    Returns:
+        Scaled MuData object.
+    """
+    adata: ad.AnnData = mdata.mod[modality].copy()
+
+    if layer is not None:
+        raw_arr: np.ndarray = adata.layers[layer].copy()
+    else:
+        raw_arr: np.ndarray = adata.X.copy()
+
+    mean_arr: np.ndarray = np.nanmean(raw_arr, axis=0)
+    std_arr: np.ndarray = np.nanstd(raw_arr, axis=0)
+
+    scaled_arr: np.ndarray = (raw_arr - mean_arr) / std_arr
+
+    mdata.mod[modality].layers["scaled"] = scaled_arr
+
+    return mdata
+
+
+@uns_logger
 def normalise(
     mdata: md.MuData,
     method: str,
     modality: str,
+    layer: str | None = None,
     fraction: bool = False,
-):
+) -> md.MuData:
     """
     Normalise data in MuData object.
 
@@ -45,6 +80,7 @@ def normalise(
         mdata: MuData object to normalise.
         method: Normalisation method to use. Options are 'quantile', 'median', 'total_sum (not implemented)'.
         modality: Modality to normalise. If None, all modalities at the specified level will be normalised.
+        layer: Layer to normalise. If None, the default layer (.X) will be used.
         fraction: If True, normalise within fractions. If False, normalise across all data. "fraction" yet supports fractionated TMT.
 
     Returns:
@@ -55,17 +91,21 @@ def normalise(
     adata: ad.AnnData = mdata.mod[modality].copy()
     norm_cls: Normalisation = Normalisation(method=method, axis=axis)
 
+    if layer is not None:
+        raw_arr: np.ndarray = adata.layers[layer].copy()
+    else:
+        raw_arr: np.ndarray = adata.X.copy()
+
     rescale_arr: np.array[float] = np.array([])
-    rescale_arr = np.append(rescale_arr, adata.X.flatten())
+    rescale_arr = np.append(rescale_arr, raw_arr.flatten())
 
     # TODO: refactor and package intra-fraction normalisation
     if fraction:
-        normalised_arr = np.full_like(adata.X, np.nan, dtype=float)
+        normalised_arr = np.full_like(raw_arr, np.nan, dtype=float)
         for frac in np.unique(adata.var["filename"]):
             fraction_idx = adata.var["filename"] == frac
 
-            arr = adata.X[:, fraction_idx].copy()
-
+            arr = raw_arr[:, fraction_idx].copy()
             not_all_nan_rows = ~np.all(np.isnan(arr), axis=1)
             indices = np.where(not_all_nan_rows)[0]
 
@@ -77,7 +117,7 @@ def normalise(
             # normalised_arr[indices, fraction_idx] = fraction_normalised_data
 
     else:
-        arr = adata.X.copy()
+        arr = raw_arr
         normalised_arr = norm_cls.normalise(arr=arr)
 
     mdata.mod[modality].X = normalised_arr
@@ -89,8 +129,8 @@ def normalize(
     mdata: md.MuData,
     method: str,
     modality: str,
+    layer: str | None = None,
     fraction: bool = False,
-    rescale: bool = True,
 ) -> md.MuData:
     """
     Alias for normalise function to support American English spelling.
@@ -99,8 +139,8 @@ def normalize(
         mdata=mdata,
         method=method,
         modality=modality,
+        layer=layer,
         fraction=fraction,
-        rescale=rescale,
     )
 
 
@@ -109,6 +149,7 @@ def correct_batch_effect(
     mdata: md.MuData,
     modality: str,
     method: Literal["gis", "median_center"],
+    layer: str | None = None,
     gis_prefix: str | None = None,
     gis_col: list[str] | None = None,
     rescale: bool = True,
@@ -120,6 +161,7 @@ def correct_batch_effect(
         mdata: MuData object to normalise.
         method: Normalisation method to use. Options are 'gis', 'median_center'.
         modality: Modality to normalise.
+        layer: Layer to normalise. If None, the default layer (.X) will be used.
         gis_prefix: Prefix for GIS samples. If None, all samples with 'gis' in the name will be used.
         gis_col: Column name for GIS samples. If None, all samples with 'gis' in the name will be used.
         rescale: If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
@@ -129,6 +171,12 @@ def correct_batch_effect(
     """
     adata: ad.AnnData = mdata.mod[modality].copy()
     median_rescale_arr: np.array[float] = np.array([])
+
+    if layer is not None:
+        raw_arr = adata.layers[layer].copy()
+    else:
+        raw_arr = adata.X.copy()
+
     if method == "gis":
         if (gis_prefix is None) & (gis_col is None):
             raise ValueError("Please provide either a GIS prefix or GIS column name")
@@ -141,7 +189,7 @@ def correct_batch_effect(
         if gis_idx.sum() == 0:
             raise ValueError(f"No GIS samples found in {modality}")
 
-        gis_normalised_data: np.array[float] = _normalise_gis(arr=adata.X, gis_idx=gis_idx)
+        gis_normalised_data: np.array[float] = _normalise_gis(arr=raw_arr, gis_idx=gis_idx)
 
         gis_drop_mod = adata[~gis_idx]
         gis_drop_mod.X = gis_normalised_data
@@ -151,12 +199,11 @@ def correct_batch_effect(
 
     elif method == "median_center":
         median_centered_data = Normalisation(method="median", axis="var").normalise(
-            arr=adata.X,
+            arr=raw_arr,
         )
         mdata[modality].X = median_centered_data
 
-        median_rescale_arr = np.append(median_rescale_arr, adata.X.flatten())
-
+        median_rescale_arr = np.append(median_rescale_arr, raw_arr.flatten())
     else:
         raise ValueError(f"Method {method} not recognised. Please choose from 'gis' or 'median_center'")
 
@@ -185,7 +232,8 @@ def _normalise_gis(arr: np.ndarray, gis_idx: np.array) -> np.ndarray:
 def adjust_ptm_by_protein(
     mdata: md.MuData,
     global_mdata: md.MuData,
-    ptm_mod: str = "phospho_site",
+    modality: str = "phospho_site",
+    layer: str | None = None,
     method: Literal["ridge", "ratio"] = "ridge",
     rescale: bool = True,
 ) -> md.MuData:
@@ -195,7 +243,8 @@ def adjust_ptm_by_protein(
     Parameters:
         mdata: MuData object to normalise.
         global_mdata: MuData object which contains global protein expression.
-        ptm_mod: PTM modality to normalise (e.g. phospho_site, {ptm}_site).
+        modality: PTM modality to normalise (e.g. phospho_site, {ptm}_site).
+        layer: Layer to normalise. If None, the default layer (.X) will be used.
         global_mod: Modality in global_mdata to normalise PTM site. Default is 'protein'.
         method: A method for normalisation. Options: ridge, ratio. Default is 'ridge'.
         rescale: If True, rescale the data after normalisation with median value across dataset. Default is True.
@@ -204,8 +253,11 @@ def adjust_ptm_by_protein(
         Normalised MuData object.
     """
 
+    if layer is not None:
+        mdata.mod[modality].X = mdata.mod[modality].layers[layer]
+
     ptm_adjuster: PTMProteinAdjuster = PTMProteinAdjuster(
-        ptm_mdata=mdata, global_mdata=global_mdata, ptm_mod=ptm_mod, global_mod="protein"
+        ptm_mdata=mdata, global_mdata=global_mdata, ptm_mod=modality, global_mod="protein"
     )
     adj_ptm_mdata: md.MuData = ptm_adjuster.adjust(method=method, rescale=rescale)
 

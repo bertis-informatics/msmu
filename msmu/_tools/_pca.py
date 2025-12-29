@@ -15,6 +15,7 @@ from .._utils.get import get_adata
 def pca(
     mdata: MuData,
     modality: str,
+    layer: str | None = "scaled",
     n_components: int | None = None,
     svd_solver: Literal["auto", "full", "arpack", "randomized"] = "auto",
     random_state: int | None = 0,
@@ -37,6 +38,7 @@ def pca(
     Parameters:
         mdata: MuData object containing the data.
         modality: The modality to perform PCA on.
+        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to "scaled".
         n_components:
             Number of components to keep.
             if n_components is not set all components are kept::
@@ -90,7 +92,10 @@ def pca(
         Updated MuData object with PCA results.
     """
     # Drop columns with NaN values
-    data = get_adata(mdata, modality).to_df().dropna(axis=1)
+    adata = get_adata(mdata, modality).copy()
+    if layer is not None:
+        adata.X = adata.layers[layer]
+    data = adata.to_df().dropna(axis=1)
 
     # Calculate PCA
     pca = PCA(n_components=n_components, svd_solver=svd_solver, random_state=random_state, **kwargs)
