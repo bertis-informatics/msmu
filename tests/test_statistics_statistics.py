@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from scipy.stats import t
 
 from msmu._statistics._statistics import NullDistribution, calc_permutation_pvalue, simple_test, HypothesisTesting
@@ -25,18 +26,13 @@ def test_hypothesis_testing_welch():
 
 
 def test_simple_test():
-    return 0  # Not Implemented
+    pytest.skip(reason="Not Implemented")
 
     ctrl = np.array([[0.0, 2.0], [0.0, 4.0]])
     expr = np.array([[1.0, 0.0], [3.0, 0.0]])
     res = simple_test(ctrl, expr, stat_method="med_diff")
     assert res.p_value is None
     assert res.q_value is None
-    assert res.median_ctrl is not None
-    assert res.median_expr is not None
-    assert res.log2fc is not None
-    assert res.pct_ctrl is not None
-    assert res.pct_expr is not None
     assert np.allclose(res.median_ctrl, np.array([0.0, 3.0]))
     assert np.allclose(res.median_expr, np.array([2.0, 0.0]))
     assert np.allclose(res.log2fc, np.array([2.0, -3.0]))
@@ -51,7 +47,6 @@ def test_simple_test_without_fdr():
     # Median difference from simple_test uses expr median minus ctrl median.
     assert res.q_value is None
     assert res.p_value is not None
-    assert res.log2fc is not None
     assert np.allclose(res.log2fc, np.array([1.0, 2.0]))
 
 
