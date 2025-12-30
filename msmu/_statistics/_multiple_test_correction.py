@@ -33,8 +33,9 @@ class PvalueCorrection:
 
     @staticmethod
     def storey(
-        p_values: np.ndarray, lambda_: float = 0.5, alpha: float = 0.05, return_mask: bool = False
-    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
+        p_values: np.ndarray,
+        lambda_: float = 0.5,
+    ) -> np.ndarray:
         """
         Storey (2002) q-value estimation with pi0 estimation.
 
@@ -46,11 +47,10 @@ class PvalueCorrection:
 
         Returns:
             Array of q-values (NaN-filled where p was NaN).
-            Boolean array indicating which features are significant under FDR < alpha.
+            Array of q-values (NaN-filled where p was NaN).
         """
         p_values = np.asarray(p_values)
         q_values = np.full_like(p_values, np.nan, dtype=float)
-        rejected_mask = np.full_like(p_values, False, dtype=bool)
 
         # Step 1: Remove NaN
         valid_mask = ~np.isnan(p_values)
@@ -75,46 +75,41 @@ class PvalueCorrection:
         q_valid[sorted_idx] = q
         q_values[valid_mask] = q_valid
 
-        # Step 6: Optional significance mask
-        if return_mask:
-            rejected_mask[valid_mask] = q_valid <= alpha
-            return q_values, rejected_mask
-        else:
-            return q_values
+        return q_values
 
-    @staticmethod
-    def estimate_pi0_storey(
-        p_values: np.ndarray, lambdas: np.ndarray = np.linspace(0.5, 0.95, 10)
-    ) -> tuple[float, np.ndarray]:
-        """
-        Storey's estimator of pi0 (proportion of true nulls) from observed p-values.
-        https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
-        Based on Equation (7)
-        pi0 = #( pval > lamda ) / ( 1 - lambda ) * m
+    # @staticmethod
+    # def estimate_pi0_storey(
+    #     p_values: np.ndarray, lambdas: np.ndarray = np.linspace(0.5, 0.95, 10)
+    # ) -> tuple[float, np.ndarray]:
+    #     """
+    #     Storey's estimator of pi0 (proportion of true nulls) from observed p-values.
+    #     https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2013.00179/full
+    #     Based on Equation (7)
+    #     pi0 = #( pval > lamda ) / ( 1 - lambda ) * m
 
-        Parameters:
-            p_values: array of p-values (one per feature)
-            lambdas: array of lambda thresholds (typically 0.5 to 0.95)
+    #     Parameters:
+    #         p_values: array of p-values (one per feature)
+    #         lambdas: array of lambda thresholds (typically 0.5 to 0.95)
 
-        Returns:
-            estimated pi0 value
-            array of intermediate pi0 estimates
-        """
-        p_values = np.asarray(p_values)
-        valid_mask = ~np.isnan(p_values)
-        p_values = p_values[valid_mask]
-        m = len(p_values)
+    #     Returns:
+    #         estimated pi0 value
+    #         array of intermediate pi0 estimates
+    #     """
+    #     p_values = np.asarray(p_values)
+    #     valid_mask = ~np.isnan(p_values)
+    #     p_values = p_values[valid_mask]
+    #     m = len(p_values)
 
-        pi0_by_lambda = []
-        for lam in lambdas:
-            count = np.sum(p_values > lam)
-            pi0_hat = count / ((1 - lam) * m)
-            pi0_by_lambda.append(min(pi0_hat, 1.0))
+    #     pi0_by_lambda = []
+    #     for lam in lambdas:
+    #         count = np.sum(p_values > lam)
+    #         pi0_hat = count / ((1 - lam) * m)
+    #         pi0_by_lambda.append(min(pi0_hat, 1.0))
 
-        pi0_by_lambda = np.array(pi0_by_lambda)
-        pi0 = np.min(pi0_by_lambda)
+    #     pi0_by_lambda = np.array(pi0_by_lambda)
+    #     pi0 = np.min(pi0_by_lambda)
 
-        return pi0, pi0_by_lambda
+    #     return pi0, pi0_by_lambda
 
     @staticmethod
     def estimate_pi0_null(stat_valid: np.ndarray, null_matrix_valid: np.ndarray, percentile: int = 95) -> float:
