@@ -25,6 +25,20 @@ if "msmu" not in sys.modules:
     sys.modules["msmu"] = msmu_pkg
 
 
+def _make_adata(x, obs, var, *, uns=None, obsm=None) -> AnnData:
+    adata = AnnData(X=x, obs=obs, var=var)
+    if uns:
+        adata.uns.update(uns)
+    if obsm:
+        for key, value in obsm.items():
+            adata.obsm[key] = value
+    return adata
+
+
+def _make_mdata(mods: dict[str, AnnData]) -> MuData:
+    return MuData(mods)
+
+
 @pytest.fixture
 def obs_df() -> pd.DataFrame:
     obs = pd.DataFrame(
@@ -61,9 +75,7 @@ def psm_adata(obs_df: pd.DataFrame, var_df: pd.DataFrame) -> AnnData:
             [3.0, np.nan, 5.0],
         ]
     )
-    adata = AnnData(X=x, obs=obs_df.copy(), var=var_df.copy())
-    adata.uns["search_engine"] = "Diann"
-    return adata
+    return _make_adata(x, obs_df.copy(), var_df.copy(), uns={"search_engine": "Diann"})
 
 
 @pytest.fixture
@@ -76,27 +88,77 @@ def protein_adata(obs_df: pd.DataFrame, var_df: pd.DataFrame) -> AnnData:
             [3.1, 2.5, 5.0],
         ]
     )
-    adata = AnnData(X=x, obs=obs_df.copy(), var=var_df.copy())
-    adata.uns["pca"] = {"variance_ratio": np.array([0.6, 0.3])}
-    adata.obsm["X_pca"] = pd.DataFrame(
-        [[1.0, 0.2], [0.5, -0.1], [-0.3, 0.4], [0.1, -0.2]],
-        index=obs_df.index,
-        columns=["PC_1", "PC_2"],
+    obsm = {
+        "X_pca": pd.DataFrame(
+            [[1.0, 0.2], [0.5, -0.1], [-0.3, 0.4], [0.1, -0.2]],
+            index=obs_df.index,
+            columns=["PC_1", "PC_2"],
+        ),
+        "X_umap": pd.DataFrame(
+            [[-1.0, 2.0], [0.5, 1.5], [1.2, -0.5], [-0.8, -1.1]],
+            index=obs_df.index,
+            columns=["UMAP_1", "UMAP_2"],
+        ),
+    }
+    return _make_adata(
+        x, obs_df.copy(), var_df.copy(), uns={"pca": {"variance_ratio": np.array([0.6, 0.3])}}, obsm=obsm
     )
-    adata.obsm["X_umap"] = pd.DataFrame(
-        [[-1.0, 2.0], [0.5, 1.5], [1.2, -0.5], [-0.8, -1.1]],
-        index=obs_df.index,
-        columns=["UMAP_1", "UMAP_2"],
-    )
-    return adata
 
 
 @pytest.fixture
 def mdata(psm_adata: AnnData, protein_adata: AnnData) -> MuData:
-    mdata = MuData({"psm": psm_adata, "protein": protein_adata})
+    mdata = _make_mdata({"psm": psm_adata, "protein": protein_adata})
     mdata.uns["plotting"] = {"default_obs_column": "group"}
     mdata.obs["sample"] = psm_adata.obs["sample"].astype(str)
     mdata.obs["group"] = pd.Categorical(psm_adata.obs["group"], categories=["A", "B"])
     mdata.obs["batch"] = pd.Categorical(psm_adata.obs["batch"], categories=["x", "y"])
     mdata.obs["filename"] = psm_adata.obs["filename"].astype(str)
     return mdata
+
+
+@pytest.fixture
+def filter_mdata() -> MuData:
+    obs = pd.DataFrame(index=["s1", "s2"])
+    var = pd.DataFrame({"score": [10.0, 20.0, 30.0]}, index=["v1", "v2", "v3"])
+    x = pd.DataFrame([[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]], index=obs.index, columns=var.index)
+    adata = _make_adata(x, obs, var, uns={"decoy": pd.DataFrame({"score": [5.0, 25.0, 30.0]}, index=var.index)})
+    return _make_mdata({"psm": adata})
+
+
+@pytest.fixture
+def simple_mdata() -> MuData:
+    obs = pd.DataFrame(index=["s1", "s2", "gis1"])
+    obs["gis"] = [False, False, True]
+    var = pd.DataFrame(index=["v1", "v2"])
+    x = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+    adata = _make_adata(x, obs, var)
+    return _make_mdata({"psm": adata})
+
+
+@pytest.fixture
+def simple_adata() -> AnnData:
+    obs = pd.DataFrame(index=["s1", "s2"])
+    var = pd.DataFrame(
+        {"peptide": ["p1", "p1", "p2"], "score": [0.1, 0.9, 0.2]},
+        index=["f1", "f2", "f3"],
+    )
+    x = np.array([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]])
+    return _make_adata(x, obs, var)
+
+
+@pytest.fixture
+def ptm_mdata() -> MuData:
+    obs = pd.DataFrame(index=["s1", "s2"])
+    ptm_var = pd.DataFrame({"protein_group": ["P1", "P1"]}, index=["site1", "site2"])
+    ptm_x = np.array([[1.0, 2.0], [3.0, 4.0]])
+    ptm_adata = _make_adata(ptm_x, obs.copy(), ptm_var)
+    return _make_mdata({"phospho_site": ptm_adata})
+
+
+@pytest.fixture
+def global_mdata() -> MuData:
+    obs = pd.DataFrame(index=["s1", "s2"])
+    global_var = pd.DataFrame(index=["P1"])
+    global_x = np.array([[0.5], [1.5]])
+    global_adata = _make_adata(global_x, obs.copy(), global_var)
+    return _make_mdata({"protein": global_adata})
