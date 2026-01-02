@@ -52,8 +52,8 @@ def iterate_modules(parent, parent_alias=[]):
 
 list(iterate_modules(msmu))
 
-# 기존 nav.md 템플릿에 API 트리(indent) 붙이기
-nav_template = Path("mkdocs", "nav.md").read_text()
+# Add indents to the generated nav.md
+nav_template = Path("docs", "nav.md").read_text()
 if not nav_template.endswith("\n"):
     nav_template += "\n"
 

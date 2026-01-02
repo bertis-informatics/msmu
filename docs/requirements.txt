@@ -1,0 +1,10 @@
+mkdocs
+mkdocs-material
+mkdocs-gen-files
+mkdocs-jupyter
+mkdocs-awesome-pages-plugin
+mkdocs-literate-nav
+mkdocstrings[python]
+mkdocs-minify-plugin
+mkdocs-git-revision-date-localized-plugin
+pymdown-extensions

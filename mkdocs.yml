@@ -1,8 +1,5 @@
 site_name: "msmu"
 site_description: "Proteomics Analysis Toolkit based on MuData"
-site_dir: "docs"
-
-docs_dir: "mkdocs"
 
 repo_name: "msmu"
 repo_url: https://github.com/bertis-informatics/msmu
@@ -10,10 +7,7 @@ repo_url: https://github.com/bertis-informatics/msmu
 theme:
   name: "material"
   features:
-    # - toc.integrate
     - navigation.tracking.off
-    # - navigation.expand
-    # - navigation.sections
     - content.tabs.link
     - content.code.copy
     - navigation.path
@@ -21,13 +15,13 @@ theme:
     - navigation.indexes
   palette:
     - scheme: default
-      primary: indigo # 라이트 모드 색상
+      primary: indigo
       accent: indigo
       toggle:
         icon: material/weather-night
         name: "dark mode"
     - scheme: slate
-      primary: indigo # 다크 모드 색상
+      primary: indigo
       accent: indigo
       toggle:
         icon: material/weather-sunny
@@ -44,19 +38,17 @@ plugins:
       scripts:
         - "scripts/gen_ref_pages.py"
   - mkdocs-jupyter:
-      execute: false # 이미 실행된 노트북만 렌더링할 때
-      include_source: true # 소스 코드 셀 표시
+      execute: false 
+      include_source: true 
       kernel_name: python3
       theme: dark
-      ignore_h1_titles: true # 맨 위 h1 중복 방지
+      ignore_h1_titles: true
   - awesome-pages
   - literate-nav:
       nav_file: "nav.md"
-  # - section-index
   - mkdocstrings:
       handlers:
         python:
-          # ✅ 루트에 msmu/ 이므로 현재 디렉토리를 경로로
           paths: ["."]
           options:
             show_source: false
@@ -64,7 +56,6 @@ plugins:
             docstring_style: google
             merge_init_into_class: true
             show_if_no_docstring: false
-            # 필요 시 프라이빗 제외
             filters: ["!^_"]
   - search
   - minify
@@ -96,6 +87,6 @@ extra_css:
   - assets/custom.css
 
 watch:
-  - "mkdocs/"
+  - "docs/"
   - "scripts/"
   - "msmu/"
