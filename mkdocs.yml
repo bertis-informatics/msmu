@@ -3,6 +3,7 @@ site_description: "Proteomics Analysis Toolkit based on MuData"
 
 repo_name: "msmu"
 repo_url: https://github.com/bertis-informatics/msmu
+remote_branch: docs
 
 theme:
   name: "material"
@@ -36,7 +37,7 @@ theme:
 plugins:
   - gen-files:
       scripts:
-        - "scripts/gen_ref_pages.py"
+        - "docs/gen_ref_pages.py"
   - mkdocs-jupyter:
       execute: false 
       include_source: true 
@@ -88,5 +89,4 @@ extra_css:
 
 watch:
   - "docs/"
-  - "scripts/"
   - "msmu/"
