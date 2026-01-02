@@ -1,0 +1,46 @@
+/* 프롬프트 제거 */
+.jp-InputPrompt,
+.jp-OutputPrompt {
+  display: none !important;
+}
+
+/* 코드/출력 블록 가독성 */
+.jp-CodeCell {
+  margin: 1rem 0;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: var(--md-radius);
+  overflow: hidden;
+  background: var(--md-code-bg-color);
+}
+.jp-Cell-inputWrapper,
+.jp-OutputArea {
+  padding: 0.8rem 1rem;
+}
+[data-md-color-scheme="default"] .jp-OutputArea {
+  background: #fafafa;
+}
+[data-md-color-scheme="slate"] .jp-OutputArea {
+  background: #1e1e1e;
+}
+
+.highlight-ipynb {
+  background: var(--md-code-bg-color) !important;
+}
+
+.jp-OutputArea-output pre {
+  color: var(--md-default-fg-color) !important;
+  font-size: 13px !important;
+}
+
+.md-path__item {
+  align-items: center;
+}
+
+.md-path__item .md-ellipsis {
+  display: flex;
+  align-items: center;
+}
+
+.md-path__item .md-ellipsis b {
+  padding-left: 0.25rem;
+}
