@@ -7,6 +7,10 @@
     * [DIA-LFQ](tutorials/dia-lfq.ipynb)
     * [PTM](tutorials/ptm.ipynb)
     * [DE Analysis](tutorials/dea.ipynb)
+    * 2024 Fulcher et al.
+        * [01 Process scRNAseq Data](tutorials/2024_Fulcher/01_process_rna_data.ipynb)
+        * [02 Process Proteomics Data](tutorials/2024_Fulcher/02_process_protein_data.ipynb)
+        * [03 Handle Multi-omics Data](tutorials/2024_Fulcher/03_handle_mutli-omics_data.ipynb)
 * HOW IT WORKS
     * [Data](how-it-works/data.md)
     * [Filter](how-it-works/filter.md)
