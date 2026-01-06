@@ -5,7 +5,7 @@ import pandas as pd
 from anndata import AnnData
 from mudata import MuData
 
-from msmu._read_write._export import to_readable, write_flashlfq_input
+from msmu._read_write._export import to_readable, write_csv, write_flashlfq_input
 
 
 def _make_psm_mdata() -> MuData:
@@ -45,3 +45,11 @@ def test_write_flashlfq_input(tmp_path):
     content = output.read_text().splitlines()
     assert "File Name" in content[0]
     assert "Protein Accession" in content[0]
+
+
+def test_write_csv_creates_file(tmp_path):
+    mdata = _make_psm_mdata()
+    output = Path(tmp_path) / "psm.csv"
+    write_csv(mdata, modality="psm", filename=output, sep=",", include=["filename"], quantification=False)
+    content = output.read_text().splitlines()
+    assert content[0] == "filename"
