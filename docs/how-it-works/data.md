@@ -22,10 +22,10 @@ mdata["psm"]
 mdata["protein"]
 ```
 
-As general AnnData object, each individual modality contains `.var`, `.obs`, `.X`, `uns`, and etc,.
+As a general AnnData object, each individual modality contains `.var`, `.obs`, `.X`, `uns`, and etc,.
 
 - A `.var` attribute is filled with features of each level data. For example, in `psm` modality for PSMs (or precursors), information describing scan number, filename, PEP, q-value, and etc, with `filename.scan` index.
-- In `.obs`, metainfo for samples can be stored and initially filenames or TMT channels are used as index.
+- In `.obs`, metadata for samples can be stored and initially filenames or TMT channels are used as index.
 - `.X` Holds the **quantification** matrix.
 - All other unstructured data can be stored in `.uns`.
 
@@ -54,7 +54,7 @@ While each tool’s schema differs, all of them describe the same core identific
   - `acquisition`: acquisition method ("dda", or "dia") (for tools supporting both DDA and DIA like MaxQuant)
 - output
 
-  - `mudata`: Data ingested mudata object
+  - `mudata`: Data ingested MuData object
 
 - columns migrated into `mdata["psm"].var`
 

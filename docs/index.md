@@ -1,5 +1,9 @@
 # msmu
 
+- 첫페이지 로고
+- Fig 1A 넣기
+- Fig 1B 는 데이터 문단에 넣기
+
 **Python toolkit for LC-MS/<u>MS</u> Proteomics analysis based on <u>Mu</u>Data**
 
 ## Overview

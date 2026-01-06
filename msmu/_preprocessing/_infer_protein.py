@@ -31,7 +31,7 @@ def infer_protein(
     propagated_from: md.MuData | str | None = None,
 ) -> md.MuData:
     """
-    Infer protein-group mappings and annotate peptides with uniqueness.
+    Infer protein group mappings and annotate peptides with uniqueness.
 
     Parameters:
         mdata: MuData object to update
@@ -110,7 +110,7 @@ def get_protein_mapping(
     proteins: pd.Series,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Infer peptide-to-protein-group relationships from peptide and protein columns.
+    Infer peptide-to-protein group relationships from peptide and protein columns.
 
     Parameters:
         peptides: peptide identifiers aligned to proteins
