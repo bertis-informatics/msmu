@@ -162,3 +162,45 @@ def global_mdata() -> MuData:
     global_x = np.array([[0.5], [1.5]])
     global_adata = _make_adata(global_x, obs.copy(), global_var)
     return _make_mdata({"protein": global_adata})
+
+
+@pytest.fixture
+def mdata_factory():
+    def _factory(name: str) -> MuData:
+        x = np.array([[1.0, 2.0], [3.0, 4.0]])
+        obs = pd.DataFrame({"group": ["A", "B"]}, index=[f"{name}_s1", f"{name}_s2"])
+        var = pd.DataFrame(index=["f1", "f2"])
+        adata = _make_adata(x, obs, var, uns={"level": "psm"})
+        return _make_mdata({"psm": adata})
+
+    return _factory
+
+
+@pytest.fixture
+def labeled_mdata() -> MuData:
+    x = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+    obs = pd.DataFrame(index=["s1", "s2", "gis1"])
+    var = pd.DataFrame(index=["f1", "f2"])
+    adata = _make_adata(x, obs, var, uns={"level": "psm", "label": "tmt"})
+    return _make_mdata({"psm": adata})
+
+
+@pytest.fixture
+def psm_mdata_export() -> MuData:
+    x = np.array([[1.0, 2.0], [3.0, 4.0]])
+    obs = pd.DataFrame(index=["s1", "s2"])
+    var = pd.DataFrame(
+        {
+            "filename": ["f1.raw", "f2.raw"],
+            "rt": [10.0, 20.0],
+            "charge": [2, 3],
+            "stripped_peptide": ["AA", "BB"],
+            "peptide": ["AA", "BB"],
+            "calcmass": [100.0, 200.0],
+            "proteins": ["P1", "P2"],
+            "extra": [1, 2],
+        },
+        index=["f1", "f2"],
+    )
+    adata = _make_adata(x, obs, var)
+    return _make_mdata({"psm": adata})
