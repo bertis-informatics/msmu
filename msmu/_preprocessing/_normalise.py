@@ -11,6 +11,7 @@ from .._utils import uns_logger
 def log2_transform(
     mdata: md.MuData,
     modality: str,
+    layer: str | None = None,
 ) -> md.MuData:
     """
     Apply log2 transformation to the specified modality in MuData object.
@@ -18,15 +19,24 @@ def log2_transform(
     Parameters:
         mdata: MuData object to transform.
         modality: Modality to log2 transform.
+        layer: Layer to transform. If None, the default layer (.X) will be used.
 
     Returns:
         Transformed MuData object.
     """
-    adata = mdata[modality].copy()
+    mdata = mdata.copy()
 
-    log2_arr = np.log2(adata.X)
+    if layer is None:
+        raw_arr = mdata.mod[modality].X
+    else:
+        raw_arr = mdata.mod[modality].layers[layer]
 
-    mdata[modality].X = log2_arr
+    log2_arr = np.log2(raw_arr)
+
+    if layer is None:
+        mdata.mod[modality].X = log2_arr
+    else:
+        mdata.mod[modality].layers[layer] = log2_arr
 
     return mdata
 
@@ -48,19 +58,21 @@ def scale_data(
     Returns:
         Scaled MuData object.
     """
-    adata: ad.AnnData = mdata.mod[modality].copy()
+    mdata = mdata.copy()
 
-    if layer is not None:
-        raw_arr: np.ndarray = adata.layers[layer].copy()
+    if layer is None:
+        raw_arr: np.ndarray = mdata.mod[modality].X
     else:
-        raw_arr: np.ndarray = adata.X.copy()
+        raw_arr: np.ndarray = mdata.mod[modality].layers[layer]
 
     mean_arr: np.ndarray = np.nanmean(raw_arr, axis=0)
     std_arr: np.ndarray = np.nanstd(raw_arr, axis=0)
-
     scaled_arr: np.ndarray = (raw_arr - mean_arr) / std_arr
 
-    mdata.mod[modality].layers["scaled"] = scaled_arr
+    if layer is None:
+        mdata.mod[modality].X = scaled_arr
+    else:
+        mdata.mod[modality].layers[layer] = scaled_arr
 
     return mdata
 
@@ -88,13 +100,14 @@ def normalise(
     """
     axis: str = "obs"
 
-    adata: ad.AnnData = mdata.mod[modality].copy()
+    mdata = mdata.copy()
+    adata: ad.AnnData = mdata.mod[modality]
     norm_cls: Normalisation = Normalisation(method=method, axis=axis)
 
-    if layer is not None:
-        raw_arr: np.ndarray = adata.layers[layer].copy()
+    if layer is None:
+        raw_arr: np.ndarray = adata.X
     else:
-        raw_arr: np.ndarray = adata.X.copy()
+        raw_arr: np.ndarray = adata.layers[layer]
 
     rescale_arr: np.array[float] = np.array([])
     rescale_arr = np.append(rescale_arr, raw_arr.flatten())
@@ -105,11 +118,11 @@ def normalise(
         for frac in np.unique(adata.var["filename"]):
             fraction_idx = adata.var["filename"] == frac
 
-            arr = raw_arr[:, fraction_idx].copy()
+            arr = raw_arr[:, fraction_idx]
             not_all_nan_rows = ~np.all(np.isnan(arr), axis=1)
             indices = np.where(not_all_nan_rows)[0]
 
-            arr = arr[indices, :].copy()
+            arr = arr[indices, :]
             fraction_normalised_data = norm_cls.normalise(arr=arr)
 
             for i, r in enumerate(indices):
@@ -120,7 +133,10 @@ def normalise(
         arr = raw_arr
         normalised_arr = norm_cls.normalise(arr=arr)
 
-    mdata.mod[modality].X = normalised_arr
+    if layer is None:
+        adata.X = normalised_arr
+    else:
+        adata.layers[layer] = normalised_arr
 
     return mdata
 
@@ -169,13 +185,14 @@ def correct_batch_effect(
     Returns:
         Normalised MuData object.
     """
-    adata: ad.AnnData = mdata.mod[modality].copy()
+    mdata = mdata.copy()
+    adata: ad.AnnData = mdata.mod[modality]
     median_rescale_arr: np.array[float] = np.array([])
 
     if layer is not None:
-        raw_arr = adata.layers[layer].copy()
+        raw_arr = adata.layers[layer]
     else:
-        raw_arr = adata.X.copy()
+        raw_arr = adata.X
 
     if method == "gis":
         if (gis_prefix is None) & (gis_col is None):
@@ -252,6 +269,7 @@ def adjust_ptm_by_protein(
     Returns:
         Normalised MuData object.
     """
+    mdata = mdata.copy()
 
     if layer is not None:
         mdata.mod[modality].X = mdata.mod[modality].layers[layer]

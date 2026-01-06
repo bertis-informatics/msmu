@@ -118,11 +118,15 @@ def umap(
     Returns:
         Updated MuData object with UMAP results.
     """
+    mdata = mdata.copy()
+
     # Drop columns with NaN values
-    adata = get_adata(mdata, modality).copy()
+    adata = get_adata(mdata, modality)
     if layer is not None:
-        adata.X = adata.layers[layer]
-    data = adata.to_df().dropna(axis=1)
+        data = pd.DataFrame(data=adata.layers[layer], index=adata.obs_names, columns=adata.var_names)
+    else:
+        data = adata.to_df()
+    data = data.dropna(axis=1)
 
     # Set n_neighbors
     if n_neighbors is None:

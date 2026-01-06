@@ -15,7 +15,7 @@ from .._utils.get import get_adata
 def pca(
     mdata: MuData,
     modality: str,
-    layer: str | None = "scaled",
+    layer: str | None = None,
     n_components: int | None = None,
     svd_solver: Literal["auto", "full", "arpack", "randomized"] = "auto",
     random_state: int | None = 0,
@@ -91,11 +91,15 @@ def pca(
     Returns:
         Updated MuData object with PCA results.
     """
+    mdata = mdata.copy()
+
     # Drop columns with NaN values
-    adata = get_adata(mdata, modality).copy()
+    adata = get_adata(mdata, modality)
     if layer is not None:
-        adata.X = adata.layers[layer]
-    data = adata.to_df().dropna(axis=1)
+        data = pd.DataFrame(data=adata.layers[layer], index=adata.obs_names, columns=adata.var_names)
+    else:
+        data = adata.to_df()
+    data = data.dropna(axis=1)
 
     # Calculate PCA
     pca = PCA(n_components=n_components, svd_solver=svd_solver, random_state=random_state, **kwargs)
