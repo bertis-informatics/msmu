@@ -191,7 +191,7 @@ def correct_batch_effect(
 
         gis_normalised_data: np.array[float] = _normalise_gis(arr=raw_arr, gis_idx=gis_idx)
 
-        gis_drop_mod = adata[~gis_idx]
+        gis_drop_mod = adata[~gis_idx].copy()
         gis_drop_mod.X = gis_normalised_data
         mdata.mod[modality] = gis_drop_mod
 
