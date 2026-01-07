@@ -45,7 +45,7 @@ DE results can be accessed as a pandas `DataFrame` using the `to_df()` method.
 
 ## Visualization of DEA Results
 
-`msmu` provides visualisation function to explore DEA results with volcano plots.
+`msmu` provides visualization function to explore DEA results with volcano plots.
 
 ```python
 de_res.plot_volcano(

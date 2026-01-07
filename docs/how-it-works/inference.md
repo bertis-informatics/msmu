@@ -12,7 +12,7 @@ This page explains how `msmu` infers proteins from peptide-level features throug
    If one protein group’s peptide set is a strict subset of another’s, it is reassigned to the protein group that has larger set.
 4. **Handle subsumable proteins** (`_find_subsumable`)  
    Proteins lacking unique peptides are evaluated within connected components of shared peptides. Proteins that cannot be distinguished are merged; components without unique evidence are dropped.
-5. **Mapping distinguishable proteins**
+5. **Mapping distinguishable proteins**  
    After processing, each protein group is distinguishable. A mapping of original proteins to their final inferred groups is stored.
 
 ## Input
