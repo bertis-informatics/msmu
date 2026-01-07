@@ -54,7 +54,7 @@ def run_de(
         ctrl: Name of the control group.
         expr: Name of the experimental group. If None, all other groups are used.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        statistic: Statistical test to use ("welch", "student", "wilcoxon", "med_diff", "limma").
+        stat_method: Statistical test to use ("welch", "student", "wilcoxon", "med_diff", "limma").
         n_resamples: Number of resamples for permutation test. If None, no permutation test is performed.
         fdr: Method for multiple test correction ("empirical", "bh", "storey", or False).
         n_jobs: Number of parallel jobs to use.

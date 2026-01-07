@@ -116,7 +116,7 @@ def _split_uniprot_fasta_entry(entry: str) -> tuple[str, str, str]:
         return "", parts[0], ""  # Handle cases where the format is different
 
 
-def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> pd.Series:
+def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> str:
     """
     Map protein groups to gene names using a FASTA metadata DataFrame.
 
@@ -125,7 +125,7 @@ def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> p
         fasta_meta: DataFrame containing fasta metadata.
         category: Category to map from fasta metadata.
     Returns:
-        Series containing gene names.
+        str containing gene names.
     """
     groups = protein_group.split(";")
     transformed_groups = []
@@ -139,7 +139,9 @@ def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> p
 
 
 def map_fasta(
-    mdata, modality: str, categories: list[str] = ["Protein ID", "Gene", "Description", "Organism"]
+    mdata: md.MuData,
+    modality: str,
+    categories: list[str] = ["Protein ID", "Gene", "Description", "Organism"],
 ) -> md.MuData:
     """
     Map protein groups to gene names using a FASTA metadata DataFrame.

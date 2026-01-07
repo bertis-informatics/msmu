@@ -10,7 +10,7 @@ import mudata as md
 logger = logging.getLogger(__name__)
 
 
-def select_repr_protein(mdata: md.MuData, modality) -> md.MuData:
+def select_repr_protein(mdata: md.MuData, modality: str) -> md.MuData:
     """
     Select canonical protein from protein list based on priority.
     canonical > swissprot > trembl > contam
