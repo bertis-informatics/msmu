@@ -7,7 +7,7 @@
 - `mdata`: required `MuData` containing the modality to plot.
 - `modality`: defaults vary by plot (`feature`, `peptide`, `protein`)
 - `groupby`: observation column used to split traces/groups (e.g., `filename`, `condition`). If omitted, falls back to `obs_column`.
-- `obs_column`: observation column used for labeling/group resolution; all elements should be unique. If omitted or no column exists, creates `__obx_idx__` column from the index of `obs`
+- `obs_column`: observation column used for labeling/group resolution; all elements should be unique. If omitted or no column exists, creates `__obs_idx__` column from the index of `obs`
 - `colorby`: optional obs column for coloring; only applied when `groupby` equals `obs_column`.
 - `ptype`: plot style selector (`hist`, `box`, `vln`, etc.).
 - `**kwargs`: forwarded to `go.Figure.update_layout` for per-plot overrides.

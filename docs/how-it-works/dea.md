@@ -8,13 +8,13 @@ Differential Expression Analysis (DEA) identifies proteins or peptides with sign
 
 The `run_de()` function performs a non-parametric permutation test to evaluate differential expression between two groups. It calculates p-values based on the distribution of test statistics obtained from permuted group labels.
 
-This function uses `welch`'s t-statistic by default, which is suitable for unequal variances between groups. Other statistics such as `student` t-test, `wilcoxon` rank-sum test, and `med_diff` (median difference) are also available.
+This function uses Welch's t-statistic by default, which is suitable for unequal variances between groups. Other statistics such as Student's t-test, Wilcoxon's rank-sum test, and median difference are also available.
 
-For `FDR` correction, `msmu` supports `empirical` from null distribution, and `bh` (Benjamini-Hochberg) methods. `empirical` FDR is recommended when using permutation tests.
+For multiple testing correction, `msmu` supports `empirical` FDR, and `bh` (Benjamini-Hochberg) methods. `empirical` FDR is recommended when using permutation tests.
 
-`n_resamples` specifies the number of random permutations to generate the null distribution. If set to `None`, a simple hypothesis test without permutations is performed. `1000` resamples as default provides a good balance between accuracy and computational cost.
+`n_resamples` specifies the number of random permutations to generate the null distribution. If set to `None`, a simple hypothesis test without permutations is performed. The default of `1000` permutations provides a practical balance between statistical accuracy and computational cost.
 
-If sample sizes are too small to meet n_resamples, all possible permutations are used to compute exact p-values (exact test).
+If sample sizes are too small to meet `n_resamples`, all possible permutations are used to compute exact p-values (exact test).
 
 log2 fold-change (`log2FC`) between the two groups is calculated as the difference of log2-transformed median values.
 
@@ -22,7 +22,7 @@ log2 fold-change (`log2FC`) between the two groups is calculated as the differen
 
 `q-value` with `empirical` FDR is calculated by `E[FDR] = pi0 * E[FP] / E[TP]` referred to [Yang Xie et al., Bioinformatics, 2011.](https://academic.oup.com/bioinformatics/article/21/23/4280/194680) and [Storey et al., 2003](https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100).
 
-See more details in the [`msmu.tl.run_de`](/reference/tl/run_de/) and usage examples in the tutorial [`DE Analysis`](/tutorials/dea/).
+See more details in the [`msmu.tl.run_de`](../../reference/tl/run_de/) and usage examples in the tutorial [`DE Analysis`](../../tutorials/dea/).
 
 ```python
 de_res = mm.tl.run_de(
@@ -32,7 +32,7 @@ de_res = mm.tl.run_de(
     ctrl="control",          # control group label
     expr="treated",          # experimental group label
     stat_method="welch",     # options: "welch", "student", "wilcoxon", "med_diff", default "welch"
-    fdr="empirical",         # options: "empirical", "bh", "storey", or False, default "empirical"
+    fdr="empirical",         # options: "empirical", "bh", or False, default "empirical"
     n_resamples=1000,        # number of permutations, default 1000, if None, simple hypothesis test is performed
 )
 

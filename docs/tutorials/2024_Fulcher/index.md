@@ -1,6 +1,6 @@
 # 2024 Fulcher et al. Tutorial
 
-This tutorial demonstrates the integrated analysis of single-cell RNA-seq and proteomics data using the `msmu` package, based on the methods described in [Fulcher et al. (2024)](https://www.nature.com/articles/s41467-024-54099-z).
+This tutorial demonstrates the integrated analysis of single-cell RNA-seq and proteomics data using the `msmu` package, based on the original dataset described in [Fulcher et al. (2024)](https://www.nature.com/articles/s41467-024-54099-z).
 
 > Fulcher, J. M., Markillie, L. M., Mitchell, H. D., Williams, S. M., Engbrecht, K. M., Degnan, D. J., ... & Zhu, Y. (2024). Parallel measurement of transcriptomes and proteomes from same single cells using nanodroplet splitting. Nature Communications, 15(1), 10614.
 

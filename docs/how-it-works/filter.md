@@ -2,7 +2,7 @@
 
 ## on `.var`
 
-Functions related to filtering features (`.var`) are implemented in [`msmu.pp.add_filter`](/reference/pp/add_filter/) and [`msmu.pp.apply_filter`](/reference/pp/apply_filter/).
+Functions related to filtering features (`.var`) are implemented in [`msmu.pp.add_filter`](../../reference/pp/add_filter/) and [`msmu.pp.apply_filter`](../../reference/pp/apply_filter/).
 
 In `msmu`, filtering features consists of 2 stages.
 
@@ -10,7 +10,7 @@ In `msmu`, filtering features consists of 2 stages.
 
     - making boolean mask for features in `mdata[modality].varm["filter"]`
     - a column to filter should be in `.var`
-    - The `keep` argument accepts general expressions for test, such as `lt`, `le`, `gt`, `ge`, `equal`, etc.
+    - The `keep` argument accepts general expressions for condition, such as `lt`, `le`, `gt`, `ge`, `equal`, etc.
 
 2. `apply_filter()`
 
@@ -31,7 +31,7 @@ mdata = mm.pp.apply_filter(mdata, modality="psm")
 
 ## on `.obs`
 
-Filtering on `.obs` is not implemented as an utility function. `.obs` can be filtered with slicing function on `mudata`
+Filtering on `.obs` is not implemented as an utility function. `.obs` can be filtered with slicing function on `MuData`
 
 ```python
 # filter BLANK channels for TMT studies

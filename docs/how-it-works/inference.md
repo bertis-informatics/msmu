@@ -1,19 +1,21 @@
 # Protein Inference
 
-This page explains how `msmu` infers proteins from peptide-level features through [`msmu.pp.add_filter`](/reference/pp/add_filter/).
+This page explains how `msmu` infers proteins from peptide-level features through [`msmu.pp.infer_protein`](../../reference/pp/infer_protein/).
 
 ## How proteins are inferred
 
-1. **Classify peptides**  
-   Peptides are classified as `unique` or `shared` based on their mapping to proteins.
+Protein inference in msmu is performed through a series of incremental refinement steps. By modifying the initial peptide-protein relationship, proteins are grouped based on shared peptide evidence, following principles outlined in Nesvizhskii & Aebersold (2005). The main steps are as follows:
+
+1. **Construct inital peptide-protein graph**  
+   A initial graph explaining peptide-protein relationships is constructed.
 2. **Merge indistinguishable proteins** (`_find_indistinguishable`)  
-   Proteins with identical peptide sets are merged and named as a comma-joined list of members.
+   Proteins associated with identical sets of peptides are merged into a single protein group. The protein group is named as a comma-separated list of members.
 3. **Collapse subsettable proteins** (`_find_subsettable`)  
-   If one protein group’s peptide set is a strict subset of another’s, it is reassigned to the protein group that has larger set.
-4. **Handle subsumable proteins** (`_find_subsumable`)  
-   Proteins lacking unique peptides are evaluated within connected components of shared peptides. Proteins that cannot be distinguished are merged; components without unique evidence are dropped.
-5. **Mapping distinguishable proteins**  
-   After processing, each protein group is distinguishable. A mapping of original proteins to their final inferred groups is stored.
+   If the peptide set of one protein group is a strict subset of another, protein with smaller peptide set is reassigned to the protein group that has larger peptide set.
+4. **Resolve subsumable proteins** (`_find_subsumable`)  
+   Proteins lacking unique peptides are evaluated within connected components of shared peptides. Proteins that cannot be distinguished are merged, while components without unique peptide evidence are dropped.
+5. **Finalize protein group assignment**  
+   After above steps, all remaining protein groups are distinguishable. Mappings explaining peptide-protein relationship and annotations describing how each protein was handled are stored in `mdata.uns`.
 
 ## Input
 
