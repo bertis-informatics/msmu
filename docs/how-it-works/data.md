@@ -29,6 +29,8 @@ As a general AnnData object, each individual modality contains `.var`, `.obs`, `
 - `.X` Holds the **quantification** matrix.
 - All other unstructured data can be stored in `.uns`.
 
+![](../assets/fig1b.svg){ width="100%" }
+
 ## Data Ingestion from DB search tools
 
 Although different search tools output either one consolidated table or multiple separate tables, their contents can typically be organized into two main conceptual parts:
