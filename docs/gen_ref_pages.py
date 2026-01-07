@@ -31,7 +31,7 @@ def iterate_modules(parent, parent_alias=[]):
         if inspect.ismodule(child):
             yield from iterate_modules(child, parent_alias + [module_name])
 
-        if inspect.isfunction(child) or inspect.isclass(child):
+        if inspect.isfunction(child) or inspect.isclass(child) or callable(child):
             parts = parent_alias + [child.__name__]  # ['module', 'function']
             ident = ".".join([PACKAGE] + parts)  # msmu.module.function
 
