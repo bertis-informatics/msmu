@@ -44,3 +44,7 @@
 .md-path__item .md-ellipsis b {
   padding-left: 0.25rem;
 }
+
+.notice {
+  color: var(--md-typeset-color) !important;
+}

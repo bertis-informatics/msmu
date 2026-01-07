@@ -11,10 +11,10 @@
       
       
       
-        <link rel="prev" href="../dea/">
+        <link rel="prev" href="../batch_correction/">
       
       
-        <link rel="next" href="../../reference/read_h5mu/">
+        <link rel="next" href="../inference/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>Visualisation - msmu</title>
+        <title>Summarization - msmu</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#visualisation_overview" class="md-skip">
+        <a href="#summarization" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Visualisation
+              Summarization
             
           </span>
         </div>
@@ -837,14 +837,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../normalisation/" class="md-nav__link">
+      <a href="../normalization/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Normalisation
+    Normalization
   
 
     
@@ -890,17 +890,44 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../summarisation/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summarization
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
     
   
-    Summarisation
+    Summarization
   
 
     
@@ -909,6 +936,70 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#to_peptide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_peptide()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#to_protein" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_protein()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#to_ptm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_ptm()
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1002,44 +1093,17 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Visualisation
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../visualization/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Visualisation
+    Visualization
   
 
     
@@ -1048,142 +1112,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#common_parameters_and_behaviors" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Common parameters and behaviors
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Example
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#mdataobs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        mdata.obs
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_id" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_id
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_intensity" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_intensity
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_missingness" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_missingness
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_var" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_var
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_pca_plot_umap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_pca &amp; plot_umap
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_correlation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_correlation
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_upset" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_upset
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1204,6 +1132,12 @@
   
     
     
+      
+        
+      
+        
+      
+        
       
         
       
@@ -1324,6 +1258,90 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/read_diann/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_diann
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/read_maxquant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_maxquant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/read_fragpipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_fragpipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/merge_mudata/" class="md-nav__link">
         
   
@@ -1374,6 +1392,8 @@
       
         
       
+        
+      
     
     
     
@@ -1382,10 +1402,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
         
           
-          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="0">
             
   
   
@@ -1403,8 +1423,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_4">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1694,6 +1714,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pp/scale_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    scale_data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1735,10 +1783,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
         
           
-          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="0">
             
   
   
@@ -1756,8 +1804,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_5">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2030,10 +2078,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_9" >
         
           
-          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_9" id="__nav_5_9_label" tabindex="0">
             
   
   
@@ -2051,8 +2099,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2305,10 +2353,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_10" >
         
           
-          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_10" id="__nav_5_10_label" tabindex="0">
             
   
   
@@ -2326,8 +2374,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_7">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2670,6 +2718,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2678,10 +2732,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_11" >
         
           
-          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_11" id="__nav_5_11_label" tabindex="0">
             
   
   
@@ -2699,8 +2753,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_8">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2725,6 +2779,90 @@
     
   
     read_sage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/io/read_diann/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_diann
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/io/read_maxquant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_maxquant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/io/read_fragpipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_fragpipe
   
 
     
@@ -2864,10 +3002,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#common_parameters_and_behaviors" class="md-nav__link">
+  <a href="#overview" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Common parameters and behaviors
+        Overview
       
     </span>
   </a>
@@ -2875,107 +3013,35 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#to_peptide" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#mdataobs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        mdata.obs
+        to_peptide()
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_id" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#to_protein" class="md-nav__link">
     <span class="md-ellipsis">
       
-        plot_id
+        to_protein()
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_intensity" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#to_ptm" class="md-nav__link">
     <span class="md-ellipsis">
       
-        plot_intensity
+        to_ptm()
       
     </span>
   </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_missingness" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_missingness
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_var" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_var
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_pca_plot_umap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_pca &amp; plot_umap
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_correlation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_correlation
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plot_upset" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        plot_upset
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -3047,175 +3113,106 @@
   
 
 
-<h1 id="visualisation_overview">Visualisation Overview</h1>
-<p><code>msmu._plotting</code> wraps Plotly to provide ready-made QC and exploratory plots for MuData objects. The module is structured around data preparation helpers and lightweight plot wrappers so you can compose figures with consistent defaults while still passing Plotly kwargs to tweak layout.</p>
-<h2 id="common_parameters_and_behaviors">Common parameters and behaviors</h2>
+<h1 id="summarization">Summarization</h1>
+<h2 id="overview">Overview</h2>
+<p>The term <code>Summarization</code> refers to aggregating identification features and quantitative values as data move from one level to the next (i.e., PSM/precursor -&gt; peptide -&gt; protein).</p>
+<p>Summarization functions are provided as <code>to_*</code> methods, such as <code>to_peptide</code>, <code>to_protein</code>, and <code>to_ptm</code>.</p>
+<p>The <code>Summarization</code> process generally involves:</p>
+<ol>
+<li><strong>Feature selection</strong><br />
+   Selecting features to include in the aggregation based on criteria such as peptide type (unique/shared), precursor isolation purity, or abundance.</li>
+<li><strong>Identification and quantification aggregation</strong><br />
+   Aggregation of quantification values using methods like <code>median</code>, <code>mean</code>, or <code>sum</code>.</li>
+<li><strong>Computing identification confidence scores (PEP, q-value) at the new level when possible.</strong><br />
+   Calculating PEP and q-values for the aggregated features using appropriate methods.</li>
+</ol>
+<h2 id="to_peptide"><code>to_peptide()</code></h2>
+<p><code>to_peptide()</code> function takes:</p>
 <ul>
-<li><code>mdata</code>: required <code>MuData</code> containing the modality to plot.</li>
-<li><code>modality</code>: defaults vary by plot (<code>feature</code>, <code>peptide</code>, <code>protein</code>)</li>
-<li><code>groupby</code>: observation column used to split traces/groups (e.g., <code>filename</code>, <code>condition</code>). If omitted, falls back to <code>obs_column</code>.</li>
-<li><code>obs_column</code>: observation column used for labeling/group resolution; all element should be unique. If omitted or no column exists, creates <code>__obx_idx__</code> column from the index of <code>obs</code></li>
-<li><code>colorby</code>: optional obs column for coloring; only applied when <code>groupby</code> equals <code>obs_column</code>.</li>
-<li><code>ptype</code>: plot style selector(<code>hist</code>, <code>box</code>, <code>vln</code>, etc.).</li>
-<li><code>**kwargs</code>: forwarded to <code>go.Figure.update_layout</code> for per-plot overrides.</li>
+<li><code>mudata</code> containing <code>PSM</code> level modality</li>
 </ul>
-<h2 id="example">Example</h2>
-<blockquote>
-<p>Uszkoreit, J., Barkovits, K., Pacharra, S., Pfeiffer, K., Steinbach, S., Marcus, K., &amp; Eisenacher, M. (2022). Dataset containing physiological amounts of spike-in proteins into murine C2C12 background as a ground truth quantitative LC-MS/MS reference. Data in Brief, 43, 108435.</p>
-</blockquote>
-<h3 id="mdataobs">mdata.obs</h3>
-<table>
-<thead>
-<tr>
-<th>set</th>
-<th>sample_id</th>
-<th>sample_name</th>
-<th>condition</th>
-<th>replicate</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>S1</td>
-<td>QExHF04026</td>
-<td>G1-1</td>
-<td>G1</td>
-<td>1</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04028</td>
-<td>G2-1</td>
-<td>G2</td>
-<td>1</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04030</td>
-<td>G3-1</td>
-<td>G3</td>
-<td>1</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04032</td>
-<td>G4-1</td>
-<td>G4</td>
-<td>1</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04034</td>
-<td>G5-1</td>
-<td>G5</td>
-<td>1</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04036</td>
-<td>G1-2</td>
-<td>G1</td>
-<td>2</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04038</td>
-<td>G2-2</td>
-<td>G2</td>
-<td>2</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04040</td>
-<td>G3-2</td>
-<td>G3</td>
-<td>2</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04042</td>
-<td>G4-2</td>
-<td>G4</td>
-<td>2</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04044</td>
-<td>G5-2</td>
-<td>G5</td>
-<td>2</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04046</td>
-<td>G1-3</td>
-<td>G1</td>
-<td>3</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04048</td>
-<td>G2-3</td>
-<td>G2</td>
-<td>3</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04050</td>
-<td>G3-3</td>
-<td>G3</td>
-<td>3</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04052</td>
-<td>G4-3</td>
-<td>G4</td>
-<td>3</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>QExHF04054</td>
-<td>G5-3</td>
-<td>G5</td>
-<td>3</td>
-</tr>
-</tbody>
-</table>
-<h3 id="plot_id"><code>plot_id</code></h3>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_id</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;protein&quot;</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="s2">&quot;sample_name&quot;</span><span class="p">)</span>
+<p>and returns</p>
+<ul>
+<li><code>mudata</code> with <code>peptide</code> level modality</li>
+</ul>
+<p>This step aggregates PSMs and their quantification values by <code>peptide</code> (modified peptide).
+Peptide-level <code>PEP</code> is calculated with <code>best PEP</code> method by default and peptide-level q-values are computed using a conservative approach when decoy information is available.</p>
+<p>For quantification aggregation, the default method is <code>median</code>, and an optional <code>top_n</code> argument can be used to restrict aggregation to the <code>top N</code> features within each peptide. Feature ranking is based on <code>total_intensity</code> unless specified otherwise.</p>
+<p>In TMT studies, PSMs with low isolation purity may be excluded prior to quantification aggregation to avoid mixing reporter ion signals. Isolation purity should be computed with <code>mm.pp.compute_precursor_isolation_purity()</code> before calling <code>to_peptide()</code>. A <code>purity_threshold</code> (commonly <code>0.7</code>) can be applied during aggregation.</p>
+<p>Note that filtering by <code>top_n</code> or <code>purity_threshold</code> affects quantification aggregation only and does not modify identification feature aggregation.</p>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">to_peptide</span><span class="p">(</span>
+    <span class="n">mdata</span><span class="p">,</span>
+    <span class="n">score_method</span><span class="o">=</span><span class="s2">&quot;best_pep&quot;</span><span class="p">,</span>        <span class="c1"># default</span>
+    <span class="n">agg_method</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>            <span class="c1"># default</span>
+    <span class="n">purity_threshold</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>           <span class="c1"># for tmt data</span>
+    <span class="n">top_n</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                     <span class="c1"># default</span>
+    <span class="n">rank_method</span><span class="o">=</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">,</span>  <span class="c1"># default</span>
+    <span class="p">)</span>
 </code></pre></div>
-<p><img alt="" src="../../assets/images/visualisation_id_1.png" /></p>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_id</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;protein&quot;</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="s2">&quot;condition&quot;</span><span class="p">)</span>
+<h2 id="to_protein"><code>to_protein()</code></h2>
+<p><code>to_protein()</code> function takes:</p>
+<ul>
+<li><code>mudata</code> containing <code>peptide</code> modality with inferred <code>protein_group</code> and <code>peptide_type</code></li>
+</ul>
+<p>and returns:</p>
+<ul>
+<li><code>mudata</code> with <code>protein</code> level modality</li>
+</ul>
+<p>Protein-level summarization requires the <code>protein_group</code> and <code>peptide_type</code> columns, which are generated by <code>mm.pp.infer_protein()</code> from peptide-level data.
+Details are provided in the <a href="/how-it-works/inference/">Protein Inference</a> section. Briefly:</p>
+<ul>
+<li><code>protein_group</code> contains the inferred proteins for each peptide.</li>
+<li><code>peptide_type</code> indicates whether a peptide is "unique" or "shared".</li>
+</ul>
+<p>Only "unique" peptides are used for protein group summarization; "shared" peptides are excluded.</p>
+<p>As in peptide-level aggregation, protein group level <code>PEP</code> and <code>q-value</code> are computed when possible.</p>
+<p>The default settings use <code>top_n=3</code> with ranking by <code>total_intensity</code>, so only the top three peptides per protein group contribute to quantification.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Infer protein group from mdata (containing peptide modality)</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">infer_protein</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+
+<span class="c1"># Summarize peptides to protein group</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">to_protein</span><span class="p">(</span>
+    <span class="n">mdata</span><span class="p">,</span>
+    <span class="n">score_method</span><span class="o">=</span><span class="s2">&quot;best_pep&quot;</span><span class="p">,</span>        <span class="c1"># default</span>
+    <span class="n">agg_method</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>            <span class="c1"># default</span>
+    <span class="n">top_n</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>                        <span class="c1"># default</span>
+    <span class="n">rank_method</span><span class="o">=</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">,</span>  <span class="c1"># default</span>
+    <span class="p">)</span>
 </code></pre></div>
-<p><img alt="" src="../../assets/images/visualisation_id_2.png" /></p>
-<h3 id="plot_intensity"><code>plot_intensity</code></h3>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_intensity</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;protein&quot;</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="s2">&quot;sample_name&quot;</span><span class="p">,</span> <span class="n">ptype</span><span class="o">=</span><span class="s2">&quot;hist&quot;</span><span class="p">)</span>
+<h2 id="to_ptm"><code>to_ptm()</code></h2>
+<p>To summarize modified peptide into post-translational modification (PTM) sites, <code>to_ptm()</code> uses the subset of peptides that contain the specified modification and then performs several steps to assign PTM positions at the protein level.</p>
+<p>Internally, the function performs:</p>
+<ol>
+<li>Filtering data with only modified peptides with modi_identifier</li>
+<li>Extracting modified sites from peptide</li>
+<li>Assigning peptide-level site labels</li>
+<li>Exploding peptides to single proteins for per-protein site labeling</li>
+<li>Mapping the site to the corresponding position in each protein</li>
+<li>Merging single-protein results back into protein groups</li>
+<li>Grouping by modified peptide and peptide-site combination</li>
+<li>Merging site metadata with peptide-level quantification</li>
+</ol>
+<p><code>to_ptm()</code> function takes:</p>
+<ul>
+<li><code>mudata</code> containing <code>peptide</code> modality and attached fasta</li>
+</ul>
+<p>and returns:</p>
+<ul>
+<li><code>mudata</code> with <code>ptm_site</code> level modality</li>
+</ul>
+<p>A FASTA file is required because PTM sites must be mapped to protein-sequence coordinates. FASTA can be attached using <code>mm.utils.attach_fasta()</code>.</p>
+<p>The argument <code>modi_name</code> determines the modality name (e.g., "phospho" -&gt; "phospho_site"), and the <code>modification</code> string is used to identify modified peptides.</p>
+<p><code>agg_method</code> can be selected among methods as described in other summarization functions.</p>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">attach_fasta</span><span class="p">(</span><span class="s2">&quot;fasta/file/path.fasta&quot;</span><span class="p">)</span>
+
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">to_ptm</span><span class="p">(</span>
+    <span class="n">mdata</span><span class="p">,</span>
+    <span class="n">modi_name</span><span class="o">=</span><span class="s2">&quot;phospho&quot;</span><span class="p">,</span>
+    <span class="n">modification</span><span class="o">=</span><span class="s2">&quot;[+79.9663]&quot;</span><span class="p">,</span>
+    <span class="n">agg_method</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>        <span class="c1"># default</span>
+    <span class="n">top_n</span><span class="o">=</span><span class="kc">None</span>                  <span class="c1"># default</span>
+    <span class="p">)</span>
 </code></pre></div>
-<p><img alt="" src="../../assets/images/visualisation_intensity_1.png" /></p>
-<h3 id="plot_missingness"><code>plot_missingness</code></h3>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_missingness</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;protein&quot;</span><span class="p">)</span>
-</code></pre></div>
-<p><img alt="" src="../../assets/images/visualisation_missingness_1.png" /></p>
-<h3 id="plot_var"><code>plot_var</code></h3>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_var</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;feature&quot;</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="s2">&quot;sample_name&quot;</span><span class="p">,</span> <span class="n">var_column</span><span class="o">=</span><span class="s2">&quot;charge&quot;</span><span class="p">,</span> <span class="n">ptype</span><span class="o">=</span><span class="s2">&quot;stacked_bar&quot;</span><span class="p">)</span>
-</code></pre></div>
-<p><img alt="" src="../../assets/images/visualisation_var_1.png" /></p>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_var</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;feature&quot;</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="s2">&quot;sample_name&quot;</span><span class="p">,</span> <span class="n">var_column</span><span class="o">=</span><span class="s2">&quot;peptide_length&quot;</span><span class="p">,</span> <span class="n">ptype</span><span class="o">=</span><span class="s2">&quot;vln&quot;</span><span class="p">)</span>
-</code></pre></div>
-<p><img alt="" src="../../assets/images/visualisation_var_2.png" /></p>
-<h3 id="plot_pca_plot_umap"><code>plot_pca</code> &amp; <code>plot_umap</code></h3>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_pca</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;protein&quot;</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="s2">&quot;condition&quot;</span><span class="p">)</span>
-</code></pre></div>
-<p><img alt="" src="../../assets/images/visualisation_pca_1.png" /></p>
-<h3 id="plot_correlation"><code>plot_correlation</code></h3>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_correlation</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;protein&quot;</span><span class="p">)</span>
-</code></pre></div>
-<p><img alt="" src="../../assets/images/visualisation_correlation_1.png" /></p>
-<h3 id="plot_upset"><code>plot_upset</code></h3>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_upset</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;protein&quot;</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="s2">&quot;condition&quot;</span><span class="p">)</span>
-</code></pre></div>
-<p><img alt="" src="../../assets/images/visualisation_upset_1.png" /></p>
 
 
 
@@ -3236,7 +3233,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2025 02:30:13 UTC">November 25, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2025 10:25:04 UTC">November 27, 2025</span>
   </span>
 
     

@@ -11,10 +11,10 @@
       
       
       
-        <link rel="prev" href="../filter/">
+        <link rel="prev" href="../read_maxquant/">
       
       
-        <link rel="next" href="../batch_correction/">
+        <link rel="next" href="../merge_mudata/">
       
       
         
@@ -25,7 +25,7 @@
     
     
       
-        <title>Normalisation - msmu</title>
+        <title>read_fragpipe - msmu</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#normalisation" class="md-skip">
+        <a href="#msmuread_fragpipe" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Normalisation
+              read_fragpipe
             
           </span>
         </div>
@@ -221,6 +221,8 @@
         <div class="md-main__inner md-grid">
           
             
+              
+                
               
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
@@ -709,10 +711,8 @@
       
   
   
-    
   
   
-  
     
     
       
@@ -738,11 +738,11 @@
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
           <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
@@ -763,7 +763,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -781,7 +781,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../data/" class="md-nav__link">
+      <a href="../../how-it-works/data/" class="md-nav__link">
         
   
   
@@ -809,7 +809,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../filter/" class="md-nav__link">
+      <a href="../../how-it-works/filter/" class="md-nav__link">
         
   
   
@@ -817,6 +817,394 @@
     
   
     Filter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-it-works/normalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Normalization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-it-works/batch_correction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Batch Correction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-it-works/summarization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summarization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-it-works/inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protein Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-it-works/purity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Precursor Isolation Purity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-it-works/dea/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DE Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-it-works/visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../read_h5mu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_h5mu
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../read_sage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_sage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../read_diann/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_diann
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../read_maxquant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_maxquant
   
 
     
@@ -853,7 +1241,7 @@
   <span class="md-ellipsis">
     
   
-    Normalisation
+    read_fragpipe
   
 
     
@@ -871,7 +1259,7 @@
   <span class="md-ellipsis">
     
   
-    Normalisation
+    read_fragpipe
   
 
     
@@ -897,43 +1285,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#msmu.read_fragpipe" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#log2_transform" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        log2_transform()
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#normalise_or_normalize" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        normalise() (or normalize())
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#adjust_ptm_by_protein" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        adjust_ptm_by_protein()
+        msmu.read_fragpipe
       
     </span>
   </a>
@@ -956,303 +1311,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../batch_correction/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Batch Correction
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../summarisation/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Summarisation
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../inference/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Protein Inference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../purity/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Precursor Isolation Purity
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../dea/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    DE Analysis
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../visualisation/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Visualisation
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    API
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/read_h5mu/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    read_h5mu
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/read_sage/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    read_sage
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/merge_mudata/" class="md-nav__link">
+      <a href="../merge_mudata/" class="md-nav__link">
         
   
   
@@ -1302,6 +1361,8 @@
       
         
       
+        
+      
     
     
     
@@ -1310,10 +1371,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
         
           
-          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="0">
             
   
   
@@ -1331,8 +1392,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_4">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1349,7 +1410,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/add_filter/" class="md-nav__link">
+      <a href="../pp/add_filter/" class="md-nav__link">
         
   
   
@@ -1377,7 +1438,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/apply_filter/" class="md-nav__link">
+      <a href="../pp/apply_filter/" class="md-nav__link">
         
   
   
@@ -1405,7 +1466,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/log2_transform/" class="md-nav__link">
+      <a href="../pp/log2_transform/" class="md-nav__link">
         
   
   
@@ -1433,7 +1494,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/normalise/" class="md-nav__link">
+      <a href="../pp/normalise/" class="md-nav__link">
         
   
   
@@ -1461,7 +1522,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/correct_batch_effect/" class="md-nav__link">
+      <a href="../pp/correct_batch_effect/" class="md-nav__link">
         
   
   
@@ -1489,7 +1550,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/to_peptide/" class="md-nav__link">
+      <a href="../pp/to_peptide/" class="md-nav__link">
         
   
   
@@ -1517,7 +1578,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/to_protein/" class="md-nav__link">
+      <a href="../pp/to_protein/" class="md-nav__link">
         
   
   
@@ -1545,7 +1606,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/to_ptm/" class="md-nav__link">
+      <a href="../pp/to_ptm/" class="md-nav__link">
         
   
   
@@ -1573,7 +1634,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/infer_protein/" class="md-nav__link">
+      <a href="../pp/infer_protein/" class="md-nav__link">
         
   
   
@@ -1601,7 +1662,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pp/adjust_ptm_by_protein/" class="md-nav__link">
+      <a href="../pp/adjust_ptm_by_protein/" class="md-nav__link">
         
   
   
@@ -1609,6 +1670,34 @@
     
   
     adjust_ptm_by_protein
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pp/scale_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    scale_data
   
 
     
@@ -1663,10 +1752,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
         
           
-          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="0">
             
   
   
@@ -1684,8 +1773,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_5">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1702,7 +1791,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pl/plot_correlation/" class="md-nav__link">
+      <a href="../pl/plot_correlation/" class="md-nav__link">
         
   
   
@@ -1730,7 +1819,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pl/plot_id/" class="md-nav__link">
+      <a href="../pl/plot_id/" class="md-nav__link">
         
   
   
@@ -1758,7 +1847,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pl/plot_intensity/" class="md-nav__link">
+      <a href="../pl/plot_intensity/" class="md-nav__link">
         
   
   
@@ -1786,7 +1875,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pl/plot_missingness/" class="md-nav__link">
+      <a href="../pl/plot_missingness/" class="md-nav__link">
         
   
   
@@ -1814,7 +1903,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pl/plot_pca/" class="md-nav__link">
+      <a href="../pl/plot_pca/" class="md-nav__link">
         
   
   
@@ -1842,7 +1931,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pl/plot_umap/" class="md-nav__link">
+      <a href="../pl/plot_umap/" class="md-nav__link">
         
   
   
@@ -1870,7 +1959,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pl/plot_upset/" class="md-nav__link">
+      <a href="../pl/plot_upset/" class="md-nav__link">
         
   
   
@@ -1898,7 +1987,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/pl/plot_var/" class="md-nav__link">
+      <a href="../pl/plot_var/" class="md-nav__link">
         
   
   
@@ -1958,10 +2047,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_9" >
         
           
-          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_9" id="__nav_5_9_label" tabindex="0">
             
   
   
@@ -1979,8 +2068,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1997,7 +2086,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/tl/compute_precursor_isolation_purity/" class="md-nav__link">
+      <a href="../tl/compute_precursor_isolation_purity/" class="md-nav__link">
         
   
   
@@ -2025,7 +2114,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/tl/compute_precursor_isolation_purity_from_mzml/" class="md-nav__link">
+      <a href="../tl/compute_precursor_isolation_purity_from_mzml/" class="md-nav__link">
         
   
   
@@ -2053,7 +2142,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/tl/pca/" class="md-nav__link">
+      <a href="../tl/pca/" class="md-nav__link">
         
   
   
@@ -2081,7 +2170,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/tl/umap/" class="md-nav__link">
+      <a href="../tl/umap/" class="md-nav__link">
         
   
   
@@ -2109,7 +2198,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/tl/run_de/" class="md-nav__link">
+      <a href="../tl/run_de/" class="md-nav__link">
         
   
   
@@ -2137,7 +2226,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/tl/PermTestResult/" class="md-nav__link">
+      <a href="../tl/PermTestResult/" class="md-nav__link">
         
   
   
@@ -2165,7 +2254,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/tl/StatTestResult/" class="md-nav__link">
+      <a href="../tl/StatTestResult/" class="md-nav__link">
         
   
   
@@ -2233,10 +2322,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_10" >
         
           
-          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_10" id="__nav_5_10_label" tabindex="0">
             
   
   
@@ -2254,8 +2343,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_7">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2272,7 +2361,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/subset/" class="md-nav__link">
+      <a href="../utils/subset/" class="md-nav__link">
         
   
   
@@ -2300,7 +2389,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/split_tmt/" class="md-nav__link">
+      <a href="../utils/split_tmt/" class="md-nav__link">
         
   
   
@@ -2328,7 +2417,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/get_modality_dict/" class="md-nav__link">
+      <a href="../utils/get_modality_dict/" class="md-nav__link">
         
   
   
@@ -2356,7 +2445,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/map_fasta/" class="md-nav__link">
+      <a href="../utils/map_fasta/" class="md-nav__link">
         
   
   
@@ -2384,7 +2473,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/attach_fasta/" class="md-nav__link">
+      <a href="../utils/attach_fasta/" class="md-nav__link">
         
   
   
@@ -2412,7 +2501,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/get_label/" class="md-nav__link">
+      <a href="../utils/get_label/" class="md-nav__link">
         
   
   
@@ -2440,7 +2529,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/uns_logger/" class="md-nav__link">
+      <a href="../utils/uns_logger/" class="md-nav__link">
         
   
   
@@ -2468,7 +2557,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/add_quant/" class="md-nav__link">
+      <a href="../utils/add_quant/" class="md-nav__link">
         
   
   
@@ -2496,7 +2585,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/reindex_obs/" class="md-nav__link">
+      <a href="../utils/reindex_obs/" class="md-nav__link">
         
   
   
@@ -2524,7 +2613,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/select_repr_protein/" class="md-nav__link">
+      <a href="../utils/select_repr_protein/" class="md-nav__link">
         
   
   
@@ -2552,7 +2641,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/parse_uniprot_accession/" class="md-nav__link">
+      <a href="../utils/parse_uniprot_accession/" class="md-nav__link">
         
   
   
@@ -2598,6 +2687,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -2606,10 +2701,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_11" >
         
           
-          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_11" id="__nav_5_11_label" tabindex="0">
             
   
   
@@ -2627,8 +2722,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_8">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2645,7 +2740,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/io/read_sage/" class="md-nav__link">
+      <a href="../io/read_sage/" class="md-nav__link">
         
   
   
@@ -2673,7 +2768,91 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/io/to_readable/" class="md-nav__link">
+      <a href="../io/read_diann/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_diann
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../io/read_maxquant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_maxquant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../io/read_fragpipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    read_fragpipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../io/to_readable/" class="md-nav__link">
         
   
   
@@ -2701,7 +2880,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/io/write_csv/" class="md-nav__link">
+      <a href="../io/write_csv/" class="md-nav__link">
         
   
   
@@ -2729,7 +2908,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/io/write_flashlfq_input/" class="md-nav__link">
+      <a href="../io/write_flashlfq_input/" class="md-nav__link">
         
   
   
@@ -2773,7 +2952,9 @@
             
             
               
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" hidden>
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
                     
@@ -2792,43 +2973,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#msmu.read_fragpipe" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#log2_transform" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        log2_transform()
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#normalise_or_normalize" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        normalise() (or normalize())
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#adjust_ptm_by_protein" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        adjust_ptm_by_protein()
+        msmu.read_fragpipe
       
     </span>
   </a>
@@ -2847,6 +2995,8 @@
             <div class="md-content" data-md-component="content">
               
                 
+
+  
 
 
 
@@ -2878,10 +3028,10 @@
     
     
       <li class="md-path__item">
-        <a href="../data/" class="md-path__link">
+        <a href="../read_h5mu/" class="md-path__link">
           
   <span class="md-ellipsis">
-    HOW IT WORKS
+    API
   </span>
 
         </a>
@@ -2897,43 +3047,130 @@
               <article class="md-content__inner md-typeset">
                 
                   
-
-
-  
   
 
 
-<h1 id="normalisation">Normalisation</h1>
-<h2 id="overview">Overview</h2>
-<p>Normalization is a crucial step in proteomics data analysis to correct for systematic biases and ensure comparability across samples. <code>msmu</code> provides several normalisation methods to address different experimental designs and data characteristics.</p>
-<h2 id="log2_transform"><code>log2_transform()</code></h2>
-<p>The <code>log2_transform()</code> function applies a log2 transformation to the quantification data in the specified modality. This transformation helps stabilize variance and make the data more normally distributed, which is beneficial for downstream statistical analyses. <code>msmu</code> assumes that <code>log2_transfrom()</code> is applied on basal level of data before other normalisation methods.</p>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">log2_transform</span><span class="p">(</span>
-    <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span>  <span class="c1"># or &quot;peptide&quot;, &quot;protein&quot;</span>
-<span class="p">)</span>
-</code></pre></div>
-<h2 id="normalise_or_normalize"><code>normalise()</code> (or <code>normalize()</code>)</h2>
-<p>The <code>normalise()</code> function offers multiple normalisation methods, including median (<code>median</code>) and quantile (<code>quantile</code>) normalisation. Users can select the method that best suits their data and experimental design. For fractionated TMT data, setting the <code>fraction</code> argument to <code>True</code> ensures that normalisation is performed within each fraction separately.</p>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">normalise</span><span class="p">(</span>
-    <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span>           <span class="c1"># or &quot;peptide&quot;, &quot;protein&quot;</span>
-    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>          <span class="c1"># options: &quot;median&quot;, &quot;quantile&quot;, default &quot;median&quot;</span>
-    <span class="n">fraction</span><span class="o">=</span><span class="kc">False</span>            <span class="c1"># whether data is fractionated</span>
-<span class="p">)</span>
-</code></pre></div>
-<h2 id="adjust_ptm_by_protein"><code>adjust_ptm_by_protein()</code></h2>
-<p>The <code>adjust_ptm_by_protein()</code> function normalises PTM site quantifications by their corresponding protein abundances from <code>global proteome</code> data to account for changes in protein expression levels</p>
-<p>For <code>ridge</code> regression method, PTM site intensities are adjusted based on the fitted values from a ridge regression model that predicts PTM abundance using protein abundance as a predictor variable. This approach helps to isolate PTM-specific changes from overall protein expression variations.</p>
-<p>And for <code>ratio</code> method, PTM site intensities are normalised by calculating the ratio of PTM abundance to protein abundance, providing a direct measure of PTM changes relative to protein levels.</p>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">adjust_ptm_by_protein</span><span class="p">(</span>
-    <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">global_mdata</span><span class="o">=</span><span class="n">global_mdata</span><span class="p">,</span>   <span class="c1"># MuData object for global proteome</span>
-    <span class="n">ptm_mod</span><span class="o">=</span><span class="s2">&quot;phospho_site&quot;</span><span class="p">,</span>      <span class="c1"># ptm modality</span>
-    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;ridge&quot;</span><span class="p">,</span>              <span class="c1"># options: &quot;ridge&quot;, &quot;ratio&quot;. default &quot;ridge&quot;</span>
-    <span class="n">rescale</span><span class="o">=</span><span class="kc">True</span>                 <span class="c1"># whether to rescale adjusted values. default True</span>
-<span class="p">)</span>
-</code></pre></div>
+
+
+<h1 id="msmuread_fragpipe"><code>msmu.read_fragpipe</code></h1>
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+
+<a id="msmu.read_fragpipe"></a>
+    <div class="doc doc-contents first">
+
+        <p>Alias for :class:<code>FragPipeFacade</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>identification_file</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Path to the FragPipe output directory.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>quantification_file</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Path to the FragPipe quantification file (if applicable, for LFQ).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>label</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Label for the FragPipe output ('tmt' or 'label_free').</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>acquisition</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Acquisition method ('dda' or 'dia').</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="msmu._read_write._reader_registry.FragPipeFacade">FragPipeFacade</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A MuData object containing the FragPipe data at PSM level</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="usage" open>
+  <summary>Usage</summary>
+  <p>mdata = mm.read_fragpipe(identification_file, quantification_file, label, acquisition)</p>
+</details>
+    </div>
+
+</div>
 
 
 
@@ -2954,7 +3191,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2025 10:25:04 UTC">November 27, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 7, 2026 02:43:32 UTC">January 7, 2026</span>
   </span>
 
     
@@ -2964,6 +3201,8 @@
   </aside>
 
 
+
+  
 
 
 
