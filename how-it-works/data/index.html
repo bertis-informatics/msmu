@@ -3075,7 +3075,7 @@
 <p>To manage these properties consistently, <code>msmu</code> adopts <a href="https://mudata.readthedocs.io/en/latest/"><code>MuData</code></a> from the <code>scverse</code> ecosystem as the fundamental data format. <a href="https://mudata.readthedocs.io/en/latest/"><code>MuData</code></a>, together with its constituent <a href="https://anndata.readthedocs.io/en/stable/"><code>AnnData</code></a> objects, is widely used in scRNA-seq to manage complex data matrices and their associated metadata. The same structure fits proteomics naturally: identification-level attributes, quantification values, and sample information can all be stored cleanly and explored in an integrated way.</p>
 <p><code>msmu</code> works with data formatted as a <a href="https://mudata.readthedocs.io/en/latest/"><code>MuData</code></a> object composed of multiple <a href="https://anndata.readthedocs.io/en/stable/"><code>AnnData</code></a> modalities.
 Therefore, understanding the usage of <a href="https://mudata.readthedocs.io/en/latest/"><code>MuData</code></a> and <a href="https://anndata.readthedocs.io/en/stable/"><code>AnnData</code></a> helps when working with <code>msmu</code>.</p>
-<p>A <code>MuData</code> object used in <code>msmu</code> is organized by modalities, each corresponding to a specific processing level such as psm, peptide, and protein:</p>
+<p>A <code>MuData</code> object used in <code>msmu</code> is organized by modalities, each corresponding to a specific processing level such as <code>psm</code>, <code>peptide</code>, and <code>protein</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;psm&quot;</span><span class="p">]</span>
@@ -3083,56 +3083,47 @@ Therefore, understanding the usage of <a href="https://mudata.readthedocs.io/en/
 <span class="c1"># or</span>
 <span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;protein&quot;</span><span class="p">]</span>
 </code></pre></div>
-<p>As a general AnnData object, each individual modality contains <code>.var</code>, <code>.obs</code>, <code>.X</code>, <code>uns</code>, and etc,.</p>
+<p>As a general AnnData object, each individual modality contains <code>.X</code>, <code>.var</code>, <code>.varm</code>, <code>.obs</code>, <code>.obsm</code>, <code>.uns</code>, etc.</p>
 <ul>
-<li>A <code>.var</code> attribute is filled with features of each level data. For example, in <code>psm</code> modality for PSMs (or precursors), information describing scan number, filename, PEP, q-value, and etc, with <code>filename.scan</code> index.</li>
-<li>In <code>.obs</code>, metadata for samples can be stored and initially filenames or TMT channels are used as index.</li>
-<li><code>.X</code> Holds the <strong>quantification</strong> matrix.</li>
-<li>All other unstructured data can be stored in <code>.uns</code>.</li>
+<li><code>.X</code> is a matrix holding the <strong>quantification</strong> data.</li>
+<li><code>.var</code> is a dataframe containing metadata of features for each level. As an example, <code>.var</code> in <code>psm</code> modality (for PSMs or precursors) contains information describing scan number, filename, PEP, q-value, etc., with <code>filename.scan</code> as index.</li>
+<li><code>.varm</code> is a dictionary-like structure to store additional per-feature matrices, such as boolean masks for filtering features.</li>
+<li><code>.obs</code> is a dataframe containing metadata of samples, such as sample name, condition, replicate number, etc., with <code>filename</code> or <code>channel</code> as index.</li>
+<li><code>.obsm</code> is a dictionary-like structure to store additional per-sample matrices, such as PCA or UMAP coordinates.</li>
+<li><code>.uns</code> is a dictionary-like structure to store unstructured annotations, such as decoy features pulled from search results.</li>
 </ul>
 <p><img alt="" src="../../assets/fig1b.svg" width="100%" /></p>
 <h2 id="data_ingestion_from_db_search_tools">Data Ingestion from DB search tools</h2>
-<p>Although different search tools output either one consolidated table or multiple separate tables, their contents can typically be organized into two main conceptual parts:</p>
+<p>Although different search tools return result files with heterogenous formats, their contents can typically be organized into two main conceptual parts to construct peptide- and protein-level data.</p>
 <ul>
-<li>Identification data - Identification data with feature-level annotations</li>
+<li>Identification data - Identified features with associated annotations</li>
 <li>Quantification data - Quantitative values for features across samples</li>
 </ul>
-<p>While each tool’s schema differs, all of them describe the same core identification and quantification features needed to construct peptide- and protein-level data suitable for comparative proteomics.</p>
-<p><code>read_*</code> functions in msmu extract the essential columns required for QC and downstream processing and migrate them into the <code>.var</code> of the <code>feature</code> modality. <code>read_*</code> functions are implemented in <code>msmu/_read_write/_reader_registry</code></p>
+<p><code>read_*</code> functions in msmu extract the essential columns required for QC and downstream processing and migrate them into the <code>.var</code> of the <code>psm</code> modality. <code>read_*</code> functions are implemented in <code>msmu/_read_write/_reader_registry</code></p>
 <ul>
-<li>
-<p><code>read_*</code> functions (currently available)</p>
-</li>
-<li>
-<p><code>read_sage()</code></p>
-</li>
+<li><code>read_*</code> functions (currently available)<ul>
+<li><code>read_sage()</code></li>
 <li><code>read_diann()</code></li>
 <li><code>read_maxquant()</code></li>
-<li>
-<p><code>read_fragpipe()</code></p>
+<li><code>read_fragpipe()</code></li>
+</ul>
 </li>
-<li>
-<p>Inputs</p>
+<li>Inputs<ul>
+<li><code>identification_file</code>: A file path to identification data</li>
+<li><code>quantification_file</code>: A file path to quantification data (if applicable) (for tools outputting separate quantification files like Sage)</li>
+<li><code>label</code>: used label (<code>tmt</code> or <code>label_free</code>)</li>
+<li><code>acquisition</code>: acquisition method (<code>dda</code>, or <code>dia</code>) (for tools supporting both DDA and DIA like MaxQuant)</li>
+</ul>
 </li>
-<li><code>identification_file</code>: A file path to identification table</li>
-<li><code>quantification_file</code>: A file path to quantification table (if applicable) (for tools outputting separate quantification files like Sage)</li>
-<li><code>label</code>: used label ("tmt" or "label_free")</li>
-<li><code>acquisition</code>: acquisition method ("dda", or "dia") (for tools supporting both DDA and DIA like MaxQuant)</li>
-<li>
-<p>output</p>
+<li>Output<ul>
+<li><code>mudata</code>: Data ingested MuData object</li>
+</ul>
 </li>
-<li>
-<p><code>mudata</code>: Data ingested MuData object</p>
+<li>Columns migrated into <code>mdata["psm"].var</code><ul>
+<li><code>filename</code>, <code>peptide</code>(modified), <code>stripped_peptide</code>, <code>scan_num</code>, <code>proteins</code>, <code>missed_cleavages</code>, <code>peptide_length</code>, <code>charge</code>, <code>PEP</code>, <code>q-value</code></li>
+</ul>
 </li>
-<li>
-<p>columns migrated into <code>mdata["psm"].var</code></p>
-</li>
-<li>
-<p><code>filename</code>, <code>peptide</code>(modified), <code>stripped_peptide</code>, <code>scan_num</code>, <code>proteins</code>, <code>missed_cleavages</code>, <code>peptide_length</code>, <code>charge</code>, <code>PEP</code>, <code>q-value</code></p>
-</li>
-<li>
-<p>decoy features are isolated from <code>.var</code> and stored in <code>.uns["decoy"]</code> for later use in FDR calculation.</p>
-</li>
+<li>Decoy features are isolated from <code>.var</code> and stored in <code>.uns["decoy"]</code> for later use in FDR calculation.</li>
 <li>Quantification data for <strong>LFQ (DDA)</strong> is stored in <code>peptide</code> modality.</li>
 <li>Raw information from a search tool is stored in <code>mdata["psm"].varm["search_result"]</code></li>
 </ul>
@@ -3178,7 +3169,7 @@ Therefore, understanding the usage of <a href="https://mudata.readthedocs.io/en/
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 7, 2026 01:49:34 UTC">January 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 7, 2026 10:00:13 UTC">January 7, 2026</span>
   </span>
 
     

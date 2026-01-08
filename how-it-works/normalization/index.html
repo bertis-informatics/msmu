@@ -3117,7 +3117,7 @@
 <h2 id="overview">Overview</h2>
 <p>Normalization is a crucial step in proteomics data analysis to correct for systematic biases and ensure comparability across samples. <code>msmu</code> provides several normalization methods to address different experimental designs and data characteristics.</p>
 <h2 id="log2_transform"><code>log2_transform()</code></h2>
-<p>The <code>log2_transform()</code> function applies a log2 transformation to the quantification data in the specified modality. This transformation helps stabilize variance and make the data more normally distributed, which is beneficial for downstream statistical analyses. <code>msmu</code> assumes that <code>log2_transform()</code> is applied on basal level of data before other normalization methods.</p>
+<p>The <code>log2_transform()</code> function applies a log2 transformation to the quantification data in the specified modality. This transformation helps stabilize variance and make the data more normally distributed, which is beneficial for downstream statistical analyses. <code>msmu</code> assumes that <code>log2_transform()</code> is applied on basal level of data before applying normalization methods.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">log2_transform</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
     <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span>  <span class="c1"># or &quot;peptide&quot;, &quot;protein&quot;</span>
@@ -3135,7 +3135,7 @@
 <h2 id="adjust_ptm_by_protein"><code>adjust_ptm_by_protein()</code></h2>
 <p>The <code>adjust_ptm_by_protein()</code> function normalizes PTM site quantifications by their corresponding protein abundances from <code>global proteome</code> data to account for changes in protein expression levels</p>
 <p>For <code>ridge</code> regression method, PTM site intensities are adjusted based on the fitted values from a ridge regression model that predicts PTM abundance using protein abundance as a predictor variable. This approach helps to isolate PTM-specific changes from overall protein expression variations.</p>
-<p>And for <code>ratio</code> method, PTM site intensities are normalized by calculating the ratio of PTM abundance to protein abundance, providing a direct measure of PTM changes relative to protein levels.</p>
+<p>And for <code>ratio</code> method, PTM site intensities are normalized by calculating the ratio of PTM abundance to protein abundance, providing a simple measure of PTM changes relative to protein levels.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">adjust_ptm_by_protein</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
     <span class="n">global_mdata</span><span class="o">=</span><span class="n">global_mdata</span><span class="p">,</span>   <span class="c1"># MuData object for global proteome</span>
@@ -3164,7 +3164,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2025 10:25:04 UTC">November 27, 2025</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 7, 2026 10:00:13 UTC">January 7, 2026</span>
   </span>
 
     
