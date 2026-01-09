@@ -4,7 +4,7 @@ This page explains how `msmu` infers proteins from peptide-level features throug
 
 ## How proteins are inferred
 
-Protein inference in msmu is performed through a series of incremental refinement steps. By modifying the initial peptide-protein relationship, proteins are grouped based on shared peptide evidence, following principles outlined in Nesvizhskii & Aebersold (2005). The main steps are as follows:
+Protein inference in `msmu` is performed through a series of incremental refinement steps. By modifying the initial peptide-protein relationship, proteins are grouped based on shared peptide evidence, following principles outlined in Nesvizhskii & Aebersold (2005). The main steps are as follows:
 
 1. **Construct inital peptide-protein graph**  
    A initial graph explaining peptide-protein relationships is constructed.
@@ -15,7 +15,7 @@ Protein inference in msmu is performed through a series of incremental refinemen
 4. **Resolve subsumable proteins** (`_find_subsumable`)  
    Proteins lacking unique peptides are evaluated within connected components of shared peptides. Proteins that cannot be distinguished are merged, while components without unique peptide evidence are dropped.
 5. **Finalize protein group assignment**  
-   After above steps, all remaining protein groups are distinguishable. Mappings explaining peptide-protein relationship and annotations describing how each protein was handled are stored in `mdata.uns`.
+   After above steps, all remaining protein groups are distinguishable (i.e. having at least one unique peptide). Mappings explaining peptide-protein relationship and annotations describing how each protein was handled are stored in `mdata.uns`.
 
 ## Input
 

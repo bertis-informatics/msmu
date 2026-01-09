@@ -2,8 +2,8 @@
 
 ## Requirements
 
-- Python 3.8 or newer
-- (Recommended) A virtual environment such as `venv`, `conda`, `pipenv`, or `uv`
+- Python 3.11 or newer
+- (Recommended) A virtual environment such as `venv`, `pipenv`, or `uv`
 
 ## Install with pip
 
@@ -27,9 +27,7 @@ It is strongly recommended to create virtual environment.
     pipenv run python -c "import msmu; print('msmu:', msmu.__version__)"
     ```
 
-### From PyPI (planned)
-
-> Once published to PyPI, installation will be:
+### From PyPI
 
 === "pip"
 

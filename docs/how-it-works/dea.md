@@ -1,4 +1,4 @@
-# Differential Expression Analysis (DEA)
+# Differential Expression (DE) Analysis
 
 ## Overview
 
@@ -8,15 +8,15 @@ Differential Expression Analysis (DEA) identifies proteins or peptides with sign
 
 The `run_de()` function performs a non-parametric permutation test to evaluate differential expression between two groups. It calculates p-values based on the distribution of test statistics obtained from permuted group labels.
 
-This function uses Welch's t-statistic by default, which is suitable for unequal variances between groups. Other statistics such as Student's t-test, Wilcoxon's rank-sum test, and median difference are also available.
+This function uses Welch's t-statistic by default, which is suitable for unequal variances between groups. Other statistics such as Student's t-statistics, Wilcoxon's W-statistics (rank-sum) test, and median difference are also available.
 
-For multiple testing correction, `msmu` supports `empirical` FDR, and `bh` (Benjamini-Hochberg) methods. `empirical` FDR is recommended when using permutation tests.
+For multiple testing correction, `msmu` supports empirical FDR, and Benjamini-Hochberg method. Empirical FDR is recommended when using permutation tests.
 
 `n_resamples` specifies the number of random permutations to generate the null distribution. If set to `None`, a simple hypothesis test without permutations is performed. The default of `1000` permutations provides a practical balance between statistical accuracy and computational cost.
 
 If sample sizes are too small to meet `n_resamples`, all possible permutations are used to compute exact p-values (exact test).
 
-log2 fold-change (`log2FC`) between the two groups is calculated as the difference of log2-transformed median values.
+Log2 fold-change (`log2FC`) between the two groups is calculated as the difference of log2-transformed median values.
 
 `p-value` from the test is computed with the proportion of permuted statistics that are as extreme or more extreme than the observed statistic in null distribution with two-sided test.
 

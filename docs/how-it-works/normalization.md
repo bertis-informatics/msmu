@@ -30,7 +30,7 @@ mdata = mm.pp.normalize(
 
 ## `adjust_ptm_by_protein()`
 
-The `adjust_ptm_by_protein()` function normalizes PTM site quantifications by their corresponding protein abundances from `global proteome` data to account for changes in protein expression levels
+The `adjust_ptm_by_protein()` function normalizes PTM site quantifications by their corresponding protein abundances from `global proteome` (if available) data to account for changes in protein expression levels.
 
 For `ridge` regression method, PTM site intensities are adjusted based on the fitted values from a ridge regression model that predicts PTM abundance using protein abundance as a predictor variable. This approach helps to isolate PTM-specific changes from overall protein expression variations.
 

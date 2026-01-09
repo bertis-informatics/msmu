@@ -2,7 +2,7 @@
 
 ## Overview
 
-Batch effects are unwanted variations in the data that arise from differences in experimental conditions, such as different lots, runs, days, or operators. These variations can obscure true biological signals and lead to misleading conclusions. `msmu` provides functions to correct for discrete batch effects using methods like median centering and GIS/IRS for TMT data. For batch effect from continuous variables (e.g., run order) will be supported in future releases.
+Batch effects are unwanted variations in the data that arise from differences in experimental conditions, such as different lots, runs, days, or operators. These variations can obscure true biological signals and lead to misleading conclusions. `msmu` provides functions to correct for discrete batch effects using methods like median centering and GIS/IRS for TMT data. Support for batch effects arising from continuous variables (e.g., run order) will be added in future releases.
 
 ## `correct_batch_effect()`
 

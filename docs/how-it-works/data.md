@@ -2,7 +2,7 @@
 
 ## Overview
 
-In LC-MS/MS "shotgun" `proteomics`, data analysis typically follows a **hierarchical path**—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a **multi-level** and **multi-dimensional** structure (e.g., PSM/precursor, peptide, protein; feature metadata; sample annotations; QC metrics).
+In LC-MS/MS "shotgun" `proteomics`, data analysis typically follows a **hierarchical path**—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a **multi-level** and **multi-dimensional** structure: PSM/precursor, peptide, protein; feature metadata; sample annotations; and QC metrics.
 
 To manage these properties consistently, `msmu` adopts [`MuData`](https://mudata.readthedocs.io/en/latest/) from the `scverse` ecosystem as the fundamental data format. [`MuData`](https://mudata.readthedocs.io/en/latest/), together with its constituent [`AnnData`](https://anndata.readthedocs.io/en/stable/) objects, is widely used in scRNA-seq to manage complex data matrices and their associated metadata. The same structure fits proteomics naturally: identification-level attributes, quantification values, and sample information can all be stored cleanly and explored in an integrated way.
 
@@ -40,22 +40,22 @@ Although different search tools return result files with heterogenous formats, t
 - Identification data - Identified features with associated annotations
 - Quantification data - Quantitative values for features across samples
 
-`read_*` functions in msmu extract the essential columns required for QC and downstream processing and migrate them into the `.var` of the `psm` modality. `read_*` functions are implemented in `msmu/_read_write/_reader_registry`
+`read_*` functions in `msmu` extract the essential columns required for QC and downstream processing and migrate them into the `.var` of the `psm` modality. `read_*` functions are implemented in `msmu/_read_write/_reader_registry`
 
 - `read_*` functions (currently available)
-    - `read_sage()`
-    - `read_diann()`
-    - `read_maxquant()`
-    - `read_fragpipe()`
+  - `read_sage()`
+  - `read_diann()`
+  - `read_maxquant()`
+  - `read_fragpipe()`
 - Inputs
-    - `identification_file`: A file path to identification data
-    - `quantification_file`: A file path to quantification data (if applicable) (for tools outputting separate quantification files like Sage)
-    - `label`: used label (`tmt` or `label_free`)
-    - `acquisition`: acquisition method (`dda`, or `dia`) (for tools supporting both DDA and DIA like MaxQuant)
+  - `identification_file`: A file path to identification data
+  - `quantification_file`: A file path to quantification data (if applicable) (for tools outputting separate quantification files like Sage)
+  - `label`: used label (`tmt` or `label_free`)
+  - `acquisition`: acquisition method (`dda`, or `dia`) (for tools supporting both DDA and DIA like MaxQuant)
 - Output
-    - `mudata`: Data ingested MuData object
+  - `mudata`: Data ingested MuData object
 - Columns migrated into `mdata["psm"].var`
-    - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q-value`
+  - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q-value`
 - Decoy features are isolated from `.var` and stored in `.uns["decoy"]` for later use in FDR calculation.
 - Quantification data for **LFQ (DDA)** is stored in `peptide` modality.
 - Raw information from a search tool is stored in `mdata["psm"].varm["search_result"]`
