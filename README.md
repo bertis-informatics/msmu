@@ -29,6 +29,16 @@ It supports modules for an end-to-end processing—from search output parsing th
 - FragPipe: [https://fragpipe.nesvilab.org/](https://fragpipe.nesvilab.org/)
 - and more upcoming.
 
+## Citation
+
+If you use `msmu` in your research, please cite the following publication (preprint):
+
+> msmu: a Python toolkit for modular and traceable LC-MS proteomics data analysis based on MuData
+>
+> Hyung-Wook Choi, Byeongchan Lee, Un-Beom Kang, Sunghyun Huh
+>
+> bioRxiv 2026.01.07.698308; doi: [10.64898/2026.01.07.698308](https://doi.org/10.64898/2026.01.07.698308)
+
 ## License
 
 BSD 3-Clause License. See LICENSE for details.
