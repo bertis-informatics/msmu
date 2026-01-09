@@ -24,12 +24,14 @@ dependencies = [
     "umap-learn",
     "pyopenms",
     "fastparquet",
+    "kaleido",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "nbval",
     "pymdown-extensions",
     "mkdocs",
     "mkdocs-gen-files",

@@ -7,7 +7,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write 
+  id-token: write
 
 jobs:
   test:
@@ -28,8 +28,8 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run tests
-        run: pytest -q
-        
+        run: pytest -q --nbval-lax
+
   publish:
     runs-on: ubuntu-latest
 
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
 
       - name: Ensure tag is on main branch
         run: |
