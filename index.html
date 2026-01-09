@@ -350,6 +350,28 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#citation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Citation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3019,6 +3041,28 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#citation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Citation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3048,21 +3092,21 @@
 
 
 <h1 id="_1"><img alt="" src="assets/logo.svg" width="240px" /></h1>
-<p><strong>Python toolkit for LC-MS/<u>MS</u> Proteomics analysis based on <u>Mu</u>Data</strong></p>
+<p><strong>Python toolkit for modular and tracable LC-MS/<u>MS</u> proteomics analysis based on <u>Mu</u>Data</strong></p>
 <h2 id="overview">Overview</h2>
-<p><code>msmu</code> is a Python package for scalable, modular, and reproducible LC-MS/MS bottom-up proteomics data analysis.<br />
-It supports PSM (precursor), peptide, and protein-level processing, integrates <code>MuData</code> (<code>AnnData</code>) structure, and enables stepwise normalization, batch correction, and statistical testing for biomarker discovery and systems biology.</p>
+<p><code>msmu</code> is an open-source Python package for modular and traceable post-DB search preprocessing and statistical analysis of bottom-up proteomics data.
+It supports modules for an end-to-end processing—from search output parsing through hierarchical summarization, normalization, batch correction, statistical analysis, and visualization—and leverages the highly versatile and standardized <code>MuData</code> (and <code>AnnData</code>) as a unifying, provenance-aware data container for storing annotations and representations of multi-dimensional MS data and processing history, thereby empowering reproducible pipeline and reusable data for biomarker discovery and systems biology.</p>
 <p><img alt="" src="assets/overview.svg" width="100%" /></p>
 <h2 id="key_features">Key Features</h2>
 <ul>
-<li><strong>Flexible data ingestion</strong> from DIA-NN, Sage and other popular DB search tools</li>
-<li><strong>MuData/AnnData-compatible</strong> object structure for multi-level omics</li>
-<li><strong>Built-in QC</strong>: precursor purity, peptide length, charge, missed cleavage</li>
-<li><strong>Protein inference</strong>: infer protein with parsimony rule</li>
-<li><strong>Normalization options</strong>: log2 transformation, median, quantile, GIS/IRS</li>
-<li><strong>Batch correction</strong>: GIS/IRS, median centering</li>
-<li><strong>Statistical analysis</strong>: permutation-based DE test and FDR</li>
-<li><strong>PTM support</strong> and stoichiometry adjustment with global dataset</li>
+<li><strong>Flexible data ingestion</strong> from Sage, DIA-NN, and other popular DB search tools</li>
+<li><strong>MuData/AnnData-compatible</strong> object structure for organizing multi-level MS data</li>
+<li><strong>Protein inference</strong>: infer protein groups from peptide evidence using parsimony rule</li>
+<li><strong>Normalization</strong>: median centering, quantile normalization, etc.</li>
+<li><strong>Batch correction</strong> for discrete and continuous variations</li>
+<li><strong>Built-in QC</strong>: identification count, peptide length, charge, missed cleavage, intensity distribution, etc.</li>
+<li><strong>Statistical analysis</strong>: differential expression analysis, dimensionality reduction</li>
+<li><strong>PTM data support</strong> and stoichiometry adjustment with matched global dataset (if available)</li>
 <li><strong>Visualization</strong>: PCA, UMAP, volcano plots, heatmaps, QC metrics</li>
 </ul>
 <h2 id="supporting_db_search_tools">Supporting DB Search Tools</h2>
@@ -3071,7 +3115,17 @@ It supports PSM (precursor), peptide, and protein-level processing, integrates <
 <li>DIA-NN: <a href="https://github.com/vdemichev/DIA-NN">https://github.com/vdemichev/DIA-NN</a></li>
 <li>MaxQuant: <a href="https://www.maxquant.org/">https://www.maxquant.org/</a></li>
 <li>FragPipe: <a href="https://fragpipe.nesvilab.org/">https://fragpipe.nesvilab.org/</a></li>
+<li>and more upcoming.</li>
 </ul>
+<h2 id="citation">Citation</h2>
+<p>If you use <code>msmu</code> in your research, please cite the following publication (preprint):</p>
+<blockquote>
+<p>msmu: a Python toolkit for modular and traceable LC-MS proteomics data analysis based on MuData</p>
+<p>Hyung-Wook Choi, Byeongchan Lee, Un-Beom Kang, Sunghyun Huh</p>
+<p>bioRxiv 2026.01.07.698308; doi: <a href="https://doi.org/10.64898/2026.01.07.698308">10.64898/2026.01.07.698308</a></p>
+</blockquote>
+<h2 id="license">License</h2>
+<p>BSD 3-Clause License. See LICENSE for details.</p>
 
 
 
@@ -3092,7 +3146,7 @@ It supports PSM (precursor), peptide, and protein-level processing, integrates <
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 7, 2026 01:49:34 UTC">January 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 9, 2026 09:51:00 UTC">January 9, 2026</span>
   </span>
 
     

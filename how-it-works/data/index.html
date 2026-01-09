@@ -3071,7 +3071,7 @@
 
 <h1 id="data_in_msmu">Data in msmu</h1>
 <h2 id="overview">Overview</h2>
-<p>In LC-MS/MS "shotgun" <code>proteomics</code>, data analysis typically follows a <strong>hierarchical path</strong>—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a <strong>multi-level</strong> and <strong>multi-dimensional</strong> structure (e.g., PSM/precursor, peptide, protein; feature metadata; sample annotations; QC metrics).</p>
+<p>In LC-MS/MS "shotgun" <code>proteomics</code>, data analysis typically follows a <strong>hierarchical path</strong>—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a <strong>multi-level</strong> and <strong>multi-dimensional</strong> structure: PSM/precursor, peptide, protein; feature metadata; sample annotations; and QC metrics.</p>
 <p>To manage these properties consistently, <code>msmu</code> adopts <a href="https://mudata.readthedocs.io/en/latest/"><code>MuData</code></a> from the <code>scverse</code> ecosystem as the fundamental data format. <a href="https://mudata.readthedocs.io/en/latest/"><code>MuData</code></a>, together with its constituent <a href="https://anndata.readthedocs.io/en/stable/"><code>AnnData</code></a> objects, is widely used in scRNA-seq to manage complex data matrices and their associated metadata. The same structure fits proteomics naturally: identification-level attributes, quantification values, and sample information can all be stored cleanly and explored in an integrated way.</p>
 <p><code>msmu</code> works with data formatted as a <a href="https://mudata.readthedocs.io/en/latest/"><code>MuData</code></a> object composed of multiple <a href="https://anndata.readthedocs.io/en/stable/"><code>AnnData</code></a> modalities.
 Therefore, understanding the usage of <a href="https://mudata.readthedocs.io/en/latest/"><code>MuData</code></a> and <a href="https://anndata.readthedocs.io/en/stable/"><code>AnnData</code></a> helps when working with <code>msmu</code>.</p>
@@ -3099,30 +3099,22 @@ Therefore, understanding the usage of <a href="https://mudata.readthedocs.io/en/
 <li>Identification data - Identified features with associated annotations</li>
 <li>Quantification data - Quantitative values for features across samples</li>
 </ul>
-<p><code>read_*</code> functions in msmu extract the essential columns required for QC and downstream processing and migrate them into the <code>.var</code> of the <code>psm</code> modality. <code>read_*</code> functions are implemented in <code>msmu/_read_write/_reader_registry</code></p>
+<p><code>read_*</code> functions in <code>msmu</code> extract the essential columns required for QC and downstream processing and migrate them into the <code>.var</code> of the <code>psm</code> modality. <code>read_*</code> functions are implemented in <code>msmu/_read_write/_reader_registry</code></p>
 <ul>
-<li><code>read_*</code> functions (currently available)<ul>
+<li><code>read_*</code> functions (currently available)</li>
 <li><code>read_sage()</code></li>
 <li><code>read_diann()</code></li>
 <li><code>read_maxquant()</code></li>
 <li><code>read_fragpipe()</code></li>
-</ul>
-</li>
-<li>Inputs<ul>
+<li>Inputs</li>
 <li><code>identification_file</code>: A file path to identification data</li>
 <li><code>quantification_file</code>: A file path to quantification data (if applicable) (for tools outputting separate quantification files like Sage)</li>
 <li><code>label</code>: used label (<code>tmt</code> or <code>label_free</code>)</li>
 <li><code>acquisition</code>: acquisition method (<code>dda</code>, or <code>dia</code>) (for tools supporting both DDA and DIA like MaxQuant)</li>
-</ul>
-</li>
-<li>Output<ul>
+<li>Output</li>
 <li><code>mudata</code>: Data ingested MuData object</li>
-</ul>
-</li>
-<li>Columns migrated into <code>mdata["psm"].var</code><ul>
+<li>Columns migrated into <code>mdata["psm"].var</code></li>
 <li><code>filename</code>, <code>peptide</code>(modified), <code>stripped_peptide</code>, <code>scan_num</code>, <code>proteins</code>, <code>missed_cleavages</code>, <code>peptide_length</code>, <code>charge</code>, <code>PEP</code>, <code>q-value</code></li>
-</ul>
-</li>
 <li>Decoy features are isolated from <code>.var</code> and stored in <code>.uns["decoy"]</code> for later use in FDR calculation.</li>
 <li>Quantification data for <strong>LFQ (DDA)</strong> is stored in <code>peptide</code> modality.</li>
 <li>Raw information from a search tool is stored in <code>mdata["psm"].varm["search_result"]</code></li>
@@ -3169,7 +3161,7 @@ Therefore, understanding the usage of <a href="https://mudata.readthedocs.io/en/
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 7, 2026 10:00:13 UTC">January 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 9, 2026 09:42:33 UTC">January 9, 2026</span>
   </span>
 
     
