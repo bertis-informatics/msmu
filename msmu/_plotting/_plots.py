@@ -34,6 +34,7 @@ from .._utils.get import get_mdata
 def plot_id(
     mdata: md.MuData,
     modality: str,
+    layer: str | None = None,
     groupby: str | None = None,
     colorby: str | None = None,
     template: str = DEFAULT_TEMPLATE,
@@ -64,7 +65,7 @@ def plot_id(
     hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y:,d}}<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality, obs_column=obs_column)
+    data = PlotData(mdata, modality, layer=layer, obs_column=obs_column)
     plot = PlotBar(
         data=data.prep_id_bar(groupby, obs_column=obs_column),
         x=groupby,
@@ -109,6 +110,7 @@ def plot_id(
 def plot_intensity(
     mdata: md.MuData,
     modality: str,
+    layer: str | None = None,
     groupby: str | None = None,
     colorby: str | None = None,
     ptype: str = "hist",
@@ -140,7 +142,7 @@ def plot_intensity(
     title_text = f"{format_modality(mdata, modality)} Intensity Distribution"
 
     # Draw plot
-    data = PlotData(mdata, modality, obs_column=obs_column)
+    data = PlotData(mdata, modality, layer, obs_column=obs_column)
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
         yaxis_title = f"Number of {format_modality(mdata, modality)}s"
@@ -210,6 +212,7 @@ def plot_intensity(
 def plot_missingness(
     mdata: md.MuData,
     modality: str,
+    layer: str | None = None,
     obs_column: str | None = None,
     **kwargs: str,
 ) -> go.Figure:
@@ -234,7 +237,7 @@ def plot_missingness(
     hovertemplate = f"Data Completeness ≤ %{{x:.2f}}%<br>{yaxis_title} : %{{y:.2f}}% (%{{meta}})<extra></extra>"
 
     # Draw plot
-    data = PlotData(mdata, modality, obs_column=obs_column)
+    data = PlotData(mdata, modality, layer=layer, obs_column=obs_column)
     plot = PlotScatter(
         data=data.prep_missingness_step(obs_column),
         x="missingness",
@@ -437,6 +440,7 @@ def plot_umap(
 def plot_upset(
     mdata: md.MuData,
     modality: str = "protein",
+    layer: str | None = None,
     subset: str | None = None,
     subset_column: str | None = None,
     groupby: str | None = None,
@@ -468,7 +472,7 @@ def plot_upset(
     title_text = f"Intersection of Proteins among {groupby.capitalize()}"
 
     # Draw plot
-    data = PlotData(mdata, modality, obs_column=obs_column)
+    data = PlotData(mdata, modality, layer=layer, obs_column=obs_column)
     plot = PlotUpset(
         data=data.prep_id_upset(groupby, obs_column),
     )

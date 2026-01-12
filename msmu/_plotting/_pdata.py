@@ -15,6 +15,7 @@ class PlotData:
         self,
         mdata: MuData,
         modality: str,
+        layer: str | None = None,
         **kwargs: str,
     ):
         """
@@ -27,6 +28,7 @@ class PlotData:
         """
         self.mdata = mdata
         self.modality = modality
+        self.layer = layer
         self.kwargs = kwargs
 
     def _get_data(self) -> pd.DataFrame:
@@ -36,7 +38,16 @@ class PlotData:
         Returns:
             Copy of the modality's data matrix as a DataFrame.
         """
-        return get_adata(self.mdata, self.modality).to_df().copy()
+        adata = get_adata(self.mdata, self.modality).copy()
+
+        if self.layer is not None:
+            if self.layer not in adata.layers:
+                raise ValueError(f"Layer '{self.layer}' not found in modality '{self.modality}'.")
+            data = pd.DataFrame(adata.layers[self.layer], index=adata.obs_names, columns=adata.var_names)
+        else:
+            data = adata.to_df()
+
+        return data
 
     def _get_var(self) -> pd.DataFrame:
         """
@@ -249,7 +260,7 @@ class PlotData:
         """
         obs_df = self._get_obs(obs_column, groupby=groupby)
         var_df = self._get_var()
-        orig_df = get_adata(self.mdata, self.modality).to_df()
+        orig_df = self._get_data()
 
         if np.nansum(orig_df) == 0:
             print("No data available for the selected modality. Counting from var.")
@@ -292,7 +303,7 @@ class PlotData:
         """
         obs_df = self._get_obs(obs_column, groupby=groupby)
         var_df = self._get_var()
-        orig_df = get_adata(self.mdata, self.modality).to_df()
+        orig_df = self._get_data()
 
         if np.nansum(orig_df) == 0:
             print("No data available for the selected modality. Counting from var.")
@@ -490,7 +501,7 @@ class PlotData:
             Long-form DataFrame with intensity values and groups.
         """
         obs_df = self._get_obs(obs_column, groupby=groupby)
-        orig_df = get_adata(self.mdata, self.modality).to_df().T
+        orig_df = self._get_data().T
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         join_df = melt_df.join(obs_df, on="_obs", how="left")
@@ -515,7 +526,7 @@ class PlotData:
             Descriptive statistics indexed by the grouping column.
         """
         obs_df = self._get_obs(obs_column, groupby=groupby)
-        orig_df = get_adata(self.mdata, self.modality).to_df().T
+        orig_df = self._get_data().T
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         join_df = melt_df.join(obs_df, on="_obs", how="left")
@@ -543,7 +554,7 @@ class PlotData:
         n_sample = obs.shape[0]
 
         # Prepare data
-        orig_df = get_adata(self.mdata, self.modality).to_df()
+        orig_df = self._get_data()
         sum_list = orig_df.isna().sum(axis=0)
 
         count_list = sum_list.value_counts().sort_index().cumsum()
