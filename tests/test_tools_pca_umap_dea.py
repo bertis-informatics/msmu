@@ -22,9 +22,7 @@ def test_pca_writes_outputs(simple_mdata):
     assert out["psm"].uns["n_pca"] == 2
 
 
-@pytest.mark.filterwarnings(
-    "ignore:n_jobs value .* overridden .* by setting random_state.*:UserWarning"
-)
+@pytest.mark.filterwarnings("ignore:n_jobs value .* overridden .* by setting random_state.*:UserWarning")
 def test_umap_writes_outputs(simple_mdata):
     out = umap(simple_mdata, modality="psm", n_neighbors=2, random_state=0)
     assert "X_umap" in out["psm"].obsm
@@ -33,14 +31,21 @@ def test_umap_writes_outputs(simple_mdata):
 
 
 def test_get_test_array_splits_groups(mdata):
-    ctrl_arr, expr_arr = _get_test_array(mdata, modality="protein", category="group", control="A", expr="B")
+    ctrl_arr, expr_arr = _get_test_array(
+        mdata=mdata,
+        modality="protein",
+        category="group",
+        control="A",
+        expr="B",
+        layer=None,
+    )
     assert ctrl_arr.shape[0] == 2
     assert expr_arr.shape[0] == 2
 
 
 def test_run_de_with_simple_test(mdata):
     res = run_de(
-        mdata,
+        mdata=mdata,
         modality="protein",
         category="group",
         ctrl="A",

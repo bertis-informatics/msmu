@@ -127,12 +127,26 @@ def filter_mdata() -> MuData:
 
 @pytest.fixture
 def simple_mdata() -> MuData:
-    obs = pd.DataFrame(index=["s1", "s2", "gis1"])
-    obs["gis"] = [False, False, True]
+    obs = pd.DataFrame(index=["s1", "s2", "gis1", "s3", "s4", "gis2"])
     var = pd.DataFrame(index=["v1", "v2"])
-    x = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+    x = np.array([[1.0, 2.0], [3.0, 4.0], [6.0, 6.0], [7.0, 8.0], [9.0, 10.0], [11.0, 12.0]])
     adata = _make_adata(x, obs, var)
-    return _make_mdata({"psm": adata})
+    mdata = _make_mdata({"psm": adata})
+    mdata.obs["run_order"] = ["1", "2", "3", "4", "5", "6"]
+    mdata.obs["batch"] = ["b1", "b1", "b1", "b2", "b2", "b2"]
+    return mdata
+
+
+@pytest.fixture
+def simple_mdata_protein() -> MuData:
+    obs = pd.DataFrame(index=["s1", "s2", "gis1", "s3", "s4", "gis2"])
+    var = pd.DataFrame(index=["v1", "v2"])
+    x = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0], [11.0, 12.0]])
+    adata = _make_adata(x, obs, var)
+    mdata = _make_mdata({"psm": adata, "protein": adata})
+    mdata.obs["run_order"] = ["1", "2", "3", "4", "5", "6"]
+    mdata.obs["batch"] = ["b1", "b1", "b1", "b2", "b2", "b2"]
+    return mdata
 
 
 @pytest.fixture

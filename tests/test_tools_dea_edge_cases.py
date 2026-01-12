@@ -27,7 +27,6 @@ def test_run_de_permutation_path(mdata):
         stat_method="welch",
         n_resamples=2,
         fdr="bh",
-        n_jobs=1,
         _force_resample=True,
     )
     assert res.p_value.shape[0] == mdata["protein"].var.shape[0]
