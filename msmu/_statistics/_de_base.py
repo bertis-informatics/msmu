@@ -4,63 +4,59 @@ import logging
 
 import numpy as np
 import pandas as pd
-
-from .._plotting._ptypes import PlotScatter
 import plotly.graph_objects as go
 
+from .._plotting._ptypes import PlotScatter
 
 logger = logging.getLogger(__name__)
 
 
-class Dea:
-    """
-    Class to perform Differential Expression Analysis (DEA) using permutation tests.
-    This class is used to compare two groups of data (control and experimental) and
-    calculate statistics such as median differences, fold changes, and p-values.
-    """
+class DeaValidator:
+    def __init__(self, ctrl_arr, expr_arr, min_pct) -> None:
+        self.min_pct = min_pct
+        self.ctrl_arr = ctrl_arr
+        self.expr_arr = expr_arr
 
-    def __init__(self):
-        self._de_available: bool = True
+        self._min_sample_size_availability: bool = True
+        self._sufficient_feature_indices: np.ndarray = np.array([])
 
-    def validate_inputs(
-        self,
-        ctrl_arr: np.ndarray,
-        expr_arr: np.ndarray,
-    ) -> None:
-        if not isinstance(ctrl_arr, np.ndarray) or not isinstance(expr_arr, np.ndarray):
+        self.validate_inputs()
+        self.validate_sample_size()
+        self.get_sufficient_feature_indices()
+
+    def validate_inputs(self) -> None:
+        if not isinstance(self.ctrl_arr, np.ndarray) or not isinstance(self.expr_arr, np.ndarray):
             logger.error("Control and experimental arrays must be numpy arrays.")
-            raise
-        if ctrl_arr.shape[1] == 0 or expr_arr.shape[1] == 0:
+            raise TypeError("Control and experimental arrays must be numpy arrays.")
+        if self.ctrl_arr.shape[1] == 0 or self.expr_arr.shape[1] == 0:
             logger.error("Control and experimental arrays must have at least one sample (column).")
-            raise
-        if ctrl_arr.shape[0] < 2 or expr_arr.shape[0] < 2:
+            raise ValueError("Control and experimental arrays must have at least one sample (column).")
+
+    def validate_sample_size(self) -> None:
+        if self.ctrl_arr.shape[1] < 2 or self.expr_arr.shape[1] < 2:
             logger.warning("Control and experimental arrays must have at least two samples each.")
             logger.warning(
                 "Any statistics will not be performed. Results will only contain Fold Changes and Pct Expressions."
             )
+            self._min_sample_size_availability = False
 
-            self.de_available = False
+    def get_sufficient_feature_indices(self) -> None:
+        ctrl_sample_cutoff = self.ctrl_arr.shape[0] * self.min_pct
+        expr_sample_cutoff = self.expr_arr.shape[0] * self.min_pct
+        sufficient_ctrl_indices = np.sum(~np.isnan(self.ctrl_arr), axis=0) >= ctrl_sample_cutoff
+        sufficient_expr_indices = np.sum(~np.isnan(self.expr_arr), axis=0) >= expr_sample_cutoff
 
-    def get_insufficient_feature_indices(self): ...
+        sufficient_indices = sufficient_ctrl_indices & sufficient_expr_indices
+
+        self._sufficient_feature_indices = sufficient_indices
 
     @property
-    def de_available(self) -> bool:
-        """
-        Check if DEA is available based on the number of samples in control and experimental groups.
-        Returns True if DEA is available, False otherwise.
-        """
-        return self._de_available
+    def min_sample_size_availability(self) -> bool:
+        return self._min_sample_size_availability
 
-    @de_available.setter
-    def de_available(self, value: bool) -> None:
-        """
-        Set the availability of DEA.
-        Parameters:
-            value: True if DEA is available, False otherwise.
-        """
-        if not isinstance(value, bool):
-            raise TypeError("de_available must be a boolean value.")
-        self._de_available = value
+    @property
+    def sufficient_feature_indices(self) -> np.ndarray:
+        return self._sufficient_feature_indices
 
 
 @dataclass
@@ -87,23 +83,51 @@ class StatTestResult:
     """
 
     stat_method: str
+    p_value: np.ndarray | None = None
+    q_value: np.ndarray | None = None
+
+
+@dataclass
+class PermTestResult(StatTestResult):
+    """
+    Data class to store results from permutation tests in DEA.
+
+    Attributes:
+        Inherits all attributes from StatTestResult.
+        permutation_method: The permutation method used ("exact" or "randomised").
+        n_permutations: Number of permutations performed.
+        fc_pct_1: Fold change at the 1st percentile.
+        fc_pct_5: Fold change at the 5th percentile.
+    """
+
+    permutation_method: Literal["exact", "randomised"] | None = None
+    n_permutations: int | None = None
+    fc_pct_1: float | None = None
+    fc_pct_5: float | None = None
+
+
+@dataclass
+class DeaResult:
+    stat_method: str
     ctrl: str | None
     expr: str | None = None
     features: pd.Index | np.ndarray | None = None
-    median_ctrl: np.ndarray | None = None
-    median_expr: np.ndarray | None = None
+    repr_ctrl: np.ndarray | None = None
+    repr_expr: np.ndarray | None = None
     pct_ctrl: np.ndarray | None = None
     pct_expr: np.ndarray | None = None
     log2fc: np.ndarray | None = None
-    p_value: np.ndarray | None = None
-    q_value: np.ndarray | None = None
+
+    def __init__(self, test_result: PermTestResult | StatTestResult) -> None:
+        for field in test_result.__dataclass_fields__:
+            setattr(self, field, getattr(test_result, field))
 
     def to_df(self) -> pd.DataFrame:
         return pd.DataFrame(
             {
                 "features": self.features,
-                "median_ctrl": self.median_ctrl,
-                "median_expr": self.median_expr,
+                "repr_ctrl": self.repr_ctrl,
+                "repr_expr": self.repr_expr,
                 "pct_ctrl": self.pct_ctrl,
                 "pct_expr": self.pct_expr,
                 "log2fc": self.log2fc,
@@ -212,22 +236,3 @@ class StatTestResult:
                 f.add_annotation(x=row["log2fc"], y=row["logp"], text=row["features"], arrowhead=0, arrowwidth=1)
 
         return f
-
-
-@dataclass
-class PermTestResult(StatTestResult):
-    """
-    Data class to store results from permutation tests in DEA.
-
-    Attributes:
-        Inherits all attributes from StatTestResult.
-        permutation_method: The permutation method used ("exact" or "randomised").
-        n_permutations: Number of permutations performed.
-        fc_pct_1: Fold change at the 1st percentile.
-        fc_pct_5: Fold change at the 5th percentile.
-    """
-
-    permutation_method: Literal["exact", "randomised"] | None = None
-    n_permutations: int | None = None
-    fc_pct_1: float | None = None
-    fc_pct_5: float | None = None
