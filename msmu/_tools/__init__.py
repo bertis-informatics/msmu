@@ -1,4 +1,5 @@
 from ._pca import pca
+from ._correlation import corr
 from ._dea import run_de
 from .._statistics._de_base import PermTestResult, StatTestResult
 
@@ -20,11 +21,13 @@ def compute_precursor_isolation_purity_from_mzml(*args, **kwargs):
 
     return _compute_from_mzml(*args, **kwargs)
 
+
 __all__ = [
     "compute_precursor_isolation_purity",
     "compute_precursor_isolation_purity_from_mzml",
     "pca",
     "umap",
+    "corr",
     "run_de",
     "PermTestResult",
     "StatTestResult",
