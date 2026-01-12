@@ -2,9 +2,13 @@ import anndata as ad
 import mudata as md
 import numpy as np
 from typing import Literal
+import logging
 
 from ._normalisation import Normalisation, PTMProteinAdjuster
 from .._utils import uns_logger
+
+
+logger = logging.getLogger(__name__)
 
 
 @uns_logger
@@ -158,91 +162,6 @@ def normalize(
         layer=layer,
         fraction=fraction,
     )
-
-
-@uns_logger
-def correct_batch_effect(
-    mdata: md.MuData,
-    modality: str,
-    method: Literal["gis", "median_center"],
-    layer: str | None = None,
-    gis_prefix: str | None = None,
-    gis_col: list[str] | None = None,
-    rescale: bool = True,
-) -> md.MuData:
-    """
-    correct_batch_effect in MuData object.
-
-    Parameters:
-        mdata: MuData object to normalise.
-        method: Normalisation method to use. Options are 'gis', 'median_center'.
-        modality: Modality to normalise.
-        layer: Layer to normalise. If None, the default layer (.X) will be used.
-        gis_prefix: Prefix for GIS samples. If None, all samples with 'gis' in the name will be used.
-        gis_col: Column name for GIS samples. If None, all samples with 'gis' in the name will be used.
-        rescale: If True, rescale the data after normalisation with median value across dataset. This is only applicable for median normalisation.
-
-    Returns:
-        Normalised MuData object.
-    """
-    mdata = mdata.copy()
-    adata: ad.AnnData = mdata.mod[modality]
-    median_rescale_arr: np.array[float] = np.array([])
-
-    if layer is not None:
-        raw_arr = adata.layers[layer]
-    else:
-        raw_arr = adata.X
-
-    if method == "gis":
-        if (gis_prefix is None) & (gis_col is None):
-            raise ValueError("Please provide either a GIS prefix or GIS column name")
-
-        if gis_col is not None:
-            gis_idx: np.array[bool] = adata.obs[gis_col] == True
-        else:
-            gis_idx: np.array[bool] = adata.obs_names.str.startswith(gis_prefix) == True
-
-        if gis_idx.sum() == 0:
-            raise ValueError(f"No GIS samples found in {modality}")
-
-        gis_normalised_data: np.array[float] = _normalise_gis(arr=raw_arr, gis_idx=gis_idx)
-
-        gis_drop_mod = adata[~gis_idx].copy()
-        gis_drop_mod.X = gis_normalised_data
-        mdata.mod[modality] = gis_drop_mod
-
-        median_rescale_arr = np.append(median_rescale_arr, adata[gis_idx].X.flatten())
-
-    elif method == "median_center":
-        median_centered_data = Normalisation(method="median", axis="var").normalise(
-            arr=raw_arr,
-        )
-        mdata[modality].X = median_centered_data
-
-        median_rescale_arr = np.append(median_rescale_arr, raw_arr.flatten())
-    else:
-        raise ValueError(f"Method {method} not recognised. Please choose from 'gis' or 'median_center'")
-
-    if rescale:
-        all_gis_median = np.nanmedian(median_rescale_arr.flatten())
-        mdata[modality].X = mdata[modality].X + all_gis_median
-
-    mdata.update_obs()
-
-    return mdata
-
-
-def _normalise_gis(arr: np.ndarray, gis_idx: np.array) -> np.ndarray:
-    gis_data = arr[gis_idx]
-    sample_data = arr[~gis_idx]
-    na_idx = np.isnan(sample_data)
-
-    gis_median = np.nanmedian(gis_data, axis=0)
-    gis_normalised_data = sample_data - gis_median
-    gis_normalised_data[na_idx] = np.nan
-
-    return gis_normalised_data
 
 
 @uns_logger
