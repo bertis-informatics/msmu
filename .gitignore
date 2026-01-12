@@ -150,3 +150,6 @@ dmypy.json
 
 # setuptools-scm generated version file
 msmu/_version.py
+
+# uv
+uv.lock

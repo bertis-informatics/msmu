@@ -11,7 +11,7 @@ authors = [
 license = {file = "LICENSE"}
 description = "BERTIS LC-MS/MS analysis library through MuData"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 keywords = ["LC-MS/MS", "Proteomics", "Protein", "Peptide", "Mass Spectrometry"]
 dependencies = [
     "mudata==0.3.2",
@@ -24,11 +24,25 @@ dependencies = [
     "umap-learn",
     "pyopenms",
     "fastparquet",
+    "kaleido",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = [
+    "pytest",
+    "nbval",
+    "pymdown-extensions",
+    "mkdocs",
+    "mkdocs-gen-files",
+    "mkdocs-jupyter",
+    "mkdocs-literate-nav",
+    "mkdocstrings",
+    "mkdocs-minify-plugin",
+    "mkdocs-git-revision-date-localized-plugin",
+    "mkdocs-awesome-pages-plugin",
+    "mkdocstrings-python",
+]
 
 [project.urls]
 Repository = "https://github.com/bertis-informatics/msmu"

@@ -1,4 +1,4 @@
-# Visualisation Overview
+# Visualization Overview
 
 `msmu._plotting` wraps Plotly to provide ready-made QC and exploratory plots for MuData objects. The module is structured around data preparation helpers and lightweight plot wrappers so you can compose figures with consistent defaults while still passing Plotly kwargs to tweak layout.
 
@@ -7,9 +7,9 @@
 - `mdata`: required `MuData` containing the modality to plot.
 - `modality`: defaults vary by plot (`feature`, `peptide`, `protein`)
 - `groupby`: observation column used to split traces/groups (e.g., `filename`, `condition`). If omitted, falls back to `obs_column`.
-- `obs_column`: observation column used for labeling/group resolution; all element should be unique. If omitted or no column exists, creates `__obx_idx__` column from the index of `obs`
+- `obs_column`: observation column used for labeling/group resolution; all elements should be unique. If omitted or no column exists, creates `__obs_idx__` column from the index of `obs`
 - `colorby`: optional obs column for coloring; only applied when `groupby` equals `obs_column`.
-- `ptype`: plot style selector(`hist`, `box`, `vln`, etc.).
+- `ptype`: plot style selector (`hist`, `box`, `vln`, etc.).
 - `**kwargs`: forwarded to `go.Figure.update_layout` for per-plot overrides.
 
 ## Example
@@ -42,13 +42,13 @@
 mm.pl.plot_id(mdata, "protein", groupby="sample_name")
 ```
 
-![](../assets/images/visualisation_id_1.png)
+![](../assets/images/visualization_id_1.png)
 
 ```python
 mm.pl.plot_id(mdata, "protein", groupby="condition")
 ```
 
-![](../assets/images/visualisation_id_2.png)
+![](../assets/images/visualization_id_2.png)
 
 ### `plot_intensity`
 
@@ -56,7 +56,7 @@ mm.pl.plot_id(mdata, "protein", groupby="condition")
 mm.pl.plot_intensity(mdata, "protein", groupby="sample_name", ptype="hist")
 ```
 
-![](../assets/images/visualisation_intensity_1.png)
+![](../assets/images/visualization_intensity_1.png)
 
 ### `plot_missingness`
 
@@ -64,7 +64,7 @@ mm.pl.plot_intensity(mdata, "protein", groupby="sample_name", ptype="hist")
 mm.pl.plot_missingness(mdata, "protein")
 ```
 
-![](../assets/images/visualisation_missingness_1.png)
+![](../assets/images/visualization_missingness_1.png)
 
 ### `plot_var`
 
@@ -72,13 +72,13 @@ mm.pl.plot_missingness(mdata, "protein")
 mm.pl.plot_var(mdata, "feature", groupby="sample_name", var_column="charge", ptype="stacked_bar")
 ```
 
-![](../assets/images/visualisation_var_1.png)
+![](../assets/images/visualization_var_1.png)
 
 ```python
 mm.pl.plot_var(mdata, "feature", groupby="sample_name", var_column="peptide_length", ptype="vln")
 ```
 
-![](../assets/images/visualisation_var_2.png)
+![](../assets/images/visualization_var_2.png)
 
 ### `plot_pca` & `plot_umap`
 
@@ -86,7 +86,7 @@ mm.pl.plot_var(mdata, "feature", groupby="sample_name", var_column="peptide_leng
 mm.pl.plot_pca(mdata, "protein", groupby="condition")
 ```
 
-![](../assets/images/visualisation_pca_1.png)
+![](../assets/images/visualization_pca_1.png)
 
 ### `plot_correlation`
 
@@ -94,7 +94,7 @@ mm.pl.plot_pca(mdata, "protein", groupby="condition")
 mm.pl.plot_correlation(mdata, "protein")
 ```
 
-![](../assets/images/visualisation_correlation_1.png)
+![](../assets/images/visualization_correlation_1.png)
 
 ### `plot_upset`
 
@@ -102,4 +102,4 @@ mm.pl.plot_correlation(mdata, "protein")
 mm.pl.plot_upset(mdata, "protein", groupby="condition")
 ```
 
-![](../assets/images/visualisation_upset_1.png)
+![](../assets/images/visualization_upset_1.png)

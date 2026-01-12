@@ -14,11 +14,11 @@
 * HOW IT WORKS
     * [Data](how-it-works/data.md)
     * [Filter](how-it-works/filter.md)
-    * [Normalisation](how-it-works/normalisation.md)
+    * [Normalization](how-it-works/normalization.md)
     * [Batch Correction](how-it-works/batch_correction.md)
-    * [Summarisation](how-it-works/summarisation.md)
+    * [Summarization](how-it-works/summarization.md)
     * [Protein Inference](how-it-works/inference.md)
     * [Precursor Isolation Purity](how-it-works/purity.md)
     * [DE Analysis](how-it-works/dea.md)
-    * [Visualisation](how-it-works/visualisation.md)
+    * [Visualization](how-it-works/visualization.md)
 * API

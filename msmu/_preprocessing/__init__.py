@@ -9,6 +9,7 @@ __all__ = [
     "apply_filter",
     "log2_transform",
     "normalise",
+    "normalize",
     "correct_batch_effect",
     "to_peptide",
     "to_protein",
