@@ -1,12 +1,16 @@
 import warnings
 from dataclasses import dataclass
 from typing import Callable
+import logging
 
 from msmu._statistics._de_base import StatTestResult
 import numpy as np
 from scipy.stats import ranksums, t
 
 from ._multiple_test_correction import PvalueCorrection
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -62,7 +66,12 @@ class NullDistribution:
         return NullDistribution(stat_method=self.stat_method, null_distribution=nd2d)
 
 
-def simple_test(ctrl: np.ndarray, expr: np.ndarray, stat_method: str, fdr: bool | str = "bh") -> StatTestResult:
+def simple_test(
+    ctrl: np.ndarray,
+    expr: np.ndarray,
+    stat_method: str,
+    fdr: bool | str = "bh",
+) -> StatTestResult:
     """
     Perform a simple statistical test between two groups.
 
@@ -70,28 +79,25 @@ def simple_test(ctrl: np.ndarray, expr: np.ndarray, stat_method: str, fdr: bool 
         ctrl: array-like (n_samples_ctrl x n_features)
         expr: array-like (n_samples_expr x n_features)
         stat_method: Statistical test to perform ('welch', 'student', 'wilcoxon', 'med_diff').
+        fc_method: Method to calculate fold change ('med_diff' or 'mean_diff').
         fdr: Method for multiple test correction ('bh', 'storey', or False).
+
     Returns:
         StatResult containing the test statistics and p-values.
     """
     test_res = HypothesisTesting.test(ctrl=ctrl, expr=expr, stat_method=stat_method)
 
     if fdr and test_res.p_value is not None:
-        corrected_pvals = PvalueCorrection.correct_pvalues(
-            p_values=test_res.p_value,
-            method=fdr,
-        )
+        if fdr == "bh":
+            corrected_pvals = PvalueCorrection.bh(test_res.p_value)
+        else:
+            logger.error(f"'bh' is the only implemented FDR correction method for simple test. Set fdr='bh'.")
+            raise NotImplementedError(
+                f"'bh' is the only implemented FDR correction method for simple test. Set fdr='bh'."
+            )
 
     stat_res = StatTestResult(
         stat_method=test_res.stat_method,
-        ctrl=None,
-        expr=None,
-        features=np.array([]),
-        median_ctrl=np.nanmedian(ctrl, axis=0),
-        median_expr=np.nanmedian(expr, axis=0),
-        pct_ctrl=(np.count_nonzero(ctrl, axis=0) / ctrl.shape[0]) * 100,
-        pct_expr=(np.count_nonzero(expr, axis=0) / expr.shape[0]) * 100,
-        log2fc=HypothesisTesting.test(ctrl=ctrl, expr=expr, stat_method="med_diff").statistic,
         p_value=test_res.p_value,
         q_value=corrected_pvals if fdr else None,
     )
@@ -117,7 +123,6 @@ class HypothesisTesting:
             "welch": HypothesisTesting.welch,
             "student": HypothesisTesting.student,
             "wilcoxon": HypothesisTesting.wilcoxon_rank_sum,
-            "med_diff": HypothesisTesting.median_diff,
         }
 
         stat_method: Callable = stat_dict[stat_method]
@@ -126,7 +131,7 @@ class HypothesisTesting:
         return StatResult(stat_method=stat_method, statistic=stat, p_value=pval)
 
     @staticmethod
-    def welch(ctrl: np.ndarray, expr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:  # welch
+    def welch(ctrl: np.ndarray, expr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Welch's t-test with NaN handling (manual implementation).
         Not using scipy because of time complexity.
@@ -244,20 +249,53 @@ class HypothesisTesting:
 
         return stat, pval
 
-    @staticmethod
-    def median_diff(ctrl: np.ndarray, expr: np.ndarray) -> tuple[np.ndarray, None]:
-        """
-        Median difference (expr - ctrl) with NaN handling.
 
-        Parameters:
-            ctrl: array-like (n_samples_ctrl x n_features)
-            expr: array-like (n_samples_expr x n_features)
-        Returns:
-            med_diff: Median differences for each feature.
-        """
-        med_diff = np.nanmedian(expr, axis=0) - np.nanmedian(ctrl, axis=0)
+def _measure_central_tendency(arr: np.ndarray, method: str) -> np.ndarray:
+    """
+    Measure central tendency (median or mean) with NaN handling.
 
-        return med_diff, None
+    Parameters:
+        arr: array-like (n_samples x n_features)
+        method: 'median' or 'mean'
+
+    Returns:
+        central_tendency: Central tendency values for each feature.
+    """
+    if method == "median":
+        central_tendency = np.nanmedian(arr, axis=0)
+    elif method == "mean":
+        central_tendency = np.nanmean(arr, axis=0)
+    else:
+        raise ValueError(f"Unknown method '{method}'. Use 'median' or 'mean'.")
+
+    return central_tendency
+
+
+def _calc_log2fc(ctrl: np.ndarray, expr: np.ndarray, log_transformed: bool) -> np.ndarray:
+    """
+    Calculate fold change between two groups.
+
+    Parameters:
+        ctrl: repersentative statistics of control group (n_features,)
+        expr: repersentative statistics of experimental group (n_features,)
+        log_transformed: Whether the data is log-transformed.
+
+    Returns:
+        log2fc: Fold change values for each feature.
+    """
+    if log_transformed:
+        log2fc = expr - ctrl
+    else:
+        log2fc = expr / ctrl
+        log2fc = np.log2(log2fc + 1e-9)  # add small constant to avoid log2(0)
+
+    return log2fc
+
+
+def _get_pct_expression(arr: np.ndarray) -> np.ndarray:
+    pct_expr = np.sum(~np.isnan(arr), axis=0) / arr.shape[0] * 100
+
+    return pct_expr
 
 
 def calc_permutation_pvalue(stat_obs: np.ndarray, null_dist: np.ndarray) -> np.ndarray:
