@@ -30,15 +30,17 @@ de_res = mm.tl.run_de(
     category="condition",    # column in .obs defining groups
     ctrl="control",          # control group label
     expr="treated",          # experimental group label
-    stat_method="welch",     # options: "welch", "student", "wilcoxon", "med_diff", default "welch"
-    fdr="empirical",         # options: "empirical", "bh", "storey", or False, default "empirical"
+    stat_method="welch",     # options: "welch", "student", "wilcoxon", default "welch"
+    measure="median",        # options: "mean", "median", default "median"
+    min_pct=0.5,             # minimum fraction of non-missing values in at least one group, default 0.5
+    fdr="empirical",         # options: "empirical", "bh", or False, default "empirical"
     n_resamples=1000,        # number of permutations, default 1000, if None, simple hypothesis test is performed
 )
 
 de_res.to_df() # get results as pandas DataFrame
 ```
 
-DE analysis results are stored in `PermTestResult`(for permutation test) (or `StatTestResult`; for simple test) object, which contains:
+DE analysis results are stored in `DeaResult` object, which contains: Feature names, test statistics, log2 fold-changes, p-values, q-values, and other relevant information.
 
 DE results can be accessed as a pandas `DataFrame` using the `to_df()` method.
 
