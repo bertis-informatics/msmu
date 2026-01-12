@@ -5,12 +5,19 @@ import numpy as np
 from scipy.stats import percentileofscore
 from tqdm import tqdm
 
-from ._statistics import NullDistribution, StatResult, HypothesisTesting, calc_permutation_pvalue
+from ._statistics import (
+    NullDistribution,
+    StatResult,
+    HypothesisTesting,
+    calc_permutation_pvalue,
+    _calc_log2fc,
+    _measure_central_tendency,
+)
 from ._multiple_test_correction import PvalueCorrection
-from ._de_base import Dea, PermTestResult
+from ._de_base import PermTestResult
 
 
-class PermutationTest(Dea):
+class PermutationTest:
     """
     Class to perform permutation tests on two groups of data (control and experimental).
 
@@ -30,12 +37,15 @@ class PermutationTest(Dea):
     """
 
     def __init__(
-        self, ctrl_arr: np.ndarray, expr_arr: np.ndarray, n_resamples: int, _force_resample: bool, fdr: bool | str
+        self,
+        ctrl_arr: np.ndarray,
+        expr_arr: np.ndarray,
+        n_resamples: int,
+        _force_resample: bool,
+        fdr: bool | str,
     ):
-        super().__init__()
         self._ctrl_arr: np.ndarray = ctrl_arr
         self._expr_arr: np.ndarray = expr_arr
-        self.validate_inputs(self.ctrl_arr, self.expr_arr)
 
         self._possible_combination_count: int = self._get_number_of_combinations()
         self._n_resamples: int = n_resamples
@@ -80,30 +90,19 @@ class PermutationTest(Dea):
     def _calc_two_sided_p_value(self, stat_obs, stat_perm):
         return np.mean(np.abs(stat_perm) >= np.abs(stat_obs), axis=0)
 
-    def _get_pct_expression(self, arr: np.ndarray) -> np.ndarray:
-        pct_expr = np.sum(~np.isnan(arr), axis=0) / arr.shape[0] * 100
-
-        return pct_expr
-
     def _perm_test(
         self,
         concated_arr: np.ndarray,
         iterations: list,
         stat_method: str,
-        n_jobs: int,
+        measure: str,
+        log_transformed: bool,
     ) -> PermTestResult:
 
         perm_test_res: PermTestResult = PermTestResult(
             permutation_method=self.permutation_method,
+            n_permutations=len(iterations),
             stat_method=stat_method,
-            ctrl=None,
-            expr=None,
-            features=np.array([]),
-            median_ctrl=np.nanmedian(self.ctrl_arr, axis=0),
-            median_expr=np.nanmedian(self.expr_arr, axis=0),
-            pct_ctrl=self._get_pct_expression(self.ctrl_arr),
-            pct_expr=self._get_pct_expression(self.expr_arr),
-            log2fc=np.array([]),
             p_value=np.array([]),
             q_value=np.array([]),
             fc_pct_1=None,
@@ -122,21 +121,15 @@ class PermutationTest(Dea):
             expr=self.expr_arr,
             stat_method=stat_method,
         )
-        # print(obs_stats.statistic)
-        obs_log2fc: StatResult = HypothesisTesting.test(
-            ctrl=self.ctrl_arr,
-            expr=self.expr_arr,
-            stat_method="med_diff",
-        )
 
         # Initialize NullDistribution objects for the statistic and log2fc and q values
         stat_null_dist = NullDistribution(stat_method=stat_method, null_distribution=np.array([]))
-        log2fc_null_dist = NullDistribution(stat_method="med_diff", null_distribution=np.array([]))
+        log2fc_null_dist = NullDistribution(stat_method=measure, null_distribution=np.array([]))
 
         # Iterate over the combinations or randomised permutations
         for combn in tqdm_iter:
             # Calculate the statistic for the current permutation
-            tmp_stat: StatResult = self._sub_perm(
+            tmp_stat: StatResult = self._calc_permuted_stats(
                 concated_arr=concated_arr,
                 combinations=combn,
                 stat_method=stat_method,
@@ -146,10 +139,11 @@ class PermutationTest(Dea):
             stat_null_dist = stat_null_dist.add_permutation_result(tmp_stat)
 
             # Calculate the log2 fold change for the current permutation
-            tmp_log2fc: StatResult = self._sub_perm(
+            tmp_log2fc: StatResult = self._calc_permuted_log2fc(
                 concated_arr=concated_arr,
                 combinations=combn,
-                stat_method="med_diff",
+                measure=measure,
+                log_transformed=log_transformed,
             )
             # Add the result to the log2fc null distribution
             log2fc_null_dist = log2fc_null_dist.add_permutation_result(tmp_log2fc)
@@ -162,13 +156,11 @@ class PermutationTest(Dea):
             q_vals = PvalueCorrection.empirical(
                 stat_obs=obs_stats.statistic,
                 null_dist=stat_null_dist.null_distribution,
-                # pvals=pval_permutation,
             )
         elif self.fdr == "bh":
             q_vals = PvalueCorrection.bh(pvals=pval_permutation)
 
         # put results to PermutationTestResult
-        perm_test_res.log2fc = obs_log2fc.statistic
         perm_test_res.p_value = pval_permutation
         perm_test_res.q_value = q_vals
 
@@ -195,7 +187,9 @@ class PermutationTest(Dea):
 
         return round(float(q), 2)
 
-    def _sub_perm(self, concated_arr: np.ndarray, combinations: np.ndarray, stat_method: str) -> StatResult:
+    def _set_permuted_comparison(
+        self, concated_arr: np.ndarray, combinations: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
         if self.permutation_method == "exact":
             total_index: np.ndarray = np.arange(len(self.ctrl_arr) + len(self.expr_arr))
             ctrl_idx = list(combinations)
@@ -208,34 +202,35 @@ class PermutationTest(Dea):
         perm_ctrl: np.ndarray = concated_arr[ctrl_idx, :]
         perm_expr: np.ndarray = concated_arr[expr_idx, :]
 
+        return perm_ctrl, perm_expr
+
+    def _calc_permuted_stats(self, concated_arr: np.ndarray, combinations: np.ndarray, stat_method: str) -> StatResult:
+        perm_ctrl, perm_expr = self._set_permuted_comparison(concated_arr, combinations)
+
         stat_res: StatResult = HypothesisTesting.test(ctrl=perm_ctrl, expr=perm_expr, stat_method=stat_method)
 
         return stat_res
+
+    def _calc_permuted_log2fc(
+        self, concated_arr: np.ndarray, combinations: np.ndarray, measure: str, log_transformed: bool
+    ) -> StatResult:
+        perm_ctrl, perm_expr = self._set_permuted_comparison(concated_arr, combinations)
+
+        repr_ctrl: np.ndarray = _measure_central_tendency(perm_ctrl, measure)
+        repr_expr: np.ndarray = _measure_central_tendency(perm_expr, measure)
+        log2fc: np.ndarray = _calc_log2fc(repr_ctrl, repr_expr, log_transformed=log_transformed)
+
+        fc_res: StatResult = StatResult(stat_method=None, statistic=log2fc, p_value=None)
+
+        return fc_res
 
     def run(
         self,
         n_permutations: int,
         stat_method: str,
-        n_jobs: int,
+        measure: str,
+        log_transformed: bool,
     ) -> PermTestResult:
-        if not self.de_available:
-            perm_test_res: PermTestResult = PermTestResult(
-                permutation_method=None,
-                stat_method=None,
-                ctrl=None,
-                expr=None,
-                features=np.array([]),
-                median_ctrl=np.nanmedian(self.ctrl_arr, axis=0),
-                median_expr=np.nanmedian(self.expr_arr, axis=0),
-                pct_ctrl=self._get_pct_expression(self.ctrl_arr),
-                pct_expr=self._get_pct_expression(self.expr_arr),
-                log2fc=HypothesisTesting.test(ctrl=self.ctrl_arr, expr=self.expr_arr, stat_method="med_diff").statistic,
-                p_value=np.full_like(self.ctrl_arr[0], np.nan),
-                q_value=np.full_like(self.ctrl_arr[0], np.nan),
-                fc_pct_1=None,
-                fc_pct_5=None,
-            )
-            return perm_test_res
 
         concated_arr: np.ndarray = np.concatenate((self.ctrl_arr, self.expr_arr), axis=0)
 
@@ -248,7 +243,8 @@ class PermutationTest(Dea):
             concated_arr=concated_arr,
             iterations=iterations,
             stat_method=stat_method,
-            n_jobs=n_jobs,
+            measure=measure,
+            log_transformed=log_transformed,
         )
 
         return perm_test_res
