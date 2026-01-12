@@ -1,13 +1,13 @@
-# ![](docs/assets/logo.svg){ width="240px" }
+<img src="docs/assets/logo.svg" width="240px" alt="msmu logo"/>
 
 **Python toolkit for modular and tracable LC-MS/<u>MS</u> proteomics analysis based on <u>Mu</u>Data**
 
 ## Overview
 
 `msmu` is an open-source Python package for modular and traceable post-DB search preprocessing and statistical analysis of bottom-up proteomics data.
-It supports modules for an end-to-end processing—from search output parsing through hierarchical summarization, normalization, batch correction, statistical analysis, and visualization—and leverages the highly versatile and standardized `MuData` (and `AnnData`) as a unifying, provenance-aware data container for storing annotations and representations of multi-dimensional MS data and processing history, thereby empowering reproducible pipeline and reusable data for biomarker discovery and systems biology.
+It supports modules for an end-to-end processing—from search output parsing through hierarchical summarization, normalization, batch correction, statistical analysis, and visualization—implemented with commonly used analytical and statistical methods. Central to msmu is the highly versatile and standardized `MuData` (and `AnnData`) as a unifying, provenance-aware data container for storing annotations and representations of multi-dimensional MS data and processing history, thereby empowering reproducible pipeline and reusable data for biomarker discovery and systems biology. This unique marriage between flexible processing pipeline and MuData empowers FAIR principle-aligned downstream analysis for biomarker discovery and systems biology.
 
-![](docs/assets/overview.svg){ width="100%" }
+<img src="docs/assets/overview.svg" width="100%" alt="MuData logo"/>
 
 ## Key Features
 
@@ -28,6 +28,10 @@ It supports modules for an end-to-end processing—from search output parsing th
 - MaxQuant: [https://www.maxquant.org/](https://www.maxquant.org/)
 - FragPipe: [https://fragpipe.nesvilab.org/](https://fragpipe.nesvilab.org/)
 - and more upcoming.
+
+## Documentation
+
+Comprehensive documentation, including installation instructions, tutorials, and API references, is available at: [https://bertis-informatics.github.io/msmu/](https://bertis-informatics.github.io/msmu/)
 
 ## Citation
 

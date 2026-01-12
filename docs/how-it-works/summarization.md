@@ -28,7 +28,7 @@ and returns
 This step aggregates PSMs and their quantification values by `peptide` (non-redundant modified peptide).
 Peptide-level PEP is calculated with `best_pep` method by default and peptide-level q-values are computed using a conservative approach when decoy information is available.
 
-For quantification aggregation, the default method is `median`, and an optional `top_n` argument can be used to restrict aggregation using top N (e.g. top 3) features within each peptide. Feature ranking is based on `total_intensity` unless specified otherwise.
+For quantification aggregation, the default method is `median`, and an optional `top_n` argument can be used to restrict aggregation using top N (e.g., top 3) features within each peptide. Feature ranking is based on `total_intensity` unless specified otherwise.
 
 In TMT studies, PSMs with low precursor isolation purity may be excluded prior to quantification aggregation to remove spectra with low quantitative accuracy. Precursor isolation purity should be computed with `mm.pp.compute_precursor_isolation_purity()` before calling `to_peptide()`. A `purity_threshold` (commonly `0.7`) can be applied during aggregation.
 

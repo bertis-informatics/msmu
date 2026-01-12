@@ -2,7 +2,7 @@
 
 ## Overview
 
-Differential Expression Analysis (DEA) identifies proteins or peptides with significant abundance changes between experimental conditions. `msmu` provides permutation-based statistical testing to assess differential expression while controlling the false discovery rate (FDR).
+Differential Expression (DE) Analysis identifies proteins or peptides with significant abundance changes between experimental conditions. `msmu` provides permutation-based statistical testing to assess differential expression while controlling the false discovery rate (FDR).
 
 ## `mm.tl.run_de()`
 
