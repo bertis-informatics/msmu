@@ -58,7 +58,8 @@ def to_peptide(
     Returns:
         MuData object containing peptide-level data.
     """
-    adata_to_summarise: ad.AnnData = mdata["psm"].copy()
+    mdata = mdata.copy()
+    adata_to_summarise: ad.AnnData = mdata["psm"]
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
 
@@ -187,6 +188,7 @@ def to_protein(
         MuData object containing protein-level data.
     """
     original_mdata = mdata.copy()
+    mdata = original_mdata.copy()
 
     mstatus = MuDataStatus(original_mdata)
     _protein_col: str = "protein_group"
@@ -208,7 +210,7 @@ def to_protein(
     else:
         mdata = original_mdata
 
-    adata_to_summarise: ad.AnnData = mdata["peptide"].copy()
+    adata_to_summarise: ad.AnnData = mdata["peptide"]
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
 
