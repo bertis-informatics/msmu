@@ -7,6 +7,8 @@
     * [DIA-LFQ](tutorials/dia-lfq.ipynb)
     * [PTM](tutorials/ptm.ipynb)
     * [DE Analysis](tutorials/dea.ipynb)
+    * [PTM Processing](tutorials/ptm.ipynb)
+    * [DDA-LFQ w. FlashLFQ](tutorials/flashlfq.ipynb)
     * [2024 Fulcher et al.](tutorials/2024_Fulcher/index.md)
         * [01 Process scRNAseq Data](tutorials/2024_Fulcher/01_process_rna_data.ipynb)
         * [02 Process Proteomics Data](tutorials/2024_Fulcher/02_process_protein_data.ipynb)
