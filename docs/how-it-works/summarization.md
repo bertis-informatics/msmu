@@ -28,7 +28,7 @@ and returns
 This step aggregates PSMs and their quantification values by `peptide` (non-redundant modified peptide).
 Peptide-level PEP is calculated with `best_pep` method by default and peptide-level q-values are computed using a conservative approach when decoy information is available.
 
-For quantification aggregation, the default method is `median`, and an optional `top_n` argument can be used to restrict aggregation using top N (e.g., top 3) features within each peptide. Feature ranking is based on `total_intensity` unless specified otherwise.
+For quantification aggregation, the default method is `median`, and an optional `top_n` argument can be used to restrict aggregation using top N (e.g., top 3) features within each peptide. Feature ranking is based on `median_intensity` unless specified otherwise.
 
 In TMT studies, PSMs with low precursor isolation purity may be excluded prior to quantification aggregation to remove spectra with low quantitative accuracy. Precursor isolation purity should be computed with `mm.pp.compute_precursor_isolation_purity()` before calling `to_peptide()`. A `purity_threshold` (commonly `0.7`) can be applied during aggregation.
 
@@ -37,11 +37,10 @@ Note that filtering by `top_n` or `purity_threshold` affects quantification aggr
 ```python
 mdata = mm.pp.to_peptide(
     mdata,
-    score_method="best_pep",        # default
     agg_method="median",            # default
     purity_threshold=0.7,           # for tmt data
     top_n=None,                     # default
-    rank_method="total_intensity",  # default
+    rank_method="median_intensity",  # default
     )
 ```
 
@@ -65,7 +64,7 @@ Only "unique" peptides are used for protein group intensity aggregation; "shared
 
 As in peptide-level aggregation, protein group level `PEP` and `q-value` are computed when possible.
 
-The default settings use `top_n=3` with ranking by `total_intensity`, so only the top three peptides per protein group contribute to quantification.
+The default settings use `top_n=3` with ranking by `median_intensity`, so only the top three peptides per protein group contribute to quantification.
 
 ```python
 # Infer protein group from mdata (containing peptide modality)
@@ -74,10 +73,9 @@ mdata = mm.pp.infer_protein(mdata)
 # Summarize peptides to protein group
 mdata = mm.pp.to_protein(
     mdata,
-    score_method="best_pep",        # default
     agg_method="median",            # default
     top_n=3,                        # default
-    rank_method="total_intensity",  # default
+    rank_method="median_intensity",  # default
     )
 ```
 
