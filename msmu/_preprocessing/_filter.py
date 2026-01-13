@@ -2,7 +2,7 @@ from typing import Literal
 import pandas as pd
 from mudata import MuData
 
-from .._utils import subset, uns_logger
+from .._utils import uns_logger
 from .._read_write._mdata_status import MuDataStatus
 
 
@@ -18,15 +18,14 @@ def add_filter(
     Adds a filter to the specified modality in the MuData object based on the given condition.
 
     Parameters:
-        mdata (MuData): MuData object to which the filter will be added.
-        modality (str): The modality within the MuData object to which the filter will be applied
-        column (str): The column in the modality's var DataFrame to apply the filter on.
-        keep (Literal["eq", "ne", "lt", "le", "gt",
-                            "ge", "contains", "not_contains"]): The condition to apply for filtering.
-        value (str | float | None): The value to compare against for filtering.
+        mdata: MuData object to which the filter will be added.
+        modality: The modality within the MuData object to which the filter will be applied
+        column: The column in the modality's var DataFrame to apply the filter on.
+        keep: The condition to apply for filtering.
+        value: The value to compare against for filtering.
 
     Returns:
-        MuData: MuData object with the added filter.
+        MuData object with the added filter.
     """
 
     mdata = mdata.copy()
@@ -90,11 +89,11 @@ def apply_filter(
     Applies the filter to the specified modality in the MuData object.
 
     Parameters:
-        mdata (MuData): MuData object to which the filter will be applied.
-        modality (str): The modality within the MuData object to which the filter will be applied.
+        mdata: MuData object to which the filter will be applied.
+        modality: The modality within the MuData object to which the filter will be applied.
 
     Returns:
-        MuData: MuData object with the filter applied.
+        MuData object with the filter applied.
     """
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
@@ -118,6 +117,3 @@ def apply_filter(
         mdata[modality].uns["decoy_filter"] = decoy_filter
 
     return mdata.copy()
-
-    # def plot_filter_metric():
-    ...
