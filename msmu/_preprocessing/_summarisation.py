@@ -110,29 +110,12 @@ class Scorer:
         scorer._picked_pep = scorer._best_pep()
         return scorer
 
-    # @classmethod
-    # def combined(cls, values):
-    #     """Factory for combined PEP aggregation."""
-    #     scorer = cls(values)
-    #     scorer._picked_pep = scorer._combined_pep()
-    #     return scorer
-
     def _best_pep(self) -> float:
         """Return the minimum PEP (best evidence)."""
         arr = np.asarray(self._raw_pep, dtype=float)
         if arr.size == 0:
             return np.nan
         return np.nanmin(arr)
-
-    # def _combined_pep(self) -> float:
-    #     """Combine PEPs as 1 - product(1 - PEP_i)."""
-    #     arr = np.asarray(self._raw_pep, dtype=float)
-    #     arr = np.clip(arr, 0.0, 1.0)
-    #     valid = arr[~np.isnan(arr)]
-    #     if valid.size == 0:
-    #         return np.nan
-    #     log_term = np.sum(np.log1p(-valid))
-    #     return 1.0 - np.exp(log_term)
 
     @property
     def picked_pep(self) -> float:
@@ -168,13 +151,13 @@ class Aggregator:
         quantification_df: pd.DataFrame,
         decoy_df: pd.DataFrame | None,
         agg_method: Literal["median", "mean", "sum"],
-        score_method: Literal["best_pep", "fisher", "stouffer", "combined"],
+        score_method: Literal["best_pep"],
     ) -> None:
         self._id_df: pd.DataFrame = identification_df.copy()
         self._quant_df: pd.DataFrame = quantification_df.copy()
         self._decoy_id_df: pd.DataFrame = decoy_df.copy() if decoy_df is not None else pd.DataFrame()
         self._agg_method: Literal["median", "mean", "sum"] = agg_method
-        self._score_method: Literal["best_pep", "fisher", "stouffer", "combined"] = score_method
+        self._score_method: Literal["best_pep"] = score_method
 
         self._id_agg_dict: dict = dict()  # placeholder
         self._col_to_groupby: str = ""  # placeholder
