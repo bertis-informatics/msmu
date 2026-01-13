@@ -58,7 +58,7 @@ def run_de(
     fdr: bool | Literal["empirical", "bh"] = "empirical",
     log_transformed: bool = True,
     _force_resample: bool = False,
-) -> PermTestResult | StatTestResult:
+) -> DeaResult:
     """
     Run Differential Expression Analysis (DEA) between two groups in a MuData object.
 
@@ -70,7 +70,7 @@ def run_de(
         expr: Name of the experimental group. If None, all other groups are used.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         stat_method: Statistical test to use ("welch", "student", "wilcoxon").
-        measure: Measure of central tendency to use ("median" or "mean").
+        measure: Measure of central tendency to use ("median" or "mean") for fold-change.
         n_resamples: Number of resamples for permutation test. If None, no permutation test is performed.
         fdr: Method for multiple test correction ("empirical", "bh", or False).
         log_transformed: If True, data is assumed to be log-transformed. Defaults to True.
