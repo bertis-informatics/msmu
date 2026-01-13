@@ -36,6 +36,7 @@ de_res = mm.tl.run_de(
     min_pct=0.5,             # minimum fraction of non-missing values in at least one group, default 0.5
     fdr="empirical",         # options: "empirical", "bh", or False, default "empirical"
     n_resamples=1000,        # number of permutations, default 1000, if None, simple hypothesis test is performed
+    log_transformed=True     # whether data is log-transformed, default True
 )
 
 de_res.to_df() # get results as pandas DataFrame
