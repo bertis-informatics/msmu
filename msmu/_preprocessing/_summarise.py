@@ -28,10 +28,9 @@ def to_peptide(
     mdata: md.MuData,
     layer: str | None = None,
     agg_method: Literal["median", "mean", "sum"] = "median",
-    score_method: Literal["best_pep"] = "best_pep",
     purity_threshold: float | None = 0.7,  # for tmt data
     top_n: int | None = None,
-    rank_method: Literal["total_intensity", "max_intensity", "median_intensity"] = "total_intensity",
+    rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
     calculate_q: bool = True,
 ) -> md.MuData:
     """Summarise PSM-level data to peptide-level data.
@@ -40,20 +39,18 @@ def to_peptide(
         mdata = mm.pp.to_peptide(
             mdata,
             agg_method="median",
-            calculate_q=True,
-            score_method="best_pep",
             purity_threshold=0.7,
+            calculate_q=True,
         )
 
     Parameters:
         mdata: MuData object containing PSM-level data.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         agg_method: Aggregation method for quantification to use. Defaults to "median".
-        calculate_q: Whether to calculate q-values. Defaults to True.
-        score_method: Method to combine scores. Defaults to "best_pep".
         purity_threshold: Purity threshold for TMT data quantification aggregation (does not filter out features). If None, no filtering is applied. Defaults to 0.7.
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
-        rank_method: Method to rank features when selecting top_n. Defaults to "total_intensity".
+        rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
+        calculate_q: Whether to calculate q-values. Defaults to True.
 
     Returns:
         MuData object containing peptide-level data.
@@ -88,6 +85,7 @@ def to_peptide(
     identification_df, quantification_df, decoy_df = summarisation_prep.prep()
 
     # Aggregation
+    score_method: str = "best_pep"
     aggregator = Aggregator.peptide(
         identification_df=identification_df,
         quantification_df=quantification_df,
@@ -166,22 +164,20 @@ def to_protein(
     mdata: md.MuData,
     layer: str | None = None,
     agg_method: Literal["median", "mean", "sum"] = "median",
-    score_method: Literal["best_pep"] = "best_pep",
     top_n: int | None = 3,
-    rank_method: Literal["total_intensity", "max_intensity", "median_intensity"] = "total_intensity",
+    rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
     calculate_q: bool = True,
     _shared_peptide: Literal["discard"] = "discard",
 ) -> md.MuData:
-    """Summarise peptide-level data to protein-level data. By default, uses `top 3` peptides in their `total_intensity` and `unique` (_shared_peptide = "discard") per protein_group for quantification aggregation with median.
+    """Summarise peptide-level data to protein-level data. By default, uses `top 3` peptides in their `median_intensity` and `unique` (_shared_peptide = "discard") per protein_group for quantification aggregation with median.
 
     Parameters:
         mdata: MuData object containing Peptide-level data.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         agg_method: Aggregation method to use. Defaults to "median".
-        calculate_q: Whether to calculate q-values. Defaults to True.
-        score_method: Method to combine scores (PEP). Defaults to "best_pep".
         top_n: Number of top peptides to consider for summarisation. If None, all peptides are used. Defaults to None.
-        rank_method: Method to rank features when selecting top_n. Defaults to "total_intensity".
+        rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
+        calculate_q: Whether to calculate q-values. Defaults to True.
         _shared_peptide: How to handle shared peptides. Currently only "discard" is implemented. Defaults to "discard".
 
     Returns:
@@ -226,6 +222,7 @@ def to_protein(
     identification_df, quantification_df, decoy_df = summarisation_prep.prep()
 
     # Aggregation
+    score_method: str = "best_pep"
     aggregator = Aggregator.protein(
         identification_df=identification_df,
         quantification_df=quantification_df,
@@ -283,7 +280,7 @@ def to_ptm(
     layer: str | None = None,
     agg_method: Literal["median", "mean", "sum"] = "median",
     top_n: int | None = None,
-    rank_method: Literal["total_intensity", "max_intensity"] = "total_intensity",
+    rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
 ) -> md.MuData:
     """Summarise peptide-level data to PTM-level data.
 
@@ -294,7 +291,7 @@ def to_ptm(
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         agg_method: Aggregation method to use. Defaults to "median".
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
-        rank_method: Method to rank features when selecting top_n. Defaults to "total_intensity".
+        rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
 
     Returns:
         MuData: MuData object containing PTM-level data.
