@@ -74,6 +74,25 @@ class FeatureRanker:
 
         return identification_df
 
+    @staticmethod
+    def mean_intensity(identification_df, quantification_df, col_to_groupby):
+        """
+        Rank features based on mean intensity across all samples.
+
+        Args:
+            identification_df (pd.DataFrame): DataFrame containing feature identifications.
+            quantification_df (pd.DataFrame): DataFrame containing feature quantifications.
+            col_to_groupby (str): Column name to group by for ranking.
+
+        Returns:
+            pd.DataFrame: DataFrame with added 'rank_score' and 'rank' columns.
+        """
+        mean_intensity = quantification_df.mean(axis=1)
+        identification_df.loc[:, "rank_score"] = mean_intensity
+        identification_df.loc[:, "rank"] = identification_df.groupby(col_to_groupby)["rank_score"].rank(ascending=False)
+
+        return identification_df
+
 
 class Scorer:
     """Scoring methods for aggregating PSM scores to peptide/protein scores."""
