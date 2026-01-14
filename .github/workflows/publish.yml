@@ -28,7 +28,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run tests
-        run: pytest -q --nbval-lax
+        run: pytest
 
   publish:
     runs-on: ubuntu-latest

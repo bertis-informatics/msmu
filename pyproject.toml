@@ -33,16 +33,18 @@ dynamic = ["version"]
 dev = [
     "pytest",
     "nbval",
-    "pymdown-extensions",
+]
+doc = [
     "mkdocs",
+    "mkdocs-material",
     "mkdocs-gen-files",
     "mkdocs-jupyter",
+    "mkdocs-awesome-pages-plugin",
     "mkdocs-literate-nav",
-    "mkdocstrings",
+    "mkdocstrings[python]",
     "mkdocs-minify-plugin",
     "mkdocs-git-revision-date-localized-plugin",
-    "mkdocs-awesome-pages-plugin",
-    "mkdocstrings-python",
+    "pymdown-extensions",
 ]
 
 [project.urls]
@@ -59,3 +61,7 @@ exclude = ["tests", "docs"]
 write_to = "msmu/_version.py"
 version_scheme = "no-guess-dev"
 local_scheme = "no-local-version"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --nbval-lax"
