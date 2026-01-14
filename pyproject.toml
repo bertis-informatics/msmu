@@ -34,7 +34,7 @@ dev = [
     "pytest",
     "nbval",
 ]
-doc = [
+docs = [
     "mkdocs",
     "mkdocs-material",
     "mkdocs-gen-files",
