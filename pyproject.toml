@@ -25,6 +25,7 @@ dependencies = [
     "pyopenms",
     "fastparquet",
     "kaleido",
+    "combat",
 ]
 dynamic = ["version"]
 
