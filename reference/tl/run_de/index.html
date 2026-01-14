@@ -11,7 +11,7 @@
       
       
       
-        <link rel="prev" href="../umap/">
+        <link rel="prev" href="../corr/">
       
       
         <link rel="next" href="../PermTestResult/">
@@ -332,6 +332,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -546,6 +550,62 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../../tutorials/ptm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PTM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tutorials/flashlfq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DDA-LFQ w. FlashLFQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
       
@@ -567,7 +627,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_9" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -589,14 +649,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_9" id="__nav_3_9_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_7">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2013,6 +2073,8 @@
       
         
       
+        
+      
     
     
     
@@ -2152,6 +2214,34 @@
     
   
     umap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../corr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    corr
   
 
     
@@ -3227,15 +3317,31 @@
                 <code>stat_method</code>
             </td>
             <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;welch&#39;, &#39;student&#39;, &#39;wilcoxon&#39;, &#39;med_diff&#39;, &#39;limma&#39;]</code>
+                  <code><span title="typing.Literal">Literal</span>[&#39;welch&#39;, &#39;student&#39;, &#39;wilcoxon&#39;]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Statistical test to use ("welch", "student", "wilcoxon", "med_diff", "limma").</p>
+                <p>Statistical test to use ("welch", "student", "wilcoxon").</p>
               </div>
             </td>
             <td>
                   <code>&#39;welch&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>measure</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;median&#39;, &#39;mean&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Measure of central tendency to use ("median" or "mean") for fold-change.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;median&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3259,11 +3365,11 @@
                 <code>fdr</code>
             </td>
             <td>
-                  <code><span title="bool">bool</span> | <span title="typing.Literal">Literal</span>[&#39;empirical&#39;, &#39;bh&#39;, &#39;storey&#39;]</code>
+                  <code><span title="bool">bool</span> | <span title="typing.Literal">Literal</span>[&#39;empirical&#39;, &#39;bh&#39;]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Method for multiple test correction ("empirical", "bh", "storey", or False).</p>
+                <p>Method for multiple test correction ("empirical", "bh", or False).</p>
               </div>
             </td>
             <td>
@@ -3272,18 +3378,18 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>n_jobs</code>
+                <code>log_transformed</code>
             </td>
             <td>
-                  <code><span title="int">int</span></code>
+                  <code><span title="bool">bool</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of parallel jobs to use.</p>
+                <p>If True, data is assumed to be log-transformed. Defaults to True.</p>
               </div>
             </td>
             <td>
-                  <code>1</code>
+                  <code>True</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3317,11 +3423,11 @@
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><a class="autorefs autorefs-internal" title="msmu._statistics._de_base.PermTestResult" href="../PermTestResult/#msmu.tl.PermTestResult">PermTestResult</a> | <a class="autorefs autorefs-internal" title="msmu._statistics._de_base.StatTestResult" href="../StatTestResult/#msmu.tl.StatTestResult">StatTestResult</a></code>
+                  <code><span title="msmu._statistics._de_base.DeaResult">DeaResult</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>PermTestResult or StatTestResult containing DEA results.</p>
+                <p>DeaResult containing DE analysis results.</p>
               </div>
             </td>
           </tr>
@@ -3352,7 +3458,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 12, 2026 05:26:05 UTC">January 12, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 14, 2026 07:44:37 UTC">January 14, 2026</span>
   </span>
 
     

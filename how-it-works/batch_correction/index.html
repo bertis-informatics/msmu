@@ -330,6 +330,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -544,6 +548,62 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../tutorials/ptm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PTM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/flashlfq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DDA-LFQ w. FlashLFQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
       
@@ -565,7 +625,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_9" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -587,14 +647,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_9" id="__nav_3_9_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_7">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2078,6 +2138,8 @@
       
         
       
+        
+      
     
     
     
@@ -2217,6 +2279,34 @@
     
   
     umap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/tl/corr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    corr
   
 
     
@@ -3105,23 +3195,37 @@
 <h2 id="correct_batch_effect"><code>correct_batch_effect()</code></h2>
 <p>The <code>correct_batch_effect()</code> function either:</p>
 <ul>
-<li>Median centering, which standardizes each features to have zero median, or</li>
+<li>Median centering, which standardizes each features to have zero median (can be re-scaled).</li>
 <li>GIS/IRS normalization, which rescales and corrects batch effect in TMT data using Global Internal Standard (GIS) channels.</li>
+<li>Combat batch effect correction (<a href="https://github.com/epigenelabs/pyComBat">pycombat</a>).</li>
+<li>Continuous batch effect correction using lowess regression (referred from <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8447595/">Diagnostics and correction of batch effects in large‐scale proteomic studies: a tutorial</a>).</li>
 </ul>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">correct_batch_effect</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;feature&quot;</span><span class="p">,</span>     <span class="c1"># or &quot;peptide&quot;, &quot;protein&quot;</span>
-    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;gis&quot;</span><span class="p">,</span>           <span class="c1"># options: &quot;median_center&quot;, &quot;gis&quot;</span>
-    <span class="n">gis_prefix</span><span class="o">=</span><span class="s2">&quot;POOLED_&quot;</span>    <span class="c1"># prefix for GIS channels</span>
-    <span class="n">rescale</span><span class="o">=</span><span class="kc">True</span>             <span class="c1"># whether to rescale data</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;feature&quot;</span><span class="p">,</span>                      <span class="c1"># or &quot;peptide&quot;, &quot;protein&quot;</span>
+    <span class="n">layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                              <span class="c1"># layer to correct, default is .X</span>
+    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;batch&quot;</span><span class="p">,</span>                        <span class="c1"># batch information column in .obs</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;gis&quot;</span><span class="p">,</span>                            <span class="c1"># options: &quot;median_center&quot;, &quot;gis&quot;, &quot;combat&quot;, &quot;continuous&quot;</span>
+    <span class="n">rescale</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                            <span class="c1"># whether to rescale data with median value of original data. Default is True (for GIS, median_center, continuous)</span>
+    <span class="n">gis_sample</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;POOLED_1&quot;</span><span class="p">,</span> <span class="s2">&quot;POOLED_2&quot;</span><span class="p">],</span>     <span class="c1"># GIS channel names (for TMT data only)</span>
+    <span class="n">drop_gis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                           <span class="c1"># whether to drop GIS channels after correction. Default is True</span>
+    <span class="n">log_transformed</span><span class="o">=</span><span class="kc">True</span>                     <span class="c1"># whether data is log-transformed. Default is True</span>
 <span class="p">)</span>
 
 <span class="c1"># or</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">correct_batch_effect</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;feature&quot;</span><span class="p">,</span>            <span class="c1"># or &quot;peptide&quot;, &quot;protein&quot;</span>
-    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;median_center&quot;</span><span class="p">,</span>        <span class="c1"># options: &quot;median_center&quot;, &quot;gis&quot;</span>
-    <span class="n">rescale</span><span class="o">=</span><span class="kc">True</span>                   <span class="c1"># whether to rescale data</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;feature&quot;</span><span class="p">,</span>            
+    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;batch&quot;</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;median_center&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># or</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">correct_batch_effect</span><span class="p">(</span>
+    <span class="n">mdata</span><span class="p">,</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;protein&quot;</span><span class="p">,</span>
+    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;run_order&quot;</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;continuous&quot;</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -3144,7 +3248,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 9, 2026 09:42:33 UTC">January 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 13, 2026 06:32:10 UTC">January 13, 2026</span>
   </span>
 
     
