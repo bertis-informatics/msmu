@@ -1,6 +1,6 @@
 <img src="./assets/logo.svg" width="240px" alt="msmu logo"/>
 
-**Python toolkit for modular and tracable LC-MS/<u>MS</u> proteomics analysis based on <u>Mu</u>Data**
+**Python toolkit for modular and traceable LC-MS/<u>MS</u> proteomics analysis based on <u>Mu</u>Data**
 
 ## Overview
 
