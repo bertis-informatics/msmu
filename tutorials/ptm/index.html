@@ -3912,7 +3912,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [10]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [71]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-1">
@@ -3943,7 +3943,7 @@ import pandas as pd</div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h2 id="data-preparation">Data Preparation<a class="anchor-link" href="#data-preparation">¶</a></h2><p>In this tutorial, we will use peptide-level processed data from SAGE TMT workflow for both global protein and PTM data with code below.</p>
-<p>More details about SAGE TMT data processing can be found in <a href="./dda-tmt">DDA - TMT</a> tutorial section.</p>
+<p>More details about Sage TMT data processing can be found in <a href="../dda-tmt">DDA - TMT</a> tutorial section.</p>
 </div>
 </div>
 </div>
@@ -3953,7 +3953,7 @@ import pandas as pd</div>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [29]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [72]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-2">
@@ -3966,14 +3966,14 @@ import pandas as pd</div>
 </div>
 </clipboard-copy>
 </div>
-<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">base_dir</span> <span class="o">=</span> <span class="s2">"https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/dev/data/sage_tmt"</span>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">base_dir</span> <span class="o">=</span> <span class="s2">"https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/main/data/sage_tmt"</span>
 <span class="n">sage_idents</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base_dir</span><span class="si">}</span><span class="s2">/sage/results.sage.tsv"</span>
 <span class="n">sage_quants</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base_dir</span><span class="si">}</span><span class="s2">/sage/tmt.tsv"</span>
 <span class="n">meta</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base_dir</span><span class="si">}</span><span class="s2">/meta.csv"</span>
 
 <span class="n">ptm_mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_sage</span><span class="p">(</span><span class="n">identification_file</span><span class="o">=</span><span class="n">sage_idents</span><span class="p">,</span> <span class="n">quantification_file</span><span class="o">=</span><span class="n">sage_quants</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"tmt"</span><span class="p">)</span>
 
-<span class="n">meta_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">"https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/dev/data/sage_tmt/meta.csv"</span><span class="p">)</span>
+<span class="n">meta_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">"https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/main/data/sage_tmt/meta.csv"</span><span class="p">)</span>
 <span class="n">meta_df</span> <span class="o">=</span> <span class="n">meta_df</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s2">"tag"</span><span class="p">)</span>  <span class="c1"># set the index to match sample id in ptm_mdata.obs</span>
 
 <span class="n">ptm_mdata</span><span class="o">.</span><span class="n">obs</span> <span class="o">=</span> <span class="n">ptm_mdata</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">meta_df</span><span class="p">)</span>
@@ -3992,14 +3992,14 @@ import pandas as pd</div>
 
 <span class="n">ptm_mdata</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-2">base_dir = "https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/dev/data/sage_tmt"
+<div class="clipboard-copy-txt" id="cell-2">base_dir = "https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/main/data/sage_tmt"
 sage_idents = f"{base_dir}/sage/results.sage.tsv"
 sage_quants = f"{base_dir}/sage/tmt.tsv"
 meta = f"{base_dir}/meta.csv"
 
 ptm_mdata = mm.read_sage(identification_file=sage_idents, quantification_file=sage_quants, label="tmt")
 
-meta_df = pd.read_csv("https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/dev/data/sage_tmt/meta.csv")
+meta_df = pd.read_csv("https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/main/data/sage_tmt/meta.csv")
 meta_df = meta_df.set_index("tag")  # set the index to match sample id in ptm_mdata.obs
 
 ptm_mdata.obs = ptm_mdata.obs.join(meta_df)
@@ -4044,7 +4044,7 @@ INFO - Peptide-level identifications: 2204 (2151 at 1% FDR)
 </div>
 </div>
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[29]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[72]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <pre>MuData object with n_obs × n_vars = 6 × 4415
   obs:	'set', 'sample_id', 'sample_name', 'condition'
@@ -4082,7 +4082,7 @@ INFO - Peptide-level identifications: 2204 (2151 at 1% FDR)
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [30]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [73]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-3">
@@ -4118,18 +4118,12 @@ global_mdata = mm.pp.apply_filter(global_mdata, modality="protein")</div>
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="application/vnd.jupyter.stderr" tabindex="0">
 <pre>INFO - Starting protein inference
-</pre>
-</div>
-</div>
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="application/vnd.jupyter.stderr" tabindex="0">
-<pre>INFO - Initial proteins: 1722
+INFO - Initial proteins: 1722
 INFO - Removed indistinguishable: 175
 INFO - Removed subsettable: 62
 INFO - Removed subsumable: 0
 INFO - Total protein groups: 1485
-INFO - Ranking features by 'median_intensity' to select top 3 features.
+INFO - Ranking features by 'total_intensity' to select top 3 features.
 INFO - Protein-level identifications :  1465 (1432 at 1% FDR)
 </pre>
 </div>
@@ -4154,7 +4148,7 @@ INFO - Protein-level identifications :  1465 (1432 at 1% FDR)
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [31]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [74]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-4">
@@ -4206,7 +4200,7 @@ INFO - Protein-level identifications :  1465 (1432 at 1% FDR)
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [32]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [75]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-5">
@@ -4221,7 +4215,7 @@ INFO - Protein-level identifications :  1465 (1432 at 1% FDR)
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">urllib.request</span>
 
-<span class="n">fasta_url</span><span class="o">=</span><span class="s2">"https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/dev/data/fasta/human_fasta.fasta"</span>
+<span class="n">fasta_url</span><span class="o">=</span><span class="s2">"https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/main/data/fasta/human_fasta.fasta"</span>
 <span class="n">fasta_file</span> <span class="o">=</span> <span class="s2">"./human_fasta.fasta"</span>
 
 <span class="k">with</span> <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="n">fasta_url</span><span class="p">)</span> <span class="k">as</span> <span class="n">response</span><span class="p">:</span>
@@ -4237,7 +4231,7 @@ INFO - Protein-level identifications :  1465 (1432 at 1% FDR)
 </pre></div>
 <div class="clipboard-copy-txt" id="cell-5">import urllib.request
 
-fasta_url="https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/dev/data/fasta/human_fasta.fasta"
+fasta_url="https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/main/data/fasta/human_fasta.fasta"
 fasta_file = "./human_fasta.fasta"
 
 with urllib.request.urlopen(fasta_url) as response:
@@ -4268,7 +4262,7 @@ INFO - Building new oxidation_site AnnData.
 </div>
 </div>
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[32]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[75]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <pre>MuData object with n_obs × n_vars = 6 × 4766
   obs:	'set', 'sample_id', 'sample_name', 'condition'
@@ -4299,7 +4293,7 @@ INFO - Building new oxidation_site AnnData.
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [33]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [76]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-6">
@@ -4324,7 +4318,7 @@ INFO - Building new oxidation_site AnnData.
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[33]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[76]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div>
 <style scoped="">
@@ -4478,7 +4472,7 @@ INFO - Building new oxidation_site AnnData.
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [16]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [77]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-7">
@@ -4517,7 +4511,7 @@ INFO - Building new oxidation_site AnnData.
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [17]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [78]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-8">
@@ -4542,7 +4536,7 @@ INFO - Building new oxidation_site AnnData.
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[17]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[78]:</div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/html" tabindex="0">
 <div>
 <style scoped="">
@@ -4707,7 +4701,7 @@ INFO - Building new oxidation_site AnnData.
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 14, 2026 07:08:47 UTC">January 14, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 15, 2026 02:38:11 UTC">January 15, 2026</span>
   </span>
 
     
