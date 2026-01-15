@@ -7,7 +7,7 @@
 `msmu` is an open-source Python package for modular and traceable post-DB search preprocessing and statistical analysis of bottom-up proteomics data.
 It supports modules for an end-to-end processing—from search output parsing through hierarchical summarization, normalization, batch correction, statistical analysis, and visualization—implemented with commonly used analytical and statistical methods. Central to msmu is the highly versatile and standardized `MuData` (and `AnnData`) as a unifying, provenance-aware data container for storing annotations and representations of multi-dimensional MS data and processing history, thereby empowering reproducible pipeline and reusable data for biomarker discovery and systems biology. This unique marriage between flexible processing pipeline and MuData empowers FAIR principle-aligned downstream analysis for biomarker discovery and systems biology.
 
-<img src="docs/assets/overview.svg" width="100%" alt="MuData logo"/>
+<img src="https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/main/docs/assets/overview.svg" width="100%" alt="MuData logo"/>
 
 ## Key Features
 
