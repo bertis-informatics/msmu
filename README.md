@@ -1,4 +1,4 @@
-<img src="docs/assets/logo.svg" width="240px" alt="msmu logo"/>
+<img src="https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/main/docs/assets/logo.svg" width="240px" alt="msmu logo"/>
 
 **Python toolkit for modular and traceable LC-MS/<u>MS</u> proteomics analysis based on <u>Mu</u>Data**
 
