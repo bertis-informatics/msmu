@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import logging
 import statsmodels.api as sm
-from combat.pycombat import pycombat
+from inmoose.pycombat import pycombat_norm
 
 from .._utils import uns_logger
 
@@ -164,7 +164,7 @@ class BatchCorrector:
         df_sorted = df.iloc[:, sorted_idx]
         batch_idx_sorted = batch_idx[sorted_idx]
 
-        df_corrected_sorted = pycombat(data=df_sorted, batch=batch_idx_sorted)
+        df_corrected_sorted = pycombat_norm(counts=df_sorted, batch=batch_idx_sorted)
 
         rev_indices = np.argsort(sorted_idx)
         df_corrected = df_corrected_sorted.iloc[:, rev_indices]
