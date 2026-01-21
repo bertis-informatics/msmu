@@ -327,12 +327,13 @@ class PlotData:
         obs_df = self._get_obs(obs_column, groupby=groupby_column if groupby_type == "obs" else None)
         var_df = self._get_var(groupby=groupby_column if groupby_type == "var" else None)
         orig_df = self._get_data()
+        groupby_categories = obs_df[groupby].unique() if groupby_type == "obs" else var_df[groupby].unique()
 
         if np.nansum(orig_df) == 0 or groupby_type == "var":
             prep_df = var_df.copy()
             prep_df = var_df[[groupby, var_column]]
             prep_df = prep_df.groupby(groupby, observed=True).describe().droplevel(level=0, axis=1)
-            prep_df.index = pd.CategoricalIndex(prep_df.index, categories=obs_df[groupby].unique())
+            prep_df.index = pd.CategoricalIndex(prep_df.index, categories=groupby_categories)
         else:
             var_df = var_df[[var_column]]
 
@@ -347,7 +348,7 @@ class PlotData:
             prep_df = prep_df.drop(["_var", "_exists"], axis=1)
 
             prep_df = prep_df.groupby(groupby, observed=True).describe().droplevel(level=0, axis=1)
-            prep_df.index = pd.CategoricalIndex(prep_df.index, categories=obs_df[groupby].unique())
+            prep_df.index = pd.CategoricalIndex(prep_df.index, categories=groupby_categories)
         return prep_df
 
     def prep_var_hist(

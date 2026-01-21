@@ -651,7 +651,6 @@ def plot_var(
         title_text=title_text,
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
-        yaxis_tickformat=",d",
         legend=dict(title_text=column_label),
     )
 
