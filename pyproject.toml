@@ -19,13 +19,13 @@ dependencies = [
     "biopython",
     "plotly",
     "statsmodels",
-    "scipy==1.15.3",
+    "scipy",
     "scikit-learn",
     "umap-learn",
     "pyopenms",
     "fastparquet",
     "kaleido",
-    "combat",
+    "inmoose",
 ]
 dynamic = ["version"]
 
