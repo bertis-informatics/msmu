@@ -5,7 +5,6 @@
     * [DDA-TMT](tutorials/dda-tmt.ipynb)
     * [DDA-LFQ](tutorials/dda-lfq.ipynb)
     * [DIA-LFQ](tutorials/dia-lfq.ipynb)
-    * [PTM](tutorials/ptm.ipynb)
     * [DE Analysis](tutorials/dea.ipynb)
     * [PTM Processing](tutorials/ptm.ipynb)
     * [DDA-LFQ w. FlashLFQ](tutorials/flashlfq.ipynb)
