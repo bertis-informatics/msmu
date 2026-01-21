@@ -41,15 +41,29 @@ class PurityResult:
         purity_adata = ad.AnnData(purity_df[["purity"]].T, var=purity_df)
         purity_mdata = md.MuData({"psm": purity_adata})
 
-        purity_mdata["psm   "].uns["filter"] = {"mdata": {"filter_purity": np.nan}}
+        purity_mdata["psm"].uns["filter"] = {"mdata": {"filter_purity": np.nan}}
 
         return purity_mdata
 
     def hist(self) -> go.Figure:
-        return plot_var(mdata=self._dummy_mdata, groupby="filename", ptype="hist", var_column="purity")
+        return plot_var(
+            mdata=self._dummy_mdata,
+            groupby="filename",
+            ptype="hist",
+            var_column="purity",
+            obs_column="sample",
+            yaxis_tickformat=",.2f",
+        )
 
     def box(self) -> go.Figure:
-        return plot_var(mdata=self._dummy_mdata, groupby="filename", ptype="box", var_column="purity")
+        return plot_var(
+            mdata=self._dummy_mdata,
+            groupby="filename",
+            ptype="box",
+            var_column="purity",
+            obs_column="sample",
+            yaxis_tickformat=",.2f",
+        )
 
 
 class PrecursorPurityCalculator:
