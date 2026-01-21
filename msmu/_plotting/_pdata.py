@@ -31,6 +31,26 @@ class PlotData:
         self.layer = layer
         self.kwargs = kwargs
 
+    def _get_groupby_column(self, groupby: str) -> tuple[str, str]:
+        """
+        Resolves the grouping column from kwargs or uses the provided default.
+
+        Parameters:
+            groupby: Default grouping column name.
+
+        Returns:
+            Tuple indicating whether the column is from 'obs' or 'var', and the column name.
+        """
+
+        if groupby in self.mdata.obs_keys():
+            key = "obs"
+        elif groupby in self.mdata[self.modality].var_keys():
+            key = "var"
+        else:
+            raise ValueError(f"Column '{groupby}' not found in obs or var data.")
+
+        return key, groupby
+
     def _get_data(self) -> pd.DataFrame:
         """
         Retrieves the expression/intensity DataFrame for the current modality.
@@ -49,14 +69,22 @@ class PlotData:
 
         return data
 
-    def _get_var(self) -> pd.DataFrame:
+    def _get_var(self, groupby: str | None = None) -> pd.DataFrame:
         """
         Retrieves the variable metadata for the current modality.
 
         Returns:
             Copy of the modality's `var` table.
         """
-        return self.mdata[self.modality].var.copy()
+        var_df = self.mdata[self.modality].var.copy()
+
+        if groupby and groupby in var_df.columns:
+            if not isinstance(var_df[groupby].dtype, pd.CategoricalDtype):
+                var_df[groupby] = pd.Categorical(var_df[groupby], categories=var_df[groupby].unique())
+            else:
+                var_df[groupby] = var_df[groupby].cat.remove_unused_categories()
+
+        return var_df
 
     def _get_varm(self, column: str) -> pd.DataFrame:
         """
@@ -73,7 +101,7 @@ class PlotData:
 
         return pd.concat([var_df, varm_df], axis=1)
 
-    def _get_obs(self, obs_column: str, groupby: str = "") -> pd.DataFrame:
+    def _get_obs(self, obs_column: str, groupby: str | None = None) -> pd.DataFrame:
         """
         Retrieves observation metadata sorted and cast to categorical.
 
@@ -92,7 +120,7 @@ class PlotData:
         obs_df[obs_column] = obs_df[obs_column].cat.remove_unused_categories()
         obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(obs_df[obs_column].values.tolist())
 
-        if groupby and groupby != obs_column:
+        if groupby and groupby in obs_df.columns and groupby != obs_column:
             if not isinstance(obs_df[groupby].dtype, pd.CategoricalDtype):
                 obs_df[groupby] = pd.Categorical(obs_df[groupby], categories=obs_df[groupby].unique())
 
@@ -208,16 +236,13 @@ class PlotData:
         Returns:
             Counts of variable categories per observation group.
         """
-        obs_df = self._get_obs(obs_column, groupby=groupby)
-        var_df = self._get_var()
+        groupby_type, groupby_column = self._get_groupby_column(groupby)
+        obs_df = self._get_obs(obs_column, groupby=groupby_column if groupby_type == "obs" else None)
+        var_df = self._get_var(groupby=groupby_column if groupby_type == "var" else None)
         orig_df = self._get_data()
 
-        if np.nansum(orig_df) == 0:
-            print("No data available for the selected modality. Counting from var.")
+        if np.nansum(orig_df) == 0 or groupby_type == "var":
             prep_df = var_df.copy()
-            if groupby not in var_df.columns:
-                raise ValueError(f"Column '{groupby}' not found in var data.")
-
             categories = var_df[groupby].unique()
             prep_df = var_df[[groupby, var_column]].groupby(groupby, observed=True).value_counts().reset_index()
             prep_df[groupby] = pd.Categorical(prep_df[groupby], categories=categories)
@@ -258,16 +283,13 @@ class PlotData:
         Returns:
             Box-plot-ready DataFrame with grouping labels.
         """
-        obs_df = self._get_obs(obs_column, groupby=groupby)
-        var_df = self._get_var()
+        groupby_type, groupby_column = self._get_groupby_column(groupby)
+        obs_df = self._get_obs(obs_column, groupby=groupby_column if groupby_type == "obs" else None)
+        var_df = self._get_var(groupby=groupby_column if groupby_type == "var" else None)
         orig_df = self._get_data()
 
-        if np.nansum(orig_df) == 0:
-            print("No data available for the selected modality. Counting from var.")
+        if np.nansum(orig_df) == 0 or groupby_type == "var":
             prep_df = var_df.copy()
-            if groupby not in var_df.columns:
-                raise ValueError(f"Column '{groupby}' not found in var data.")
-
             prep_df = var_df[[groupby, var_column]]
         else:
             var_df = var_df[[var_column]]
@@ -301,16 +323,13 @@ class PlotData:
         Returns:
             Descriptive statistics indexed by observation group.
         """
-        obs_df = self._get_obs(obs_column, groupby=groupby)
-        var_df = self._get_var()
+        groupby_type, groupby_column = self._get_groupby_column(groupby)
+        obs_df = self._get_obs(obs_column, groupby=groupby_column if groupby_type == "obs" else None)
+        var_df = self._get_var(groupby=groupby_column if groupby_type == "var" else None)
         orig_df = self._get_data()
 
-        if np.nansum(orig_df) == 0:
-            print("No data available for the selected modality. Counting from var.")
+        if np.nansum(orig_df) == 0 or groupby_type == "var":
             prep_df = var_df.copy()
-            if groupby not in var_df.columns:
-                raise ValueError(f"Column '{groupby}' not found in var data.")
-
             prep_df = var_df[[groupby, var_column]]
             prep_df = prep_df.groupby(groupby, observed=True).describe().droplevel(level=0, axis=1)
             prep_df.index = pd.CategoricalIndex(prep_df.index, categories=obs_df[groupby].unique())
@@ -350,17 +369,15 @@ class PlotData:
         Returns:
             Histogram counts and frequencies per observation group.
         """
-        obs_df = self._get_obs(obs_column, groupby=groupby)
-        var_df = self._get_var()
+        groupby_type, groupby_column = self._get_groupby_column(groupby)
+        obs_df = self._get_obs(obs_column, groupby=groupby_column if groupby_type == "obs" else None)
+        var_df = self._get_var(groupby=groupby_column if groupby_type == "var" else None)
         orig_df = self._get_data()
         n_bins = len(bin_info["labels"])
+        group_categories = obs_df[groupby].unique() if groupby_type == "obs" else var_df[groupby].unique()
 
-        if np.nansum(orig_df) == 0:
-            print("No data available for the selected modality. Counting from var.")
+        if np.nansum(orig_df) == 0 or groupby_type == "var":
             prep_df = var_df.copy()
-            if groupby not in var_df.columns:
-                raise ValueError(f"Column '{groupby}' not found in var data.")
-
             prep_df = var_df[[groupby, var_column]]
         else:
             var_df = var_df[[var_column]]
@@ -383,7 +400,7 @@ class PlotData:
 
         grouped = prep_df.groupby([groupby, "_bin_"], observed=False).size().unstack(fill_value=0)
         grouped = grouped[grouped.sum(axis=1) > 0]
-        grouped.index = pd.CategoricalIndex(grouped.index, categories=obs_df[groupby].unique())
+        grouped.index = pd.CategoricalIndex(grouped.index, categories=group_categories)
         grouped = grouped.sort_index(axis=0)
 
         bin_counts = grouped.values.flatten()
@@ -400,7 +417,7 @@ class PlotData:
                 "name": bin_names,
             }
         )
-        prepped["name"] = pd.Categorical(prepped["name"], categories=obs_df[groupby].unique())
+        prepped["name"] = pd.Categorical(prepped["name"], categories=group_categories)
 
         return prepped
 
@@ -419,14 +436,12 @@ class PlotData:
         Returns:
             Counts per observation group with column `_count`.
         """
-        obs_df = self._get_obs(obs_column, groupby=groupby)
-        var_df = self._get_var()
+        groupby_type, groupby_column = self._get_groupby_column(groupby)
+        obs_df = self._get_obs(obs_column, groupby=groupby_column if groupby_type == "obs" else None)
+        var_df = self._get_var(groupby=groupby_column if groupby_type == "var" else None)
         orig_df = self._get_data()
 
-        if np.nansum(orig_df) == 0:
-            print("No data available for the selected modality. Counting from var.")
-            if groupby not in var_df.columns:
-                raise ValueError(f"Column '{groupby}' not found in var data.")
+        if np.nansum(orig_df) == 0 or groupby_type == "var":
             prep_df = var_df[groupby].value_counts().reset_index()
         else:
             melt_df = orig_df.notna().groupby(obs_df[groupby], observed=True).any().T
@@ -451,6 +466,9 @@ class PlotData:
         obs_df = self._get_obs(obs_column, groupby=groupby)
         orig_df = self._get_data().T
         n_bins = len(bin_info["labels"])
+
+        if np.nansum(orig_df) == 0:
+            raise ValueError("No data available for the selected modality.")
 
         melt_df = pd.melt(orig_df, var_name="_obs", value_name="_value").dropna()
         melt_df = melt_df.join(obs_df, on="_obs", how="left")
