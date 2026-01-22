@@ -416,7 +416,7 @@ class PtmSummarisationPrep(SummarisationPrep):
         data: pd.DataFrame,
     ) -> pd.DataFrame:
         extracted_df: pd.DataFrame = data.copy()
-        extracted_df = extracted_df.loc[extracted_df["peptide"].str.contains(re.escape(self._modi_identifier))].copy()
+        extracted_df = extracted_df.loc[extracted_df["peptide"].str.contains(self._modi_identifier, regex=False)].copy()
         logger.info(f"Extracted modified peptides: {len(extracted_df)} / {len(data)}")
 
         return extracted_df
@@ -435,8 +435,9 @@ class PtmSummarisationPrep(SummarisationPrep):
             ptm_data (pd.DataFrame): PTM data arranged by peptide - peptide site
         """
         ptm_info: pd.DataFrame = data.copy()
-
-        ptm_info["peptide_site"] = ptm_info["peptide"].apply(lambda x: self._get_mod_sites(x, self._modi_identifier))
+        ptm_info["peptide_site"] = (
+            ptm_info["peptide"].astype(str).apply(lambda x: self._get_mod_sites(x, self._modi_identifier))
+        )
 
         # label peptide site
         ptm_info["peptide_site"] = ptm_info["peptide_site"].apply(lambda x: self._label_peptide_site(x))
@@ -467,7 +468,7 @@ class PtmSummarisationPrep(SummarisationPrep):
 
         return ptm_info
 
-    def _get_mod_sites(self, pep: str, modi_identifier) -> list:
+    def _get_mod_sites(self, pep: str, modi_identifier: str) -> list:
         mod_sites: list = pep.split(modi_identifier)
         mod_sites: list = mod_sites[:-1]
 
@@ -522,7 +523,7 @@ class PtmSummarisationPrep(SummarisationPrep):
 
     def _implode_protein_group(self, data) -> pd.DataFrame:
         data = (
-            data.groupby(["peptide", "peptide_site", "_prot_gr"], as_index=False)
+            data.groupby(["peptide", "peptide_site", "_prot_gr"], as_index=False, observed=True)
             .agg(
                 {
                     "protein_site": ",".join,
@@ -539,7 +540,7 @@ class PtmSummarisationPrep(SummarisationPrep):
         return data
 
     def _implode_peptide_peptide_site(self, data) -> pd.DataFrame:
-        data = data.groupby(["peptide", "peptide_site"], as_index=False).agg(
+        data = data.groupby(["peptide", "peptide_site"], as_index=False, observed=True).agg(
             {
                 "protein_site": ";".join,
                 "protein_group": "first",
