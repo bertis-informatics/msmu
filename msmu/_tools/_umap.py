@@ -23,6 +23,7 @@ def umap(
     init: str = "random",
     min_dist: float = 0.1,
     random_state: int | None = None,
+    key_added: str = "X_umap",
     **kwargs: Any,
 ) -> MuData:
     """Calculate UMAP embedding for a given modality in MuData object.
@@ -112,6 +113,8 @@ def umap(
             If RandomState instance, random_state is the random number generator;
             If None, the random number generator is the RandomState instance used
             by `np.random`.
+        key_added:
+            Key in .obsm where the UMAP dimensions will be stored. Defaults to "X_umap".
         **kwargs:
             Additional keyword arguments passed to UMAP constructor.
 
@@ -146,7 +149,7 @@ def umap(
 
     # Save PCA results - dimensions
     dimensions = np.asarray(umap.transform(data))
-    mdata[modality].obsm["X_umap"] = pd.DataFrame(
+    mdata[modality].obsm[key_added] = pd.DataFrame(
         dimensions,
         index=mdata[modality].obs_names,
         columns=[f"UMAP_{i + 1}" for i in range(dimensions.shape[1])],

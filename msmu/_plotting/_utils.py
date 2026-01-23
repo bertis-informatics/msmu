@@ -328,6 +328,7 @@ def get_pc_cols(
     mdata: md.MuData,
     modality: str,
     pcs: tuple[int, int] | list[int],
+    key: str = "X_pca",
 ) -> tuple[tuple[int, int], list[str]]:
     """
     Validates requested principal components and returns column names.
@@ -336,6 +337,7 @@ def get_pc_cols(
         mdata: MuData object containing PCA results in `obsm["X_pca"]`.
         modality: Modality key for accessing the appropriate AnnData object.
         pcs: Pair of principal component indices (1-based).
+        key: Key in .obsm where the PCA dimensions are stored; defaults to 'X_pca'.
 
     Returns:
         Validated PC indices and their column names.
@@ -356,15 +358,15 @@ def get_pc_cols(
         pcs = (pcs[1], pcs[0])
 
     # Check if PCs exist
-    if "X_pca" not in mdata[modality].obsm:
-        raise ValueError(f"No PCA found in {modality}")
+    if key not in mdata[modality].obsm:
+        raise ValueError(f"Key {key} not found in .obsm at {modality}")
 
     # Get PC columns
     pc_columns = [f"PC_{pc}" for pc in pcs]
 
-    if pc_columns[0] not in mdata[modality].obsm["X_pca"].columns:  # type: ignore
+    if pc_columns[0] not in mdata[modality].obsm[key].columns:  # type: ignore
         raise ValueError(f"{pc_columns[0]} not found in {modality}")
-    if pc_columns[1] not in mdata[modality].obsm["X_pca"].columns:  # type: ignore
+    if pc_columns[1] not in mdata[modality].obsm[key].columns:  # type: ignore
         raise ValueError(f"{pc_columns[1]} not found in {modality}")
 
     return pcs, pc_columns
@@ -373,6 +375,7 @@ def get_pc_cols(
 def get_umap_cols(
     mdata: md.MuData,
     modality: str,
+    key: str = "X_umap",
 ) -> list[str]:
     """
     Validates UMAP embeddings and returns expected column names.
@@ -380,20 +383,21 @@ def get_umap_cols(
     Parameters:
         mdata: MuData object containing UMAP embeddings in `obsm["X_umap"]`.
         modality: Modality key for accessing the appropriate AnnData object.
+        key: Key in .obsm where the UMAP dimensions are stored; defaults to 'X_umap'.
 
     Returns:
         List of UMAP column names used for plotting.
     """
     # Check if UMAP exist
-    if "X_umap" not in mdata[modality].obsm:
-        raise ValueError(f"No UMAP found in {modality}")
+    if key not in mdata[modality].obsm:
+        raise ValueError(f"Key {key} not found in .obsm at {modality}")
 
     # Get UMAP columns
     umap_columns = [f"UMAP_{pc}" for pc in [1, 2]]
 
-    if umap_columns[0] not in mdata[modality].obsm["X_umap"].columns:  # type: ignore
+    if umap_columns[0] not in mdata[modality].obsm[key].columns:  # type: ignore
         raise ValueError(f"{umap_columns[0]} not found in {modality}")
-    if umap_columns[1] not in mdata[modality].obsm["X_umap"].columns:  # type: ignore
+    if umap_columns[1] not in mdata[modality].obsm[key].columns:  # type: ignore
         raise ValueError(f"{umap_columns[1]} not found in {modality}")
 
     return umap_columns

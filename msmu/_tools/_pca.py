@@ -19,6 +19,7 @@ def pca(
     n_components: int | None = None,
     svd_solver: Literal["auto", "full", "arpack", "randomized"] = "auto",
     random_state: int | None = 0,
+    key_added: str = "X_pca",
     **kwargs: Any,
 ) -> MuData:
     """
@@ -85,6 +86,8 @@ def pca(
         random_state:
             Used when the 'arpack' or 'randomized' solvers are used. Pass an int
             for reproducible results across multiple function calls.
+        key_added:
+            Key in .obsm where the PCA dimensions will be stored. Defaults to "X_pca".
         **kwargs:
             Additional keyword arguments passed to PCA constructor.
 
@@ -107,7 +110,7 @@ def pca(
 
     # Save PCA results - dimensions
     dimensions = pca.transform(data)
-    mdata[modality].obsm["X_pca"] = pd.DataFrame(
+    mdata[modality].obsm[key_added] = pd.DataFrame(
         dimensions,
         index=mdata[modality].obs_names,
         columns=[f"PC_{i + 1}" for i in range(dimensions.shape[1])],

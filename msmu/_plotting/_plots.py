@@ -273,6 +273,7 @@ def plot_pca(
     template: str = DEFAULT_TEMPLATE,
     pcs: tuple[int, int] | list[int] = (1, 2),
     obs_column: str | None = None,
+    key: str = "X_pca",
     **kwargs: str,
 ) -> go.Figure:
     """
@@ -286,6 +287,7 @@ def plot_pca(
         template: Plotly template for colorway.
         pcs: Pair of principal component indices (1-based).
         obs_column: Observation column used for labeling/group resolution.
+        key: Key in .obsm where the PCA dimensions are stored; defaults to 'X_pca'.
         **kwargs: Additional layout options forwarded to Plotly.
 
     Returns:
@@ -294,7 +296,7 @@ def plot_pca(
     groupby, obs_column = resolve_plot_columns(mdata, groupby, obs_column)
 
     # Get data
-    pcs, pc_columns = get_pc_cols(mdata, modality, pcs)
+    pcs, pc_columns = get_pc_cols(mdata, modality, pcs, key=key)
     variances = mdata[modality].uns["pca"]["variance_ratio"]
 
     # Set titles
@@ -360,6 +362,7 @@ def plot_umap(
     colorby: str | None = None,
     template: str = DEFAULT_TEMPLATE,
     obs_column: str | None = None,
+    key: str = "X_umap",
     **kwargs: str,
 ) -> go.Figure:
     """
@@ -372,6 +375,7 @@ def plot_umap(
         colorby: Observation column used for coloring (when applicable).
         template: Plotly template for colorway.
         obs_column: Observation column used for labeling/group resolution.
+        key: Key in .obsm where the UMAP dimensions are stored; defaults to 'X_umap'.
         **kwargs: Additional layout options forwarded to Plotly.
 
     Returns:
@@ -380,7 +384,7 @@ def plot_umap(
     groupby, obs_column = resolve_plot_columns(mdata, groupby, obs_column)
 
     # Get required data
-    umap_columns = get_umap_cols(mdata, modality)
+    umap_columns = get_umap_cols(mdata, modality, key=key)
 
     # Set titles
     title_text = "UMAP"

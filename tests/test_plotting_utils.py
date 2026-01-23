@@ -72,14 +72,14 @@ def test_get_pc_cols_duplicate(mdata):
 def test_get_pc_cols_missing_pca(mdata):
     mdata_local = mdata.copy()
     del mdata_local["protein"].obsm["X_pca"]
-    with pytest.raises(ValueError, match="No PCA found"):
+    with pytest.raises(ValueError, match="Key X_pca not found in .obsm at protein"):
         get_pc_cols(mdata_local, "protein", (1, 2))
 
 
 def test_get_umap_cols_missing_umap(mdata):
     mdata_local = mdata.copy()
     del mdata_local["protein"].obsm["X_umap"]
-    with pytest.raises(ValueError, match="No UMAP found"):
+    with pytest.raises(ValueError, match="Key X_umap not found in .obsm at protein"):
         get_umap_cols(mdata_local, "protein")
 
 
