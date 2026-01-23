@@ -13,38 +13,39 @@ description = "BERTIS LC-MS/MS analysis library through MuData"
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["LC-MS/MS", "Proteomics", "Protein", "Peptide", "Mass Spectrometry"]
-dependencies = [
-    "mudata==0.3.2",
-    "anndata==0.12.0",
-    "biopython",
-    "plotly",
-    "statsmodels",
-    "scipy",
-    "scikit-learn",
-    "umap-learn",
-    "pyopenms",
-    "fastparquet",
-    "kaleido",
-    "inmoose",
-]
 dynamic = ["version"]
+dependencies = [
+    "anndata>=0.12.0",
+    "biopython>=1.86",
+    "fastparquet>=2025.12.0",
+    "inmoose>=0.9.1",
+    "kaleido>=1.2.0",
+    "mudata>=0.3.2",
+    "plotly>=6.5.2",
+    "pyopenms>=3.5.0",
+    "scikit-learn>=1.8.0",
+    "scipy>=1.17.0",
+    "statsmodels>=0.14.6",
+    "tqdm>=4.67.1",
+    "umap-learn>=0.5.11",
+]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "nbval",
+    "nbval>=0.11.0",
+    "pytest>=9.0.2",
 ]
 docs = [
-    "mkdocs",
-    "mkdocs-material",
-    "mkdocs-gen-files",
-    "mkdocs-jupyter",
-    "mkdocs-awesome-pages-plugin",
-    "mkdocs-literate-nav",
-    "mkdocstrings[python]",
-    "mkdocs-minify-plugin",
-    "mkdocs-git-revision-date-localized-plugin",
-    "pymdown-extensions",
+    "mkdocs>=1.6.1",
+    "mkdocs-awesome-pages-plugin>=2.10.1",
+    "mkdocs-gen-files>=0.6.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.5.0",
+    "mkdocs-jupyter>=0.25.1",
+    "mkdocs-literate-nav>=0.6.2",
+    "mkdocs-material>=9.7.1",
+    "mkdocs-minify-plugin>=0.8.0",
+    "mkdocstrings[python]>=1.0.1",
+    "pymdown-extensions>=10.20",
 ]
 
 [project.urls]
