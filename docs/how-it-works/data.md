@@ -30,6 +30,7 @@ As a general AnnData object, each individual modality contains `.X`, `.var`, `.v
 - `.obs` is a dataframe containing metadata of samples, such as sample name, condition, replicate number, etc., with `filename` or `channel` as index.
 - `.obsm` is a dictionary-like structure to store additional per-sample matrices, such as PCA or UMAP coordinates.
 - `.uns` is a dictionary-like structure to store unstructured annotations, such as decoy features pulled from search results.
+- `.layers` is a dictionary-like structure to store additional per-feature quantification matrices, such as imputed values. Some functions in `msmu` provide options to read from or write to `.layers`.
 
 ![](../assets/fig1b.svg){ width="100%" }
 
