@@ -73,9 +73,8 @@ def test_plot_var_simple_box_mode(mdata):
         obs_column="sample",
         ptype="simplebox",
     )
-    assert len(fig.data) == 4
-    assert any(trace.type == "box" for trace in fig.data)
-    assert any(trace.type == "scatter" for trace in fig.data)
+    assert len(fig.data) == 2
+    assert all(trace.type == "box" for trace in fig.data)
 
 
 def test_plot_var_violin_mode(mdata):
@@ -121,8 +120,8 @@ def test_plot_var_auto_ptype_numeric(mdata):
 
 def test_plot_intensity_box_and_violin(mdata):
     fig_box = plot_intensity(mdata, modality="psm", groupby="group", ptype="box", obs_column="sample")
-    assert len(fig_box.data) == 4
-    assert any(trace.type == "box" for trace in fig_box.data)
+    assert len(fig_box.data) == 2
+    assert all(trace.type == "box" for trace in fig_box.data)
 
     fig_vln = plot_intensity(mdata, modality="psm", groupby="group", ptype="vln", obs_column="sample")
     assert len(fig_vln.data) == 2

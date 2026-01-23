@@ -33,9 +33,8 @@ def test_plot_simple_box_creates_expected_traces():
     )
     plot = PlotSimpleBox(data=df)
     fig = plot.figure()
-    assert len(fig.data) == 4
-    assert fig.data[0].type == "box"
-    assert fig.data[2].type == "scatter"
+    assert len(fig.data) == 2
+    assert all(trace.type == "box" for trace in fig.data)
 
 
 def test_plot_heatmap_sets_texttemplate_for_small_data():
