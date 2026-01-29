@@ -3013,6 +3013,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#environment_setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dependencies_pyprojecttoml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependencies (pyproject.toml)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#package_versions_pip_list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Package Versions (pip list)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3110,6 +3149,187 @@
 <li><a href="02_process_protein_data/">02 Process Proteomics Data</a></li>
 <li><a href="03_handle_multi-omics_data/">03 Handle Multi-omics Data</a></li>
 </ul>
+<h2 id="environment_setup">Environment Setup</h2>
+<p><code>.python-version</code>: <code>3.11</code></p>
+<h3 id="dependencies_pyprojecttoml">Dependencies (<code>pyproject.toml</code>)</h3>
+<div class="highlight"><pre><span></span><code><span class="k">[project]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;2024-fulcher&quot;</span>
+<span class="n">requires-python</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&gt;=3.11&quot;</span>
+<span class="n">dependencies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">&quot;anndata&gt;=0.12.7&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;fastprogress==1.0.3&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;ipykernel&gt;=7.1.0&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;ipywidgets&gt;=8.1.8&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;mofapy2&gt;=0.7.3&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;mofax&gt;=0.3.7&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;msmu&gt;=0.2.6&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;mudata&gt;=0.3.2&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;muon&gt;=0.1.7&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;pimms-learn&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;requests&gt;=2.32.5&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;scanpy&gt;=1.11.5&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="k">[tool.uv.sources]</span>
+<span class="n">pimms-learn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">git</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">&quot;https://github.com/RasmussenLab/pimms.git&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">rev</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">&quot;327a431&quot;</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<h3 id="package_versions_pip_list">Package Versions (<code>pip list</code>)</h3>
+<div class="highlight"><pre><span></span><code>Package<span class="w">                 </span>Version
+-----------------------<span class="w"> </span>---------------------
+anndata<span class="w">                 </span><span class="m">0</span>.12.7
+annotated-types<span class="w">         </span><span class="m">0</span>.7.0
+antlr4-python3-runtime<span class="w">  </span><span class="m">4</span>.9.3
+appnope<span class="w">                 </span><span class="m">0</span>.1.4
+array-api-compat<span class="w">        </span><span class="m">1</span>.13.0
+asttokens<span class="w">               </span><span class="m">3</span>.0.1
+beartype<span class="w">                </span><span class="m">0</span>.22.9
+biopython<span class="w">               </span><span class="m">1</span>.86
+blis<span class="w">                    </span><span class="m">1</span>.3.3
+catalogue<span class="w">               </span><span class="m">2</span>.0.10
+category-encoders<span class="w">       </span><span class="m">2</span>.9.0
+certifi<span class="w">                 </span><span class="m">2026</span>.1.4
+charset-normalizer<span class="w">      </span><span class="m">3</span>.4.4
+choreographer<span class="w">           </span><span class="m">1</span>.2.1
+click<span class="w">                   </span><span class="m">8</span>.3.1
+cloudpathlib<span class="w">            </span><span class="m">0</span>.23.0
+cloudpickle<span class="w">             </span><span class="m">3</span>.1.2
+comm<span class="w">                    </span><span class="m">0</span>.2.3
+confection<span class="w">              </span><span class="m">0</span>.1.5
+contourpy<span class="w">               </span><span class="m">1</span>.3.3
+cramjam<span class="w">                 </span><span class="m">2</span>.11.0
+cycler<span class="w">                  </span><span class="m">0</span>.12.1
+cymem<span class="w">                   </span><span class="m">2</span>.0.13
+debugpy<span class="w">                 </span><span class="m">1</span>.8.19
+decorator<span class="w">               </span><span class="m">5</span>.2.1
+donfig<span class="w">                  </span><span class="m">0</span>.8.1.post1
+executing<span class="w">               </span><span class="m">2</span>.2.1
+fastai<span class="w">                  </span><span class="m">2</span>.8.6
+fastcluster<span class="w">             </span><span class="m">1</span>.3.0
+fastcore<span class="w">                </span><span class="m">1</span>.12.4
+fastdownload<span class="w">            </span><span class="m">0</span>.0.7
+fastparquet<span class="w">             </span><span class="m">2025</span>.12.0
+fastprogress<span class="w">            </span><span class="m">1</span>.0.3
+fasttransform<span class="w">           </span><span class="m">0</span>.0.2
+filelock<span class="w">                </span><span class="m">3</span>.20.3
+fonttools<span class="w">               </span><span class="m">4</span>.61.1
+fsspec<span class="w">                  </span><span class="m">2026</span>.1.0
+google-crc32c<span class="w">           </span><span class="m">1</span>.8.0
+h5py<span class="w">                    </span><span class="m">3</span>.15.1
+idna<span class="w">                    </span><span class="m">3</span>.11
+iniconfig<span class="w">               </span><span class="m">2</span>.3.0
+inmoose<span class="w">                 </span><span class="m">0</span>.9.1
+ipykernel<span class="w">               </span><span class="m">7</span>.1.0
+ipython<span class="w">                 </span><span class="m">9</span>.9.0
+ipython-pygments-lexers<span class="w"> </span><span class="m">1</span>.1.1
+ipywidgets<span class="w">              </span><span class="m">8</span>.1.8
+jedi<span class="w">                    </span><span class="m">0</span>.19.2
+jinja2<span class="w">                  </span><span class="m">3</span>.1.6
+joblib<span class="w">                  </span><span class="m">1</span>.5.3
+jupyter-client<span class="w">          </span><span class="m">8</span>.8.0
+jupyter-core<span class="w">            </span><span class="m">5</span>.9.1
+jupyterlab-widgets<span class="w">      </span><span class="m">3</span>.0.16
+kaleido<span class="w">                 </span><span class="m">1</span>.2.0
+kiwisolver<span class="w">              </span><span class="m">1</span>.4.9
+legacy-api-wrap<span class="w">         </span><span class="m">1</span>.5
+llvmlite<span class="w">                </span><span class="m">0</span>.46.0
+logistro<span class="w">                </span><span class="m">2</span>.0.1
+markdown-it-py<span class="w">          </span><span class="m">4</span>.0.0
+markupsafe<span class="w">              </span><span class="m">3</span>.0.3
+matplotlib<span class="w">              </span><span class="m">3</span>.10.8
+matplotlib-inline<span class="w">       </span><span class="m">0</span>.2.1
+mdurl<span class="w">                   </span><span class="m">0</span>.1.2
+mofapy2<span class="w">                 </span><span class="m">0</span>.7.3
+mofax<span class="w">                   </span><span class="m">0</span>.3.7
+mpmath<span class="w">                  </span><span class="m">1</span>.3.0
+mrmr-selection<span class="w">          </span><span class="m">0</span>.2.8
+msmu<span class="w">                    </span><span class="m">0</span>.2.6
+mudata<span class="w">                  </span><span class="m">0</span>.3.2
+muon<span class="w">                    </span><span class="m">0</span>.1.7
+murmurhash<span class="w">              </span><span class="m">1</span>.0.15
+narwhals<span class="w">                </span><span class="m">2</span>.15.0
+natsort<span class="w">                 </span><span class="m">8</span>.4.0
+nest-asyncio<span class="w">            </span><span class="m">1</span>.6.0
+networkx<span class="w">                </span><span class="m">3</span>.6.1
+njab<span class="w">                    </span><span class="m">0</span>.1.1
+numba<span class="w">                   </span><span class="m">0</span>.63.1
+numcodecs<span class="w">               </span><span class="m">0</span>.16.5
+numpy<span class="w">                   </span><span class="m">2</span>.3.5
+omegaconf<span class="w">               </span><span class="m">2</span>.3.0
+orjson<span class="w">                  </span><span class="m">3</span>.11.5
+packaging<span class="w">               </span><span class="m">26</span>.0
+pandas<span class="w">                  </span><span class="m">2</span>.3.3
+pandas-flavor<span class="w">           </span><span class="m">0</span>.8.1
+parso<span class="w">                   </span><span class="m">0</span>.8.5
+patsy<span class="w">                   </span><span class="m">1</span>.0.2
+pexpect<span class="w">                 </span><span class="m">4</span>.9.0
+pillow<span class="w">                  </span><span class="m">12</span>.1.0
+pimms-learn<span class="w">             </span><span class="m">0</span>.5.1.dev8+g327a431a0
+pingouin<span class="w">                </span><span class="m">0</span>.5.5
+pip<span class="w">                     </span><span class="m">25</span>.3
+platformdirs<span class="w">            </span><span class="m">4</span>.5.1
+plotly<span class="w">                  </span><span class="m">6</span>.5.2
+pluggy<span class="w">                  </span><span class="m">1</span>.6.0
+plum-dispatch<span class="w">           </span><span class="m">2</span>.6.1
+polars<span class="w">                  </span><span class="m">1</span>.37.1
+polars-runtime-32<span class="w">       </span><span class="m">1</span>.37.1
+preshed<span class="w">                 </span><span class="m">3</span>.0.12
+prompt-toolkit<span class="w">          </span><span class="m">3</span>.0.52
+protobuf<span class="w">                </span><span class="m">6</span>.33.4
+psutil<span class="w">                  </span><span class="m">7</span>.2.1
+ptyprocess<span class="w">              </span><span class="m">0</span>.7.0
+pure-eval<span class="w">               </span><span class="m">0</span>.2.3
+pydantic<span class="w">                </span><span class="m">2</span>.12.5
+pydantic-core<span class="w">           </span><span class="m">2</span>.41.5
+pygments<span class="w">                </span><span class="m">2</span>.19.2
+pynndescent<span class="w">             </span><span class="m">0</span>.6.0
+pyopenms<span class="w">                </span><span class="m">3</span>.5.0
+pyparsing<span class="w">               </span><span class="m">3</span>.3.2
+pytest<span class="w">                  </span><span class="m">9</span>.0.2
+pytest-timeout<span class="w">          </span><span class="m">2</span>.4.0
+python-dateutil<span class="w">         </span><span class="m">2</span>.9.0.post0
+pytz<span class="w">                    </span><span class="m">2025</span>.2
+pyyaml<span class="w">                  </span><span class="m">6</span>.0.3
+pyzmq<span class="w">                   </span><span class="m">27</span>.1.0
+requests<span class="w">                </span><span class="m">2</span>.32.5
+rich<span class="w">                    </span><span class="m">14</span>.2.0
+scanpy<span class="w">                  </span><span class="m">1</span>.11.5
+scikit-learn<span class="w">            </span><span class="m">1</span>.8.0
+scipy<span class="w">                   </span><span class="m">1</span>.17.0
+seaborn<span class="w">                 </span><span class="m">0</span>.13.2
+session-info2<span class="w">           </span><span class="m">0</span>.3
+setuptools<span class="w">              </span><span class="m">80</span>.10.1
+simplejson<span class="w">              </span><span class="m">3</span>.20.2
+six<span class="w">                     </span><span class="m">1</span>.17.0
+smart-open<span class="w">              </span><span class="m">7</span>.5.0
+spacy<span class="w">                   </span><span class="m">3</span>.8.11
+spacy-legacy<span class="w">            </span><span class="m">3</span>.0.12
+spacy-loggers<span class="w">           </span><span class="m">1</span>.0.5
+srsly<span class="w">                   </span><span class="m">2</span>.5.2
+stack-data<span class="w">              </span><span class="m">0</span>.6.3
+statsmodels<span class="w">             </span><span class="m">0</span>.14.6
+sympy<span class="w">                   </span><span class="m">1</span>.14.0
+tabulate<span class="w">                </span><span class="m">0</span>.9.0
+thinc<span class="w">                   </span><span class="m">8</span>.3.10
+threadpoolctl<span class="w">           </span><span class="m">3</span>.6.0
+torch<span class="w">                   </span><span class="m">2</span>.9.1
+torchvision<span class="w">             </span><span class="m">0</span>.24.1
+tornado<span class="w">                 </span><span class="m">6</span>.5.4
+tqdm<span class="w">                    </span><span class="m">4</span>.67.1
+traitlets<span class="w">               </span><span class="m">5</span>.14.3
+typer-slim<span class="w">              </span><span class="m">0</span>.21.1
+typing-extensions<span class="w">       </span><span class="m">4</span>.15.0
+typing-inspection<span class="w">       </span><span class="m">0</span>.4.2
+tzdata<span class="w">                  </span><span class="m">2025</span>.3
+umap-learn<span class="w">              </span><span class="m">0</span>.5.11
+urllib3<span class="w">                 </span><span class="m">2</span>.6.3
+wasabi<span class="w">                  </span><span class="m">1</span>.1.3
+wcwidth<span class="w">                 </span><span class="m">0</span>.3.1
+weasel<span class="w">                  </span><span class="m">0</span>.4.3
+widgetsnbextension<span class="w">      </span><span class="m">4</span>.0.15
+wrapt<span class="w">                   </span><span class="m">2</span>.0.1
+xarray<span class="w">                  </span><span class="m">2025</span>.12.0
+zarr<span class="w">                    </span><span class="m">3</span>.1.5
+</code></pre></div>
 
 
 
@@ -3130,7 +3350,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 7, 2026 10:00:13 UTC">January 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 23, 2026 07:56:01 UTC">January 23, 2026</span>
   </span>
 
     

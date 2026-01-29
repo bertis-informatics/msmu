@@ -524,6 +524,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#saving-raw-mudata-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saving Raw MuData Object
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -708,10 +719,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#save-data" class="md-nav__link">
+  <a href="#saving-processed-mudata-object" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Save Data
+        Saving Processed MuData Object
       
     </span>
   </a>
@@ -3364,6 +3375,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#saving-raw-mudata-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saving Raw MuData Object
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3548,10 +3570,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#save-data" class="md-nav__link">
+  <a href="#saving-processed-mudata-object" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Save Data
+        Saving Processed MuData Object
       
     </span>
   </a>
@@ -4447,6 +4469,44 @@ mdata.obs</div>
 </div>
 </div>
 </div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=93072495">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="saving-raw-mudata-object">Saving Raw MuData Object<a class="anchor-link" href="#saving-raw-mudata-object">¶</a></h3><p>After reading the search output, saving the MuData object as an <code>h5mu</code> file is recommended for future use.</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=041fab1e">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="CodeMirror cm-s-jupyter">
+<div class="zeroclipboard-container">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-7">
+<div>
+<span class="notice" hidden="">Copied!</span>
+<svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
+<path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z" fill="currentColor" fill-rule="evenodd"></path>
+<path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+</clipboard-copy>
+</div>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">mdata</span><span class="o">.</span><span class="n">write_h5mu</span><span class="p">(</span><span class="s2">"dda_tmt_PXD013361_raw.h5mu"</span><span class="p">)</span>
+</pre></div>
+<div class="clipboard-copy-txt" id="cell-7">mdata.write_h5mu("dda_tmt_PXD013361_raw.h5mu")</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
 <div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=255a249b">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
@@ -4469,7 +4529,7 @@ You can also filter the data based on string containment, which can be useful fo
 <div class="jp-InputPrompt jp-InputArea-prompt">In [7]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-7">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-8">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -4485,7 +4545,7 @@ You can also filter the data based on string containment, which can be useful fo
 
 <span class="n">mdata</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-7">mdata = mm.pp.add_filter(mdata, modality="psm", column="q_value", keep="lt", value=0.01)
+<div class="clipboard-copy-txt" id="cell-8">mdata = mm.pp.add_filter(mdata, modality="psm", column="q_value", keep="lt", value=0.01)
 mdata = mm.pp.add_filter(mdata, modality="psm", column="proteins", keep="not_contains", value="contam_")
 mdata = mm.pp.apply_filter(mdata, modality="psm")
 
@@ -4537,7 +4597,7 @@ mdata</div>
 <div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-8">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-9">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -4553,7 +4613,7 @@ mdata</div>
 <span class="c1"># GIS-based scaling (if needed)</span>
 <span class="c1"># mdata = mm.pp.correct_batch_effect(mdata=mdata, modality="psm", method="gis", gis_prefix="POOLED_")</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-8">mdata = mm.pp.log2_transform(mdata, modality="psm")
+<div class="clipboard-copy-txt" id="cell-9">mdata = mm.pp.log2_transform(mdata, modality="psm")
 mdata = mm.pp.normalize(mdata, modality="psm", method="median", fraction=True)
 
 # GIS-based scaling (if needed)
@@ -4584,7 +4644,7 @@ mdata = mm.pp.normalize(mdata, modality="psm", method="median", fraction=True)
 <div class="jp-InputPrompt jp-InputArea-prompt">In [9]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-9">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-10">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -4597,7 +4657,7 @@ mdata = mm.pp.normalize(mdata, modality="psm", method="median", fraction=True)
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="c1"># Computing precursor isolation purity</span>
 <span class="c1"># mdata = mm.pp.compute_precursor_isolation_purity(mdata, mzml_paths=["path/to/sample1.mzML", "path/to/sample2.mzML", ...])</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-9"># Computing precursor isolation purity
+<div class="clipboard-copy-txt" id="cell-10"># Computing precursor isolation purity
 # mdata = mm.pp.compute_precursor_isolation_purity(mdata, mzml_paths=["path/to/sample1.mzML", "path/to/sample2.mzML", ...])</div>
 </div>
 </div>
@@ -4625,7 +4685,7 @@ mdata = mm.pp.normalize(mdata, modality="psm", method="median", fraction=True)
 <div class="jp-InputPrompt jp-InputArea-prompt">In [10]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-10">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-11">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -4640,7 +4700,7 @@ mdata = mm.pp.normalize(mdata, modality="psm", method="median", fraction=True)
 <span class="c1"># If precursor purity is computed, filter low-purity features</span>
 <span class="c1"># mdata = mm.pp.to_peptide(mdata, purity_threshold=0.7)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-10">mdata = mm.pp.to_peptide(mdata, purity_threshold=0.7)
+<div class="clipboard-copy-txt" id="cell-11">mdata = mm.pp.to_peptide(mdata, purity_threshold=0.7)
 
 # If precursor purity is computed, filter low-purity features
 # mdata = mm.pp.to_peptide(mdata, purity_threshold=0.7)</div>
@@ -4690,7 +4750,7 @@ INFO - Peptide-level identifications: 2204 (2151 at 1% FDR)
 <div class="jp-InputPrompt jp-InputArea-prompt">In [11]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-11">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-12">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -4705,7 +4765,7 @@ INFO - Peptide-level identifications: 2204 (2151 at 1% FDR)
 
 <span class="n">mdata</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-11">mdata = mm.pp.add_filter(mdata, modality="peptide", column="q_value", keep="lt", value=0.01)
+<div class="clipboard-copy-txt" id="cell-12">mdata = mm.pp.add_filter(mdata, modality="peptide", column="q_value", keep="lt", value=0.01)
 mdata = mm.pp.apply_filter(mdata, modality="peptide")
 
 mdata</div>
@@ -4759,7 +4819,7 @@ mdata</div>
 <div class="jp-InputPrompt jp-InputArea-prompt">In [12]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-12">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-13">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -4771,7 +4831,7 @@ mdata</div>
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">infer_protein</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-12">mdata = mm.pp.infer_protein(mdata)</div>
+<div class="clipboard-copy-txt" id="cell-13">mdata = mm.pp.infer_protein(mdata)</div>
 </div>
 </div>
 </div>
@@ -4816,7 +4876,7 @@ INFO - Total protein groups: 1485
 <div class="jp-InputPrompt jp-InputArea-prompt">In [13]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-13">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-14">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -4828,7 +4888,7 @@ INFO - Total protein groups: 1485
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">to_protein</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">top_n</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">rank_method</span><span class="o">=</span><span class="s2">"median_intensity"</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-13">mdata = mm.pp.to_protein(mdata, top_n=3, rank_method="median_intensity")</div>
+<div class="clipboard-copy-txt" id="cell-14">mdata = mm.pp.to_protein(mdata, top_n=3, rank_method="median_intensity")</div>
 </div>
 </div>
 </div>
@@ -4868,7 +4928,7 @@ INFO - Protein-level identifications :  1465 (1432 at 1% FDR)
 <div class="jp-InputPrompt jp-InputArea-prompt">In [14]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-14">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-15">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -4883,7 +4943,7 @@ INFO - Protein-level identifications :  1465 (1432 at 1% FDR)
 
 <span class="n">mdata</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-14">mdata = mm.pp.add_filter(mdata, modality="protein", column="q_value", keep="lt", value=0.01)
+<div class="clipboard-copy-txt" id="cell-15">mdata = mm.pp.add_filter(mdata, modality="protein", column="q_value", keep="lt", value=0.01)
 mdata = mm.pp.apply_filter(mdata, modality="protein")
 
 mdata</div>
@@ -4942,7 +5002,7 @@ mdata</div>
 <div class="jp-InputPrompt jp-InputArea-prompt">In [15]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-15">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-16">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -4954,7 +5014,7 @@ mdata</div>
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_id</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span> <span class="n">obs_column</span><span class="o">=</span><span class="s2">"sample_name"</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-15">mm.pl.plot_id(mdata, modality="protein", obs_column="sample_name")</div>
+<div class="clipboard-copy-txt" id="cell-16">mm.pl.plot_id(mdata, modality="protein", obs_column="sample_name")</div>
 </div>
 </div>
 </div>
@@ -4992,7 +5052,7 @@ mdata</div>
 <div class="jp-InputPrompt jp-InputArea-prompt">In [16]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-16">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-17">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -5004,7 +5064,7 @@ mdata</div>
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">mm</span><span class="o">.</span><span class="n">pl</span><span class="o">.</span><span class="n">plot_intensity</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="s2">"condition"</span><span class="p">,</span> <span class="n">obs_column</span><span class="o">=</span><span class="s2">"sample_name"</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-16">mm.pl.plot_intensity(mdata, modality="protein", groupby="condition", obs_column="sample_name")</div>
+<div class="clipboard-copy-txt" id="cell-17">mm.pl.plot_intensity(mdata, modality="protein", groupby="condition", obs_column="sample_name")</div>
 </div>
 </div>
 </div>
@@ -5029,7 +5089,8 @@ mdata</div>
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="save-data">Save Data<a class="anchor-link" href="#save-data">¶</a></h2><p>You can save MuData object into an H5MU file.</p>
+<h2 id="saving-processed-mudata-object">Saving Processed MuData Object<a class="anchor-link" href="#saving-processed-mudata-object">¶</a></h2><p>You can save MuData object into an <code>h5mu</code> file.
+This allows you to easily reload the processed data in future sessions without repeating the entire analysis pipeline.</p>
 </div>
 </div>
 </div>
@@ -5042,7 +5103,7 @@ mdata</div>
 <div class="jp-InputPrompt jp-InputArea-prompt">In [17]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-17">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-18">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewbox="0 0 16 16" width="20">
@@ -5054,7 +5115,7 @@ mdata</div>
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">mdata</span><span class="o">.</span><span class="n">write_h5mu</span><span class="p">(</span><span class="s2">"dda_tmt_PXD013361.h5mu"</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-17">mdata.write_h5mu("dda_tmt_PXD013361.h5mu")</div>
+<div class="clipboard-copy-txt" id="cell-18">mdata.write_h5mu("dda_tmt_PXD013361.h5mu")</div>
 </div>
 </div>
 </div>
@@ -5104,7 +5165,7 @@ mdata</div>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 15, 2026 02:38:11 UTC">January 15, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 23, 2026 09:24:38 UTC">January 23, 2026</span>
   </span>
 
     
