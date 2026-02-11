@@ -86,6 +86,13 @@ mm.pl.plot_var(mdata, "feature", groupby="sample_name", var_column="peptide_leng
 mm.pl.plot_pca(mdata, "protein", groupby="condition")
 ```
 
+`plot_pca(..., key="X_pca")` expects:
+- coordinates in `mdata[modality].obsm[key]`
+- PCA variance metadata in `mdata[modality].uns[key]["variance_ratio"]`
+
+`plot_umap(..., key="X_umap")` expects:
+- coordinates in `mdata[modality].obsm[key]`
+
 ![](../assets/images/visualization_pca_1.png)
 
 ### `plot_correlation`

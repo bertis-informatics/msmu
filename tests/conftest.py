@@ -101,7 +101,7 @@ def protein_adata(obs_df: pd.DataFrame, var_df: pd.DataFrame) -> AnnData:
         ),
     }
     return _make_adata(
-        x, obs_df.copy(), var_df.copy(), uns={"pca": {"variance_ratio": np.array([0.6, 0.3])}}, obsm=obsm
+        x, obs_df.copy(), var_df.copy(), uns={"X_pca": {"variance_ratio": np.array([0.6, 0.3])}}, obsm=obsm
     )
 
 

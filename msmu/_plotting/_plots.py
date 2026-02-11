@@ -287,7 +287,8 @@ def plot_pca(
         template: Plotly template for colorway.
         pcs: Pair of principal component indices (1-based).
         obs_column: Observation column used for labeling/group resolution.
-        key: Key in .obsm where the PCA dimensions are stored; defaults to 'X_pca'.
+        key: Base key for PCA outputs; expects coordinates in `.obsm[key]` and
+            variance metadata in `.uns[key]`. Defaults to 'X_pca'.
         **kwargs: Additional layout options forwarded to Plotly.
 
     Returns:
@@ -297,7 +298,9 @@ def plot_pca(
 
     # Get data
     pcs, pc_columns = get_pc_cols(mdata, modality, pcs, key=key)
-    variances = mdata[modality].uns["pca"]["variance_ratio"]
+    if key not in mdata[modality].uns:
+        raise ValueError(f"Key {key} not found in .uns at {modality}")
+    variances = mdata[modality].uns[key]["variance_ratio"]
 
     # Set titles
     title_text = "PCA"
@@ -308,7 +311,7 @@ def plot_pca(
     # Draw plot
     data = PlotData(mdata, modality, obs_column=obs_column)
     plot = PlotScatter(
-        data=data.prep_pca_scatter(modality, groupby, pc_columns, obs_column),
+        data=data.prep_pca_scatter(modality, groupby, pc_columns, obs_column, key=key),
         x=pc_columns[0],
         y=pc_columns[1],
         name=groupby,
@@ -395,7 +398,7 @@ def plot_umap(
     # Draw plot
     data = PlotData(mdata, modality, obs_column=obs_column)
     plot = PlotScatter(
-        data=data.prep_umap_scatter(modality, groupby, umap_columns, obs_column),
+        data=data.prep_umap_scatter(modality, groupby, umap_columns, obs_column, key=key),
         x=umap_columns[0],
         y=umap_columns[1],
         name=groupby,

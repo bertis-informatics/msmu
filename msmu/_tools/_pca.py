@@ -87,7 +87,11 @@ def pca(
             Used when the 'arpack' or 'randomized' solvers are used. Pass an int
             for reproducible results across multiple function calls.
         key_added:
-            Key in .obsm where the PCA dimensions will be stored. Defaults to "X_pca".
+            Base key used for PCA outputs. Results are stored in:
+            - `.obsm[key_added]` for component scores
+            - `.varm[key_added]` for loadings
+            - `.uns[key_added]` for explained variance metadata
+            Defaults to "X_pca".
         **kwargs:
             Additional keyword arguments passed to PCA constructor.
 
@@ -120,15 +124,13 @@ def pca(
     pcs = pd.DataFrame(pca.components_, columns=pca.feature_names_in_, index=pca.get_feature_names_out())
     pcs_df = pd.DataFrame(index=mdata[modality].var_names)
     pcs_df = pcs_df.join(pcs.T)
-    mdata[modality].varm["PCs"] = pcs_df
+    mdata[modality].varm[key_added] = pcs_df
 
-    # Save PCA results - explained variance
-    mdata[modality].uns["pca"] = {
+    # Save PCA results - explained variance and metadata
+    mdata[modality].uns[key_added] = {
         "variance": pca.explained_variance_,
         "variance_ratio": pca.explained_variance_ratio_,
+        "n_components": pca.n_components_,
     }
-
-    # Save PCA results - number of components
-    mdata[modality].uns["n_pca"] = pca.n_components_
 
     return mdata

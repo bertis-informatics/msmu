@@ -38,6 +38,21 @@ def test_plot_pca_and_umap(mdata):
     assert all(trace.type == "scatter" for trace in umap_fig.data)
 
 
+def test_plot_pca_and_umap_with_custom_keys(mdata):
+    mdata_local = mdata.copy()
+    mdata_local["protein"].obsm["X_pca_custom"] = mdata_local["protein"].obsm["X_pca"].copy()
+    mdata_local["protein"].uns["X_pca_custom"] = mdata_local["protein"].uns["X_pca"].copy()
+    mdata_local["protein"].obsm["X_umap_custom"] = mdata_local["protein"].obsm["X_umap"].copy()
+
+    pca_fig = plot_pca(mdata_local, modality="protein", groupby="group", obs_column="sample", key="X_pca_custom")
+    assert len(pca_fig.data) == 2
+    assert all(trace.type == "scatter" for trace in pca_fig.data)
+
+    umap_fig = plot_umap(mdata_local, modality="protein", groupby="group", obs_column="sample", key="X_umap_custom")
+    assert len(umap_fig.data) == 2
+    assert all(trace.type == "scatter" for trace in umap_fig.data)
+
+
 def test_plot_correlation_heatmap(mdata):
     fig = plot_correlation(mdata, modality="protein", groupby="group", obs_column="sample")
     assert len(fig.data) == 1

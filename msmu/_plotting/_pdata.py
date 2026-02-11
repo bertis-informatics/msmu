@@ -594,6 +594,7 @@ class PlotData:
         groupby: str,
         pc_columns: list[str],
         obs_column: str,
+        key: str = "X_pca",
     ) -> pd.DataFrame:
         """
         Prepares PCA coordinates joined with observation group labels.
@@ -603,6 +604,7 @@ class PlotData:
             groupby: Observation column to group by.
             pc_columns: Names of PC columns to plot.
             obs_column: Observation column to align with variables.
+            key: Key in .obsm where PCA embeddings are stored.
 
         Returns:
             PCA coordinates with grouping metadata.
@@ -610,7 +612,7 @@ class PlotData:
         obs = self._get_obs(obs_column, groupby=groupby)
 
         # Prepare data
-        orig_df = pd.DataFrame(self.mdata[modality].obsm["X_pca"][pc_columns])
+        orig_df = pd.DataFrame(self.mdata[modality].obsm[key][pc_columns])
         join_df = orig_df.join(obs, how="left")
         join_df[groupby] = pd.Categorical(join_df[groupby], categories=obs[groupby].unique())
 
@@ -622,6 +624,7 @@ class PlotData:
         groupby: str,
         umap_columns: list[str],
         obs_column: str,
+        key: str = "X_umap",
     ) -> pd.DataFrame:
         """
         Prepares UMAP coordinates joined with observation group labels.
@@ -631,6 +634,7 @@ class PlotData:
             groupby: Observation column to group by.
             umap_columns: Names of UMAP columns to plot.
             obs_column: Observation column to align with variables.
+            key: Key in .obsm where UMAP embeddings are stored.
 
         Returns:
             UMAP coordinates with grouping metadata.
@@ -638,7 +642,7 @@ class PlotData:
         obs = self._get_obs(obs_column, groupby=groupby)
 
         # Prepare data
-        orig_df = pd.DataFrame(self.mdata[modality].obsm["X_umap"][umap_columns])
+        orig_df = pd.DataFrame(self.mdata[modality].obsm[key][umap_columns])
         join_df = orig_df.join(obs, how="left")
         join_df[groupby] = pd.Categorical(join_df[groupby], categories=obs[groupby].unique())
 

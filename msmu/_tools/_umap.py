@@ -114,7 +114,10 @@ def umap(
             If None, the random number generator is the RandomState instance used
             by `np.random`.
         key_added:
-            Key in .obsm where the UMAP dimensions will be stored. Defaults to "X_umap".
+            Base key used for UMAP outputs. Results are stored in:
+            - `.obsm[key_added]` for embedding coordinates
+            - `.uns[key_added]` for embedding metadata
+            Defaults to "X_umap".
         **kwargs:
             Additional keyword arguments passed to UMAP constructor.
 
@@ -147,7 +150,7 @@ def umap(
     )
     umap.fit(data)
 
-    # Save PCA results - dimensions
+    # Save UMAP results - dimensions
     dimensions = np.asarray(umap.transform(data))
     mdata[modality].obsm[key_added] = pd.DataFrame(
         dimensions,
@@ -155,7 +158,13 @@ def umap(
         columns=[f"UMAP_{i + 1}" for i in range(dimensions.shape[1])],
     )
 
-    # Save UMAP results - number of components
-    mdata[modality].uns["n_umap"] = umap.n_components
+    # Save UMAP results - metadata
+    mdata[modality].uns[key_added] = {
+        "n_components": umap.n_components,
+        "n_neighbors": n_neighbors,
+        "metric": metric,
+        "init": init,
+        "min_dist": min_dist,
+    }
 
     return mdata

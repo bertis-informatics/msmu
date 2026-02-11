@@ -18,8 +18,9 @@ def test_pca_writes_outputs(simple_mdata):
     out = pca(simple_mdata, modality="psm", n_components=2, random_state=0)
     assert "X_pca" in out["psm"].obsm
     assert out["psm"].obsm["X_pca"].shape[1] == 2
-    assert "pca" in out["psm"].uns
-    assert out["psm"].uns["n_pca"] == 2
+    assert "X_pca" in out["psm"].uns
+    assert out["psm"].uns["X_pca"]["n_components"] == 2
+    assert "X_pca" in out["psm"].varm
 
 
 @pytest.mark.filterwarnings("ignore:n_jobs value .* overridden .* by setting random_state.*:UserWarning")
@@ -27,7 +28,7 @@ def test_umap_writes_outputs(simple_mdata):
     out = umap(simple_mdata, modality="psm", n_neighbors=2, random_state=0)
     assert "X_umap" in out["psm"].obsm
     assert out["psm"].obsm["X_umap"].shape[1] == 2
-    assert out["psm"].uns["n_umap"] == 2
+    assert out["psm"].uns["X_umap"]["n_components"] == 2
 
 
 def test_get_test_array_splits_groups(mdata):
