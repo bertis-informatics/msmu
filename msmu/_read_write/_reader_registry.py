@@ -6,6 +6,7 @@ from ._diann import DiannReader, DiannProteinGroupReader
 from ._sage import LfqSageReader, TmtSageReader
 from ._maxquant import MaxTmtReader, MaxLfqReader, MaxDiaReader
 from ._fragpipe import TmtFragPipeReader, LfqFragPipeReader
+from .._utils._provenance import append_cmd_log, capture_provenance_output, get_bound_call_kwargs, normalize_cmd_for_runtime
 
 
 def read_sage(
@@ -37,9 +38,19 @@ def read_sage(
     else:
         raise ValueError("Argument label should be one of 'tmt', 'label_free'.")
 
-    mdata: md.MuData = reader.read()
-
-    return mdata
+    with capture_provenance_output() as stdout_buffer:
+        mdata: md.MuData = reader.read()
+    return append_cmd_log(
+        mdata,
+        function="read_sage",
+        payload=get_bound_call_kwargs(
+            read_sage,
+            identification_file,
+            label,
+            quantification_file=quantification_file,
+        ),
+        stdout=stdout_buffer.getvalue().strip() or None,
+    )
 
 
 class _ReadDiannFacade:
@@ -60,7 +71,14 @@ class _ReadDiannFacade:
         Returns:
             A MuData object containing the DIA-NN data at precursor level.
         """
-        return DiannReader(identification_file=identification_file).read()
+        with capture_provenance_output() as stdout_buffer:
+            mdata = DiannReader(identification_file=identification_file).read()
+        return append_cmd_log(
+            mdata,
+            function="read_diann",
+            payload=get_bound_call_kwargs(self.__call__, identification_file),
+            stdout=stdout_buffer.getvalue().strip() or None,
+        )
 
     def from_pg(self, identification_file: str | Path) -> md.MuData:
         """
@@ -72,7 +90,14 @@ class _ReadDiannFacade:
         Returns:
             A MuData object containing the DIA-NN data at protein group level.
         """
-        return DiannProteinGroupReader(identification_file=identification_file).read()
+        with capture_provenance_output() as stdout_buffer:
+            mdata = DiannProteinGroupReader(identification_file=identification_file).read()
+        return append_cmd_log(
+            mdata,
+            function="read_diann.from_pg",
+            payload=get_bound_call_kwargs(self.from_pg, identification_file),
+            stdout=stdout_buffer.getvalue().strip() or None,
+        )
 
 
 read_diann: _ReadDiannFacade = _ReadDiannFacade()
@@ -136,7 +161,20 @@ class _MaxQuantFacade:
             raise ValueError(
                 "Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'."
             )
-        return reader.read()
+        with capture_provenance_output() as stdout_buffer:
+            mdata = reader.read()
+        return append_cmd_log(
+            mdata,
+            function="read_maxquant",
+            payload=get_bound_call_kwargs(
+                self.__call__,
+                identification_file,
+                label,
+                acquisition,
+                _quantification=_quantification,
+            ),
+            stdout=stdout_buffer.getvalue().strip() or None,
+        )
 
     def from_pg(self, *args: Any, **kwds: Any) -> md.MuData:
         """
@@ -182,7 +220,20 @@ class FragPipeFacade:
                 "Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'."
             )
 
-        return reader.read()
+        with capture_provenance_output() as stdout_buffer:
+            mdata = reader.read()
+        return append_cmd_log(
+            mdata,
+            function="read_fragpipe",
+            payload=get_bound_call_kwargs(
+                self.__call__,
+                identification_file,
+                label,
+                acquisition,
+                quantification_file=quantification_file,
+            ),
+            stdout=stdout_buffer.getvalue().strip() or None,
+        )
 
     def from_pg(self):
         raise NotImplementedError("FragPipe protein group reader is not implemented yet.")
@@ -215,7 +266,13 @@ def read_h5mu(h5mu_file: str | Path) -> md.MuData:
     Returns:
         A MuData object.
     """
-    return md.read_h5mu(h5mu_file)
+    mdata = md.read_h5mu(h5mu_file)
+    mdata = normalize_cmd_for_runtime(mdata)
+    return append_cmd_log(
+        mdata,
+        function="read_h5mu",
+        payload=get_bound_call_kwargs(read_h5mu, h5mu_file),
+    )
 
 
 #######################################################################

@@ -25,3 +25,11 @@ def test_write_csv_creates_file(tmp_path, psm_mdata_export):
     write_csv(psm_mdata_export, modality="psm", filename=output, sep=",", include=["filename"], quantification=False)
     content = output.read_text().splitlines()
     assert content[0] == "filename"
+
+
+def test_mdata_write_h5mu_works_with_cmd_dict_list(tmp_path, psm_mdata_export):
+    mdata = psm_mdata_export.copy()
+    mdata.uns["_cmd"] = {"0": {"function": "demo", "payload": {"source": "test"}}}
+    output = Path(tmp_path) / "test.h5mu"
+    mdata.write_h5mu(output)
+    assert output.exists()
