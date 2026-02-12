@@ -764,6 +764,8 @@
       
         
       
+        
+      
     
     
     
@@ -899,10 +901,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#on_var" class="md-nav__link">
+  <a href="#add_filter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        on .var
+        add_filter
       
     </span>
   </a>
@@ -910,10 +912,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#on_obs" class="md-nav__link">
+  <a href="#apply_filter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        on .obs
+        apply_filter
       
     </span>
   </a>
@@ -1112,6 +1114,34 @@
     
   
     Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Command Provenance
   
 
     
@@ -2460,34 +2490,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/utils/subset/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    subset
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../../reference/utils/split_tmt/" class="md-nav__link">
         
   
@@ -2636,6 +2638,34 @@
     
   
     uns_logger
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/utils/append_cmd_log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    append_cmd_log
   
 
     
@@ -3070,10 +3100,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#on_var" class="md-nav__link">
+  <a href="#add_filter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        on .var
+        add_filter
       
     </span>
   </a>
@@ -3081,10 +3111,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#on_obs" class="md-nav__link">
+  <a href="#apply_filter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        on .obs
+        apply_filter
       
     </span>
   </a>
@@ -3160,40 +3190,68 @@
 
 
 <h1 id="filter">Filter</h1>
-<h2 id="on_var">on <code>.var</code></h2>
-<p>Functions related to filtering features (<code>.var</code>) are implemented in <a href="../../reference/pp/add_filter/"><code>msmu.pp.add_filter</code></a> and <a href="../../reference/pp/apply_filter/"><code>msmu.pp.apply_filter</code></a>.</p>
-<p>In <code>msmu</code>, filtering features consists of 2 stages.</p>
+<p>Filtering in <code>msmu</code> is split into two steps and is implemented in
+<a href="../../reference/pp/add_filter/"><code>msmu.pp.add_filter</code></a> and
+<a href="../../reference/pp/apply_filter/"><code>msmu.pp.apply_filter</code></a>.</p>
 <ol>
-<li>
-<p><code>add_filter()</code> to modality</p>
-<ul>
-<li>The column name should be present in <code>.var</code></li>
-<li>The <code>keep</code> argument accepts general expressions for condition, such as <code>lt</code>, <code>le</code>, <code>gt</code>, <code>ge</code>, <code>equal</code>, etc.</li>
-<li>Boolean masking will be stored in <code>mdata[modality].varm["filter"]</code> by the column name of <code>column_keep_value</code> from parameters, e.g. <code>q_value_lt_0.01</code></li>
-</ul>
-</li>
-<li>
-<p><code>apply_filter()</code></p>
-<ul>
-<li>filter features based on boolean masks from <code>mdata[modality].varm["filter"]</code></li>
-</ul>
-</li>
+<li><code>add_filter()</code> creates a boolean mask and stores it as a named filter column.</li>
+<li><code>apply_filter()</code> applies one or more stored masks to subset the modality.</li>
 </ol>
-<div class="highlight"><pre><span></span><code><span class="c1"># filter PSM with q_value &lt; 0.01</span>
+<h2 id="add_filter"><code>add_filter</code></h2>
+<p><code>add_filter</code> supports multiple sources via <code>on</code>:</p>
+<ul>
+<li><code>on="var"</code>: read <code>column</code> from <code>.var</code>, store mask in <code>.varm["filter"]</code></li>
+<li><code>on="obs"</code>: read <code>column</code> from <code>.obs</code>, store mask in <code>.obsm["filter"]</code></li>
+<li><code>on="varm"</code>: read <code>column</code> from <code>.varm[key]</code>, store mask in <code>.varm["filter"]</code></li>
+<li><code>on="obsm"</code>: read <code>column</code> from <code>.obsm[key]</code>, store mask in <code>.obsm["filter"]</code></li>
+</ul>
+<p><code>key</code> is required when <code>on</code> is <code>"varm"</code> or <code>"obsm"</code>.</p>
+<p>The <code>keep</code> argument accepts conditional operators such as <code>eq</code>, <code>ne</code>, <code>lt</code>, <code>le</code>,
+<code>gt</code>, <code>ge</code>, <code>contains</code>, and <code>not_contains</code>.</p>
+<p>Stored filter column names follow this pattern:
+<code>{column}_{keep}_{value}</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># feature-level filter from .var</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">add_filter</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
     <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span>
-    <span class="n">column</span><span class="o">=</span><span class="s2">&quot;q_value&quot;</span><span class="p">,</span> <span class="c1"># a column in .var</span>
+    <span class="n">on</span><span class="o">=</span><span class="s2">&quot;var&quot;</span><span class="p">,</span>
+    <span class="n">column</span><span class="o">=</span><span class="s2">&quot;q_value&quot;</span><span class="p">,</span>
     <span class="n">keep</span><span class="o">=</span><span class="s2">&quot;lt&quot;</span><span class="p">,</span>
-    <span class="n">value</span><span class="o">=</span><span class="mf">0.01</span>
-    <span class="p">)</span>
+    <span class="n">value</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+<span class="p">)</span>
 
-<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_filter</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">)</span>
+<span class="c1"># sample-level filter from .obs</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">add_filter</span><span class="p">(</span>
+    <span class="n">mdata</span><span class="p">,</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span>
+    <span class="n">on</span><span class="o">=</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span>
+    <span class="n">column</span><span class="o">=</span><span class="s2">&quot;condition&quot;</span><span class="p">,</span>
+    <span class="n">keep</span><span class="o">=</span><span class="s2">&quot;not_contains&quot;</span><span class="p">,</span>
+    <span class="n">value</span><span class="o">=</span><span class="s2">&quot;BLANK&quot;</span><span class="p">,</span>
+<span class="p">)</span>
 </code></pre></div>
-<h2 id="on_obs">on <code>.obs</code></h2>
-<p>Filtering on <code>.obs</code> is not implemented as an utility function. <code>.obs</code> can be filtered with slicing function on <code>MuData</code></p>
-<div class="highlight"><pre><span></span><code><span class="c1"># filter BLANK channels for TMT studies</span>
-<span class="n">mdata</span> <span class="o">=</span> <span class="n">mdata</span><span class="p">[</span><span class="n">mdata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s2">&quot;group&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;BLANK&quot;</span><span class="p">,</span> <span class="p">]</span>
+<h2 id="apply_filter"><code>apply_filter</code></h2>
+<p><code>apply_filter</code> controls target axis with <code>on</code>:</p>
+<ul>
+<li><code>on="all"</code> (default): apply both <code>.varm["filter"]</code> and <code>.obsm["filter"]</code></li>
+<li><code>on="var"</code>: apply only <code>.varm["filter"]</code></li>
+<li><code>on="obs"</code>: apply only <code>.obsm["filter"]</code></li>
+<li><code>columns=[...]</code> (optional): apply only selected filter columns by name</li>
+</ul>
+<p>When <code>on="all"</code> and one side does not have a stored filter table, a warning is
+printed and that axis is skipped. When <code>on="var"</code> or <code>on="obs"</code> and the requested
+filter table is missing, an error is raised.</p>
+<p>The function also prints which filter columns are applied, and this printed output
+is captured into <code>mdata.uns["_cmd"]</code> by the command logger.</p>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_filter</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">&quot;all&quot;</span><span class="p">)</span>
+
+<span class="c1"># apply only selected filters</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_filter</span><span class="p">(</span>
+    <span class="n">mdata</span><span class="p">,</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span>
+    <span class="n">on</span><span class="o">=</span><span class="s2">&quot;var&quot;</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;q_value_lt_0.01&quot;</span><span class="p">,</span> <span class="s2">&quot;proteins_not_contains_contam_&quot;</span><span class="p">],</span>
+<span class="p">)</span>
 </code></pre></div>
 
 
@@ -3215,7 +3273,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="January 23, 2026 09:24:38 UTC">January 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="February 12, 2026 04:15:09 UTC">February 12, 2026</span>
   </span>
 
     
