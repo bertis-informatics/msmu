@@ -1,39 +1,75 @@
 # Filter
 
-## on `.var`
+Filtering in `msmu` is split into two steps and is implemented in
+[`msmu.pp.add_filter`](../../reference/pp/add_filter/) and
+[`msmu.pp.apply_filter`](../../reference/pp/apply_filter/).
 
-Functions related to filtering features (`.var`) are implemented in [`msmu.pp.add_filter`](../../reference/pp/add_filter/) and [`msmu.pp.apply_filter`](../../reference/pp/apply_filter/).
+1. `add_filter()` creates a boolean mask and stores it as a named filter column.
+2. `apply_filter()` applies one or more stored masks to subset the modality.
 
-In `msmu`, filtering features consists of 2 stages.
+## `add_filter`
 
-1. `add_filter()` to modality
+`add_filter` supports multiple sources via `on`:
 
-    - The column name should be present in `.var`
-    - The `keep` argument accepts general expressions for condition, such as `lt`, `le`, `gt`, `ge`, `equal`, etc.
-    - Boolean masking will be stored in `mdata[modality].varm["filter"]` by the column name of `column_keep_value` from parameters, e.g. `q_value_lt_0.01`
+- `on="var"`: read `column` from `.var`, store mask in `.varm["filter"]`
+- `on="obs"`: read `column` from `.obs`, store mask in `.obsm["filter"]`
+- `on="varm"`: read `column` from `.varm[key]`, store mask in `.varm["filter"]`
+- `on="obsm"`: read `column` from `.obsm[key]`, store mask in `.obsm["filter"]`
 
-2. `apply_filter()`
+`key` is required when `on` is `"varm"` or `"obsm"`.
 
-    - filter features based on boolean masks from `mdata[modality].varm["filter"]`
+The `keep` argument accepts conditional operators such as `eq`, `ne`, `lt`, `le`,
+`gt`, `ge`, `contains`, and `not_contains`.
+
+Stored filter column names follow this pattern:
+`{column}_{keep}_{value}`.
 
 ```python
-# filter PSM with q_value < 0.01
+# feature-level filter from .var
 mdata = mm.pp.add_filter(
     mdata,
     modality="psm",
-    column="q_value", # a column in .var
+    on="var",
+    column="q_value",
     keep="lt",
-    value=0.01
-    )
+    value=0.01,
+)
 
-mdata = mm.pp.apply_filter(mdata, modality="psm")
+# sample-level filter from .obs
+mdata = mm.pp.add_filter(
+    mdata,
+    modality="psm",
+    on="obs",
+    column="condition",
+    keep="not_contains",
+    value="BLANK",
+)
 ```
 
-## on `.obs`
+## `apply_filter`
 
-Filtering on `.obs` is not implemented as an utility function. `.obs` can be filtered with slicing function on `MuData`
+`apply_filter` controls target axis with `on`:
+
+- `on="all"` (default): apply both `.varm["filter"]` and `.obsm["filter"]`
+- `on="var"`: apply only `.varm["filter"]`
+- `on="obs"`: apply only `.obsm["filter"]`
+- `columns=[...]` (optional): apply only selected filter columns by name
+
+When `on="all"` and one side does not have a stored filter table, a warning is
+printed and that axis is skipped. When `on="var"` or `on="obs"` and the requested
+filter table is missing, an error is raised.
+
+The function also prints which filter columns are applied, and this printed output
+is captured into `mdata.uns["_cmd"]` by the command logger.
 
 ```python
-# filter BLANK channels for TMT studies
-mdata = mdata[mdata.obs["group"] != "BLANK", ]
+mdata = mm.pp.apply_filter(mdata, modality="psm", on="all")
+
+# apply only selected filters
+mdata = mm.pp.apply_filter(
+    mdata,
+    modality="psm",
+    on="var",
+    columns=["q_value_lt_0.01", "proteins_not_contains_contam_"],
+)
 ```

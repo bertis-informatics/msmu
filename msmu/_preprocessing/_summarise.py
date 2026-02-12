@@ -4,7 +4,7 @@ import logging
 import anndata as ad
 import pandas as pd
 
-from .._utils.utils import uns_logger
+from .._utils import uns_logger
 from .._read_write._reader_utils import add_modality
 from .._read_write._mdata_status import MuDataStatus
 from ._summarisation import SummarisationPrep, PtmSummarisationPrep, Aggregator
@@ -198,10 +198,12 @@ def to_protein(
             column="peptide_type",
             keep="eq",
             value="unique",
+            on="var",
         )
         mdata = apply_filter(
             mdata=mdata,
             modality="peptide",
+            on="var",
         )
     else:
         mdata = original_mdata
