@@ -19,8 +19,7 @@ else:
     version = __version__
 
 logger = logging.getLogger("msmu")
-logger.setLevel(LogLevel.INFO)
-setup_logger(level=LogLevel.INFO)
+logger.addHandler(logging.NullHandler())
 
 mudata.set_options(pull_on_update=False)
 pl.set_templates()

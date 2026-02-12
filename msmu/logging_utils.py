@@ -15,16 +15,19 @@ def setup_logger(level: LogLevel = LogLevel.INFO) -> logging.Logger:
     logger = logging.getLogger("msmu")
     logger.setLevel(level)
 
-    handler = logging.StreamHandler()
-    handler.setLevel(level)
-
-    formatter = logging.Formatter(
-        fmt="%(levelname)s - %(message)s",
-        # datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    handler.setFormatter(formatter)
-
-    if not logger.hasHandlers():
+    if not any(getattr(h, "_msmu_handler", False) for h in logger.handlers):
+        handler = logging.StreamHandler()
+        handler.setLevel(level)
+        handler._msmu_handler = True  # type: ignore[attr-defined]
+        formatter = logging.Formatter(
+            fmt="%(levelname)s - %(message)s",
+            # datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        handler.setFormatter(formatter)
         logger.addHandler(handler)
+    else:
+        for handler in logger.handlers:
+            if getattr(handler, "_msmu_handler", False):
+                handler.setLevel(level)
 
     return logger

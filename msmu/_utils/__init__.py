@@ -1,5 +1,6 @@
-from .subset import subset, split_tmt
-from .utils import get_modality_dict, get_label, uns_logger, add_quant, reindex_obs
+from .subset import split_tmt
+from ._modality import get_modality_dict, get_label, add_quant, reindex_obs
+from ._provenance import uns_logger, append_cmd_log
 from .peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -17,6 +18,7 @@ __all__ = [
     "attach_fasta",
     "get_label",
     "uns_logger",
+    "append_cmd_log",
     "add_quant",
     "reindex_obs",
     "_calc_exp_mz",
