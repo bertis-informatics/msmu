@@ -329,6 +329,55 @@ Usage:
 """
 
 
+def read_cptac(
+    identification_file: str | Path | list,
+    label: Literal["tmt"],
+    max_workers: int = 4,
+    drop_search_result: bool = False,
+) -> md.MuData:
+    """
+    Reads a CPTAC output file and returns a MuData object.
+
+    Parameters:
+        identification_file: Path to the CPTAC output file (mzid format).
+        label: Label for the CPTAC output ('tmt'). Currently, only 'tmt' is supported.
+        max_workers: Maximum number of worker processes to use for reading multiple files. Default is 4.
+        drop_search_result: Whether to drop the search result after reading. Default is False.
+
+    Returns:
+        A MuData object.
+    """
+    mzid_files = []
+    if isinstance(identification_file, list):
+        mzid_files = identification_file
+    elif isinstance(identification_file, (str, Path)):
+        mzid_files = [identification_file]
+    else:
+        raise ValueError("Argument identification_file should be a string, Path, or list of strings/Paths.")
+
+    if label not in ["tmt"]:
+        raise ValueError("Argument label should be one of 'tmt'.")
+
+    logger.info(f"Reading CPTAC data from {len(mzid_files)} mzid file(s)")
+    identification_file_, identification_df_ = CPTACDataFrameConverter().convert(
+        file_paths=mzid_files, max_workers=max_workers
+    )
+
+    if label == "tmt":
+        reader = TmtCPTACReader(
+            identification_file=identification_file_,
+            identification_df=identification_df_,
+            _drop_search_result=drop_search_result,
+        )
+    elif label == "label_free":
+        raise NotImplementedError("LFQ CPTAC reader is not implemented yet.")
+        # reader = LfqCPTACReader(identification_file=identification_file_, identification_df=identification_df_)
+
+    mdata: md.MuData = reader.read()
+
+    return mdata
+
+
 def read_h5mu(h5mu_file: str | Path) -> md.MuData:
     """
     Reads an h5mu file (HDF5) and returns a MuData object.
