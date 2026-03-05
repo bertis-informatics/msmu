@@ -60,6 +60,69 @@ def write_csv(
     df.to_csv(filename, sep=sep, index=False)
 
 
+def write_pin(
+    mdata: md.MuData,
+    filename: str | Path | None = None,
+) -> pd.DataFrame | None:
+    """
+    Exports MuData psm object to Percolator input format.
+
+    Parameters:
+        mdata: MuData object containing the data to export.
+        filename: Path to the output Percolator input file. If None, the function will return a DataFrame instead of writing to a file.
+
+    Returns:
+        A pandas DataFrame in Percolator input format if filename is None, otherwise None.
+    """
+    var_columns = ["filename", "scan_num", "charge", "peptide", "proteins", "calcmass", "expmass"]
+
+    target_df: pd.DataFrame = mdata["psm"].var[var_columns].copy()
+    target_df["decoy"] = 0
+
+    if "decoy" in mdata["psm"].uns.keys():
+        decoy_df = mdata["psm"].uns["decoy"].copy()
+
+        pin_df = pd.concat([target_df, decoy_df], axis=0)
+    else:
+        pin_df = target_df
+    pin_df["SpecId"] = pin_df.index.astype(str)
+    pin_df["Spectra"] = pin_df.index.astype(str)
+    pin_df["Label"] = pin_df["decoy"].apply(lambda x: -1 if x == 1 else 1)
+    pin_df["ScanNr"] = pin_df["scan_num"].astype(int)
+    pin_df["PepLen"] = pin_df["peptide_length"].astype(int)
+
+    pin_df = pin_df.rename(
+        columns={
+            "filename": "FileName",
+            "charge": "Charge",
+            "peptide": "Peptide",
+            "proteins": "Proteins",
+            "calcmass": "CalcMass",
+            "expmass": "ExpMass",
+            "score": "XCorr",
+        }
+    )
+
+    pin_req_columns = [
+        "SpecId",
+        "Label",
+        "Peptide",
+        "Proteins",
+        "Charge",
+        "ScanNr",
+        "PepLen",
+        "CalcMass",
+        "ExpMass",
+        "XCorr",
+    ]
+    pin_df = pin_df[pin_req_columns]
+
+    if filename is None:
+        return pin_df
+    else:
+        pin_df.to_csv(filename, sep="\t", index=False)
+
+
 def to_readable(
     mdata: md.MuData,
     modality: str,

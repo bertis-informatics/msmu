@@ -16,4 +16,5 @@ __all__ = [
     "to_readable",
     "write_csv",
     "write_flashlfq_input",
+    "write_pin",
 ]
