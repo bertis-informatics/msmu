@@ -9,7 +9,7 @@ import numpy as np
 
 import anndata as ad
 import mudata as md
-import pyopenms as oms
+
 
 from .._plotting._plots import plot_var
 import plotly.graph_objects as go
@@ -84,6 +84,8 @@ class PrecursorPurityCalculator:
     """
 
     def __init__(self, tolerance: float = 20, unit_ppm: bool = True):
+        import pyopenms as oms
+
         self._tolerance = tolerance
         self._unit_ppm = unit_ppm
 
@@ -146,7 +148,7 @@ class PrecursorPurityCalculator:
         self._mzml = value
 
     @property
-    def exp(self) -> oms.MSExperiment:
+    def exp(self) -> "oms.MSExperiment":
         with self._lock:
             mtime = os.path.getmtime(self._mzml)
             if (
@@ -174,7 +176,9 @@ class PrecursorPurityCalculator:
         return np.array(self.ms2_indices) + 1
 
     @staticmethod
-    def _import_mzml(mzml_path: str | Path) -> oms.MSExperiment:
+    def _import_mzml(mzml_path: str | Path) -> "oms.MSExperiment":
+        import pyopenms as oms
+
         exp: oms.MSExperiment = oms.MSExperiment()
         oms.MzMLFile().load(str(mzml_path), exp)
 
@@ -209,6 +213,8 @@ class PrecursorPurityCalculator:
         return ms1_spectrum
 
     def _calculate_precursor_isolation_purity(self, ms2_index) -> float:
+        import pyopenms as oms
+
         precursor = self.exp[ms2_index].getPrecursors()[0]
 
         ms1_spectrum = self._get_ms1_spectrum(ms2_index=ms2_index)
