@@ -8,7 +8,7 @@ from . import _preprocessing as pp
 from . import _tools as tl
 from . import _read_write as io
 from ._read_write._reader_utils import merge_mudata
-from ._read_write._reader_registry import read_h5mu, read_sage, read_diann, read_maxquant, read_fragpipe
+from ._read_write._reader_registry import read_h5mu, read_sage, read_diann, read_maxquant, read_fragpipe, read_cptac
 from . import _utils as utils
 
 try:
@@ -32,6 +32,7 @@ __all__ = [
     "read_diann",
     "read_maxquant",
     "read_fragpipe",
+    "read_cptac",
     "merge_mudata",
     "pp",
     "pl",
