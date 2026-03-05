@@ -74,29 +74,29 @@ def split_tmt(
     elif not isinstance(map, dict):
         raise ValueError("Map must be a dictionary, pandas Series, or DataFrame.")
 
-    mdata["feature"].var["set"] = mdata["feature"].var["filename"].str.rsplit(".", n=1).str[0].map(map)
+    mdata["psm"].var["set"] = mdata["psm"].var["filename"].str.rsplit(".", n=1).str[0].map(map)
 
-    df = mdata["feature"].to_df().T.copy()
+    df = mdata["psm"].to_df().T.copy()
     set_dfs = {}
 
-    for set in mdata["feature"].var["set"].unique():
-        set_index = mdata["feature"].var.index[mdata["feature"].var["set"] == set]
+    for set in mdata["psm"].var["set"].unique():
+        set_index = mdata["psm"].var.index[mdata["psm"].var["set"] == set]
         set_df = df.loc[set_index]
         set_df.columns = set_df.columns + f"_{set}"
         set_dfs[set] = set_df
 
     set_df = pd.concat(set_dfs.values(), axis=1)
-    set_df = set_df.loc[mdata["feature"].var.index]
+    set_df = set_df.loc[mdata["psm"].var.index]
 
     new_adata = AnnData(
         X=set_df.T,
         obs=pd.DataFrame(index=set_df.T.index),
         var=pd.DataFrame(index=set_df.T.columns),
     )
-    new_adata.var = mdata["feature"].var.copy()
-    new_adata.uns = mdata["feature"].uns.copy()
+    new_adata.var = mdata["psm"].var.copy()
+    new_adata.uns = mdata["psm"].uns.copy()
 
-    new_mdata = MuData({"feature": new_adata})
+    new_mdata = MuData({"psm": new_adata})
     new_mdata.var = mdata.var.copy()
     new_mdata.uns = mdata.uns.copy()
 
