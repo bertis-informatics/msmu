@@ -66,7 +66,7 @@ def _decompose_data(
 
     if isinstance(data, md.MuData):
         if modality is not None:
-            raise ValueError("If data is a MuData object, mod should be None. ")
+            raise ValueError("If data is a MuData object, mod should be None.")
         else:
             mod: str = "mdata"
             components = [
@@ -98,7 +98,7 @@ def _decompose_data(
             if tmp is not None:
                 if component == "var":
                     if "level" in data.uns:
-                        if data.uns["level"] in ["precursor", "psm"]:
+                        if data.uns["level"] == "psm":
                             tmp["dataset"] = name
                     components_dict[mod][component][name] = tmp
                 elif component == "obs":
@@ -155,49 +155,60 @@ def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict
                         },
                     )
                 elif component == "uns":
-                    for sub_comp in components_dict[mod][component].keys():
-                        uns_type = set([type(v).__name__ for k, v in components_dict[mod][component][sub_comp].items()])
-                        if len(uns_type) == 1:
-                            uns_type = uns_type.pop()
-                        else:
-                            raise ValueError(f"Uns type for {sub_comp} in {mod} is not consistent: {uns_type}")
-                        if "DataFrame" in uns_type:
-                            dfs = components_dict[mod][component][sub_comp].values()
-                            merged_data[mod].uns[sub_comp] = pd.concat(dfs, axis=0, ignore_index=True).drop_duplicates()
-                        elif "dict" in uns_type:
-                            merged_data[mod].uns[sub_comp] = {
-                                k: v for k, v in components_dict[mod][component][sub_comp].items()
-                            }
-                        elif "list" in uns_type:
-                            merged_data[mod].uns[sub_comp] = reduce(
-                                lambda left, right: left + right,
-                                components_dict[mod][component][sub_comp].values(),
+                    if components_dict[mod][component] == {}:
+                        merged_data[mod].uns = {}
+                    else:
+                        for sub_comp in components_dict[mod][component].keys():
+                            uns_type = set(
+                                [type(v).__name__ for k, v in components_dict[mod][component][sub_comp].items()]
                             )
-                        elif "str" in uns_type:
-                            str_set = set(components_dict[mod][component][sub_comp].values())
-                            if len(str_set) == 1:
-                                merged_data[mod].uns[sub_comp] = str_set.pop()
+                            if len(uns_type) == 1:
+                                uns_type = uns_type.pop()
                             else:
+                                raise ValueError(f"Uns type for {sub_comp} in {mod} is not consistent: {uns_type}")
+                            if "DataFrame" in uns_type:
+                                dfs = components_dict[mod][component][sub_comp].values()
+                                merged_data[mod].uns[sub_comp] = pd.concat(
+                                    dfs, axis=0, ignore_index=True
+                                ).drop_duplicates()
+                            elif "dict" in uns_type:
                                 merged_data[mod].uns[sub_comp] = {
                                     k: v for k, v in components_dict[mod][component][sub_comp].items()
                                 }
-                        elif "int" in uns_type or "float" in uns_type:
-                            num_set = set(components_dict[mod][component][sub_comp].values())
-                            if len(num_set) == 1:
-                                merged_data[mod].uns[sub_comp] = num_set.pop()
+                            elif "list" in uns_type:
+                                merged_data[mod].uns[sub_comp] = reduce(
+                                    lambda left, right: left + right,
+                                    components_dict[mod][component][sub_comp].values(),
+                                )
+                            elif "str" in uns_type:
+                                str_set = set(components_dict[mod][component][sub_comp].values())
+                                if len(str_set) == 1:
+                                    merged_data[mod].uns[sub_comp] = str_set.pop()
+                                else:
+                                    merged_data[mod].uns[sub_comp] = {
+                                        k: v for k, v in components_dict[mod][component][sub_comp].items()
+                                    }
+                            elif "int" in uns_type or "float" in uns_type:
+                                num_set = set(components_dict[mod][component][sub_comp].values())
+                                if len(num_set) == 1:
+                                    merged_data[mod].uns[sub_comp] = num_set.pop()
+                                else:
+                                    merged_data[mod].uns[sub_comp] = {
+                                        k: v for k, v in components_dict[mod][component][sub_comp].items()
+                                    }
+                            elif "NoneType" in uns_type:
+                                none_set = set(components_dict[mod][component][sub_comp].values())
+                                if len(none_set) == 1:
+                                    merged_data[mod].uns[sub_comp] = none_set.pop()
+                                else:
+                                    merged_data[mod].uns[sub_comp] = {
+                                        k: v for k, v in components_dict[mod][component][sub_comp].items()
+                                    }
                             else:
-                                merged_data[mod].uns[sub_comp] = {
-                                    k: v for k, v in components_dict[mod][component][sub_comp].items()
-                                }
-                        elif "NoneType" in uns_type:
-                            none_set = set(components_dict[mod][component][sub_comp].values())
-                            if len(none_set) == 1:
-                                merged_data[mod].uns[sub_comp] = none_set.pop()
-                            else:
-                                merged_data[mod].uns[sub_comp] = {
-                                    k: v for k, v in components_dict[mod][component][sub_comp].items()
-                                }
-
+                                raise ValueError(
+                                    f"Unsupported uns type for {sub_comp} in {mod}: {uns_type}. "
+                                    "Currently only DataFrame, dict, list, str, int, float, and NoneType are supported."
+                                )
     return merged_data
 
 
