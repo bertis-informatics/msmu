@@ -17,6 +17,7 @@ class DiannReader(SearchResultReader):
     def __init__(
         self,
         identification_file: str | Path,
+        identification_df: pd.DataFrame,
     ) -> None:
         super().__init__()
         self.search_settings: SearchResultSettings = SearchResultSettings(
@@ -25,6 +26,7 @@ class DiannReader(SearchResultReader):
             label="label_free",
             acquisition="dia",
             identification_file=identification_file,
+            identification_df=identification_df,
             identification_level="precursor",
             quantification_file=None,
             quantification_level="precursor",
@@ -34,6 +36,7 @@ class DiannReader(SearchResultReader):
 
         self.used_feature_cols.extend(
             [
+                "rt",
                 "decoy",
                 "PEP",
                 "q_value",
@@ -41,17 +44,6 @@ class DiannReader(SearchResultReader):
         )
 
         self.used_feature_cols.remove("scan_num")
-
-        self._cols_to_stringify: list[str] = [
-            "Protein.Names",
-            "Protein.Group",
-            "Genes",
-            "Genes.Quantity",
-            "Genes.Normalised",
-            "Genes.MaxLFQ",
-            "Genes.MaxLFQ.Unique",
-            "First.Protein.Description",
-        ]
 
         self._mbr: bool | None = None
 
@@ -71,7 +63,7 @@ class DiannReader(SearchResultReader):
             "Decoy": "decoy",
             f"{q_value_prefix}.Q.Value": "q_value",
             "RT": "rt",
-            "Precursor.Mass": "calcmass",
+            # "Precursor.Mass": "calcmass",
         }
 
         return rename_dict
@@ -110,6 +102,10 @@ class DiannReader(SearchResultReader):
         identification_df["peptide_length"] = identification_df["Stripped.Sequence"].apply(self._get_peptide_length)
         if not self.search_settings.has_decoy:
             identification_df["decoy"] = 0
+
+        for col in identification_df.columns:
+            if identification_df[col].dtype == "object":
+                self._cols_to_stringify.append(col)
 
         return identification_df
 

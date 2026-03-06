@@ -21,7 +21,9 @@ class SageReader(SearchResultReader):
     def __init__(
         self,
         identification_file: str | Path,
-        quantification_file: str | Path | None,
+        identification_df: pd.DataFrame | None = None,
+        quantification_file: str | Path | None = None,
+        quantification_df: pd.DataFrame | None = None,
     ) -> None:
         super().__init__()
         self.search_settings: SearchResultSettings = SearchResultSettings(
@@ -30,15 +32,24 @@ class SageReader(SearchResultReader):
             label=None,
             acquisition="dda",
             identification_file=identification_file,
+            identification_df=identification_df,
             identification_level="psm",
             quantification_file=quantification_file if quantification_file is not None else None,
+            quantification_df=quantification_df,
             quantification_level=None,
             ident_quant_merged=False,
             has_decoy=True,
         )
-        self._feature_rename_dict: dict = {"peptide_len": "peptide_length", "spectrum_q": "q_value"}
+        self._feature_rename_dict: dict = {
+            "peptide_len": "peptide_length",
+            "spectrum_q": "q_value",
+            "hyperscore": "score",
+        }
         self.used_feature_cols.extend(
             [
+                "expmass",
+                "calcmass",
+                "rt",
                 "missed_cleavages",
                 "semi_enzymatic",
                 "decoy",
@@ -94,9 +105,11 @@ class TmtSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
-        quantification_file: str | Path | None,
+        identification_df: pd.DataFrame | None = None,
+        quantification_file: str | Path | None = None,
+        quantification_df: pd.DataFrame | None = None,
     ) -> None:
-        super().__init__(identification_file, quantification_file)
+        super().__init__(identification_file, identification_df, quantification_file, quantification_df)
         self.search_settings.label = "tmt"
         self.search_settings.quantification_level = "psm"
 
@@ -130,9 +143,11 @@ class LfqSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
-        quantification_file: str | Path | None,
+        identification_df: pd.DataFrame | None = None,
+        quantification_file: str | Path | None = None,
+        quantification_df: pd.DataFrame | None = None,
     ) -> None:
-        super().__init__(identification_file, quantification_file)
+        super().__init__(identification_file, identification_df, quantification_file, quantification_df)
         self.search_settings.label = "label_free"
         self.used_feature_cols.extend(
             [

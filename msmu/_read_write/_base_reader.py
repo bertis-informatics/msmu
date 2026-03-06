@@ -3,12 +3,15 @@ from typing import Literal
 from dataclasses import dataclass
 import logging
 from typing import Callable
-import warnings
 
 import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
+
+# from pyteomics import mzid
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm.auto import tqdm
 
 from .._utils.peptide import (
     _calc_exp_mz,
@@ -19,40 +22,6 @@ from .._utils.peptide import (
 
 
 logger = logging.getLogger(__name__)
-
-
-def _read_file(path: str | Path | pd.DataFrame, **kwargs) -> pd.DataFrame:
-    """
-    Reads a file into a pandas DataFrame based on the file extension.
-
-    Parameters:
-        path: The file path to read.
-        **kwargs: Additional keyword arguments to pass to the pandas read function.
-
-    Returns:
-        A pandas DataFrame containing the data from the file.
-    """
-
-    if isinstance(path, pd.DataFrame):
-        return path
-
-    if isinstance(path, Path):
-        path = str(path)
-
-    suffix = path.rsplit(".", maxsplit=1)[-1]
-
-    if suffix in ["csv"]:
-        return pd.read_csv(path, **kwargs)
-    elif suffix in ["tsv", "tab"]:
-        return pd.read_csv(path, sep="\t", **kwargs)
-    elif suffix in ["xlsx", "xls"]:
-        return pd.read_excel(path, **kwargs)
-    elif suffix in ["parquet"]:
-        return pd.read_parquet(path, **kwargs)
-    elif suffix in ["json"]:
-        return pd.read_json(path, **kwargs)
-    else:
-        raise ValueError(f"Unknown file type: {suffix}")
 
 
 @dataclass
@@ -75,9 +44,11 @@ class SearchResultSettings:
     quantification: str | None
     label: Literal["tmt", "label_free"] | None
     acquisition: Literal["dda", "dia"] | None
-    identification_file: str | Path
+    identification_file: list[str | Path | None]
+    identification_df: pd.DataFrame
     identification_level: Literal["psm", "precursor", "peptide", "protein"]
-    quantification_file: str | None
+    quantification_file: list[str | Path | None]
+    quantification_df: pd.DataFrame | None
     quantification_level: Literal["psm", "precursor", "peptide", "protein"] | None
     ident_quant_merged: bool
     has_decoy: bool = True
@@ -101,6 +72,121 @@ class MuDataInput:
     decoy_df: pd.DataFrame | None
 
 
+class SearchResultDataFrameConverter:
+    """
+    Base class for converting search result DataFrames into a format suitable for MuData.
+
+    This class provides methods for normalizing identification and quantification DataFrames,
+    as well as building the final MuData object. Inherited classes should implement specific
+    logic for handling different search engine outputs.
+    """
+
+    def _convert_to_path(self, file_path: str | Path | pd.DataFrame) -> Path:
+        if isinstance(file_path, str):
+            return Path(file_path)
+        elif isinstance(file_path, Path) or isinstance(file_path, pd.DataFrame):
+            return file_path
+        else:
+            raise ValueError("file_path should be a string, Path object, or DataFrame.")
+
+    def _convert_to_string(self, file_path: Path | None) -> str | None:
+        if file_path is None:
+            return None
+        elif isinstance(file_path, Path):
+            return str(file_path)
+        else:
+            raise ValueError("file_path should be a Path object, or DataFrame.")
+
+    @staticmethod
+    def _read_file(file_path: str | Path) -> tuple[str | Path | None, pd.DataFrame]:
+        """
+        Reads a file and returns its path and content as a DataFrame.
+
+        Parameters:
+            file_path: The path to the file to be read.
+
+        Returns:
+            A tuple containing the file path and the content as a DataFrame.
+        """
+        if isinstance(file_path, pd.DataFrame):
+            return None, file_path
+        elif isinstance(file_path, str):
+            file_ = Path(file_path)
+        elif isinstance(file_path, Path):
+            file_ = file_path
+        else:
+            raise ValueError("file_path should be a string, Path object, or DataFrame.")
+
+        suffix = file_.suffix
+        if suffix in [".csv"]:
+            df = pd.read_csv(file_)
+        elif suffix in [".tsv", ".tab", ".psm"]:
+            df = pd.read_csv(file_, sep="\t")
+        elif suffix in [".xlsx", ".xls"]:
+            df = pd.read_excel(file_)
+        elif suffix in [".parquet"]:
+            df = pd.read_parquet(file_)
+        elif suffix in [".json"]:
+            df = pd.read_json(file_)
+        # elif suffix in [".mzid"]:
+        #     df = mzid.DataFrame(file_)
+        else:
+            raise ValueError(f"Unknown file type: {suffix}")
+
+        return file_, df
+
+    def _read_files(self, file_paths: list[Path | pd.DataFrame], max_workers: int) -> tuple[Path | None, pd.DataFrame]:
+        """
+        Reads a file and returns its path and content as a DataFrame.
+
+        Parameters:
+            file_path: The path to the file to be read.
+
+        Returns:
+            A tuple containing the file path and the content as a DataFrame.
+        """
+
+        results = []
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            future_file = {executor.submit(self.__class__._read_file, file): file for file in file_paths}
+            for future in tqdm(as_completed(future_file), total=len(file_paths), desc="Reading files"):
+                file = future_file[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    print(f"Error processing {file}: {e}")
+
+        merged_df = pd.concat([result[1] for result in results], ignore_index=True)
+        if len(results) >= 1:
+            merged_file_path = [result[0] for result in results if result[0] is not None]
+
+        elif len(results) == 0:
+            merged_file_path = None
+
+        return merged_file_path, merged_df
+
+    def convert(
+        self, file_paths: list[str | Path | pd.DataFrame], max_workers: int = 4
+    ) -> tuple[str | Path | None, pd.DataFrame]:
+        """
+        Converts a list of file paths or DataFrames into a single DataFrame.
+
+        Parameters:
+            file_paths: A list of file paths or DataFrames to be converted.
+            max_workers: The maximum number of worker processes to use for reading files.
+        Returns:
+            A tuple containing the merged file path (if applicable) and the merged DataFrame.
+        """
+        file_paths_ = [self._convert_to_path(fp) for fp in file_paths]
+        merged_file_path, merged_df = self._read_files(file_paths=file_paths_, max_workers=max_workers)
+        merged_file_path = [self._convert_to_string(fp) for fp in merged_file_path]
+
+        logger.info(f"Files imported and merged: {merged_df.shape}")
+
+        return merged_file_path, merged_df
+
+
 class SearchResultReader:
     """
     Base class for reading and processing search engine results.
@@ -116,9 +202,10 @@ class SearchResultReader:
             Reads and processes the search results into a MuData object.
     """
 
-    def __init__(self):
+    def __init__(self, _drop_search_result: bool = True) -> None:
         md.set_options(pull_on_update=False)
         self.search_settings: SearchResultSettings
+        self._drop_search_result = _drop_search_result
 
         self._calc_exp_mz: Callable = _calc_exp_mz
         self._count_missed_cleavages: Callable = _count_missed_cleavages
@@ -134,6 +221,8 @@ class SearchResultReader:
             "charge",
             "peptide_length",
         ]
+        if self.search_settings.has_decoy:
+            self.used_feature_cols.extend("decoy")
 
         self._cols_to_stringify: list[str] = []  # placeholder, will be defined in inherited class
 
@@ -150,7 +239,9 @@ class SearchResultReader:
         return Path(filename).name.rsplit(".", 1)[0]
 
     def _stringify_cols(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Convert specified columns to string type to avoid potential issues with mixed types
+        """
+        Convert mixed type of pd.Series to sting to store as h5mu.
+        """
         if len(self._cols_to_stringify) == 0:
             return df
 
@@ -172,32 +263,14 @@ class SearchResultReader:
             if not file_path.exists():
                 raise FileNotFoundError(f"{file_path} does not exist!")
 
-    def _read_identification_file(self) -> pd.DataFrame:
-        identification_df = _read_file(self.search_settings.identification_file)
-        identification_df = self._stringify_cols(identification_df)
-
-        return identification_df
-
     def _read_config_file(self):
         raise NotImplementedError("_read_config_file method needs to be implemented in inherited class.")
 
     def _import_search_results(self) -> dict:
         output_dict: dict = dict()
 
-        if self.search_settings.identification_file is not None:
-            identification_df = self._read_identification_file()
-            logger.info(f"Identification file loaded: {identification_df.shape}")
-
-            if self.search_settings.quantification_file is not None:
-                quantification_df = _read_file(self.search_settings.quantification_file)
-                logger.info(f"Quantification file loaded: {quantification_df.shape}")
-            else:
-                quantification_df = None
-        else:
-            raise ValueError("Identification file path is not provided.")
-
-        output_dict["identification"] = identification_df
-        output_dict["quantification"] = quantification_df
+        output_dict["identification"] = self.search_settings.identification_df
+        output_dict["quantification"] = self.search_settings.quantification_df
 
         return output_dict
 
@@ -322,12 +395,21 @@ class SearchResultReader:
 
     def _build_mudata(self, mudata_input: MuDataInput) -> md.MuData:
         adata_dict = {}
+
+        # Stringify object type columns to avoid potential issues with mixed types in MuData
+        for col in mudata_input.raw_identification_df.columns:
+            if mudata_input.raw_identification_df[col].dtype == "object":
+                self._cols_to_stringify.append(col)
+        mudata_input.raw_identification_df = self._stringify_cols(mudata_input.raw_identification_df)
+
         # both feature and quantification are available in the same level
         if self.search_settings.quantification_level == self.search_settings.identification_level:
             common_index = mudata_input.norm_identification_df.index.intersection(mudata_input.norm_quant_df.index)
             mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T)
             mod_adata.var = mudata_input.norm_identification_df.loc[common_index, :]
-            mod_adata.varm["search_result"] = mudata_input.raw_identification_df.loc[common_index, :]
+            if not self._drop_search_result:
+                mod_adata.varm["search_result"] = mudata_input.raw_identification_df.loc[common_index, :]
+
             mod_adata = self._update_default_adata_uns(mod_adata)
             if mudata_input.decoy_df is not None:
                 mod_adata.uns["decoy"] = mudata_input.decoy_df
@@ -345,7 +427,8 @@ class SearchResultReader:
             )
             mod_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
             mod_adata.var = mudata_input.norm_identification_df
-            mod_adata.varm["search_result"] = mudata_input.raw_identification_df
+            if not self._drop_search_result:
+                mod_adata.varm["search_result"] = mudata_input.raw_identification_df
             mod_adata = self._update_default_adata_uns(mod_adata)
             if mudata_input.decoy_df is not None:
                 mod_adata.uns["decoy"] = mudata_input.decoy_df
@@ -360,7 +443,8 @@ class SearchResultReader:
             )
             feat_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
             feat_adata.var = mudata_input.norm_identification_df
-            feat_adata.varm["search_result"] = mudata_input.raw_identification_df
+            if not self._drop_search_result:
+                feat_adata.varm["search_result"] = mudata_input.raw_identification_df
             feat_adata = self._update_default_adata_uns(feat_adata)
             feat_adata.uns["decoy"] = mudata_input.decoy_df
 

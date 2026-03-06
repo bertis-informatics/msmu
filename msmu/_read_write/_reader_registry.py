@@ -1,12 +1,23 @@
 from pathlib import Path
 from typing import Any, Literal
 import mudata as md
+import logging
 
+from ._base_reader import SearchResultDataFrameConverter
 from ._diann import DiannReader, DiannProteinGroupReader
 from ._sage import LfqSageReader, TmtSageReader
 from ._maxquant import MaxTmtReader, MaxLfqReader, MaxDiaReader
 from ._fragpipe import TmtFragPipeReader, LfqFragPipeReader
-from .._utils._provenance import append_cmd_log, capture_provenance_output, get_bound_call_kwargs, normalize_cmd_for_runtime
+from ._cptac import TmtCPTACReader, LfqCPTACReader, CPTACDataFrameConverter
+
+from .._utils._provenance import (
+    append_cmd_log,
+    capture_provenance_output,
+    get_bound_call_kwargs,
+    normalize_cmd_for_runtime,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def read_sage(
@@ -18,22 +29,35 @@ def read_sage(
     Reads Sage output and returns a MuData object.
 
     Parameters:
-        identificaton_file: Path to the results.sage.tsv.
+        identification_file: Path to the results.sage.tsv.
         label: Label for the Sage output ('tmt' or 'label_free').
         quantification_file: Whether to include quantification data. Default is None.
 
     Returns:
         A MuData object containing the Sage data.
     """
+
+    logger.info(f"Reading SAGE Identification data: {len(identification_file)} file(s)")
+    identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_file)
+    if quantification_file is not None:
+        logger.info(f"Reading SAGE Quantification data: {len(quantification_file)} file(s)")
+        quantification_file_, quantification_df_ = SearchResultDataFrameConverter().convert(quantification_file)
+    else:
+        quantification_file_, quantification_df_ = None, None
+
     if label == "tmt":
         reader = TmtSageReader(
-            identification_file=identification_file,
-            quantification_file=quantification_file,
+            identification_file=identification_file_,
+            identification_df=identification_df_,
+            quantification_file=quantification_file_,
+            quantification_df=quantification_df_,
         )
     elif label == "label_free":
         reader = LfqSageReader(
-            identification_file=identification_file,
-            quantification_file=quantification_file,
+            identification_file=identification_file_,
+            identification_df=identification_df_,
+            quantification_file=quantification_file_,
+            quantification_df=quantification_df_,
         )
     else:
         raise ValueError("Argument label should be one of 'tmt', 'label_free'.")
@@ -143,13 +167,26 @@ class _MaxQuantFacade:
         Returns:
             A MuData object containing the MaxQuant data.
         """
+        identification_files = []
+        if isinstance(identification_file, list):
+            identification_files = identification_file
+        elif isinstance(identification_file, (str, Path)):
+            identification_files = [identification_file]
+        else:
+            raise ValueError("Argument identification_file should be a string, Path, or list of strings/Paths.")
+
+        logger.info(f"Reading MaxQuant data from {len(identification_files)} file(s)")
+        identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
+
         if label == "tmt" and acquisition == "dda":
             reader = MaxTmtReader(
-                identification_file=identification_file,
+                identification_file=identification_file_,
+                identification_df=identification_df_,
             )
         elif label == "label_free" and acquisition == "dda":
             reader = MaxLfqReader(
-                identification_file=identification_file,
+                identification_file=identification_file_,
+                identification_df=identification_df_,
                 _quantification=_quantification,
             )
         elif label == "label_free" and acquisition == "dia":
@@ -206,15 +243,51 @@ class FragPipeFacade:
 
     def __call__(
         self,
-        identification_file: str | Path,
+        identification_file: str | Path | list,
         label: Literal["tmt", "label_free"],
         acquisition: Literal["dda", "dia"],
         quantification_file: str | Path | None = None,
     ) -> md.MuData:
+
+        identification_files = []
+        if isinstance(identification_file, list):
+            identification_files = identification_file
+        elif isinstance(identification_file, (str, Path)):
+            identification_files = [identification_file]
+        else:
+            raise ValueError("Argument identification_file should be a string, Path, or list of strings/Paths.")
+
+        if quantification_file is not None:
+            quantification_files = []
+            if isinstance(quantification_file, list):
+                quantification_files = quantification_file
+            elif isinstance(quantification_file, (str, Path)):
+                quantification_files = [quantification_file]
+            else:
+                raise ValueError("Argument quantification_file should be a string, Path, or list of strings/Paths.")
+
+        logger.info(f"Reading FragPipe data from {len(identification_files)} identification file(s)")
+        identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
+
         if label == "tmt" and acquisition == "dda":
-            reader = TmtFragPipeReader(identification_file=identification_file, quantification_file=quantification_file)
+            reader = TmtFragPipeReader(identification_file=identification_file_, identification_df=identification_df_)
         elif label == "label_free" and acquisition == "dda":
-            reader = LfqFragPipeReader(identification_file=identification_file, quantification_file=quantification_file)
+            if quantification_file is not None:
+                logger.info(
+                    f"Reading FragPipe quantification data from {len(quantification_files)} quantification file(s)"
+                )
+                quantification_file_, quantification_df_ = SearchResultDataFrameConverter().convert(
+                    quantification_files
+                )
+            else:
+                quantification_file_, quantification_df_ = None, None
+
+            reader = LfqFragPipeReader(
+                identification_file=identification_file_,
+                identification_df=identification_df_,
+                quantification_file=quantification_file_,
+                quantification_df=quantification_df_,
+            )
         else:
             raise ValueError(
                 "Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'."

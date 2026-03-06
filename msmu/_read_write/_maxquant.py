@@ -13,10 +13,7 @@ class MaxQuantReader(SearchResultReader):
         label (Literal["tmt", "label_free"]): Label for the MaxQuant output ('tmt' or 'label_free').
     """
 
-    def __init__(
-        self,
-        identification_file: str | Path,
-    ) -> None:
+    def __init__(self, identification_file: str | Path, identification_df: pd.DataFrame) -> None:
         super().__init__()
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="maxquant",
@@ -24,8 +21,10 @@ class MaxQuantReader(SearchResultReader):
             label=None,
             acquisition=None,
             identification_file=identification_file,
+            identification_df=identification_df,
             identification_level="psm",
             quantification_file=None,
+            quantification_df=None,
             quantification_level="psm",
             ident_quant_merged=True,
             has_decoy=True,
@@ -33,6 +32,7 @@ class MaxQuantReader(SearchResultReader):
 
         self.used_feature_cols.extend(
             [
+                "rt",
                 "missed_cleavages",
                 "decoy",
                 "contaminant",
@@ -52,15 +52,6 @@ class MaxQuantReader(SearchResultReader):
             "hyperscore": "score",
         }
 
-        self._cols_to_stringify: list[str] = [
-            "Proteins",
-            "Gene names",
-            "Protein names",
-            "Reverse",
-            "Potential contaminant",
-            "Taxonomy names",
-        ]
-
     def _read_config_file(self):
         config = pd.read_csv(self.search_settings.config_path, sep="\t")
         config["Value"] = config["Value"].astype(str)
@@ -70,14 +61,6 @@ class MaxQuantReader(SearchResultReader):
         tmp_sep = self._get_separator(self.search_settings.identification_path)
         identification_df = pd.read_csv(self.search_settings.identification_path, sep=tmp_sep)
         identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
-
-        identification_df.columns = [x.replace("/", "") for x in identification_df.columns]
-        prob_cols = [x for x in identification_df.columns if x.endswith("Probabilities")]
-        score_diff_cols = [x for x in identification_df.columns if x.endswith("Score Diffs")]
-        site_id_cols = [x for x in identification_df.columns if x.endswith("site IDs")]
-        self._cols_to_stringify = self._cols_to_stringify + prob_cols + score_diff_cols + site_id_cols
-
-        identification_df = self._stringify_cols(identification_df)
 
         return identification_df
 
@@ -91,8 +74,8 @@ class MaxQuantReader(SearchResultReader):
         identification_df.loc[identification_df["decoy"] == 1, "proteins"] = identification_df.loc[
             identification_df["decoy"] == 1, "Leading proteins"
         ]
-        identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("REV__", "rev_"))
-        identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("CON__", "contam_"))
+        # identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("REV__", "rev_"))
+        # identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("CON__", "contam_"))
 
         return identification_df
 
@@ -100,13 +83,16 @@ class MaxQuantReader(SearchResultReader):
 class MaxTmtReader(MaxQuantReader):
     def __init__(
         self,
-        search_dir: str | Path,
+        identification_file: str | Path,
+        identification_df: pd.DataFrame,
     ) -> None:
-        super().__init__(search_dir)
+        super().__init__(identification_file, identification_df)
         self.search_settings.label = "tmt"
         self.search_settings.acquisition = "dda"
 
-    def _split_merged_feature_quantification(self, feature_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def _split_merged_identification_quantification(
+        self, feature_df: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         split_identification_df = feature_df.copy()
 
         quant_cols = [x for x in feature_df.columns if x.startswith("Reporter intensity corrected")]
@@ -127,13 +113,17 @@ class MaxTmtReader(MaxQuantReader):
 
 
 class MaxLfqReader(MaxQuantReader):
-    def __init__(self, identification_file: str | Path, _quantification: bool = True) -> None:
-        super().__init__(identification_file=identification_file)
+    def __init__(
+        self, identification_file: str | Path, identification_df: pd.DataFrame, _quantification: bool = True
+    ) -> None:
+        super().__init__(identification_file=identification_file, identification_df=identification_df)
         self.search_settings.label = "label_free"
         self.search_settings.quantification_level = "peptide" if _quantification else None
         self.search_settings.acquisition = "dda"
 
     def _make_peptide_quantification(self, split_identification_df: pd.DataFrame) -> pd.DataFrame:
+        # make quantification dataframe from identification dataframe by grouping by peptide
+        # (summing intensities of PSMs with the same peptide sequence)
         pep_quant_df = split_identification_df[["filename", "peptide", "Intensity"]].copy()
         pep_quant_df = pep_quant_df.pivot_table(index="peptide", columns="filename", values="Intensity", aggfunc="sum")
         pep_quant_df = pep_quant_df.rename_axis(index=None, columns=None)
@@ -153,7 +143,7 @@ class MaxLfqReader(MaxQuantReader):
 
 
 class MaxDiaReader(MaxQuantReader):
-    def __init__(self, search_dir):
-        super().__init__(search_dir)
+    def __init__(self, identification_file: str | Path, identification_df: pd.DataFrame):
+        super().__init__(identification_file, identification_df)
         self.search_settings.label = "label_free"
         self.search_settings.acquisition = "dia"

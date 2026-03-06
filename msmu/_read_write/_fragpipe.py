@@ -9,7 +9,9 @@ class FragPipeReader(SearchResultReader):
     def __init__(
         self,
         identification_file: str | Path,
-        quantification_file: str | Path | None,
+        identification_df: pd.DataFrame,
+        quantification_file: str | Path | None = None,
+        quantification_df: pd.DataFrame | None = None,
         label: Literal["tmt", "label_free"] | None = None,
     ) -> None:
         super().__init__()
@@ -19,8 +21,10 @@ class FragPipeReader(SearchResultReader):
             label=label,
             acquisition="dda",
             identification_file=identification_file,
+            identification_df=identification_df,
             identification_level="psm",
             quantification_file=quantification_file if quantification_file is not None else None,
+            quantification_df=quantification_df if quantification_df is not None else None,
             quantification_level=None,
             ident_quant_merged=True,
         )
@@ -30,6 +34,8 @@ class FragPipeReader(SearchResultReader):
             "Number of Missed Cleavages": "missed_cleavages",
             "Peptide": "stripped_peptide",
             "Calculated Peptide Mass": "calcmass",
+            "observed mass": "expmass",
+            "Hyperscore": "score",
         }
 
         self.desc_cols = [
@@ -85,8 +91,12 @@ class FragPipeReader(SearchResultReader):
 
         self.used_feature_cols.extend(
             [
+                "rt",
+                "calcmass",
+                "expmass",
                 "missed_cleavages",
                 "decoy",
+                "score",
             ]
         )
 
@@ -125,8 +135,8 @@ class FragPipeReader(SearchResultReader):
 
 
 class TmtFragPipeReader(FragPipeReader):
-    def __init__(self, identification_file: str | Path) -> None:
-        super().__init__(identification_file=identification_file, label="tmt")
+    def __init__(self, identification_file: str | Path, identification_df: pd.DataFrame) -> None:
+        super().__init__(identification_file=identification_file, identification_df=identification_df, label="tmt")
         self.search_settings.quantification_level = "psm"
 
     def _split_merged_identification_quantification(
@@ -142,8 +152,19 @@ class TmtFragPipeReader(FragPipeReader):
 
 
 class LfqFragPipeReader(FragPipeReader):
-    def __init__(self, identification_file: str | Path, quantification_file: str | Path | None) -> None:
-        super().__init__(identification_file, quantification_file)
+    def __init__(
+        self,
+        identification_file: str | Path,
+        identification_df: pd.DataFrame,
+        quantification_file: str | Path | None = None,
+        quantification_df: pd.DataFrame | None = None,
+    ) -> None:
+        super().__init__(
+            identification_file=identification_file,
+            identification_df=identification_df,
+            quantification_file=quantification_file,
+            quantification_df=quantification_df,
+        )
         self.search_settings.label = "label_free"
         self.search_settings.ident_quant_merged = False
 
