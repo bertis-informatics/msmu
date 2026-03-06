@@ -54,6 +54,7 @@ class SageReader(SearchResultReader):
                 "semi_enzymatic",
                 "contaminant",
                 "PEP",
+                "score",
                 "q_value",
             ]
         )
