@@ -36,14 +36,33 @@ def read_sage(
     Returns:
         A MuData object containing the Sage data.
     """
-
-    logger.info(f"Reading SAGE Identification data: {len(identification_file)} file(s)")
-    identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_file)
-    if quantification_file is not None:
-        logger.info(f"Reading SAGE Quantification data: {len(quantification_file)} file(s)")
-        quantification_file_, quantification_df_ = SearchResultDataFrameConverter().convert(quantification_file)
+    identification_files = []
+    if isinstance(identification_file, list):
+        identification_files = identification_file
+    elif isinstance(identification_file, (str, Path)):
+        identification_files = [identification_file]
     else:
+        raise ValueError("Argument identification_file should be a string, Path, or list of strings/Paths.")
+
+    if quantification_file is not None:
+        if isinstance(quantification_file, list):
+            quantification_files = quantification_file
+        elif isinstance(quantification_file, (str, Path)):
+            quantification_files = [quantification_file]
+        else:
+            raise ValueError("Argument quantification_file should be a string, Path, or list of strings/Paths.")
+    else:
+        if label == "tmt":
+            logger.error("Quantification file is required for TMT-labeled Sage data.")
+            raise ValueError("Quantification file is required for TMT-labeled Sage data.")
+
         quantification_file_, quantification_df_ = None, None
+
+    logger.info(f"Reading SAGE Identification data: {len(identification_files)} file(s)")
+    identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
+
+    logger.info(f"Reading SAGE Quantification data: {len(quantification_files)} file(s)")
+    quantification_file_, quantification_df_ = SearchResultDataFrameConverter().convert(quantification_files)
 
     if label == "tmt":
         reader = TmtSageReader(

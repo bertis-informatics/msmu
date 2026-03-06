@@ -52,7 +52,6 @@ class SageReader(SearchResultReader):
                 "rt",
                 "missed_cleavages",
                 "semi_enzymatic",
-                "decoy",
                 "contaminant",
                 "PEP",
                 "q_value",

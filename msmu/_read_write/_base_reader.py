@@ -221,8 +221,6 @@ class SearchResultReader:
             "charge",
             "peptide_length",
         ]
-        if self.search_settings.has_decoy:
-            self.used_feature_cols.extend("decoy")
 
         self._cols_to_stringify: list[str] = []  # placeholder, will be defined in inherited class
 
@@ -318,6 +316,7 @@ class SearchResultReader:
     def _make_mudata_input(self) -> MuDataInput:
         """
         Creates a MuDataInput object containing raw (.varm)and normalized psm (.var) and quantification (.X) DataFrames.
+
         Returns:
             MuDataInput: A MuDataInput object with raw and normalized data.
         """
@@ -334,15 +333,17 @@ class SearchResultReader:
             )
         else:
             identification_df = norm_identification_df.copy()
-            quantification_df = (
-                raw_dict["quantification"].copy() if self.search_settings.quantification is not None else None
-            )
+            quantification_df = raw_dict["quantification"] if self.search_settings.quantification is not None else None
+
+        if self.search_settings.has_decoy:
+            self.used_feature_cols.extend(["decoy"])
 
         norm_identification_df = norm_identification_df.loc[:, self.used_feature_cols]
+
         if self.search_settings.has_decoy:
             if "decoy" not in norm_identification_df.columns:
                 logger.error("Decoy column is expected but not found in the identification DataFrame.")
-                raise
+                raise ValueError("Decoy column is expected but not found in the identification DataFrame.")
             else:
                 target_df, decoy_df = self._separate_decoy_df(norm_identification_df)
                 logger.info(f"Decoy entries separated: {decoy_df.shape}")
@@ -369,9 +370,7 @@ class SearchResultReader:
             raise ValueError("Decoy column not found in identification DataFrame.")
 
         decoy_df = norm_identification_df[norm_identification_df["decoy"] == 1].copy()
-
         target_df = norm_identification_df[norm_identification_df["decoy"] == 0].copy()
-        target_df = target_df.drop(columns=["decoy"])
 
         return target_df, decoy_df
 

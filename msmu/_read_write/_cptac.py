@@ -52,7 +52,7 @@ class CPTACReader(SearchResultReader):
             has_decoy=True,
         )
         self._feature_rename_dict: dict = {
-            "spectrum_q": "q_value",
+            "MS-GF:QValue": "q_value",
             "MS-GF:EValue": "PEP",
             "retention time": "rt",
             "chargeState": "charge",
@@ -65,7 +65,6 @@ class CPTACReader(SearchResultReader):
             [
                 "calcmass",
                 "expmass",
-                "decoy",
                 "PEP",
                 "rt",
                 "score",
