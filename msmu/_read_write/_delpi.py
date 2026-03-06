@@ -48,12 +48,7 @@ class DelpiReader(SearchResultReader):
             "sequence_length": "peptide_length",
         }
 
-        self.used_feature_cols.extend(
-            [
-                "PEP",
-                "q_value",
-            ]
-        )
+        self.used_feature_cols.extend(["PEP", "q_value", "score"])
 
         # self.used_feature_cols.remove("scan_num")
 
