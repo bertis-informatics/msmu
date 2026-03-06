@@ -8,6 +8,7 @@ from ._diann import DiannReader, DiannProteinGroupReader
 from ._sage import LfqSageReader, TmtSageReader
 from ._maxquant import MaxTmtReader, MaxLfqReader, MaxDiaReader
 from ._fragpipe import TmtFragPipeReader, LfqFragPipeReader
+from ._delpi import DelpiReader
 from ._cptac import TmtCPTACReader, LfqCPTACReader, CPTACDataFrameConverter
 
 from .._utils._provenance import (
@@ -391,6 +392,33 @@ def read_cptac(
     elif label == "label_free":
         raise NotImplementedError("LFQ CPTAC reader is not implemented yet.")
         # reader = LfqCPTACReader(identification_file=identification_file_, identification_df=identification_df_)
+
+    mdata: md.MuData = reader.read()
+
+    return mdata
+
+
+def read_delpi(identification_file: str | Path) -> md.MuData:
+    """
+    Reads a DELPI output file and returns a MuData object.
+
+    Parameters:
+        identification_file: Path to the DELPI output file.
+
+    Returns:
+        A MuData object.
+    """
+    identification_files = []
+    if isinstance(identification_file, list):
+        identification_files = identification_file
+    elif isinstance(identification_file, (str, Path)):
+        identification_files = [identification_file]
+    else:
+        raise ValueError("Argument identification_file should be a string, Path, or list of strings/Paths.")
+
+    identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
+
+    reader = DelpiReader(identification_file=identification_file_, identification_df=identification_df_)
 
     mdata: md.MuData = reader.read()
 
