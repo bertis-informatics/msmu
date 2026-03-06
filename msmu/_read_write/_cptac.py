@@ -69,6 +69,7 @@ class CPTACReader(SearchResultReader):
                 "rt",
                 "score",
                 "q_value",
+                "purity",
             ]
         )
 
@@ -117,6 +118,9 @@ class CPTACReader(SearchResultReader):
         identification_df["expmass"] = (
             identification_df["experimentalMassToCharge"] * identification_df["chargeState"]
             - identification_df["chargeState"] * 1.007276466621
+        )
+        identification_df["purity"] = (
+            identification_df["CPTAC-CDAP:PrecursorPurity"].str.split(",").str[0].astype(float) / 100
         )
 
         return identification_df
