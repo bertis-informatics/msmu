@@ -118,7 +118,8 @@ class PlotData:
             obs_df[obs_column] = pd.Categorical(obs_df[obs_column], categories=obs_df[obs_column].unique())
 
         obs_df[obs_column] = obs_df[obs_column].cat.remove_unused_categories()
-        obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(obs_df[obs_column].values.tolist())
+        ordered_categories = pd.Index(pd.unique(obs_df[obs_column].dropna()))
+        obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(ordered_categories)
 
         if groupby and groupby in obs_df.columns and groupby != obs_column:
             if not isinstance(obs_df[groupby].dtype, pd.CategoricalDtype):

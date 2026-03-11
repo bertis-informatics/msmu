@@ -79,7 +79,7 @@ def add_filter(
     if "filter" not in mdata[modality].uns_keys():
         mdata[modality].uns["filter"] = [filter_name]
     else:
-        mdata[modality].uns["filter"].append(filter_name)
+        mdata[modality].uns["filter"] = list(set([*mdata[modality].uns["filter"]] + [filter_name]))
 
     # add filter for decoy (only supported for variable-level filters)
     if store_axis == "varm" and mstatus.__getattribute__(modality).has_decoy:

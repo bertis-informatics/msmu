@@ -9,6 +9,7 @@ import logging
 import os
 import platform
 import sys
+from copy import deepcopy
 from importlib.metadata import PackageNotFoundError, version
 
 import anndata as ad
@@ -19,7 +20,7 @@ import pandas as pd
 
 MAX_SEQ_ITEMS = 20
 MAX_STRING_LEN = 500
-MAX_DEPTH = 5
+MAX_DEPTH = 10
 
 
 def _truncate_string(value: str, max_len: int = MAX_STRING_LEN) -> str:
@@ -45,7 +46,7 @@ def get_bound_call_kwargs(func, *args, **kwargs) -> dict[str, object]:
     return {str(k): v for k, v in bound.arguments.items() if k not in {"self", "mdata"}}
 
 
-def serialize(obj, *, depth: int = 0):
+def serialize(obj, *, depth: int = 0) -> object:
     if depth >= MAX_DEPTH:
         return {"__type__": "truncated", "reason": "max_depth"}
 
@@ -64,7 +65,7 @@ def serialize(obj, *, depth: int = 0):
         return obj.isoformat()
 
     if isinstance(obj, Mapping):
-        out: dict[str, object] = {}
+        out = {}
         for i, (k, v) in enumerate(obj.items()):
             if i >= MAX_SEQ_ITEMS:
                 out["__truncated__"] = True
@@ -169,7 +170,9 @@ def _next_cmd_key(cmd_logs: Mapping[str, object]) -> str:
 
 def _coerce_cmd_entry_to_dict(entry) -> dict:
     if isinstance(entry, dict):
-        return serialize(entry)
+        # Keep runtime command entries stable across repeated normalization.
+        # Re-serializing already-serialized dicts can introduce nested truncation.
+        return deepcopy(entry)
     if isinstance(entry, str):
         try:
             parsed = json.loads(entry)
