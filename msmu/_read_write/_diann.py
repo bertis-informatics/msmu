@@ -29,6 +29,7 @@ class DiannReader(SearchResultReader):
             identification_df=identification_df,
             identification_level="precursor",
             quantification_file=None,
+            quantification_df=None,
             quantification_level="precursor",
             ident_quant_merged=True,
             has_decoy=False,

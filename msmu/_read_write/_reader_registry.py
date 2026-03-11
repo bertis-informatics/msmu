@@ -111,12 +111,21 @@ class _ReadDiannFacade:
 
         Parameters:
             identification_file: Path to the DIA-NN output directory.
-
         Returns:
             A MuData object containing the DIA-NN data at precursor level.
         """
+        identification_files = []
+        if isinstance(identification_file, list):
+            identification_files = identification_file
+        elif isinstance(identification_file, (str, Path)):
+            identification_files = [identification_file]
+        else:
+            raise ValueError("Argument identification_file should be a string, Path, or list of strings/Paths.")
+
+        identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
+
         with capture_provenance_output() as stdout_buffer:
-            mdata = DiannReader(identification_file=identification_file).read()
+            mdata = DiannReader(identification_file=identification_file_, identification_df=identification_df_).read()
         return append_cmd_log(
             mdata,
             function="read_diann",
@@ -124,7 +133,7 @@ class _ReadDiannFacade:
             stdout=stdout_buffer.getvalue().strip() or None,
         )
 
-    def from_pg(self, identification_file: str | Path) -> md.MuData:
+    def from_pg(self, identification_file: str | Path, identification_df=None) -> md.MuData:
         """
         Reads DIA-NN protein group output and returns a MuData object.
 
