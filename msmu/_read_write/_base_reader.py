@@ -83,7 +83,10 @@ class SearchResultDataFrameConverter:
 
     def _convert_to_path(self, file_path: str | Path | pd.DataFrame) -> Path:
         if isinstance(file_path, str):
-            return Path(file_path)
+            if file_path.startswith(("http://", "https://", "ftp://")):
+                return file_path
+            else:
+                return Path(file_path)
         elif isinstance(file_path, Path) or isinstance(file_path, pd.DataFrame):
             return file_path
         else:
@@ -92,6 +95,8 @@ class SearchResultDataFrameConverter:
     def _convert_to_string(self, file_path: Path | None) -> str | None:
         if file_path is None:
             return None
+        elif isinstance(file_path, str):
+            return file_path
         elif isinstance(file_path, Path):
             return str(file_path)
         else:
@@ -108,32 +113,29 @@ class SearchResultDataFrameConverter:
         Returns:
             A tuple containing the file path and the content as a DataFrame.
         """
+
         if isinstance(file_path, pd.DataFrame):
             return None, file_path
-        elif isinstance(file_path, str):
-            file_ = Path(file_path)
-        elif isinstance(file_path, Path):
-            file_ = file_path
-        else:
-            raise ValueError("file_path should be a string, Path object, or DataFrame.")
 
-        suffix = file_.suffix
+        tmp_file_path = Path(file_path)
+
+        suffix = tmp_file_path.suffix
         if suffix in [".csv"]:
-            df = pd.read_csv(file_)
+            df = pd.read_csv(file_path)
         elif suffix in [".tsv", ".tab", ".psm"]:
-            df = pd.read_csv(file_, sep="\t")
+            df = pd.read_csv(file_path, sep="\t")
         elif suffix in [".xlsx", ".xls"]:
-            df = pd.read_excel(file_)
+            df = pd.read_excel(file_path)
         elif suffix in [".parquet"]:
-            df = pd.read_parquet(file_)
+            df = pd.read_parquet(file_path)
         elif suffix in [".json"]:
-            df = pd.read_json(file_)
+            df = pd.read_json(file_path)
         # elif suffix in [".mzid"]:
-        #     df = mzid.DataFrame(file_)
+        #     df = mzid.DataFrame(file_path)
         else:
             raise ValueError(f"Unknown file type: {suffix}")
 
-        return file_, df
+        return file_path, df
 
     def _read_files(self, file_paths: list[Path | pd.DataFrame], max_workers: int) -> tuple[Path | None, pd.DataFrame]:
         """
