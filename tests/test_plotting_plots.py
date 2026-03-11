@@ -16,6 +16,12 @@ def test_plot_id_uses_precursor_label(mdata):
     assert all(trace.type == "bar" for trace in fig.data)
 
 
+def test_plot_id_supports_duplicate_default_obs_column(mdata):
+    fig = plot_id(mdata, modality="protein", groupby="group")
+    assert len(fig.data) == 2
+    assert all(trace.type == "bar" for trace in fig.data)
+
+
 def test_plot_intensity_hist_builds_traces(mdata):
     fig = plot_intensity(mdata, modality="psm", groupby="group", ptype="hist", obs_column="sample", bins=2)
     assert len(fig.data) == 2

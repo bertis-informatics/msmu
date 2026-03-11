@@ -10,8 +10,8 @@ from msmu._utils.peptide import (
     _get_peptide_length,
     _make_stripped_peptide,
 )
-from msmu._utils import append_cmd_log, add_quant, get_label, get_modality_dict, uns_logger
-from msmu._utils._provenance import serialize
+from msmu._utils import add_quant, get_label, get_modality_dict
+from msmu._utils._provenance import append_cmd_log, serialize, uns_logger
 
 
 def test_serialize_nested_objects():
@@ -76,6 +76,24 @@ def test_uns_logger_captures_logging(labeled_mdata):
     entry = out.uns["_cmd"]["0"]
     assert "stdout" in entry
     assert "INFO - hello from logger" in entry["stdout"]
+
+
+def test_uns_logger_keeps_existing_dimensions_intact_across_multiple_calls(labeled_mdata):
+    @uns_logger
+    def dummy(mdata: MuData):
+        return mdata
+
+    mdata = labeled_mdata.copy()
+    mdata["psm"].layers["raw"] = mdata["psm"].X.copy()
+
+    out = dummy(mdata)
+    out = dummy(out)
+
+    first_entry = out.uns["_cmd"]["0"]
+    second_entry = out.uns["_cmd"]["1"]
+
+    assert first_entry["input_dimensions"]["modalities"]["psm"]["layers"] == ["raw"]
+    assert second_entry["input_dimensions"]["modalities"]["psm"]["layers"] == ["raw"]
 
 
 def test_append_cmd_log_rejects_invalid_cmd_type(labeled_mdata):

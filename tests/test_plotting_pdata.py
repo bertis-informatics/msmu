@@ -11,6 +11,13 @@ def test_get_obs_casts_groupby_categorical(mdata):
     assert list(obs_df["group"].cat.categories) == ["A", "B"]
 
 
+def test_get_obs_handles_duplicate_obs_categories(mdata):
+    pdata = PlotData(mdata, "protein", obs_column="group")
+    obs_df = pdata._get_obs("group")
+    assert isinstance(obs_df["group"].dtype, pd.CategoricalDtype)
+    assert list(obs_df["group"].cat.categories) == ["A", "B"]
+
+
 def test_get_bin_info_raises_on_empty(mdata):
     pdata = PlotData(mdata, "psm", obs_column="sample")
     empty = pd.DataFrame()
