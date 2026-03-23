@@ -1,8 +1,20 @@
 from pathlib import Path
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings
+from ._base_reader import SearchResultReader, SearchResultSettings, SearchResultDataFrameConverter
 from . import label_info
+
+
+class MaxQuantDataFrameConverter(SearchResultDataFrameConverter):
+    def __init__(self):
+        super().__init__()
+
+    @staticmethod
+    def _read_file(file_path):
+        file_path, identification_df = SearchResultDataFrameConverter._read_file(file_path)
+        identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
+
+        return file_path, identification_df
 
 
 class MaxQuantReader(SearchResultReader):
@@ -34,7 +46,6 @@ class MaxQuantReader(SearchResultReader):
             [
                 "rt",
                 "missed_cleavages",
-                "decoy",
                 "contaminant",
             ]
         )
@@ -50,18 +61,6 @@ class MaxQuantReader(SearchResultReader):
             "Retention time": "rt",
         }
 
-    def _read_config_file(self):
-        config = pd.read_csv(self.search_settings.config_path, sep="\t")
-        config["Value"] = config["Value"].astype(str)
-        return config
-
-    def _read_identification_file(self) -> pd.DataFrame:
-        tmp_sep = self._get_separator(self.search_settings.identification_path)
-        identification_df = pd.read_csv(self.search_settings.identification_path, sep=tmp_sep)
-        identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
-
-        return identification_df
-
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
         identification_df["decoy"] = identification_df["Reverse"].apply(lambda x: 1 if x == "+" else 0)
         identification_df["contaminant"] = identification_df["Potential contaminant"].apply(
@@ -74,6 +73,8 @@ class MaxQuantReader(SearchResultReader):
         ]
         # identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("REV__", "rev_"))
         # identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("CON__", "contam_"))
+
+        # identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
 
         return identification_df
 

@@ -6,7 +6,7 @@ import logging
 from ._base_reader import SearchResultDataFrameConverter
 from ._diann import DiannReader, DiannProteinGroupReader
 from ._sage import LfqSageReader, TmtSageReader
-from ._maxquant import MaxTmtReader, MaxLfqReader, MaxDiaReader
+from ._maxquant import MaxTmtReader, MaxLfqReader, MaxDiaReader, MaxQuantDataFrameConverter
 from ._fragpipe import TmtFragPipeReader, LfqFragPipeReader
 from ._delpi import DelpiReader
 from ._cptac import TmtCPTACReader, LfqCPTACReader, CPTACDataFrameConverter
@@ -205,7 +205,8 @@ class _MaxQuantFacade:
             raise ValueError("Argument identification_file should be a string, Path, or list of strings/Paths.")
 
         logger.info(f"Reading MaxQuant data from {len(identification_files)} file(s)")
-        identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
+        # identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
+        identification_file_, identification_df_ = MaxQuantDataFrameConverter().convert(identification_files)
 
         if label == "tmt" and acquisition == "dda":
             reader = MaxTmtReader(

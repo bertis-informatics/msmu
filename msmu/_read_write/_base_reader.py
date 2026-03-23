@@ -149,16 +149,20 @@ class SearchResultDataFrameConverter:
         """
 
         results = []
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            future_file = {executor.submit(self.__class__._read_file, file): file for file in file_paths}
-            for future in tqdm(as_completed(future_file), total=len(file_paths), desc="Reading files"):
-                file = future_file[future]
-                try:
-                    result = future.result()
-                    results.append(result)
-                except Exception as e:
-                    print(f"Error processing {file}: {e}")
-                    raise e
+        if len(file_paths) == 1:
+            # Fast path: avoid ProcessPool startup/pickling overhead for single input.
+            results.append(self.__class__._read_file(file_paths[0]))
+        else:
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                future_file = {executor.submit(self.__class__._read_file, file): file for file in file_paths}
+                for future in tqdm(as_completed(future_file), total=len(file_paths), desc="Reading files"):
+                    file = future_file[future]
+                    try:
+                        result = future.result()
+                        results.append(result)
+                    except Exception as e:
+                        print(f"Error processing {file}: {e}")
+                        raise e
 
         merged_df = pd.concat([result[1] for result in results], ignore_index=True)
         if len(results) >= 1:
@@ -205,7 +209,7 @@ class SearchResultReader:
             Reads and processes the search results into a MuData object.
     """
 
-    def __init__(self, _drop_search_result: bool = True) -> None:
+    def __init__(self, _drop_search_result: bool = False) -> None:
         md.set_options(pull_on_update=False)
         self.search_settings: SearchResultSettings
         self._drop_search_result = _drop_search_result
@@ -324,7 +328,8 @@ class SearchResultReader:
             MuDataInput: A MuDataInput object with raw and normalized data.
         """
         raw_dict: dict = self._import_search_results()
-        raw_identification_df: pd.DataFrame = raw_dict["identification"].copy()
+        # Avoid an eager full copy; normalization already copies internally.
+        raw_identification_df: pd.DataFrame = raw_dict["identification"]
 
         norm_identification_df: pd.DataFrame = self._normalise_identification_df(raw_identification_df)
         if self.search_settings.ident_quant_merged:
@@ -338,10 +343,12 @@ class SearchResultReader:
             identification_df = norm_identification_df.copy()
             quantification_df = raw_dict["quantification"] if self.search_settings.quantification is not None else None
 
-        if self.search_settings.has_decoy:
-            self.used_feature_cols.extend(["decoy"])
+        if self.search_settings.has_decoy and "decoy" not in self.used_feature_cols:
+            self.used_feature_cols.append("decoy")
 
         norm_identification_df = norm_identification_df.loc[:, self.used_feature_cols]
+
+        target_mask = np.ones(len(norm_identification_df), dtype=bool)
 
         if self.search_settings.has_decoy:
             if "decoy" not in norm_identification_df.columns:
@@ -349,13 +356,20 @@ class SearchResultReader:
                 raise ValueError("Decoy column is expected but not found in the identification DataFrame.")
             else:
                 target_df, decoy_df = self._separate_decoy_df(norm_identification_df)
+                target_mask = norm_identification_df["decoy"].eq(0).to_numpy()
                 logger.info(f"Decoy entries separated: {decoy_df.shape}")
         else:
             target_df = norm_identification_df.copy()
             decoy_df = None
 
-        raw_identification_df.index = norm_identification_df.index
-        raw_identification_df = raw_identification_df.loc[target_df.index,]
+        if self._drop_search_result:
+            # Keep only index alignment when raw search_result is not stored.
+            raw_identification_df = pd.DataFrame(index=target_df.index)
+        else:
+            raw_identification_df = raw_identification_df.copy()
+            raw_identification_df.index = norm_identification_df.index
+            # Keep raw and normalized rows in strict positional sync.
+            raw_identification_df = raw_identification_df.iloc[target_mask, :].copy()
 
         norm_quant_df = self._normalise_quantification_df(quantification_df) if quantification_df is not None else None
 
@@ -398,11 +412,12 @@ class SearchResultReader:
     def _build_mudata(self, mudata_input: MuDataInput) -> md.MuData:
         adata_dict = {}
 
-        # Stringify object type columns to avoid potential issues with mixed types in MuData
-        for col in mudata_input.raw_identification_df.columns:
-            if mudata_input.raw_identification_df[col].dtype == "object":
-                self._cols_to_stringify.append(col)
-        mudata_input.raw_identification_df = self._stringify_cols(mudata_input.raw_identification_df)
+        # Stringify only when raw search_result is materialized in varm.
+        if not self._drop_search_result:
+            for col in mudata_input.raw_identification_df.columns:
+                if mudata_input.raw_identification_df[col].dtype == "object" and col not in self._cols_to_stringify:
+                    self._cols_to_stringify.append(col)
+            mudata_input.raw_identification_df = self._stringify_cols(mudata_input.raw_identification_df)
 
         # both feature and quantification are available in the same level
         if self.search_settings.quantification_level == self.search_settings.identification_level:
