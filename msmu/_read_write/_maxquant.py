@@ -36,7 +36,6 @@ class MaxQuantReader(SearchResultReader):
                 "missed_cleavages",
                 "decoy",
                 "contaminant",
-                "score",
             ]
         )
 
@@ -47,9 +46,8 @@ class MaxQuantReader(SearchResultReader):
             "Missed cleavages": "missed_cleavages",
             "Charge": "charge",
             "Raw file": "filename",
-            "MSMS scan number": "scan_num",
+            "MS/MS Scan Number": "scan_num",
             "Retention time": "rt",
-            "hyperscore": "score",
         }
 
     def _read_config_file(self):

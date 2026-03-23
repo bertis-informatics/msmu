@@ -122,7 +122,7 @@ class SearchResultDataFrameConverter:
         suffix = tmp_file_path.suffix
         if suffix in [".csv"]:
             df = pd.read_csv(file_path)
-        elif suffix in [".tsv", ".tab", ".psm"]:
+        elif suffix in [".tsv", ".tab", ".psm", ".txt"]:
             df = pd.read_csv(file_path, sep="\t")
         elif suffix in [".xlsx", ".xls"]:
             df = pd.read_excel(file_path)
@@ -158,6 +158,7 @@ class SearchResultDataFrameConverter:
                     results.append(result)
                 except Exception as e:
                     print(f"Error processing {file}: {e}")
+                    raise e
 
         merged_df = pd.concat([result[1] for result in results], ignore_index=True)
         if len(results) >= 1:
