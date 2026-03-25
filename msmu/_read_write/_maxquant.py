@@ -47,6 +47,7 @@ class MaxQuantReader(SearchResultReader):
                 "rt",
                 "missed_cleavages",
                 "contaminant",
+                "PEP",
             ]
         )
 
