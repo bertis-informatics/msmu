@@ -25,8 +25,10 @@ class MaxQuantReader(SearchResultReader):
         label (Literal["tmt", "label_free"]): Label for the MaxQuant output ('tmt' or 'label_free').
     """
 
-    def __init__(self, identification_file: str | Path, identification_df: pd.DataFrame) -> None:
-        super().__init__()
+    def __init__(
+        self, identification_file: str | Path, identification_df: pd.DataFrame, drop_search_result: bool = False
+    ) -> None:
+        super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="maxquant",
             quantification="maxquant",
@@ -85,6 +87,7 @@ class MaxTmtReader(MaxQuantReader):
         self,
         identification_file: str | Path,
         identification_df: pd.DataFrame,
+        drop_search_result: bool = False,
     ) -> None:
         super().__init__(identification_file, identification_df)
         self.search_settings.label = "tmt"
@@ -114,9 +117,17 @@ class MaxTmtReader(MaxQuantReader):
 
 class MaxLfqReader(MaxQuantReader):
     def __init__(
-        self, identification_file: str | Path, identification_df: pd.DataFrame, _quantification: bool = True
+        self,
+        identification_file: str | Path,
+        identification_df: pd.DataFrame,
+        _quantification: bool = True,
+        drop_search_result: bool = False,
     ) -> None:
-        super().__init__(identification_file=identification_file, identification_df=identification_df)
+        super().__init__(
+            identification_file=identification_file,
+            identification_df=identification_df,
+            drop_search_result=drop_search_result,
+        )
         self.search_settings.label = "label_free"
         self.search_settings.quantification_level = "peptide" if _quantification else None
         self.search_settings.acquisition = "dda"
@@ -143,7 +154,9 @@ class MaxLfqReader(MaxQuantReader):
 
 
 class MaxDiaReader(MaxQuantReader):
-    def __init__(self, identification_file: str | Path, identification_df: pd.DataFrame):
-        super().__init__(identification_file, identification_df)
+    def __init__(
+        self, identification_file: str | Path, identification_df: pd.DataFrame, drop_search_result: bool = False
+    ):
+        super().__init__(identification_file, identification_df, drop_search_result=drop_search_result)
         self.search_settings.label = "label_free"
         self.search_settings.acquisition = "dia"

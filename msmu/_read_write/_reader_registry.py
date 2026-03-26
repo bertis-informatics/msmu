@@ -182,6 +182,7 @@ class _MaxQuantFacade:
         identification_file: str | Path,
         label: Literal["tmt", "label_free"],
         acquisition: Literal["dda", "dia"],
+        drop_search_result: bool = False,
         _quantification: bool = True,
     ) -> md.MuData:
         """
@@ -191,6 +192,7 @@ class _MaxQuantFacade:
             identification_file: Path to the MaxQuant output directory.
             label: Label for the MaxQuant output ('tmt' or 'label_free').
             acquisition: Acquisition method ('dda' or 'dia').
+            drop_search_result: Whether to drop the search result data. Default is False.
             _quantification: Whether to include quantification data. Default is True.
 
         Returns:
@@ -212,12 +214,14 @@ class _MaxQuantFacade:
             reader = MaxTmtReader(
                 identification_file=identification_file_,
                 identification_df=identification_df_,
+                drop_search_result=drop_search_result,
             )
         elif label == "label_free" and acquisition == "dda":
             reader = MaxLfqReader(
                 identification_file=identification_file_,
                 identification_df=identification_df_,
                 _quantification=_quantification,
+                drop_search_result=drop_search_result,
             )
         elif label == "label_free" and acquisition == "dia":
             # reader = MaxDiaReader(
