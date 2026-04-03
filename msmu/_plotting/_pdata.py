@@ -6,8 +6,11 @@ from mudata import MuData
 import numpy as np
 import pandas as pd
 
+from ..logging_utils import get_logger
 from ._utils import resolve_obs_column, BinInfo
 from .._utils.get import get_adata
+
+logger = get_logger(__name__)
 
 
 class PlotData:
@@ -183,7 +186,7 @@ class PlotData:
         if (np.nansum(orig_df) == 0) or (groupby == "fraction"):
             prep_df = var_df.copy()
             if np.nansum(orig_df) == 0:
-                print("No data available for the selected modality. Counting from var.")
+                logger.debug("No data available for the selected modality. Counting from var.")
             if groupby == "fraction":
                 var_df["fraction"] = var_df["filename"]
                 categories = pd.Categorical(pd.Index(var_df["fraction"].unique()).sort_values())

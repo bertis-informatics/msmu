@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 from typing import Literal
+
 import pandas as pd
 from mudata import MuData
 
+from ..logging_utils import get_logger
 from .._utils import uns_logger
 from .._read_write._mdata_status import MuDataStatus
+
+logger = get_logger(__name__)
 
 
 @uns_logger
@@ -150,7 +156,7 @@ def apply_filter(
 
     if apply_var:
         if "filter" not in adata_to_filter.varm_keys():
-            print(f"[Warning] No filter found in {modality}.varm['filter'].")
+            logger.warning("No filter found in %s.varm['filter'].", modality)
             if on == "var":
                 raise ValueError("No filter found in the modality's varm.")
             var_mask = slice(None)
@@ -163,22 +169,26 @@ def apply_filter(
                 var_filter_columns = [col for col in columns if col in available_var_columns]
                 missing_var_columns = [col for col in columns if col not in available_var_columns]
                 if missing_var_columns:
-                    print(f"[Warning] Var filter columns not found in {modality}.varm['filter']: {missing_var_columns}")
+                    logger.warning(
+                        "Var filter columns not found in %s.varm['filter']: %s",
+                        modality,
+                        missing_var_columns,
+                    )
                 if len(var_filter_columns) == 0:
                     if on == "var":
                         raise ValueError(f"No matching var filter columns found in {modality}.varm['filter'].")
-                    print(f"[Warning] No matching var filter columns found in {modality}.varm['filter'].")
+                    logger.warning("No matching var filter columns found in %s.varm['filter'].", modality)
                     var_mask = slice(None)
                     var_filter_columns = []
             if var_filter_columns:
-                print(f"[Filter] Applying var filters: {var_filter_columns}")
+                logger.info("Applying var filters for %s: %s", modality, var_filter_columns)
                 var_mask = var_filter_df[var_filter_columns].all(axis=1)
     else:
         var_mask = slice(None)
 
     if apply_obs:
         if "filter" not in adata_to_filter.obsm_keys():
-            print(f"[Warning] No filter found in {modality}.obsm['filter'].")
+            logger.warning("No filter found in %s.obsm['filter'].", modality)
             if on == "obs":
                 raise ValueError("No filter found in the modality's obsm.")
             obs_mask = slice(None)
@@ -191,15 +201,19 @@ def apply_filter(
                 obs_filter_columns = [col for col in columns if col in available_obs_columns]
                 missing_obs_columns = [col for col in columns if col not in available_obs_columns]
                 if missing_obs_columns:
-                    print(f"[Warning] Obs filter columns not found in {modality}.obsm['filter']: {missing_obs_columns}")
+                    logger.warning(
+                        "Obs filter columns not found in %s.obsm['filter']: %s",
+                        modality,
+                        missing_obs_columns,
+                    )
                 if len(obs_filter_columns) == 0:
                     if on == "obs":
                         raise ValueError(f"No matching obs filter columns found in {modality}.obsm['filter'].")
-                    print(f"[Warning] No matching obs filter columns found in {modality}.obsm['filter'].")
+                    logger.warning("No matching obs filter columns found in %s.obsm['filter'].", modality)
                     obs_mask = slice(None)
                     obs_filter_columns = []
             if obs_filter_columns:
-                print(f"[Filter] Applying obs filters: {obs_filter_columns}")
+                logger.info("Applying obs filters for %s: %s", modality, obs_filter_columns)
                 obs_mask = obs_filter_df[obs_filter_columns].all(axis=1)
     else:
         obs_mask = slice(None)

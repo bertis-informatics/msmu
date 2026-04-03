@@ -1,9 +1,9 @@
 import re
-import logging
 
 import numpy as np
 import pandas as pd
 
+from ..logging_utils import get_logger
 from ._filter import _mask_boolean_filter
 
 # for type checking only
@@ -11,7 +11,7 @@ import anndata as ad
 from typing import Literal
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class FeatureRanker:
@@ -303,7 +303,7 @@ class SummarisationPrep:
 
     @filter_dict.setter
     def filter_dict(self, new_filter_dict: dict) -> None:
-        logger.info(f"Applying filter criteria: {new_filter_dict}")
+        logger.debug("Applying filter criteria: %s", new_filter_dict)
         self._filter_dict = new_filter_dict
 
     @property
@@ -312,7 +312,11 @@ class SummarisationPrep:
 
     @rank_tuple.setter
     def rank_tuple(self, new_rank_tuple: tuple) -> None:
-        logger.info(f"Ranking features by '{new_rank_tuple[0]}' to select top {new_rank_tuple[1]} features.")
+        logger.debug(
+            "Ranking features by '%s' to select top %s features.",
+            new_rank_tuple[0],
+            new_rank_tuple[1],
+        )
         self._rank_tuple = new_rank_tuple
 
     def prepare_data_to_summarise(self) -> pd.DataFrame:
@@ -417,7 +421,7 @@ class PtmSummarisationPrep(SummarisationPrep):
     ) -> pd.DataFrame:
         extracted_df: pd.DataFrame = data.copy()
         extracted_df = extracted_df.loc[extracted_df["peptide"].str.contains(self._modi_identifier, regex=False)].copy()
-        logger.info(f"Extracted modified peptides: {len(extracted_df)} / {len(data)}")
+        logger.debug("Extracted modified peptides: %d / %d", len(extracted_df), len(data))
 
         return extracted_df
 

@@ -1,9 +1,9 @@
 import warnings
-import logging
 
 import anndata as ad
 import pandas as pd
 
+from ..logging_utils import get_logger
 from .._utils import uns_logger
 from .._read_write._reader_utils import add_modality
 from .._read_write._mdata_status import MuDataStatus
@@ -20,7 +20,7 @@ warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
 warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @uns_logger
@@ -59,6 +59,7 @@ def to_peptide(
     adata_to_summarise: ad.AnnData = mdata["psm"]
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
+        logger.debug("Using layer '%s' for peptide summarisation.", layer)
 
     mstatus = MuDataStatus(mdata)
     _peptide_col: str = "peptide"
@@ -74,7 +75,7 @@ def to_peptide(
         if mstatus.psm.has_purity == False:
             logger.warning("Purity column not found in psm modality for TMT data. Skipping purity filtering.")
         elif purity_threshold is None:
-            logger.info("No purity threshold provided. Skipping purity filtering.")
+            logger.debug("No purity threshold provided for TMT data. Skipping purity filtering.")
         else:
             summarisation_prep.filter_dict = {"purity": ("gt", purity_threshold)}
 
@@ -83,6 +84,12 @@ def to_peptide(
         summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
 
     identification_df, quantification_df, decoy_df = summarisation_prep.prep()
+    logger.debug(
+        "Prepared peptide summarisation inputs: ident=%s quant=%s decoy=%s",
+        identification_df.shape,
+        quantification_df.shape,
+        None if decoy_df is None else decoy_df.shape,
+    )
 
     # Aggregation
     score_method: str = "best_pep"
@@ -121,19 +128,23 @@ def to_peptide(
                 decoy_df=decoy_df_agg,
             )
             logger.info(
-                f"Peptide-level identifications: {len(ident_df_agg)} ({sum(ident_df_agg['q_value'] < 0.01)} at 1% FDR)"
+                "Peptide-level identifications: %d (%d at 1%% FDR)",
+                len(ident_df_agg),
+                int((ident_df_agg["q_value"] < 0.01).sum()),
             )
 
     # Aggregate quantification data
     quant_df_agg = aggregator.aggregate_quantification()
+    logger.debug("Aggregated peptide quantification shape: %s", quant_df_agg.shape)
 
     # build peptide-level anndata
     if (mstatus.psm.has_quant == False) & (
         "peptide" in mstatus.mod_names
     ):  # for lfq (dda) data with peptide quantification already existing
-        print("Using existing peptide quantification data.")
+        logger.info("Using existing peptide quantification data.")
         quant_df_agg = mdata["peptide"].to_df().T
         quant_df_agg = pd.merge(ident_df_agg[[]], quant_df_agg, left_index=True, right_index=True, how="left")
+        logger.debug("Merged existing peptide quantification shape: %s", quant_df_agg.shape)
         peptide_adata = ad.AnnData(
             X=quant_df_agg.T,
             var=ident_df_agg,
@@ -143,7 +154,7 @@ def to_peptide(
         # mdata["peptide"].var = ident_df_agg
 
     else:  # all other cases
-        print("Building new peptide quantification data.")
+        logger.info("Building new peptide quantification data.")
         peptide_adata = ad.AnnData(
             X=quant_df_agg.T,
             var=ident_df_agg,
@@ -211,6 +222,7 @@ def to_protein(
     adata_to_summarise: ad.AnnData = mdata["peptide"]
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
+        logger.debug("Using layer '%s' for protein summarisation.", layer)
 
     # Preparation
     summarisation_prep = SummarisationPrep(
@@ -222,6 +234,12 @@ def to_protein(
         summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g ("total_intensity", 3)
 
     identification_df, quantification_df, decoy_df = summarisation_prep.prep()
+    logger.debug(
+        "Prepared protein summarisation inputs: ident=%s quant=%s decoy=%s",
+        identification_df.shape,
+        quantification_df.shape,
+        None if decoy_df is None else decoy_df.shape,
+    )
 
     # Aggregation
     score_method: str = "best_pep"
@@ -253,10 +271,13 @@ def to_protein(
                 decoy_df=agg_decoy_df,
             )
             logger.info(
-                f"Protein-level identifications :  {len(ident_df_agg)} ({sum(ident_df_agg['q_value'] < 0.01)} at 1% FDR)"
+                "Protein-level identifications: %d (%d at 1%% FDR)",
+                len(ident_df_agg),
+                int((ident_df_agg["q_value"] < 0.01).sum()),
             )
 
     quant_df_agg = aggregator.aggregate_quantification()
+    logger.debug("Aggregated protein quantification shape: %s", quant_df_agg.shape)
 
     # build protein-level anndata
     protein_adata = ad.AnnData(
@@ -301,6 +322,7 @@ def to_ptm(
     adata_to_summarise: ad.AnnData = mdata["peptide"].copy()
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
+        logger.debug("Using layer '%s' for PTM summarisation.", layer)
 
     modality_name = f"{modi_name}_site"
     mstatus = MuDataStatus(mdata)
@@ -321,6 +343,11 @@ def to_ptm(
         summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
 
     identification_df, quantification_df = summarisation_prep.prep()
+    logger.debug(
+        "Prepared PTM summarisation inputs: ident=%s quant=%s",
+        identification_df.shape,
+        quantification_df.shape,
+    )
 
     # Aggregation
     aggregator = Aggregator.ptm_site(
@@ -336,13 +363,13 @@ def to_ptm(
         logger.error("var is empty in peptide modality. Cannot aggregate identification data.")
         raise
 
-    logger.info(f"{modi_name} site level identifications: {len(ident_df_agg)}")
+    logger.info("%s site level identifications: %d", modi_name, len(ident_df_agg))
 
     # Aggregate quantification data
     quant_df_agg = aggregator.aggregate_quantification()
 
     # build ptm-level anndata
-    logger.info(f"Building new {modality_name} AnnData.")
+    logger.info("Building new %s AnnData.", modality_name)
     ptm_adata = ad.AnnData(
         X=quant_df_agg.T,
         var=ident_df_agg,

@@ -1,8 +1,8 @@
 import warnings
 from dataclasses import dataclass
 from typing import Callable
-import logging
 
+from ..logging_utils import get_logger
 from msmu._statistics._de_base import StatTestResult
 import numpy as np
 from scipy.stats import ranksums, t
@@ -10,7 +10,7 @@ from scipy.stats import ranksums, t
 from ._multiple_test_correction import PvalueCorrection
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -86,6 +86,13 @@ def simple_test(
         StatResult containing the test statistics and p-values.
     """
     test_res = HypothesisTesting.test(ctrl=ctrl, expr=expr, stat_method=stat_method)
+    logger.debug(
+        "Computed simple '%s' test for ctrl=%s expr=%s with fdr=%s.",
+        stat_method,
+        ctrl.shape,
+        expr.shape,
+        fdr,
+    )
 
     if fdr and test_res.p_value is not None:
         if fdr == "bh":

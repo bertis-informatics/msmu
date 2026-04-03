@@ -2,14 +2,13 @@ from typing import Literal
 import mudata as md
 import numpy as np
 import pandas as pd
-import logging
 import statsmodels.api as sm
 from inmoose.pycombat import pycombat_norm
 
+from ..logging_utils import get_logger
 from .._utils import uns_logger
 
-
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @uns_logger
@@ -59,8 +58,7 @@ def correct_batch_effect(
     elif method == "combat":
         corrected_arr: np.ndarray = batch_corrector.combat()
         if rescale:
-            logger.warning("Rescaling is not supported after ComBat correction.")
-            logger.warning("Setting rescale to False.")
+            logger.warning("Rescaling is not supported after ComBat correction; continuing without rescaling.")
             rescale = False
     elif method == "continuous":
         corrected_arr: np.ndarray = batch_corrector.continuous()
@@ -75,6 +73,7 @@ def correct_batch_effect(
     if rescale:
         logger.info("Rescaling data after batch correction.")
         corrected_arr: np.ndarray = batch_corrector.rescale()
+    logger.debug("Batch correction '%s' produced array with shape %s.", method, corrected_arr.shape)
 
     if layer is None:
         mdata.mod[modality].X = corrected_arr
@@ -110,6 +109,7 @@ class BatchCorrector:
     def gis(self, gis_samples: list[str]):
         self.corrected_arr = self.original_arr.copy()
         batches, batch_idx, _ = self._make_batch_matrix()
+        logger.debug("Applying GIS batch correction across %d batches.", len(batches))
 
         n_batches = len(batches)
 
@@ -139,6 +139,7 @@ class BatchCorrector:
     def median_center(self):
         self.corrected_arr = self.original_arr.copy()
         _, batch_idx, _ = self._make_batch_matrix()
+        logger.debug("Applying median-centering batch correction across %d batches.", len(np.unique(batch_idx)))
 
         median_arr = pd.DataFrame(self.corrected_arr).groupby(batch_idx).median().values
 
@@ -153,6 +154,7 @@ class BatchCorrector:
         https://epigenelabs.github.io/pyComBat/
         """
         _, batch_idx, _ = self._make_batch_matrix()
+        logger.debug("Applying ComBat batch correction across %d batches.", len(np.unique(batch_idx)))
         sorted_idx = np.argsort(batch_idx)
 
         df = pd.DataFrame(
@@ -181,6 +183,7 @@ class BatchCorrector:
         """
         self.corrected_arr = self.original_arr.copy()
         _, batch_idx, _ = self._make_batch_matrix()
+        logger.debug("Applying continuous batch correction across %d batches.", len(np.unique(batch_idx)))
 
         res_lowess = np.full_like(self.corrected_arr, np.nan)
         for i in range(self.corrected_arr.shape[1]):

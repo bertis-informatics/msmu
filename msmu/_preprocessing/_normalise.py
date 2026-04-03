@@ -2,13 +2,12 @@ import anndata as ad
 import mudata as md
 import numpy as np
 from typing import Literal
-import logging
 
+from ..logging_utils import get_logger
 from ._normalisation import Normalisation, PTMProteinAdjuster
 from .._utils import uns_logger
 
-
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @uns_logger

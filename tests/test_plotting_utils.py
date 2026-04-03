@@ -34,6 +34,18 @@ def test_resolve_obs_column_fallback_creates_column(mdata):
     assert isinstance(mdata_local.obs["missing_group"].dtype, pd.CategoricalDtype)
 
 
+def test_resolve_obs_column_fallback_logs_debug(mdata, caplog):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+
+    with caplog.at_level("DEBUG", logger="msmu._plotting._utils"):
+        resolve_obs_column(mdata_local, "missing_group")
+
+    assert "Requested obs column 'missing_group' not found in observations." in caplog.text
+    assert "Using fallback obs column 'missing_group' created from" in caplog.text
+
+
 def test_get_bin_info_numeric_values():
     data = pd.Series([0.0, 1.0, 2.0, 3.0])
     bin_info = get_bin_info(data, bins=2)
@@ -105,23 +117,23 @@ def test_apply_color_if_needed_sets_color(mdata):
     assert fig.data[1].marker.color == colorway[1]
 
 
-def test_apply_color_if_needed_ignored_when_groupby_differs(mdata, capsys):
+def test_apply_color_if_needed_ignored_when_groupby_differs(mdata, caplog):
     fig = go.Figure()
     fig.add_trace(go.Scatter(name="A", x=[1], y=[1], mode="markers"))
     fig.add_trace(go.Scatter(name="B", x=[2], y=[2], mode="markers"))
 
-    fig = apply_color_if_needed(
-        fig,
-        mdata=mdata,
-        modality="psm",
-        groupby="batch",
-        colorby="group",
-        obs_column="sample",
-        template="plotly",
-    )
+    with caplog.at_level("WARNING", logger="msmu._plotting._utils"):
+        fig = apply_color_if_needed(
+            fig,
+            mdata=mdata,
+            modality="psm",
+            groupby="batch",
+            colorby="group",
+            obs_column="sample",
+            template="plotly",
+        )
 
-    out = capsys.readouterr().out
-    assert "Ignoring 'colorby' parameter" in out
+    assert "Ignoring 'colorby' parameter" in caplog.text
     assert fig.data[0].marker.color is None
 
 

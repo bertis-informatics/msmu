@@ -1,15 +1,14 @@
 from typing import Iterable
-import logging
 
 import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
 
+from ..logging_utils import get_logger
 from .._read_write._reader_utils import add_modality
 
-
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_modality_dict(
@@ -22,7 +21,7 @@ def get_modality_dict(
         raise ValueError("Either level or modality must be provided")
 
     if (level != None) & (modality != None):
-        print("Both level and modality are provided. Using level prior to modality.")
+        logger.warning("Both level and modality are provided. Using level prior to modality.")
 
     mod_dict: dict = dict()
     if level != None:
@@ -64,6 +63,7 @@ def add_quant(
         raise ValueError("quant_data must be file for dataframe")
 
     if quant_tool == "flashlfq":
+        logger.debug("Normalizing flashlfq quantification input with shape %s.", quant.shape)
         quant = quant.set_index("Sequence", drop=True)
         quant = quant.rename_axis(index=None, columns=None)
         intensity_cols = [x for x in quant.columns if x.startswith("Intensity_")]
@@ -88,8 +88,8 @@ def add_quant(
 
         mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["psm"])
 
-        logger.info(f"Added quantification modality 'peptide' using {quant_tool} data.")
-        logger.info(f"Quantification data shape: {input_arr.shape}\n")
+        logger.info("Added quantification modality 'peptide' using %s data.", quant_tool)
+        logger.debug("Added peptide quantification matrix with shape %s.", input_arr.shape)
 
     mdata.update_obs()
 

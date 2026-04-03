@@ -7,6 +7,10 @@ from sklearn.linear_model import Ridge
 
 from typing import Callable
 
+from ..logging_utils import get_logger
+
+logger = get_logger(__name__)
+
 
 class Normalisation:
     def __init__(self, method: str, axis: str) -> None:
@@ -78,10 +82,9 @@ def normalise_quantile(arr: np.ndarray) -> np.ndarray:
         y = sortedVals[0:M]
         try:
             f = interp1d(x, y, bounds_error=False)
-        except:
-            print(f"Error occured at {col}: {y.shape}")
-            print(values)
-            exit
+        except Exception as exc:
+            logger.exception("Interpolation failed at column %s with shape %s.", col, y.shape)
+            raise RuntimeError(f"Interpolation failed during quantile normalization at column {col}.") from exc
         xnew = np.arange(0, N)
         ynew = f(xnew)
         rankedVals[:, col] = ynew

@@ -1,13 +1,13 @@
-import logging
 import re
 
+from ..logging_utils import get_logger
 from .._read_write._mdata_status import MuDataStatus
 
 # for type hints
 import mudata as md
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def select_repr_protein(mdata: md.MuData, modality: str) -> md.MuData:

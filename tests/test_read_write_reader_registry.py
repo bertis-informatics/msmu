@@ -54,6 +54,13 @@ def test_read_sage_logs_first_command(monkeypatch):
     _assert_cmd(out, "read_sage")
 
 
+def test_read_sage_label_free_without_quant_logs_first_command(monkeypatch):
+    monkeypatch.setattr(rr.SearchResultDataFrameConverter, "convert", _dummy_convert)
+    monkeypatch.setattr(rr, "LfqSageReader", _DummyReader)
+    out = rr.read_sage("id.tsv", label="label_free")
+    _assert_cmd(out, "read_sage")
+
+
 def test_read_diann_logs_first_command(monkeypatch):
     monkeypatch.setattr(rr.SearchResultDataFrameConverter, "convert", _dummy_convert)
     monkeypatch.setattr(rr, "DiannReader", _DummyReader)

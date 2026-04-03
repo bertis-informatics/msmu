@@ -17,6 +17,7 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
+from ..logging_utils import get_logger
 
 MAX_SEQ_ITEMS = 20
 MAX_STRING_LEN = 500
@@ -242,7 +243,7 @@ def capture_provenance_output():
     stdout_buffer = io.StringIO()
     tee = _StdoutTee(sys.stdout, stdout_buffer)
 
-    msmu_logger = logging.getLogger("msmu")
+    msmu_logger = get_logger()
     original_level = msmu_logger.level
     visible_handlers = [h for h in msmu_logger.handlers if not isinstance(h, logging.NullHandler)]
     has_info_visible_handler = any(h.level <= logging.INFO for h in visible_handlers)

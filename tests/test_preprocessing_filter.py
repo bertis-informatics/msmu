@@ -108,5 +108,5 @@ def test_apply_filter_stdout_records_filter_columns(filter_mdata):
     last_key = max(applied.uns["_cmd"], key=lambda x: int(x))
     entry = applied.uns["_cmd"][last_key]
     assert "stdout" in entry
-    assert "[Filter] Applying var filters:" in entry["stdout"]
+    assert "Applying var filters for psm:" in entry["stdout"]
     assert "score_gt_15.0" in entry["stdout"]

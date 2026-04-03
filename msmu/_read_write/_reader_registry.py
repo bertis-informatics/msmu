@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Literal
 import mudata as md
-import logging
 
+from ..logging_utils import get_logger
 from ._base_reader import SearchResultDataFrameConverter
 from ._diann import DiannReader
 from ._sage import LfqSageReader, TmtSageReader
@@ -18,7 +18,7 @@ from .._utils._provenance import (
     normalize_cmd_for_runtime,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def read_sage(
@@ -57,13 +57,18 @@ def read_sage(
             logger.error("Quantification file is required for TMT-labeled Sage data.")
             raise ValueError("Quantification file is required for TMT-labeled Sage data.")
 
+        quantification_files = []
         quantification_file_, quantification_df_ = None, None
+        logger.debug("No Sage quantification file provided for label-free input.")
 
     logger.info(f"Reading SAGE Identification data: {len(identification_files)} file(s)")
     identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
 
-    logger.info(f"Reading SAGE Quantification data: {len(quantification_files)} file(s)")
-    quantification_file_, quantification_df_ = SearchResultDataFrameConverter().convert(quantification_files)
+    if quantification_files:
+        logger.info(f"Reading SAGE Quantification data: {len(quantification_files)} file(s)")
+        quantification_file_, quantification_df_ = SearchResultDataFrameConverter().convert(quantification_files)
+    else:
+        logger.debug("Skipping Sage quantification import because no files were provided.")
 
     if label == "tmt":
         reader = TmtSageReader(
@@ -81,6 +86,7 @@ def read_sage(
         )
     else:
         raise ValueError("Argument label should be one of 'tmt', 'label_free'.")
+    logger.debug("Selected Sage reader: %s", type(reader).__name__)
 
     with capture_provenance_output() as stdout_buffer:
         mdata: md.MuData = reader.read()
@@ -185,6 +191,7 @@ def read_maxquant(
         raise ValueError(
             "Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'."
         )
+    logger.debug("Selected MaxQuant reader: %s", type(reader).__name__)
 
     with capture_provenance_output() as stdout_buffer:
         mdata = reader.read()

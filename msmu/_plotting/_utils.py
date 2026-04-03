@@ -2,15 +2,20 @@
 Utility functions for plotting with MuData and Plotly.
 """
 
+from typing import TypedDict
+
 import mudata as md
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
-from typing import TypedDict
+
+from ..logging_utils import get_logger
 
 _FALLBACK_COLUMN = "__obs_idx__"
 _DEFAULT_OBS_PRIORITY = ("sample", "filename", _FALLBACK_COLUMN)
+
+logger = get_logger(__name__)
 
 
 class BinInfo(TypedDict):
@@ -57,11 +62,11 @@ def resolve_obs_column(
         if name in mdata.obs.columns:
             return ensure_obs_categorical(mdata, name)
         elif (name == requested) or (name == preferred):
-            print(f"[INFO] Requested obs column '{name}' not found in observations.")
+            logger.debug("Requested obs column '%s' not found in observations.", name)
 
     # Create a stable fallback using obs index
     fallback_name = requested or preferred or _FALLBACK_COLUMN
-    print(f"[INFO] Using fallback obs column '{fallback_name}' created from index.")
+    logger.debug("Using fallback obs column '%s' created from index.", fallback_name)
     if fallback_name in mdata.obs.columns:
         return ensure_obs_categorical(mdata, fallback_name)
 
@@ -304,7 +309,7 @@ def apply_color_if_needed(
     if (colorby is not None) and (groupby == obs_column):
         return set_color(fig, mdata, modality, colorby, obs_column, template)
     elif (colorby is not None) and (groupby != obs_column):
-        print("[Warning] 'colorby' is only applicable when 'groupby' is not set. Ignoring 'colorby' parameter.")
+        logger.warning("'colorby' is only applicable when 'groupby' is not set. Ignoring 'colorby' parameter.")
     return fig
 
 

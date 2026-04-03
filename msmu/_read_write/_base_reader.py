@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Literal
 from dataclasses import dataclass
-import logging
 from typing import Callable
 
 import anndata as ad
@@ -13,6 +12,7 @@ import pandas as pd
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm.auto import tqdm
 
+from ..logging_utils import get_logger
 from .._utils.peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -21,7 +21,7 @@ from .._utils.peptide import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -161,7 +161,7 @@ class SearchResultDataFrameConverter:
                         result = future.result()
                         results.append(result)
                     except Exception as e:
-                        print(f"Error processing {file}: {e}")
+                        logger.exception("Error processing %s.", file)
                         raise e
 
         merged_df = pd.concat([result[1] for result in results], ignore_index=True)
@@ -189,7 +189,7 @@ class SearchResultDataFrameConverter:
         merged_file_path, merged_df = self._read_files(file_paths=file_paths_, max_workers=max_workers)
         merged_file_path = [self._convert_to_string(fp) for fp in merged_file_path]
 
-        logger.info(f"Files imported and merged: {merged_df.shape}")
+        logger.debug("Files imported and merged into DataFrame with shape %s.", merged_df.shape)
 
         return merged_file_path, merged_df
 
@@ -336,8 +336,10 @@ class SearchResultReader:
             identification_df, quantification_df = self._split_merged_identification_quantification(
                 norm_identification_df
             )
-            logger.info(
-                f"Identification and quantification data split: {identification_df.shape}, {quantification_df.shape}"
+            logger.debug(
+                "Identification and quantification data split: %s, %s",
+                identification_df.shape,
+                quantification_df.shape,
             )
         else:
             identification_df = norm_identification_df.copy()
@@ -357,7 +359,7 @@ class SearchResultReader:
             else:
                 target_df, decoy_df = self._separate_decoy_df(norm_identification_df)
                 target_mask = norm_identification_df["decoy"].eq(0).to_numpy()
-                logger.info(f"Decoy entries separated: {decoy_df.shape}")
+                logger.debug("Decoy entries separated: %s", decoy_df.shape)
         else:
             target_df = norm_identification_df.copy()
             decoy_df = None

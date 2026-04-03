@@ -1,12 +1,12 @@
 import re
 import pandas as pd
 from Bio import SeqIO
-import logging
 
 import mudata as md
 
+from ..logging_utils import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def attach_fasta(mdata: md.MuData, fasta_file: str | None) -> md.MuData:

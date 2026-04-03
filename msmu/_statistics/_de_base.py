@@ -1,14 +1,14 @@
 from dataclasses import dataclass
 from typing import Literal
-import logging
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+from ..logging_utils import get_logger
 from .._plotting._ptypes import PlotScatter
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DeaValidator:
@@ -34,10 +34,7 @@ class DeaValidator:
 
     def validate_sample_size(self) -> None:
         if self.ctrl_arr.shape[1] < 2 or self.expr_arr.shape[1] < 2:
-            logger.warning("Control and experimental arrays must have at least two samples each.")
-            logger.warning(
-                "Any statistics will not be performed. Results will only contain Fold Changes and Pct Expressions."
-            )
+            logger.debug("Control and experimental arrays have fewer than two samples in at least one group.")
             self._min_sample_size_availability = False
 
     def get_sufficient_feature_indices(self) -> None:

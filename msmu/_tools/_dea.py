@@ -2,8 +2,8 @@ import mudata as md
 import numpy as np
 import pandas as pd
 from typing import Literal
-import logging
 
+from ..logging_utils import get_logger
 from .._statistics._permutation import PermutationTest
 from .._statistics._de_base import PermTestResult, StatTestResult, DeaValidator, DeaResult
 from .._statistics._statistics import (
@@ -14,7 +14,7 @@ from .._statistics._statistics import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _get_test_array(
@@ -92,7 +92,20 @@ def run_de(
         expr=expr,
         layer=layer,
     )
+    logger.debug(
+        "Prepared DEA arrays for modality '%s': ctrl=%s expr=%s stat=%s measure=%s.",
+        modality,
+        ctrl_arr.shape,
+        expr_arr.shape,
+        stat_method,
+        measure,
+    )
     dea_validator = DeaValidator(ctrl_arr, expr_arr, min_pct=min_pct)
+    logger.debug(
+        "DEA feature mask retained %d of %d features.",
+        int(np.sum(dea_validator.sufficient_feature_indices)),
+        int(dea_validator.sufficient_feature_indices.size),
+    )
 
     if dea_validator.min_sample_size_availability is False:
         logger.warning("Not enough samples to perform DEA. Returning result with only fold changes.")
@@ -105,6 +118,7 @@ def run_de(
         valid_expr_arr[:, ~dea_validator.sufficient_feature_indices] = np.nan
 
         if n_resamples is not None:
+            logger.debug("Running permutation-based DEA with %s resamples and fdr=%s.", n_resamples, fdr)
             perm_test: PermutationTest = PermutationTest(
                 ctrl_arr=valid_ctrl_arr,
                 expr_arr=valid_expr_arr,
@@ -121,6 +135,7 @@ def run_de(
             )
 
         else:
+            logger.debug("Running simple DEA without resampling and fdr=%s.", fdr)
             test_res: StatTestResult = simple_test(
                 ctrl=valid_ctrl_arr,
                 expr=valid_expr_arr,
