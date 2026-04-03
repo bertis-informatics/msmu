@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 import sys
-import types
 
 import mudata
 import numpy as np
@@ -15,14 +14,8 @@ mudata.set_options(pull_on_update=False)
 os.environ.setdefault("NUMBA_DISABLE_CACHE", "1")
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-PACKAGE_PARENT = PACKAGE_ROOT.parent
-if str(PACKAGE_PARENT) not in sys.path:
-    sys.path.insert(0, str(PACKAGE_PARENT))
-
-if "msmu" not in sys.modules:
-    msmu_pkg = types.ModuleType("msmu")
-    msmu_pkg.__path__ = [str(PACKAGE_ROOT)]
-    sys.modules["msmu"] = msmu_pkg
+if str(PACKAGE_ROOT) not in sys.path:
+    sys.path.insert(0, str(PACKAGE_ROOT))
 
 
 def _make_adata(x, obs, var, *, uns=None, obsm=None) -> AnnData:
