@@ -1,7 +1,6 @@
 import mudata
 
-import logging
-from .logging_utils import setup_logger, LogLevel
+from .logging_utils import ensure_null_handler, setup_logger
 
 from . import _plotting as pl
 from . import _preprocessing as pp
@@ -26,13 +25,12 @@ except ImportError:
 else:
     version = __version__
 
-logger = logging.getLogger("msmu")
-logger.addHandler(logging.NullHandler())
+logger = ensure_null_handler()
 
 mudata.set_options(pull_on_update=False)
 pl.set_templates()
 
-del LogLevel, logging, mudata
+del mudata
 
 __all__ = [
     "read_h5mu",
@@ -48,4 +46,5 @@ __all__ = [
     "tl",
     "utils",
     "io",
+    "setup_logger",
 ]
