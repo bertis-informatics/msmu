@@ -7,7 +7,7 @@ from msmu._read_write._sage import LfqSageReader, SageReader, TmtSageReader
 
 
 def test_diann_make_needed_columns_sets_decoy_and_lengths():
-    reader = DiannReader("dummy.tsv")
+    reader = DiannReader("dummy.tsv", pd.DataFrame())
     df = pd.DataFrame(
         {
             "Protein.Ids": ["sp|P1|P1_HUMAN"],
@@ -22,7 +22,7 @@ def test_diann_make_needed_columns_sets_decoy_and_lengths():
 
 
 def test_diann_split_merged_identification_quantification():
-    reader = DiannReader("dummy.tsv")
+    reader = DiannReader("dummy.tsv", pd.DataFrame())
     df = pd.DataFrame(
         {
             "filename": ["a", "b"],
@@ -82,13 +82,13 @@ def test_lfq_sage_quantification_columns():
     assert "file1.raw" in out.columns
 
 
-def test_fragpipe_tmt_reader_init_requires_quant_file():
+def test_fragpipe_tmt_reader_init_requires_identification_df():
     try:
         TmtFragPipeReader("id.tsv")
     except TypeError as exc:
-        assert "quantification_file" in str(exc)
+        assert "identification_df" in str(exc)
     else:
-        raise AssertionError("Expected TmtFragPipeReader to require quantification_file")
+        raise AssertionError("Expected TmtFragPipeReader to require identification_df")
 
 
 def test_fragpipe_lfq_quantification_columns():
@@ -107,7 +107,7 @@ def test_fragpipe_lfq_quantification_columns():
 
 
 def test_maxquant_make_needed_columns_for_identification():
-    reader = MaxQuantReader("id.tsv")
+    reader = MaxQuantReader("id.tsv", pd.DataFrame())
     df = pd.DataFrame(
         {
             "Reverse": ["+", ""],
@@ -119,12 +119,12 @@ def test_maxquant_make_needed_columns_for_identification():
     out = reader._make_needed_columns_for_identification(df)
     assert out["decoy"].tolist() == [1, 0]
     assert out["contaminant"].tolist() == [0, 1]
-    assert out["proteins"].tolist()[0].startswith("rev_")
-    assert out["proteins"].tolist()[1].startswith("contam_")
+    assert out["proteins"].tolist()[0] == "REV__P3"
+    assert out["proteins"].tolist()[1] == "CON__P2"
 
 
 def test_maxquant_tmt_rename_dict_for_obs():
-    reader = MaxTmtReader("id.tsv")
+    reader = MaxTmtReader("id.tsv", pd.DataFrame())
     quant_df = pd.DataFrame(columns=["Reporter intensity corrected 1", "Reporter intensity corrected 2"])
     rename = reader._make_rename_dict_for_obs(quant_df)
     assert rename["Reporter intensity corrected 1"] == "126"
@@ -132,7 +132,7 @@ def test_maxquant_tmt_rename_dict_for_obs():
 
 
 def test_maxquant_lfq_split_merged_identification_quantification():
-    reader = MaxLfqReader("id.tsv")
+    reader = MaxLfqReader("id.tsv", pd.DataFrame())
     df = pd.DataFrame(
         {
             "filename": ["f1", "f2"],

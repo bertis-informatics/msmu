@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+import pandas as pd
 from mudata import MuData
 
 from msmu._read_write import _reader_registry as rr
@@ -9,10 +10,13 @@ from msmu._read_write import _reader_registry as rr
 def _dummy_mdata() -> MuData:
     from anndata import AnnData
     import numpy as np
-    import pandas as pd
 
     adata = AnnData(X=np.array([[1.0]]), obs=pd.DataFrame(index=["s1"]), var=pd.DataFrame(index=["f1"]))
     return MuData({"psm": adata})
+
+
+def _dummy_convert(self, file_paths, max_workers=4):
+    return file_paths[0], pd.DataFrame()
 
 
 class _DummyReader:
@@ -44,30 +48,34 @@ def test_read_h5mu_logs_first_command(monkeypatch):
 
 
 def test_read_sage_logs_first_command(monkeypatch):
+    monkeypatch.setattr(rr.SearchResultDataFrameConverter, "convert", _dummy_convert)
     monkeypatch.setattr(rr, "TmtSageReader", _DummyReader)
     out = rr.read_sage("id.tsv", label="tmt", quantification_file="quant.tsv")
     _assert_cmd(out, "read_sage")
 
 
 def test_read_diann_logs_first_command(monkeypatch):
+    monkeypatch.setattr(rr.SearchResultDataFrameConverter, "convert", _dummy_convert)
     monkeypatch.setattr(rr, "DiannReader", _DummyReader)
     out = rr.read_diann("id.tsv")
     _assert_cmd(out, "read_diann")
 
 
-def test_read_diann_from_pg_logs_first_command(monkeypatch):
-    monkeypatch.setattr(rr, "DiannProteinGroupReader", _DummyReader)
-    out = rr.read_diann.from_pg("id.tsv")
-    _assert_cmd(out, "read_diann.from_pg")
+def test_read_diann_protein_group_not_implemented():
+    import pytest
+    with pytest.raises(NotImplementedError):
+        rr.read_diann("id.tsv", level="protein_group")
 
 
 def test_read_maxquant_logs_first_command(monkeypatch):
+    monkeypatch.setattr(rr.MaxQuantDataFrameConverter, "convert", _dummy_convert)
     monkeypatch.setattr(rr, "MaxTmtReader", _DummyReader)
     out = rr.read_maxquant("id.tsv", label="tmt", acquisition="dda")
     _assert_cmd(out, "read_maxquant")
 
 
 def test_read_fragpipe_logs_first_command(monkeypatch):
+    monkeypatch.setattr(rr.SearchResultDataFrameConverter, "convert", _dummy_convert)
     monkeypatch.setattr(rr, "TmtFragPipeReader", _DummyReader)
-    out = rr.read_fragpipe("id.tsv", label="tmt", acquisition="dda", quantification_file="quant.tsv")
+    out = rr.read_fragpipe("id.tsv", label="tmt", acquisition="dda")
     _assert_cmd(out, "read_fragpipe")

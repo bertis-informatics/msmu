@@ -15,7 +15,7 @@ from ._read_write._reader_registry import (
     read_maxquant,
     read_fragpipe,
     read_delpi,
-    read_cptac,
+    # read_cptac,
 )
 from . import _utils as utils
 
@@ -41,7 +41,7 @@ __all__ = [
     "read_maxquant",
     "read_fragpipe",
     "read_delpi",
-    "read_cptac",
+    # "read_cptac",
     "merge_mudata",
     "pp",
     "pl",
