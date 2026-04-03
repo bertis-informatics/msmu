@@ -69,30 +69,24 @@ def _get_protein_info_from_uniprot() -> pd.DataFrame:
     raise
 
 
-def parse_uniprot_accession(proteins: pd.Series) -> pd.DataFrame:
-    protein_df: pd.DataFrame = pd.DataFrame(proteins)
-    col_ = protein_df.columns[0]
-    protein_df["index"] = range(len(protein_df))
-    protein_df["protein"] = protein_df[col_].apply(lambda x: x.split(";"))
-    protein_df = protein_df.explode("protein")
+def parse_uniprot_accession(proteins: pd.Series) -> list[str]:
+    parsed_accessions: list[str] = []
 
-    uniprot_id_category: list = ["source", "accession", "protein_name"]
-    for idx, cat_ in enumerate(uniprot_id_category):
-        protein_df[cat_] = protein_df["protein"].apply(lambda x: _split_uniprot_fasta_entry(x)[idx])
+    # Keep parsing in a tight Python loop; this avoids expensive explode + row-wise apply.
+    for protein_group in proteins:
+        group_accessions: list[str] = []
+        for protein in protein_group.split(";"):
+            parts = protein.split("|")
+            accession = parts[1] if len(parts) == 3 else parts[0]
 
-    protein_df["accession"] = protein_df.apply(
-        lambda x: (f"rev_{x['accession']}" if x["protein"].startswith("rev_") else x["accession"]),
-        axis=1,
-    )
-    protein_df["accession"] = protein_df.apply(
-        lambda x: (f"contam_{x['accession']}" if x["protein"].startswith("contam_") else x["accession"]),
-        axis=1,
-    )
+            if protein.startswith("rev_"):
+                accession = f"rev_{accession}"
+            elif protein.startswith("contam_"):
+                accession = f"contam_{accession}"
 
-    protein_df = protein_df.groupby(["index", col_], as_index=False).agg(";".join)
-    protein_df = protein_df.sort_values("index")
+            group_accessions.append(accession)
 
-    parsed_accessions: list[str] = protein_df["accession"].tolist()
+        parsed_accessions.append(";".join(group_accessions))
 
     return parsed_accessions
 
