@@ -82,23 +82,23 @@ def add_filter(
         else:
             adata.obsm["filter"][filter_name] = mask
 
-    if "filter" not in mdata[modality].uns_keys():
-        mdata[modality].uns["filter"] = [filter_name]
+    if "filter" not in mdata.mod[modality].uns_keys():
+        mdata.mod[modality].uns["filter"] = [filter_name]
     else:
-        mdata[modality].uns["filter"] = list(set([*mdata[modality].uns["filter"]] + [filter_name]))
+        mdata.mod[modality].uns["filter"] = list(set([*mdata.mod[modality].uns["filter"]] + [filter_name]))
 
     # add filter for decoy (only supported for variable-level filters)
     if store_axis == "varm" and mstatus.__getattribute__(modality).has_decoy:
-        decoy_df = mdata[modality].uns["decoy"]
+        decoy_df = mdata.mod[modality].uns["decoy"]
         if on == "var":
             decoy_mask = _mask_boolean_filter(series_to_mask=decoy_df[column], keep=keep, value=value)
         else:
             decoy_mask = mask.reindex(decoy_df.index).fillna(False)
 
-        if "decoy_filter" not in mdata[modality].uns_keys():
-            mdata[modality].uns["decoy_filter"] = decoy_mask.to_frame(name=filter_name)
+        if "decoy_filter" not in mdata.mod[modality].uns_keys():
+            mdata.mod[modality].uns["decoy_filter"] = decoy_mask.to_frame(name=filter_name)
         else:
-            mdata[modality].uns["decoy_filter"][filter_name] = decoy_mask
+            mdata.mod[modality].uns["decoy_filter"][filter_name] = decoy_mask
 
     return mdata
 
@@ -150,7 +150,7 @@ def apply_filter(
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
 
-    adata_to_filter = mdata[modality]
+    adata_to_filter = mdata.mod[modality]
     apply_var = on in {"var", "all"}
     apply_obs = on in {"obs", "all"}
 
@@ -241,7 +241,7 @@ def apply_filter(
             decoy_filtered_df = decoy_df.copy()
             decoy_filter = decoy_filter.copy()
 
-        mdata[modality].uns["decoy"] = decoy_filtered_df
-        mdata[modality].uns["decoy_filter"] = decoy_filter
+        mdata.mod[modality].uns["decoy"] = decoy_filtered_df
+        mdata.mod[modality].uns["decoy_filter"] = decoy_filter
 
     return mdata.copy()

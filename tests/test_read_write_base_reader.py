@@ -99,8 +99,8 @@ def test_build_mudata_feature_only(identification_df: pd.DataFrame):
     mudata_input = reader._make_mudata_input()
     mdata = reader._build_mudata(mudata_input)
     assert "psm" in mdata.mod_names
-    assert mdata["psm"].var.index.tolist() == ["file1.raw.1"]
-    assert "decoy" in mdata["psm"].uns_keys()
+    assert mdata.mod["psm"].var.index.tolist() == ["file1.raw.1"]
+    assert "decoy" in mdata.mod["psm"].uns_keys()
 
 
 def test_build_mudata_with_quantification(identification_df: pd.DataFrame):
@@ -119,5 +119,5 @@ def test_build_mudata_with_quantification(identification_df: pd.DataFrame):
     )
     mudata_input = reader._make_mudata_input()
     mdata = reader._build_mudata(mudata_input)
-    assert mdata["psm"].X.shape == (2, 1)
-    assert np.isnan(mdata["psm"].X[1, 0])
+    assert mdata.mod["psm"].X.shape == (2, 1)
+    assert np.isnan(mdata.mod["psm"].X[1, 0])

@@ -152,14 +152,14 @@ def umap(
 
     # Save UMAP results - dimensions
     dimensions = np.asarray(umap.transform(data))
-    mdata[modality].obsm[key_added] = pd.DataFrame(
+    mdata.mod[modality].obsm[key_added] = pd.DataFrame(
         dimensions,
-        index=mdata[modality].obs_names,
+        index=mdata.mod[modality].obs_names,
         columns=[f"UMAP_{i + 1}" for i in range(dimensions.shape[1])],
     )
 
     # Save UMAP results - metadata
-    mdata[modality].uns[key_added] = {
+    mdata.mod[modality].uns[key_added] = {
         "n_components": umap.n_components,
         "n_neighbors": n_neighbors,
         "metric": metric,

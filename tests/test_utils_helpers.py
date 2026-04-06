@@ -84,7 +84,7 @@ def test_uns_logger_keeps_existing_dimensions_intact_across_multiple_calls(label
         return mdata
 
     mdata = labeled_mdata.copy()
-    mdata["psm"].layers["raw"] = mdata["psm"].X.copy()
+    mdata.mod["psm"].layers["raw"] = mdata.mod["psm"].X.copy()
 
     out = dummy(mdata)
     out = dummy(out)

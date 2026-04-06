@@ -31,7 +31,7 @@ def test_get_bin_info_raises_on_empty(mdata):
 
 def test_prep_var_hist_outputs_expected_columns(mdata):
     pdata = PlotData(mdata, "psm", obs_column="sample")
-    bin_info = pdata._get_bin_info(mdata["psm"].var["score"], bins=2)
+    bin_info = pdata._get_bin_info(mdata.mod["psm"].var["score"], bins=2)
     df = pdata.prep_var_hist("group", "score", "sample", bin_info)
     assert set(df.columns) == {"center", "label", "count", "frequency", "name"}
     assert df["name"].cat.categories.tolist() == ["A", "B"]

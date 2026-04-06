@@ -52,13 +52,13 @@ def infer_protein(
 
     if propagated_from is None:
         # Start from current peptide-level assignments; include decoys to keep mapping consistent
-        target_peptides = mdata[modality].var[peptide_colname]
-        target_proteins = mdata[modality].var[protein_colname]
+        target_peptides = mdata.mod[modality].var[peptide_colname]
+        target_proteins = mdata.mod[modality].var[protein_colname]
 
         if mstatus.peptide.has_decoy:
-            decoy_peptides = mdata[modality].uns["decoy"][peptide_colname]
+            decoy_peptides = mdata.mod[modality].uns["decoy"][peptide_colname]
             peptides = pd.concat([target_peptides, decoy_peptides], ignore_index=False)
-            decoy_proteins = mdata[modality].uns["decoy"][protein_colname]
+            decoy_proteins = mdata.mod[modality].uns["decoy"][protein_colname]
             proteins = pd.concat([target_proteins, decoy_proteins], ignore_index=False)
         else:
             peptides = target_peptides
@@ -83,22 +83,22 @@ def infer_protein(
     mdata.uns["protein_map"] = protein_map
 
     # Remap proteins and classify peptides by uniqueness within the updated groups
-    mdata[modality].var["protein_group"] = (
-        mdata[modality].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein_group"])
+    mdata.mod[modality].var["protein_group"] = (
+        mdata.mod[modality].var[peptide_colname].map(peptide_map.set_index("peptide").to_dict()["protein_group"])
     )
-    mdata[modality].var["peptide_type"] = [
-        "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[modality].var["protein_group"]
+    mdata.mod[modality].var["peptide_type"] = [
+        "unique" if len(x.split(";")) == 1 else "shared" for x in mdata.mod[modality].var["protein_group"]
     ]
 
     if mstatus.peptide.has_decoy:
         # Apply the same mapping logic to decoys to keep QC and FDR flows aligned
-        mdata[modality].uns["decoy"]["protein_group"] = (
-            mdata[modality]
+        mdata.mod[modality].uns["decoy"]["protein_group"] = (
+            mdata.mod[modality]
             .uns["decoy"][peptide_colname]
             .map(peptide_map.set_index("peptide").to_dict()["protein_group"])
         )
-        mdata[modality].uns["decoy"]["peptide_type"] = [
-            "unique" if len(x.split(";")) == 1 else "shared" for x in mdata[modality].uns["decoy"]["protein_group"]
+        mdata.mod[modality].uns["decoy"]["peptide_type"] = [
+            "unique" if len(x.split(";")) == 1 else "shared" for x in mdata.mod[modality].uns["decoy"]["protein_group"]
         ]
 
     return mdata

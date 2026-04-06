@@ -25,7 +25,7 @@ def _get_test_array(
     expr: str | None,
     layer: str | None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    mod_adata = mdata[modality]
+    mod_adata = mdata.mod[modality]
     if layer is not None:
         data = pd.DataFrame(mod_adata.layers[layer], index=mod_adata.obs_names, columns=mod_adata.var_names)
     else:
@@ -150,7 +150,7 @@ def run_de(
 
     de_res.ctrl = ctrl
     de_res.expr = expr if expr is not None else "all_other_groups"
-    de_res.features = mdata[modality].var.index.to_numpy()
+    de_res.features = mdata.mod[modality].var.index.to_numpy()
     de_res.repr_ctrl = repr_ctrl
     de_res.repr_expr = repr_expr
     de_res.pct_ctrl = _get_pct_expression(ctrl_arr)

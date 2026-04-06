@@ -41,12 +41,12 @@ def select_repr_protein(mdata: md.MuData, modality: str) -> md.MuData:
         protein_info_dict = protein_info.to_dict(orient="dict")["concated_accession"]
 
         if modality == "protein":
-            mdata["protein"].var["repr_protein"] = mdata["protein"].var.index.map(
+            mdata.mod["protein"].var["repr_protein"] = mdata.mod["protein"].var.index.map(
                 lambda x: _select_representative(x, protein_info_dict)
             )
         else:
-            mdata[modality].var["repr_protein"] = (
-                mdata[modality].var["protein_group"].apply(lambda x: _select_representative(x, protein_info_dict))
+            mdata.mod[modality].var["repr_protein"] = (
+                mdata.mod[modality].var["protein_group"].apply(lambda x: _select_representative(x, protein_info_dict))
             )
 
         return mdata

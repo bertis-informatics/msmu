@@ -43,16 +43,20 @@ class MuDataStatus:
             mod_name,
             AnnDataFlags(
                 modality=mod_name,
-                label=self._mdata[mod_name].uns["label"] if "label" in self._mdata[mod_name].uns_keys() else None,
-                aquisition=(
-                    self._mdata[mod_name].uns["acquisition"]
-                    if "acquisition" in self._mdata[mod_name].uns_keys()
+                label=(
+                    self._mdata.mod[mod_name].uns["label"]
+                    if "label" in self._mdata.mod[mod_name].uns_keys()
                     else None
                 ),
-                has_purity="purity" in self._mdata[mod_name].var.columns,
-                has_decoy="decoy" in self._mdata[mod_name].uns_keys(),
-                has_pep="PEP" in self._mdata[mod_name].var.columns,
-                has_var=len(self._mdata[mod_name].var) > 0,
-                has_quant=~np.isnan(self._mdata[mod_name].X).all(),
+                aquisition=(
+                    self._mdata.mod[mod_name].uns["acquisition"]
+                    if "acquisition" in self._mdata.mod[mod_name].uns_keys()
+                    else None
+                ),
+                has_purity="purity" in self._mdata.mod[mod_name].var.columns,
+                has_decoy="decoy" in self._mdata.mod[mod_name].uns_keys(),
+                has_pep="PEP" in self._mdata.mod[mod_name].var.columns,
+                has_var=len(self._mdata.mod[mod_name].var) > 0,
+                has_quant=~np.isnan(self._mdata.mod[mod_name].X).all(),
             ),
         )

@@ -102,7 +102,9 @@ class BatchCorrector:
         self.log_transformed = log_transformed
 
         self.original_arr = (
-            self.mdata[self.modality].X if self.layer is None else self.mdata[self.modality].layers[self.layer]
+            self.mdata.mod[self.modality].X
+            if self.layer is None
+            else self.mdata.mod[self.modality].layers[self.layer]
         )
         self.corrected_arr: np.ndarray | None = None  # placeholder for corrected array
 
@@ -159,8 +161,8 @@ class BatchCorrector:
 
         df = pd.DataFrame(
             self.original_arr,
-            columns=self.mdata[self.modality].var_names,
-            index=self.mdata[self.modality].obs_names,
+            columns=self.mdata.mod[self.modality].var_names,
+            index=self.mdata.mod[self.modality].obs_names,
         ).T
 
         df_sorted = df.iloc[:, sorted_idx]

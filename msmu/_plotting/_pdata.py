@@ -47,7 +47,7 @@ class PlotData:
 
         if groupby in self.mdata.obs_keys():
             key = "obs"
-        elif groupby in self.mdata[self.modality].var_keys():
+        elif groupby in self.mdata.mod[self.modality].var_keys():
             key = "var"
         else:
             raise ValueError(f"Column '{groupby}' not found in obs or var data.")
@@ -79,7 +79,7 @@ class PlotData:
         Returns:
             Copy of the modality's `var` table.
         """
-        var_df = self.mdata[self.modality].var.copy()
+        var_df = self.mdata.mod[self.modality].var.copy()
 
         if groupby and groupby in var_df.columns:
             if not isinstance(var_df[groupby].dtype, pd.CategoricalDtype):
@@ -100,7 +100,7 @@ class PlotData:
             Concatenated `var` and selected varm DataFrame.
         """
         var_df: pd.DataFrame = self._get_var()
-        varm_df: pd.DataFrame = pd.DataFrame(self.mdata[self.modality].varm[column].copy())
+        varm_df: pd.DataFrame = pd.DataFrame(self.mdata.mod[self.modality].varm[column].copy())
 
         return pd.concat([var_df, varm_df], axis=1)
 
@@ -616,7 +616,7 @@ class PlotData:
         obs = self._get_obs(obs_column, groupby=groupby)
 
         # Prepare data
-        orig_df = pd.DataFrame(self.mdata[modality].obsm[key][pc_columns])
+        orig_df = pd.DataFrame(self.mdata.mod[modality].obsm[key][pc_columns])
         join_df = orig_df.join(obs, how="left")
         join_df[groupby] = pd.Categorical(join_df[groupby], categories=obs[groupby].unique())
 
@@ -646,7 +646,7 @@ class PlotData:
         obs = self._get_obs(obs_column, groupby=groupby)
 
         # Prepare data
-        orig_df = pd.DataFrame(self.mdata[modality].obsm[key][umap_columns])
+        orig_df = pd.DataFrame(self.mdata.mod[modality].obsm[key][umap_columns])
         join_df = orig_df.join(obs, how="left")
         join_df[groupby] = pd.Categorical(join_df[groupby], categories=obs[groupby].unique())
 

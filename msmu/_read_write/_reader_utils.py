@@ -29,7 +29,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
             mdata_components = _decompose_data(data=mdata, name=name_, parent_dict=mdata_components)
             for mod in mdata.mod_names:
                 adata_components = _decompose_data(
-                    data=mdata[mod],
+                    data=mdata.mod[mod],
                     name=name_,
                     modality=mod,
                     parent_dict=adata_components,

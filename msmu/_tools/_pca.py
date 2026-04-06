@@ -114,20 +114,20 @@ def pca(
 
     # Save PCA results - dimensions
     dimensions = pca.transform(data)
-    mdata[modality].obsm[key_added] = pd.DataFrame(
+    mdata.mod[modality].obsm[key_added] = pd.DataFrame(
         dimensions,
-        index=mdata[modality].obs_names,
+        index=mdata.mod[modality].obs_names,
         columns=[f"PC_{i + 1}" for i in range(dimensions.shape[1])],
     )
 
     # Save PCA results - loadings
     pcs = pd.DataFrame(pca.components_, columns=pca.feature_names_in_, index=pca.get_feature_names_out())
-    pcs_df = pd.DataFrame(index=mdata[modality].var_names)
+    pcs_df = pd.DataFrame(index=mdata.mod[modality].var_names)
     pcs_df = pcs_df.join(pcs.T)
-    mdata[modality].varm[key_added] = pcs_df
+    mdata.mod[modality].varm[key_added] = pcs_df
 
     # Save PCA results - explained variance and metadata
-    mdata[modality].uns[key_added] = {
+    mdata.mod[modality].uns[key_added] = {
         "variance": pca.explained_variance_,
         "variance_ratio": pca.explained_variance_ratio_,
         "n_components": pca.n_components_,

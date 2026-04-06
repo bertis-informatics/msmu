@@ -141,11 +141,11 @@ class PTMProteinAdjuster:
         self.ptm_data, self.global_data = self._extract_data()
 
     def _extract_data(self):
-        ptm_data: pd.DataFrame = self.ptm_mdata[self.ptm_mod].to_df().T.copy()
+        ptm_data: pd.DataFrame = self.ptm_mdata.mod[self.ptm_mod].to_df().T.copy()
         ptm_data["ptm_site"] = ptm_data.index
-        ptm_data["protein_group"] = self.ptm_mdata[self.ptm_mod].var["protein_group"]
+        ptm_data["protein_group"] = self.ptm_mdata.mod[self.ptm_mod].var["protein_group"]
 
-        global_data: pd.DataFrame = self.global_mdata[self.global_mod].to_df().T.copy()
+        global_data: pd.DataFrame = self.global_mdata.mod[self.global_mod].to_df().T.copy()
         global_data = global_data[self.sample_cols]  # sort sample order
         global_data["protein_group"] = global_data.index
 
@@ -201,7 +201,7 @@ class PTMProteinAdjuster:
 
     def _adjuted_ptm_to_mdata(self, adjusted_ptm: pd.DataFrame) -> md.MuData:
         adj_ptm_mdata: md.MuData = self.ptm_mdata.copy()
-        adj_ptm_adata = adj_ptm_mdata[self.ptm_mod].copy()
+        adj_ptm_adata = adj_ptm_mdata.mod[self.ptm_mod].copy()
         adj_ptm_adata = adj_ptm_adata[:, adjusted_ptm["ptm_site"]].copy()
 
         adjusted_ptm = adjusted_ptm.set_index("ptm_site", drop=True)

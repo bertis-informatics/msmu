@@ -267,9 +267,9 @@ def _get_mdata_dimensions(mdata: md.MuData) -> dict[str, object]:
         "n_vars": int(mdata.n_vars),
         "modalities": {
             mod: {
-                "n_obs": int(mdata[mod].n_obs),
-                "n_vars": int(mdata[mod].n_vars),
-                "layers": [str(layer) for layer in mdata[mod].layers.keys()],
+                "n_obs": int(mdata.mod[mod].n_obs),
+                "n_vars": int(mdata.mod[mod].n_vars),
+                "layers": [str(layer) for layer in mdata.mod[mod].layers.keys()],
             }
             for mod in mdata.mod_names
         },

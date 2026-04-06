@@ -96,7 +96,7 @@ def test_correct_batch_effect_gis_protein(simple_mdata_protein):
 
 
 def test_correct_batch_effect_gis_rescale(simple_mdata):
-    total_median = np.median(simple_mdata["psm"].X.flatten())
+    total_median = np.median(simple_mdata.mod["psm"].X.flatten())
     answer = np.array(
         [
             [-5.0, -4.0],

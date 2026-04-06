@@ -157,10 +157,12 @@ def map_fasta(
             continue
 
         if modality == "protein":
-            mdata[modality].var[category] = mdata[modality].var.index.map(lambda x: _map_fasta(x, fasta_meta, category))
+            mdata.mod[modality].var[category] = mdata.mod[modality].var.index.map(
+                lambda x: _map_fasta(x, fasta_meta, category)
+            )
         else:
-            mdata[modality].var[category] = (
-                mdata[modality].var["protein_group"].map(lambda x: _map_fasta(x, fasta_meta, category))
+            mdata.mod[modality].var[category] = (
+                mdata.mod[modality].var["protein_group"].map(lambda x: _map_fasta(x, fasta_meta, category))
             )
 
     return mdata

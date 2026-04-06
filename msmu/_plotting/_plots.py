@@ -298,9 +298,9 @@ def plot_pca(
 
     # Get data
     pcs, pc_columns = get_pc_cols(mdata, modality, pcs, key=key)
-    if key not in mdata[modality].uns:
+    if key not in mdata.mod[modality].uns:
         raise ValueError(f"Key {key} not found in .uns at {modality}")
-    variances = mdata[modality].uns[key]["variance_ratio"]
+    variances = mdata.mod[modality].uns[key]["variance_ratio"]
 
     # Set titles
     title_text = "PCA"
@@ -581,8 +581,8 @@ def plot_var(
     modality_label = format_modality(mdata, modality)
     column_label = var_column.replace("_", " ").capitalize()
 
-    if pd.api.types.is_numeric_dtype(mdata[modality].var[var_column]):
-        if len(mdata[modality].var[var_column].unique()) > 20:
+    if pd.api.types.is_numeric_dtype(mdata.mod[modality].var[var_column]):
+        if len(mdata.mod[modality].var[var_column].unique()) > 20:
             ptype = ptype or "box"
         else:
             ptype = ptype or "stack"

@@ -127,7 +127,7 @@ def format_modality(mdata: md.MuData, modality: str) -> str:
         Display-ready modality label.
     """
     if modality == "psm":
-        if mdata["psm"].uns["search_engine"] == "Diann":
+        if mdata.mod["psm"].uns["search_engine"] == "Diann":
             return "Precursor"
         else:
             return "PSM"
@@ -363,15 +363,15 @@ def get_pc_cols(
         pcs = (pcs[1], pcs[0])
 
     # Check if PCs exist
-    if key not in mdata[modality].obsm:
+    if key not in mdata.mod[modality].obsm:
         raise ValueError(f"Key {key} not found in .obsm at {modality}")
 
     # Get PC columns
     pc_columns = [f"PC_{pc}" for pc in pcs]
 
-    if pc_columns[0] not in mdata[modality].obsm[key].columns:  # type: ignore
+    if pc_columns[0] not in mdata.mod[modality].obsm[key].columns:  # type: ignore
         raise ValueError(f"{pc_columns[0]} not found in {modality}")
-    if pc_columns[1] not in mdata[modality].obsm[key].columns:  # type: ignore
+    if pc_columns[1] not in mdata.mod[modality].obsm[key].columns:  # type: ignore
         raise ValueError(f"{pc_columns[1]} not found in {modality}")
 
     return pcs, pc_columns
@@ -394,15 +394,15 @@ def get_umap_cols(
         List of UMAP column names used for plotting.
     """
     # Check if UMAP exist
-    if key not in mdata[modality].obsm:
+    if key not in mdata.mod[modality].obsm:
         raise ValueError(f"Key {key} not found in .obsm at {modality}")
 
     # Get UMAP columns
     umap_columns = [f"UMAP_{pc}" for pc in [1, 2]]
 
-    if umap_columns[0] not in mdata[modality].obsm[key].columns:  # type: ignore
+    if umap_columns[0] not in mdata.mod[modality].obsm[key].columns:  # type: ignore
         raise ValueError(f"{umap_columns[0]} not found in {modality}")
-    if umap_columns[1] not in mdata[modality].obsm[key].columns:  # type: ignore
+    if umap_columns[1] not in mdata.mod[modality].obsm[key].columns:  # type: ignore
         raise ValueError(f"{umap_columns[1]} not found in {modality}")
 
     return umap_columns

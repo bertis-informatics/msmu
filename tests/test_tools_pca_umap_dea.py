@@ -57,7 +57,7 @@ def test_run_de_with_simple_test(mdata):
     )
     assert res.ctrl == "A"
     assert res.expr == "B"
-    assert res.features.size == mdata["protein"].var.shape[0]
+    assert res.features.size == mdata.mod["protein"].var.shape[0]
 
 
 def test_run_de_invalid_stat_method_raises(mdata):

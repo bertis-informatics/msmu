@@ -41,6 +41,6 @@ def corr(
 
     corr_matrix = data.T.corr(method=method)
 
-    mdata[modality].obsp["X_corr"] = corr_matrix.values
+    mdata.mod[modality].obsp["X_corr"] = corr_matrix.values
 
     return mdata

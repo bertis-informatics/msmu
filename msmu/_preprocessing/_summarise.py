@@ -56,7 +56,7 @@ def to_peptide(
         MuData object containing peptide-level data.
     """
     mdata = mdata.copy()
-    adata_to_summarise: ad.AnnData = mdata["psm"]
+    adata_to_summarise: ad.AnnData = mdata.mod["psm"]
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for peptide summarisation.", layer)
@@ -142,14 +142,14 @@ def to_peptide(
         "peptide" in mstatus.mod_names
     ):  # for lfq (dda) data with peptide quantification already existing
         logger.info("Using existing peptide quantification data.")
-        quant_df_agg = mdata["peptide"].to_df().T
+        quant_df_agg = mdata.mod["peptide"].to_df().T
         quant_df_agg = pd.merge(ident_df_agg[[]], quant_df_agg, left_index=True, right_index=True, how="left")
         logger.debug("Merged existing peptide quantification shape: %s", quant_df_agg.shape)
         peptide_adata = ad.AnnData(
             X=quant_df_agg.T,
             var=ident_df_agg,
         )
-        mdata = mdata[:, [v not in mdata["peptide"].var_names for v in mdata.var_names]].copy()
+        mdata = mdata[:, [v not in mdata.mod["peptide"].var_names for v in mdata.var_names]].copy()
         mdata.mod["peptide"] = peptide_adata
         # mdata["peptide"].var = ident_df_agg
 
@@ -162,10 +162,10 @@ def to_peptide(
 
         # add modality
         mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["psm"])
-    mdata["peptide"].uns["level"] = "peptide"
+    mdata.mod["peptide"].uns["level"] = "peptide"
 
     if mstatus.psm.has_decoy:
-        mdata["peptide"].uns["decoy"] = decoy_df_agg
+        mdata.mod["peptide"].uns["decoy"] = decoy_df_agg
 
     return mdata
 
@@ -219,7 +219,7 @@ def to_protein(
     else:
         mdata = original_mdata
 
-    adata_to_summarise: ad.AnnData = mdata["peptide"]
+    adata_to_summarise: ad.AnnData = mdata.mod["peptide"]
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for protein summarisation.", layer)
@@ -287,10 +287,10 @@ def to_protein(
 
     # add modality
     mdata = add_modality(mdata=original_mdata, adata=protein_adata, mod_name="protein", parent_mods=["peptide"])
-    mdata["protein"].uns["level"] = "protein"
+    mdata.mod["protein"].uns["level"] = "protein"
 
     if mstatus.peptide.has_decoy:
-        mdata["protein"].uns["decoy"] = agg_decoy_df
+        mdata.mod["protein"].uns["decoy"] = agg_decoy_df
 
     return mdata
 
@@ -319,7 +319,7 @@ def to_ptm(
     Returns:
         MuData: MuData object containing PTM-level data.
     """
-    adata_to_summarise: ad.AnnData = mdata["peptide"].copy()
+    adata_to_summarise: ad.AnnData = mdata.mod["peptide"].copy()
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for PTM summarisation.", layer)
@@ -377,6 +377,6 @@ def to_ptm(
 
     # add modality
     mdata = add_modality(mdata=mdata, adata=ptm_adata, mod_name=modality_name, parent_mods=["peptide"])
-    mdata[modality_name].uns["level"] = "ptm_site"
+    mdata.mod[modality_name].uns["level"] = "ptm_site"
 
     return mdata
