@@ -69,7 +69,11 @@ def add_filter(
     if column not in source_df.columns:
         raise ValueError(f"Column '{column}' not found in {modality}.{on}")
 
-    mask = _mask_boolean_filter(series_to_mask=source_df[column], keep=keep, value=value)
+    column_values = source_df[column]
+    if not isinstance(column_values, pd.Series):
+        raise ValueError(f"Column '{column}' must identify a single column in {modality}.{on}")
+
+    mask = _mask_boolean_filter(series_to_mask=column_values, keep=keep, value=value)
 
     if store_axis == "varm":
         if "filter" not in adata.varm_keys():
@@ -153,13 +157,19 @@ def apply_filter(
     adata_to_filter = mdata.mod[modality]
     apply_var = on in {"var", "all"}
     apply_obs = on in {"obs", "all"}
+    var_mask = slice(None)
+    obs_mask = slice(None)
+    var_filter_columns: list[str] = []
+    obs_filter_columns: list[str] = []
+    var_filter_df = None
+    obs_filter_df = None
+    missing_filter_columns: list[str] = []
 
     if apply_var:
         if "filter" not in adata_to_filter.varm_keys():
-            logger.warning("No filter found in %s.varm['filter'].", modality)
             if on == "var":
+                logger.warning("No filter found in %s.varm['filter'].", modality)
                 raise ValueError("No filter found in the modality's varm.")
-            var_mask = slice(None)
         else:
             var_filter_df = adata_to_filter.varm["filter"]
             available_var_columns = var_filter_df.columns.to_list()
@@ -168,30 +178,25 @@ def apply_filter(
             else:
                 var_filter_columns = [col for col in columns if col in available_var_columns]
                 missing_var_columns = [col for col in columns if col not in available_var_columns]
-                if missing_var_columns:
+                if missing_var_columns and on == "var":
                     logger.warning(
                         "Var filter columns not found in %s.varm['filter']: %s",
                         modality,
                         missing_var_columns,
                     )
+                missing_filter_columns.extend(missing_var_columns)
                 if len(var_filter_columns) == 0:
                     if on == "var":
                         raise ValueError(f"No matching var filter columns found in {modality}.varm['filter'].")
-                    logger.warning("No matching var filter columns found in %s.varm['filter'].", modality)
-                    var_mask = slice(None)
-                    var_filter_columns = []
             if var_filter_columns:
                 logger.info("Applying var filters for %s: %s", modality, var_filter_columns)
                 var_mask = var_filter_df[var_filter_columns].all(axis=1)
-    else:
-        var_mask = slice(None)
 
     if apply_obs:
         if "filter" not in adata_to_filter.obsm_keys():
-            logger.warning("No filter found in %s.obsm['filter'].", modality)
             if on == "obs":
+                logger.warning("No filter found in %s.obsm['filter'].", modality)
                 raise ValueError("No filter found in the modality's obsm.")
-            obs_mask = slice(None)
         else:
             obs_filter_df = adata_to_filter.obsm["filter"]
             available_obs_columns = obs_filter_df.columns.to_list()
@@ -200,46 +205,55 @@ def apply_filter(
             else:
                 obs_filter_columns = [col for col in columns if col in available_obs_columns]
                 missing_obs_columns = [col for col in columns if col not in available_obs_columns]
-                if missing_obs_columns:
+                if missing_obs_columns and on == "obs":
                     logger.warning(
                         "Obs filter columns not found in %s.obsm['filter']: %s",
                         modality,
                         missing_obs_columns,
                     )
+                missing_filter_columns.extend(missing_obs_columns)
                 if len(obs_filter_columns) == 0:
                     if on == "obs":
                         raise ValueError(f"No matching obs filter columns found in {modality}.obsm['filter'].")
-                    logger.warning("No matching obs filter columns found in %s.obsm['filter'].", modality)
-                    obs_mask = slice(None)
-                    obs_filter_columns = []
             if obs_filter_columns:
                 logger.info("Applying obs filters for %s: %s", modality, obs_filter_columns)
                 obs_mask = obs_filter_df[obs_filter_columns].all(axis=1)
-    else:
-        obs_mask = slice(None)
+
+    if on == "all":
+        has_any_filter_table = var_filter_df is not None or obs_filter_df is not None
+        selected_filter_columns = [*var_filter_columns, *obs_filter_columns]
+        if columns is None and not has_any_filter_table:
+            logger.warning(
+                "No filters found in %s.varm['filter'] or %s.obsm['filter'].",
+                modality,
+                modality,
+            )
+        elif columns is not None:
+            all_available_columns = set()
+            if var_filter_df is not None:
+                all_available_columns.update(var_filter_df.columns)
+            if obs_filter_df is not None:
+                all_available_columns.update(obs_filter_df.columns)
+            missing_filter_columns = [col for col in columns if col not in all_available_columns]
+            if missing_filter_columns:
+                logger.warning("Filter columns not found in %s: %s", modality, missing_filter_columns)
+            if not selected_filter_columns:
+                raise ValueError(f"No matching filter columns found in {modality}.")
 
     filtered_adata = adata_to_filter[obs_mask, var_mask].copy()
     mdata.mod[modality] = filtered_adata
 
-    if mstatus.__getattribute__(modality).has_decoy and apply_var:
+    if mstatus.__getattribute__(modality).has_decoy and var_filter_columns:
         decoy_df = adata_to_filter.uns["decoy"]
         if "decoy_filter" not in adata_to_filter.uns_keys():
             raise ValueError("No decoy filter found in the modality's uns.")
         decoy_filter = adata_to_filter.uns["decoy_filter"]
-        if columns is None:
-            decoy_use_columns = decoy_filter.columns.to_list()
-        else:
-            decoy_use_columns = [col for col in columns if col in decoy_filter.columns]
-            if not decoy_use_columns:
-                if on == "var":
-                    raise ValueError("No matching decoy filter columns found in the modality's uns.")
-                decoy_use_columns = []
-        if decoy_use_columns:
-            decoy_filtered_df = decoy_df[decoy_filter[decoy_use_columns].all(axis=1)].copy()
-            decoy_filter = decoy_filter.loc[decoy_filtered_df.index, decoy_use_columns]
-        else:
-            decoy_filtered_df = decoy_df.copy()
-            decoy_filter = decoy_filter.copy()
+        decoy_use_columns = [col for col in var_filter_columns if col in decoy_filter.columns]
+        if not decoy_use_columns:
+            raise ValueError("No matching decoy filter columns found in the modality's uns.")
+
+        decoy_filtered_df = decoy_df[decoy_filter[decoy_use_columns].all(axis=1)].copy()
+        decoy_filter = decoy_filter.loc[decoy_filtered_df.index, decoy_use_columns]
 
         mdata.mod[modality].uns["decoy"] = decoy_filtered_df
         mdata.mod[modality].uns["decoy_filter"] = decoy_filter

@@ -64,6 +64,21 @@ def test_infer_protein_supports_custom_modality_name():
     assert set(out.uns) >= {"peptide_map", "protein_map"}
 
 
+def test_infer_protein_cmd_stdout_records_protein_inference_stats():
+    mdata = _make_peptide_mdata()
+
+    out = infer_protein(mdata)
+
+    entry = out.uns["_cmd"]["0"]
+    assert entry["function"] == "infer_protein"
+    assert "stdout" in entry
+    stdout = entry["stdout"]
+    assert "INFO - Initial proteins: 2" in stdout
+    assert "INFO - Removed indistinguishable: 0" in stdout
+    assert "INFO - Removed subsettable: 0" in stdout
+    assert "INFO - Removed subsumable: 0" in stdout
+
+
 def test_infer_protein_annotates_decoys():
     mdata = _make_peptide_mdata(include_decoy=True)
 

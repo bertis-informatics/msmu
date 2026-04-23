@@ -251,7 +251,7 @@ def get_protein_mapping(
     # Initial load
     map_df = _get_map_df(peptides, proteins)
     _, initial_protein_df = _get_df(map_df)
-    logger.debug("Initial proteins: %d", len(initial_protein_df))
+    logger.info("Initial proteins: %d", len(initial_protein_df))
 
     # Find indistinguishable proteins
     map_df, indist_map = _find_indistinguishable(map_df)
@@ -434,7 +434,7 @@ def _find_indistinguishable(
     peptide_df, protein_df = _get_df(map_df)
 
     removed_indist = len(indist_map["repr"]) - len(indist_map["memb"])
-    logger.debug("Removed indistinguishable: %d", removed_indist)
+    logger.info("Removed indistinguishable: %d", removed_indist)
 
     return map_df, indist_map
 
@@ -553,7 +553,7 @@ def _find_subsettable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping]:
     peptide_df, protein_df = _get_df(map_df)
 
     removed_subsets = len(subset_map["repr"])
-    logger.debug("Removed subsettable: %d", removed_subsets)
+    logger.info("Removed subsettable: %d", removed_subsets)
 
     return map_df, subset_map
 
@@ -647,7 +647,7 @@ def _find_subsumable(map_df: pd.DataFrame) -> tuple[pd.DataFrame, Mapping, list[
     map_df = map_df.drop_duplicates().reset_index(drop=True)
 
     removed_subsumables = len(subsum_map["repr"]) - len(subsum_map["memb"]) + len(removed_proteins)
-    logger.debug("Removed subsumable: %d", removed_subsumables)
+    logger.info("Removed subsumable: %d", removed_subsumables)
 
     return map_df, subsum_map, removed_proteins
 
