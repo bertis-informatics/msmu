@@ -14,7 +14,7 @@ import plotly.io as pio
 from ..logging_utils import get_logger
 
 _FALLBACK_COLUMN = "__obs_idx__"
-_DEFAULT_OBS_PRIORITY = ("sample", "filename", _FALLBACK_COLUMN)
+_DEFAULT_OBS_PRIORITY = ("source_name", "sample", "filename", _FALLBACK_COLUMN)
 
 logger = get_logger(__name__)
 
@@ -133,23 +133,28 @@ def resolve_obs_column(
     Returns:
         Name of the categorical observation column to use for plotting.
     """
+    if requested is not None:
+        if requested in mdata.obs.columns:
+            return ensure_obs_categorical(mdata, requested)
+        raise ValueError(f"obs_column '{requested}' is not present in mdata.obs.")
+
     # Allow MuData to specify a default preference via uns
     plotting_defaults = mdata.uns.get("plotting", {}) if hasattr(mdata, "uns") else {}
     preferred = plotting_defaults.get("default_obs_column")
 
     candidates: list[str] = []
-    for name in (requested, preferred, *_DEFAULT_OBS_PRIORITY):
+    for name in (preferred, *_DEFAULT_OBS_PRIORITY):
         if name and name not in candidates:
             candidates.append(name)
 
     for name in candidates:
         if name in mdata.obs.columns:
             return ensure_obs_categorical(mdata, name)
-        elif (name == requested) or (name == preferred):
+        elif name == preferred:
             logger.debug("Requested obs column '%s' not found in observations.", name)
 
     # Create a stable fallback using obs index
-    fallback_name = requested or preferred or _FALLBACK_COLUMN
+    fallback_name = preferred or _FALLBACK_COLUMN
     logger.debug("Using fallback obs column '%s' created from index.", fallback_name)
     return fallback_name
 
@@ -174,6 +179,23 @@ def resolve_plot_columns(
     resolved_groupby = groupby or resolved_obs
 
     return resolved_groupby, resolved_obs
+
+
+def is_resolved_obs_groupby(
+    mdata: md.MuData,
+    groupby: str,
+    obs_column: str,
+) -> bool:
+    """
+    Return whether a grouping column is available from prepared observations.
+
+    Fallback observation columns are injected into plotting-only observation
+    frames, so they are valid group columns even when absent from `mdata.obs`.
+    """
+    if groupby in mdata.obs_keys():
+        return True
+
+    return groupby == obs_column
 
 
 def ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
@@ -285,7 +307,6 @@ def set_color(
     Returns:
         Figure with trace colors and ordering updated.
     """
-    groupby_column = resolve_obs_column(mdata, groupby_column)
     obs_df = prepare_obs_frame(mdata, groupby_column, groupby=groupby_column)
 
     # Ensure color column exists and is categorical

@@ -1,9 +1,11 @@
+import io
 import logging
 import numpy as np
 import pandas as pd
 import pytest
 from mudata import MuData
 
+from msmu.logging_utils import get_logger
 from msmu._utils.peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -76,6 +78,34 @@ def test_uns_logger_captures_logging(labeled_mdata):
     entry = out.uns["_cmd"]["0"]
     assert "stdout" in entry
     assert "INFO - hello from logger" in entry["stdout"]
+
+
+def test_uns_logger_prunes_closed_msmu_handler(labeled_mdata):
+    logger = get_logger()
+    original_handlers = list(logger.handlers)
+    original_level = logger.level
+    original_propagate = logger.propagate
+    try:
+        stream = io.StringIO()
+        stale_handler = logging.StreamHandler(stream)
+        stale_handler._msmu_handler = True  # type: ignore[attr-defined]
+        logger.handlers = [stale_handler]
+        stream.close()
+
+        @uns_logger
+        def dummy_log(mdata: MuData):
+            logging.getLogger("msmu.test").info("hello after closed handler")
+            return mdata
+
+        out = dummy_log(labeled_mdata)
+
+        assert stale_handler not in logger.handlers
+        entry = out.uns["_cmd"]["0"]
+        assert "INFO - hello after closed handler" in entry["stdout"]
+    finally:
+        logger.handlers = original_handlers
+        logger.setLevel(original_level)
+        logger.propagate = original_propagate
 
 
 def test_uns_logger_keeps_existing_dimensions_intact_across_multiple_calls(labeled_mdata):

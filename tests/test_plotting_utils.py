@@ -9,6 +9,7 @@ from msmu._plotting._utils import (
     get_bin_info,
     get_pc_cols,
     get_umap_cols,
+    is_resolved_obs_groupby,
     merge_traces,
     prepare_obs_frame,
     resolve_plot_columns,
@@ -23,14 +24,33 @@ def test_resolve_obs_column_requested(mdata):
     assert isinstance(mdata.obs["group"].dtype, pd.CategoricalDtype)
 
 
-def test_resolve_obs_column_fallback_does_not_mutate_obs(mdata):
+def test_resolve_obs_column_explicit_missing_raises(mdata):
     mdata_local = mdata.copy()
     mdata_local.uns["plotting"] = {}
     mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
 
-    resolved = resolve_obs_column(mdata_local, "missing_group")
-    assert resolved == "missing_group"
+    with pytest.raises(ValueError, match="obs_column 'missing_group' is not present in mdata.obs"):
+        resolve_obs_column(mdata_local, "missing_group")
+
+
+def test_resolve_obs_column_explicit_fallback_name_raises(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+
+    with pytest.raises(ValueError, match="obs_column '__obs_idx__' is not present in mdata.obs"):
+        resolve_obs_column(mdata_local, "__obs_idx__")
+
+
+def test_resolve_obs_column_omitted_fallback_does_not_mutate_obs(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+
+    resolved = resolve_obs_column(mdata_local)
+    assert resolved == "__obs_idx__"
     assert "missing_group" not in mdata_local.obs.columns
+    assert "__obs_idx__" not in mdata_local.obs.columns
 
 
 def test_prepare_obs_frame_injects_fallback_locally(mdata):
@@ -46,16 +66,27 @@ def test_prepare_obs_frame_injects_fallback_locally(mdata):
     assert isinstance(obs_df["missing_group"].dtype, pd.CategoricalDtype)
 
 
-def test_resolve_obs_column_fallback_logs_debug(mdata, caplog):
+def test_is_resolved_obs_groupby_accepts_fallback_obs_column(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+
+    resolved = resolve_obs_column(mdata_local)
+
+    assert is_resolved_obs_groupby(mdata_local, resolved, resolved)
+    assert not is_resolved_obs_groupby(mdata_local, "missing_group", resolved)
+    assert resolved not in mdata_local.obs.columns
+
+
+def test_resolve_obs_column_omitted_fallback_logs_debug(mdata, caplog):
     mdata_local = mdata.copy()
     mdata_local.uns["plotting"] = {}
     mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
 
     with caplog.at_level("DEBUG", logger="msmu._plotting._utils"):
-        resolve_obs_column(mdata_local, "missing_group")
+        resolve_obs_column(mdata_local)
 
-    assert "Requested obs column 'missing_group' not found in observations." in caplog.text
-    assert "Using fallback obs column 'missing_group' created from" in caplog.text
+    assert "Using fallback obs column '__obs_idx__' created from" in caplog.text
 
 
 def test_get_bin_info_numeric_values():

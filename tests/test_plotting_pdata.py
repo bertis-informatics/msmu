@@ -18,6 +18,26 @@ def test_get_obs_handles_duplicate_obs_categories(mdata):
     assert list(obs_df["group"].cat.categories) == ["A", "B"]
 
 
+def test_get_groupby_column_accepts_fallback_obs_column(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+    pdata = PlotData(mdata_local, "protein", obs_column="__obs_idx__")
+
+    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == ("obs", "__obs_idx__")
+    assert "__obs_idx__" not in mdata_local.obs.columns
+
+
+def test_get_groupby_column_fallback_obs_wins_var_name_collision(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+    mdata_local.mod["protein"].var["__obs_idx__"] = ["var_a", "var_b", "var_c"]
+    pdata = PlotData(mdata_local, "protein", obs_column="__obs_idx__")
+
+    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == ("obs", "__obs_idx__")
+
+
 def test_get_bin_info_raises_on_empty(mdata):
     pdata = PlotData(mdata, "psm", obs_column="sample")
     empty = pd.DataFrame()

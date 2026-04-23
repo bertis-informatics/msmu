@@ -8,7 +8,7 @@ import pandas as pd
 
 from .._core._access import get_adata
 from ..logging_utils import get_logger
-from ._utils import BinInfo, get_bin_info, prepare_obs_frame, resolve_obs_column
+from ._utils import BinInfo, get_bin_info, is_resolved_obs_groupby, prepare_obs_frame
 
 logger = get_logger(__name__)
 
@@ -86,7 +86,7 @@ class PlotData:
         obs_column: str,
     ) -> tuple[str, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Resolve common inputs for variable-oriented plot preparation."""
-        groupby_type, groupby_column = self._get_groupby_column(groupby)
+        groupby_type, groupby_column = self._get_groupby_column(groupby, obs_column)
         obs_df = self._get_obs(obs_column, groupby=groupby_column if groupby_type == "obs" else None)
         var_df = self._get_var(groupby=groupby_column if groupby_type == "var" else None)
         orig_df = self._get_data()
@@ -132,12 +132,13 @@ class PlotData:
 
         return obs_df, join_df
 
-    def _get_groupby_column(self, groupby: str) -> tuple[str, str]:
+    def _get_groupby_column(self, groupby: str, obs_column: str) -> tuple[str, str]:
         """
         Resolves the grouping column from kwargs or uses the provided default.
 
         Parameters:
             groupby: Default grouping column name.
+            obs_column: Observation column used to resolve plotting fallbacks.
 
         Returns:
             Tuple indicating whether the column is from 'obs' or 'var', and the column name.
@@ -145,8 +146,12 @@ class PlotData:
 
         if groupby in self.mdata.obs_keys():
             key = "obs"
+        elif groupby == obs_column and is_resolved_obs_groupby(self.mdata, groupby, obs_column):
+            key = "obs"
         elif groupby in self.mdata.mod[self.modality].var_keys():
             key = "var"
+        elif is_resolved_obs_groupby(self.mdata, groupby, obs_column):
+            key = "obs"
         else:
             raise ValueError(f"Column '{groupby}' not found in obs or var data.")
 
@@ -212,7 +217,6 @@ class PlotData:
         Returns:
             Observation DataFrame with categorical ordering applied.
         """
-        obs_column = resolve_obs_column(self.mdata, obs_column)
         return prepare_obs_frame(self.mdata, obs_column, groupby=groupby)
 
     def _get_bin_info(
@@ -465,7 +469,7 @@ class PlotData:
         Returns:
             Counts per observation group with column `_count`.
         """
-        groupby_type, groupby_column = self._get_groupby_column(groupby)
+        groupby_type, groupby_column = self._get_groupby_column(groupby, obs_column)
         obs_df = self._get_obs(obs_column, groupby=groupby_column if groupby_type == "obs" else None)
         var_df = self._get_var(groupby=groupby_column if groupby_type == "var" else None)
         orig_df = self._get_data()

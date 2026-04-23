@@ -1,3 +1,6 @@
+import pandas as pd
+import pytest
+
 from msmu._plotting._plots import (
     plot_correlation,
     plot_id,
@@ -8,6 +11,57 @@ from msmu._plotting._plots import (
     plot_upset,
     plot_var,
 )
+
+
+def test_plot_id_defaults_to_fallback_obs_index(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+
+    fig = plot_id(mdata_local, modality="protein")
+
+    assert {trace.name for trace in fig.data} == set(mdata_local.obs.index.astype(str))
+    assert all(trace.type == "bar" for trace in fig.data)
+    assert "__obs_idx__" not in mdata_local.obs.columns
+
+
+def test_plot_id_fallback_obs_wins_var_name_collision(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+    mdata_local.mod["protein"].var["__obs_idx__"] = ["var_a", "var_b", "var_c"]
+
+    fig = plot_id(mdata_local, modality="protein")
+
+    assert {trace.name for trace in fig.data} == set(mdata_local.obs.index.astype(str))
+    assert {trace.name for trace in fig.data}.isdisjoint({"var_a", "var_b", "var_c"})
+    assert "__obs_idx__" not in mdata_local.obs.columns
+
+
+def test_plot_var_defaults_to_fallback_obs_index(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+
+    fig = plot_var(mdata_local, modality="protein", var_column="class")
+
+    assert len(fig.data) == 2
+    assert all(trace.type == "bar" for trace in fig.data)
+    assert "__obs_idx__" not in mdata_local.obs.columns
+
+
+def test_plot_id_explicit_missing_obs_column_raises(mdata):
+    with pytest.raises(ValueError, match="obs_column 'missing_group' is not present in mdata.obs"):
+        plot_id(mdata, modality="protein", obs_column="missing_group")
+
+
+def test_plot_id_explicit_fallback_obs_column_raises_when_missing(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+
+    with pytest.raises(ValueError, match="obs_column '__obs_idx__' is not present in mdata.obs"):
+        plot_id(mdata_local, modality="protein", obs_column="__obs_idx__")
 
 
 def test_plot_id_uses_precursor_label(mdata):
