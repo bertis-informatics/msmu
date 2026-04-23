@@ -68,7 +68,9 @@ def psm_adata(obs_df: pd.DataFrame, var_df: pd.DataFrame) -> AnnData:
             [3.0, np.nan, 5.0],
         ]
     )
-    return _make_adata(x, obs_df.copy(), var_df.copy(), uns={"search_engine": "Diann"})
+    psm_var = var_df.copy()
+    psm_var.index = [f"psm_{idx}" for idx in psm_var.index]
+    return _make_adata(x, obs_df.copy(), psm_var, uns={"search_engine": "Diann"})
 
 
 @pytest.fixture
@@ -93,8 +95,10 @@ def protein_adata(obs_df: pd.DataFrame, var_df: pd.DataFrame) -> AnnData:
             columns=["UMAP_1", "UMAP_2"],
         ),
     }
+    protein_var = var_df.copy()
+    protein_var.index = [f"protein_{idx}" for idx in protein_var.index]
     return _make_adata(
-        x, obs_df.copy(), var_df.copy(), uns={"X_pca": {"variance_ratio": np.array([0.6, 0.3])}}, obsm=obsm
+        x, obs_df.copy(), protein_var, uns={"X_pca": {"variance_ratio": np.array([0.6, 0.3])}}, obsm=obsm
     )
 
 
@@ -133,10 +137,12 @@ def simple_mdata() -> MuData:
 @pytest.fixture
 def simple_mdata_protein() -> MuData:
     obs = pd.DataFrame(index=["s1", "s2", "gis1", "s3", "s4", "gis2"])
-    var = pd.DataFrame(index=["v1", "v2"])
+    psm_var = pd.DataFrame(index=["psm_v1", "psm_v2"])
+    protein_var = pd.DataFrame(index=["protein_v1", "protein_v2"])
     x = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0], [11.0, 12.0]])
-    adata = _make_adata(x, obs, var)
-    mdata = _make_mdata({"psm": adata, "protein": adata})
+    psm_adata = _make_adata(x, obs.copy(), psm_var)
+    protein_adata = _make_adata(x.copy(), obs.copy(), protein_var)
+    mdata = _make_mdata({"psm": psm_adata, "protein": protein_adata})
     mdata.obs["run_order"] = ["1", "2", "3", "4", "5", "6"]
     mdata.obs["batch"] = ["b1", "b1", "b1", "b2", "b2", "b2"]
     return mdata
