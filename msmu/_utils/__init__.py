@@ -1,6 +1,6 @@
 from .subset import split_tmt
 from ._modality import get_modality_dict, get_label, add_quant, reindex_obs
-from ._provenance import uns_logger, append_cmd_log
+from .._core._provenance import append_cmd_log, uns_logger
 from .peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,

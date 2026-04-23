@@ -3,9 +3,9 @@ import mudata as md
 import numpy as np
 from typing import Literal
 
+from .._core._provenance import uns_logger
 from ..logging_utils import get_logger
 from ._normalisation import Normalisation, PTMProteinAdjuster
-from .._utils import uns_logger
 
 logger = get_logger(__name__)
 

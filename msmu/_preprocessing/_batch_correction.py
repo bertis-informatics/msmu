@@ -5,8 +5,8 @@ import pandas as pd
 import statsmodels.api as sm
 from inmoose.pycombat import pycombat_norm
 
+from .._core._provenance import uns_logger
 from ..logging_utils import get_logger
-from .._utils import uns_logger
 
 logger = get_logger(__name__)
 

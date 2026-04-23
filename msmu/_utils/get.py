@@ -1,13 +1,5 @@
-from anndata import AnnData
-from mudata import MuData
-from typing import cast
+"""Backward-compatible accessors re-exported from :mod:`msmu._core`."""
 
+from .._core._access import get_adata, get_mdata
 
-def get_adata(mdata: MuData, modality: str) -> AnnData:
-    """Returns the modality-specific AnnData object with proper typing."""
-    return cast(AnnData, mdata.mod[modality])
-
-
-def get_mdata(mdata) -> MuData:
-    """Returns the MuData object with proper typing."""
-    return cast(MuData, mdata)
+__all__ = ["get_adata", "get_mdata"]

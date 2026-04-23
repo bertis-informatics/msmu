@@ -1,9 +1,11 @@
 from functools import reduce
 
-import pandas as pd
-import numpy as np
-import mudata as md
 import anndata as ad
+import mudata as md
+import numpy as np
+import pandas as pd
+
+from .._core._mudata import add_modality
 
 
 # Utility functions for Readers
@@ -210,40 +212,6 @@ def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict
                                     "Currently only DataFrame, dict, list, str, int, float, and NoneType are supported."
                                 )
     return merged_data
-
-
-def add_modality(mdata: md.MuData, adata: ad.AnnData, mod_name: str, parent_mods: list[str]) -> md.MuData:
-    """
-    Adds a new modality to a MuData object.
-
-    Args:
-        mdata: Input MuData object.
-        adata: AnnData object to add as a modality.
-        mod_name: Name of the new modality.
-        parent_mods: List of parent modalities.
-
-    Returns:
-        Updated MuData object with the new modality.
-    """
-    if not parent_mods:
-        raise ValueError("parent_mods should not be empty.")
-
-    mdata.mod[mod_name] = adata
-
-    obsmap_list = [mdata.obsmap[parent_mod] for parent_mod in parent_mods]
-    merged_obsmap = sum(obsmap_list)
-
-    zero_indices = merged_obsmap == 0
-    merged_obsmap = np.arange(1, len(merged_obsmap) + 1, dtype=int).reshape(-1, 1)
-    merged_obsmap[zero_indices] = 0
-
-    mdata.obsmap[mod_name] = merged_obsmap
-    mdata.push_obs()
-    mdata.update_var()
-
-    return mdata
-
-
 def to_categorical(df: pd.DataFrame) -> pd.DataFrame:
     """
     Converts object-type columns in a DataFrame to categorical.

@@ -5,8 +5,8 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
+from .._core._mudata import add_modality
 from ..logging_utils import get_logger
-from .._read_write._reader_utils import add_modality
 
 logger = get_logger(__name__)
 

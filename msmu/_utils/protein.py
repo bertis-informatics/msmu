@@ -1,7 +1,7 @@
 import re
 
+from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
-from .._read_write._mdata_status import MuDataStatus
 
 # for type hints
 import mudata as md

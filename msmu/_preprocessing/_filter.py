@@ -5,9 +5,9 @@ from typing import Literal
 import pandas as pd
 from mudata import MuData
 
+from .._core._provenance import uns_logger
+from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
-from .._utils import uns_logger
-from .._read_write._mdata_status import MuDataStatus
 
 logger = get_logger(__name__)
 

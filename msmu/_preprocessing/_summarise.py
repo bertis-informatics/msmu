@@ -3,10 +3,10 @@ import warnings
 import anndata as ad
 import pandas as pd
 
+from .._core._mudata import add_modality
+from .._core._provenance import uns_logger
+from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
-from .._utils import uns_logger
-from .._read_write._reader_utils import add_modality
-from .._read_write._mdata_status import MuDataStatus
 from ._summarisation import SummarisationPrep, PtmSummarisationPrep, Aggregator
 from .._statistics._target_decoy_q import estimate_q_values
 from .._preprocessing._filter import add_filter, apply_filter

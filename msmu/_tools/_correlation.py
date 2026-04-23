@@ -6,8 +6,8 @@ import pandas as pd
 from typing import Literal
 from mudata import MuData
 
-from .._utils import uns_logger
-from .._utils.get import get_adata
+from .._core._access import get_adata
+from .._core._provenance import uns_logger
 
 
 @uns_logger
