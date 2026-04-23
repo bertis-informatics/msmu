@@ -55,14 +55,14 @@ def test_prep_missingness_step_has_expected_ranges(mdata):
 
 def test_prep_pca_scatter_columns(mdata):
     pdata = PlotData(mdata, "protein", obs_column="sample")
-    df = pdata.prep_pca_scatter("protein", "group", ["PC_1", "PC_2"], "sample")
+    df = pdata.prep_embedding_scatter("protein", "group", ["PC_1", "PC_2"], "sample", key="X_pca")
     assert {"PC_1", "PC_2", "group"}.issubset(df.columns)
     assert isinstance(df["group"].dtype, pd.CategoricalDtype)
 
 
 def test_prep_umap_scatter_columns(mdata):
     pdata = PlotData(mdata, "protein", obs_column="sample")
-    df = pdata.prep_umap_scatter("protein", "group", ["UMAP_1", "UMAP_2"], "sample")
+    df = pdata.prep_embedding_scatter("protein", "group", ["UMAP_1", "UMAP_2"], "sample", key="X_umap")
     assert {"UMAP_1", "UMAP_2", "group"}.issubset(df.columns)
     assert isinstance(df["group"].dtype, pd.CategoricalDtype)
 
@@ -71,7 +71,7 @@ def test_prep_pca_scatter_uses_custom_key(mdata):
     mdata_local = mdata.copy()
     mdata_local["protein"].obsm["X_pca_custom"] = mdata_local["protein"].obsm["X_pca"].copy()
     pdata = PlotData(mdata_local, "protein", obs_column="sample")
-    df = pdata.prep_pca_scatter("protein", "group", ["PC_1", "PC_2"], "sample", key="X_pca_custom")
+    df = pdata.prep_embedding_scatter("protein", "group", ["PC_1", "PC_2"], "sample", key="X_pca_custom")
     assert {"PC_1", "PC_2", "group"}.issubset(df.columns)
 
 
@@ -79,7 +79,7 @@ def test_prep_umap_scatter_uses_custom_key(mdata):
     mdata_local = mdata.copy()
     mdata_local["protein"].obsm["X_umap_custom"] = mdata_local["protein"].obsm["X_umap"].copy()
     pdata = PlotData(mdata_local, "protein", obs_column="sample")
-    df = pdata.prep_umap_scatter("protein", "group", ["UMAP_1", "UMAP_2"], "sample", key="X_umap_custom")
+    df = pdata.prep_embedding_scatter("protein", "group", ["UMAP_1", "UMAP_2"], "sample", key="X_umap_custom")
     assert {"UMAP_1", "UMAP_2", "group"}.issubset(df.columns)
 
 

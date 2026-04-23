@@ -2,6 +2,8 @@
 Module for setting up Plotly templates for msmu visualizations.
 """
 
+from typing import cast
+
 import plotly.graph_objects as go
 import plotly.io as pio
 
@@ -79,8 +81,9 @@ def add_msmu_pastel_template():
     """
     Adds a pastel variant of the msmu Plotly template by reusing colorway settings.
     """
-    pio.templates["msmu_pastel"] = pio.templates["msmu"]
-    pio.templates["msmu_pastel"].layout.colorway = [
+    pastel_template = go.layout.Template(pio.templates["msmu"])
+    pastel_layout = cast(go.Layout, pastel_template.layout)
+    pastel_layout.colorway = [
         "#A6CEE3",
         "#FDBF6F",
         "#FB9A99",
@@ -92,6 +95,7 @@ def add_msmu_pastel_template():
         "#F0E442",
         "#D9D9D9",
     ]
+    pio.templates["msmu_pastel"] = pastel_template
 
 
 def set_default_template(template_name: str):

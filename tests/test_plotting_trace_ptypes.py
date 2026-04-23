@@ -1,6 +1,7 @@
 import pandas as pd
 
-from msmu._plotting._ptypes import PlotPie, PlotHeatmap, PlotSimpleBox
+from msmu._plotting._ptypes import PlotBar, PlotPie, PlotHeatmap, PlotSimpleBox
+from msmu._plotting._plots_summary import _build_upset_figure
 from msmu._plotting._trace import Trace, TraceDescribed, TraceHeatmap
 
 
@@ -74,3 +75,33 @@ def test_plot_pie_trace_type():
     plot = PlotPie(data=df)
     fig = plot.figure()
     assert fig.data[0].type == "pie"
+
+
+def test_plot_builder_figure_does_not_accumulate_traces():
+    df = pd.DataFrame(
+        {
+            "group": ["A", "A", "B", "B"],
+            "count": [1, 2, 3, 4],
+        }
+    )
+    plot = PlotBar(data=df, x="group", y="count", name="group")
+    fig_first = plot.figure()
+    fig_second = plot.figure()
+
+    assert len(fig_first.data) == 2
+    assert len(fig_second.data) == 2
+
+
+def test_build_upset_figure_returns_composite_plot():
+    combination_counts = pd.DataFrame(
+        {
+            "combination": ["10", "01", "11"],
+            "count": [3, 2, 1],
+        }
+    )
+    item_counts = pd.Series([4, 3], index=["A", "B"])
+
+    fig = _build_upset_figure((combination_counts, item_counts))
+
+    assert len(fig.data) >= 5
+    assert fig.data[0].type == "bar"

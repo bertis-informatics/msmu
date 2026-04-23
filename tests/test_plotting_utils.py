@@ -10,6 +10,7 @@ from msmu._plotting._utils import (
     get_pc_cols,
     get_umap_cols,
     merge_traces,
+    prepare_obs_frame,
     resolve_plot_columns,
     resolve_obs_column,
     set_color,
@@ -22,16 +23,27 @@ def test_resolve_obs_column_requested(mdata):
     assert isinstance(mdata.obs["group"].dtype, pd.CategoricalDtype)
 
 
-def test_resolve_obs_column_fallback_creates_column(mdata):
+def test_resolve_obs_column_fallback_does_not_mutate_obs(mdata):
     mdata_local = mdata.copy()
     mdata_local.uns["plotting"] = {}
     mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
 
     resolved = resolve_obs_column(mdata_local, "missing_group")
     assert resolved == "missing_group"
-    assert "missing_group" in mdata_local.obs.columns
-    assert list(mdata_local.obs["missing_group"].astype(str)) == list(mdata_local.obs.index.astype(str))
-    assert isinstance(mdata_local.obs["missing_group"].dtype, pd.CategoricalDtype)
+    assert "missing_group" not in mdata_local.obs.columns
+
+
+def test_prepare_obs_frame_injects_fallback_locally(mdata):
+    mdata_local = mdata.copy()
+    mdata_local.uns["plotting"] = {}
+    mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
+
+    obs_df = prepare_obs_frame(mdata_local, "missing_group")
+
+    assert "missing_group" in obs_df.columns
+    assert "missing_group" not in mdata_local.obs.columns
+    assert list(obs_df["missing_group"].astype(str)) == list(mdata_local.obs.index.astype(str))
+    assert isinstance(obs_df["missing_group"].dtype, pd.CategoricalDtype)
 
 
 def test_resolve_obs_column_fallback_logs_debug(mdata, caplog):

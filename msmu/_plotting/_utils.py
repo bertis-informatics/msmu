@@ -2,6 +2,7 @@
 Utility functions for plotting with MuData and Plotly.
 """
 
+from dataclasses import dataclass
 from typing import TypedDict
 
 import mudata as md
@@ -35,6 +36,89 @@ class BinInfo(TypedDict):
     labels: list[str]
 
 
+@dataclass(frozen=True)
+class PlotContext:
+    """Resolved plotting inputs shared across public plot functions."""
+
+    mdata: md.MuData
+    modality: str
+    groupby: str | None
+    obs_column: str
+    colorby: str | None = None
+    layer: str | None = None
+    template: str | None = None
+
+    @classmethod
+    def grouped(
+        cls,
+        mdata: md.MuData,
+        modality: str,
+        *,
+        groupby: str | None = None,
+        obs_column: str | None = None,
+        colorby: str | None = None,
+        layer: str | None = None,
+        template: str | None = None,
+    ) -> "PlotContext":
+        resolved_groupby, resolved_obs = resolve_plot_columns(mdata, groupby, obs_column)
+        return cls(
+            mdata=mdata,
+            modality=modality,
+            groupby=resolved_groupby,
+            obs_column=resolved_obs,
+            colorby=colorby,
+            layer=layer,
+            template=template,
+        )
+
+    @classmethod
+    def obs_only(
+        cls,
+        mdata: md.MuData,
+        modality: str,
+        *,
+        obs_column: str | None = None,
+        layer: str | None = None,
+        template: str | None = None,
+    ) -> "PlotContext":
+        resolved_obs = resolve_obs_column(mdata, obs_column)
+        return cls(
+            mdata=mdata,
+            modality=modality,
+            groupby=None,
+            obs_column=resolved_obs,
+            colorby=None,
+            layer=layer,
+            template=template,
+        )
+
+    @property
+    def modality_label(self) -> str:
+        return format_modality(self.mdata, self.modality)
+
+
+def resolve_template_key(template: str | None) -> str:
+    """Resolve a Plotly template key to a concrete registered template name."""
+    template_key = template if template in pio.templates else pio.templates.default
+    if isinstance(template_key, (list, tuple)):
+        template_key = template_key[0] if template_key else "plotly"
+    if not isinstance(template_key, str) or template_key not in pio.templates:
+        return "plotly"
+    return template_key
+
+
+def get_template_colorway(template: str | None) -> list[str]:
+    """Return the colorway for a template, falling back to Plotly's default palette."""
+    template_key = resolve_template_key(template)
+    colorway = getattr(pio.templates[template_key].layout, "colorway", None)
+    if colorway is None:
+        colorway = getattr(pio.templates["plotly"].layout, "colorway", None)
+    if colorway is None:
+        return ["#636efa"]
+
+    return [str(color) for color in colorway]
+
+
 def resolve_obs_column(
     mdata: md.MuData,
     requested: str | None = None,
@@ -47,7 +131,7 @@ def resolve_obs_column(
         requested: Specific observation column to prioritize when available.
 
     Returns:
-        Name of the categorical observation column added/resolved in `mdata.obs`.
+        Name of the categorical observation column to use for plotting.
     """
     # Allow MuData to specify a default preference via uns
     plotting_defaults = mdata.uns.get("plotting", {}) if hasattr(mdata, "uns") else {}
@@ -67,12 +151,7 @@ def resolve_obs_column(
     # Create a stable fallback using obs index
     fallback_name = requested or preferred or _FALLBACK_COLUMN
     logger.debug("Using fallback obs column '%s' created from index.", fallback_name)
-    if fallback_name in mdata.obs.columns:
-        return ensure_obs_categorical(mdata, fallback_name)
-
-    fallback_values = pd.Index(mdata.obs.index).map(str)
-    mdata.obs[fallback_name] = pd.Categorical(fallback_values, categories=pd.unique(fallback_values))
-    return ensure_obs_categorical(mdata, fallback_name)
+    return fallback_name
 
 
 def resolve_plot_columns(
@@ -113,6 +192,49 @@ def ensure_obs_categorical(mdata: md.MuData, column: str) -> str:
     if not isinstance(mdata.obs[column].dtype, pd.CategoricalDtype):
         mdata.obs[column] = pd.Categorical(mdata.obs[column], categories=pd.unique(mdata.obs[column]))
     return column
+
+
+def prepare_obs_frame(
+    mdata: md.MuData,
+    obs_column: str,
+    *,
+    groupby: str | None = None,
+) -> pd.DataFrame:
+    """
+    Build a plotting-only observation frame and inject fallback columns locally when needed.
+
+    Parameters:
+        mdata: MuData object containing observation metadata.
+        obs_column: Resolved observation column used for plotting labels/order.
+        groupby: Optional grouping column that may also need categorical casting.
+
+    Returns:
+        Copy of observation metadata prepared for plotting.
+    """
+    obs_df = mdata.obs.copy()
+
+    if obs_column not in obs_df.columns:
+        fallback_values = pd.Index(obs_df.index).map(str)
+        obs_df[obs_column] = pd.Categorical(fallback_values, categories=pd.unique(fallback_values))
+    elif not isinstance(obs_df[obs_column].dtype, pd.CategoricalDtype):
+        obs_df[obs_column] = pd.Categorical(obs_df[obs_column], categories=pd.unique(obs_df[obs_column]))
+
+    obs_df[obs_column] = obs_df[obs_column].cat.remove_unused_categories()
+    ordered_categories = pd.Index(pd.unique(obs_df[obs_column].dropna()))
+    obs_df[obs_column] = obs_df[obs_column].cat.reorder_categories(ordered_categories)
+
+    if groupby:
+        if groupby not in obs_df.columns:
+            if groupby == obs_column:
+                pass
+            else:
+                raise KeyError(f"Column '{groupby}' not found in observations.")
+        elif groupby != obs_column:
+            if not isinstance(obs_df[groupby].dtype, pd.CategoricalDtype):
+                obs_df[groupby] = pd.Categorical(obs_df[groupby], categories=pd.unique(obs_df[groupby]))
+            obs_df[groupby] = obs_df[groupby].cat.remove_unused_categories()
+
+    return obs_df
 
 
 def format_modality(mdata: md.MuData, modality: str) -> str:
@@ -164,41 +286,31 @@ def set_color(
         Figure with trace colors and ordering updated.
     """
     groupby_column = resolve_obs_column(mdata, groupby_column)
+    obs_df = prepare_obs_frame(mdata, groupby_column, groupby=groupby_column)
 
     # Ensure color column exists and is categorical
-    if colorby not in mdata.obs.columns:
+    if colorby not in obs_df.columns:
         raise KeyError(f"Column '{colorby}' not found in observations.")
-    color_series = mdata.obs[colorby].copy()
+    color_series = obs_df[colorby].copy()
 
     if not isinstance(color_series.dtype, pd.CategoricalDtype):
         color_series = color_series.astype("category")
-        mdata.obs[colorby] = color_series
     else:
-        mdata.obs[colorby] = color_series.cat.remove_unused_categories()
+        color_series = color_series.cat.remove_unused_categories()
 
-    group_series = mdata.obs[groupby_column].copy()
+    group_series = obs_df[groupby_column].copy()
     if not isinstance(group_series.dtype, pd.CategoricalDtype):
         group_series = group_series.astype("category")
-        mdata.obs[groupby_column] = group_series
     else:
-        mdata.obs[groupby_column] = group_series.cat.remove_unused_categories()
+        group_series = group_series.cat.remove_unused_categories()
 
     # Get categories
     categories = color_series.cat.categories
 
     # Get colors
-    template_key = template if template in pio.templates else pio.templates.default
-    if isinstance(template_key, (list, tuple)):
-        template_key = template_key[0]
-    if template_key not in pio.templates:
-        template_key = "plotly"
-    colors = (
-        pio.templates[template_key].layout["colorway"]
-        if "colorway" in pio.templates[template_key].layout
-        else pio.templates["plotly"].layout["colorway"]
-    )
-
-    colormap_dict = {val: colors[i % len(colors)] for i, val in enumerate(categories)}
+    colors = get_template_colorway(template)
+    category_labels = [str(value) for value in categories]
+    colormap_dict = {val: colors[i % len(colors)] for i, val in enumerate(category_labels)}
     group_to_category: dict[str, str] = {}
     group_to_color: dict[str, str] = {}
     group_values = group_series.to_numpy(dtype=object)
@@ -206,9 +318,11 @@ def set_color(
     for group_value, category_value in zip(group_values, color_values):
         if pd.isna(group_value) or pd.isna(category_value):
             continue
-        if group_value not in group_to_category:
-            group_to_category[group_value] = category_value
-            group_to_color[group_value] = colormap_dict[category_value]
+        group_label = str(group_value)
+        category_label = str(category_value)
+        if group_label not in group_to_category:
+            group_to_category[group_label] = category_label
+            group_to_color[group_label] = colormap_dict[category_label]
 
     # Update figure
     for i, trace in enumerate(fig.data):
@@ -219,12 +333,12 @@ def set_color(
         if hasattr(trace, "line"):
             trace.line.color = color_value  # type: ignore
 
-    order_dict = {value: index for index, value in enumerate(categories)}
+    order_dict = {value: index for index, value in enumerate(category_labels)}
     fig.data = tuple(
         sorted(
             fig.data,
             key=lambda trace: order_dict.get(
-                group_to_category.get(getattr(trace, "name", "")),
+                group_to_category.get(str(getattr(trace, "name", "")), ""),
                 float("inf"),
             ),
         )
@@ -254,7 +368,7 @@ def merge_traces(
     return merged_traces
 
 
-def get_bin_info(data: pd.DataFrame, bins: int) -> BinInfo:
+def get_bin_info(data: pd.DataFrame | pd.Series | np.ndarray, bins: int) -> BinInfo:
     """
     Computes histogram bin metadata for the provided numeric data.
 
@@ -265,8 +379,13 @@ def get_bin_info(data: pd.DataFrame, bins: int) -> BinInfo:
     Returns:
         BinInfo: Encapsulated bin width, edges, centers, and labels.
     """
-    min_value = float(np.min(data))
-    max_value = float(np.max(data))
+    values = np.asarray(data, dtype=float).reshape(-1)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        raise ValueError("Cannot compute bin info for empty data.")
+
+    min_value = float(values.min())
+    max_value = float(values.max())
     data_range = max_value - min_value
     bin_width = data_range / bins if bins > 0 else 0.0
     bin_edges = [min_value + bin_width * i for i in range(bins + 1)]
@@ -279,6 +398,30 @@ def get_bin_info(data: pd.DataFrame, bins: int) -> BinInfo:
         centers=bin_centers,
         labels=bin_labels,
     )
+
+
+def finalize_figure(
+    fig: go.Figure,
+    *,
+    context: PlotContext,
+    layout_kwargs: dict,
+    apply_color: bool = False,
+) -> go.Figure:
+    """Apply shared layout overrides and optional categorical coloring."""
+    fig = apply_layout_overrides(fig, layout_kwargs)
+
+    if apply_color and context.groupby is not None and context.template is not None:
+        fig = apply_color_if_needed(
+            fig,
+            mdata=context.mdata,
+            modality=context.modality,
+            groupby=context.groupby,
+            colorby=context.colorby,
+            obs_column=context.obs_column,
+            template=context.template,
+        )
+
+    return fig
 
 
 def apply_color_if_needed(
