@@ -17,7 +17,7 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
-from ..logging_utils import get_logger
+from ..logging_utils import get_logger, prune_closed_package_stream_handlers
 
 MAX_SEQ_ITEMS = 20
 MAX_STRING_LEN = 500
@@ -137,14 +137,14 @@ def append_cmd_log(
     if not isinstance(mdata, md.MuData):
         return mdata
 
-    payload = serialize({} if payload is None else dict(payload))
+    serialized_payload = serialize({} if payload is None else dict(payload))
 
     log_entry = {
         "function": function,
         "timestamp": datetime.datetime.now().isoformat(),
         "msmu_version": _get_msmu_version(),
         "python_version": platform.python_version(),
-        "payload": payload,
+        "payload": serialized_payload,
     }
     if stdout:
         log_entry["stdout"] = _truncate_string(stdout)
@@ -240,12 +240,15 @@ def capture_provenance_output():
     tee = _StdoutTee(sys.stdout, stdout_buffer)
 
     msmu_logger = get_logger()
+    prune_closed_package_stream_handlers()
     original_level = msmu_logger.level
+    original_propagate = msmu_logger.propagate
     visible_handlers = [h for h in msmu_logger.handlers if not isinstance(h, logging.NullHandler)]
     has_info_visible_handler = any(h.level <= logging.INFO for h in visible_handlers)
     handler = _LogCaptureHandler(stdout_buffer, tee_to_stdout=not has_info_visible_handler)
     handler.setFormatter(logging.Formatter("%(levelname)s - %(message)s"))
     msmu_logger.addHandler(handler)
+    msmu_logger.propagate = False
     if msmu_logger.getEffectiveLevel() > logging.INFO:
         msmu_logger.setLevel(logging.INFO)
 
@@ -255,6 +258,7 @@ def capture_provenance_output():
     finally:
         msmu_logger.removeHandler(handler)
         msmu_logger.setLevel(original_level)
+        msmu_logger.propagate = original_propagate
 
 
 def _get_mdata_dimensions(mdata: md.MuData) -> dict[str, object]:

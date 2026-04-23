@@ -82,6 +82,50 @@ def test_lfq_sage_quantification_columns():
     assert "file1.raw" in out.columns
 
 
+def test_lfq_sage_read_keeps_rt_calcmass_var_columns_unique():
+    reader = LfqSageReader(
+        identification_file="id.tsv",
+        identification_df=pd.DataFrame(
+            {
+                "proteins": ["sp|P1|P1_HUMAN"],
+                "filename": ["sample.raw"],
+                "scannr": ["scan=42"],
+                "peptide": ["ACDEK"],
+                "label": [1],
+                "posterior_error": [-2.0],
+                "expmass": [565.2],
+                "calcmass": [565.1],
+                "charge": [2],
+                "peptide_len": [5],
+                "missed_cleavages": [0],
+                "semi_enzymatic": [False],
+                "hyperscore": [12.0],
+                "spectrum_q": [0.01],
+                "rt": [10.5],
+            }
+        ),
+        quantification_file="quant.tsv",
+        quantification_df=pd.DataFrame(
+            {
+                "peptide": ["ACDEK"],
+                "charge": [2],
+                "proteins": ["sp|P1|P1_HUMAN"],
+                "q_value": [0.01],
+                "score": [12.0],
+                "spectral_angle": [0.9],
+                "sample.raw": [1000.0],
+            }
+        ),
+    )
+
+    mdata = reader.read()
+    var_columns = mdata["psm"].var.columns.tolist()
+
+    assert var_columns.count("rt") == 1
+    assert var_columns.count("calcmass") == 1
+    assert len(var_columns) == len(set(var_columns))
+
+
 def test_fragpipe_tmt_reader_init_requires_identification_df():
     try:
         TmtFragPipeReader("id.tsv")

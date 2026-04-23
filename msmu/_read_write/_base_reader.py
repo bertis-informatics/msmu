@@ -348,7 +348,8 @@ class SearchResultReader:
         if self.search_settings.has_decoy and "decoy" not in self.used_feature_cols:
             self.used_feature_cols.append("decoy")
 
-        norm_identification_df = norm_identification_df.loc[:, self.used_feature_cols]
+        used_feature_cols = list(dict.fromkeys(self.used_feature_cols))
+        norm_identification_df = norm_identification_df.loc[:, used_feature_cols]
 
         target_mask = np.ones(len(norm_identification_df), dtype=bool)
 

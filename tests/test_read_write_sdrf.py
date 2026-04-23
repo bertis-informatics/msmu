@@ -1,4 +1,6 @@
+import io
 import types
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -86,6 +88,22 @@ def _write_diann_report(tmp_path):
     )
     report.to_csv(path, sep="\t", index=False)
     return path
+
+
+class _FakeUrlResponse:
+    def __init__(self, content: bytes, *, status: int = 200, headers: dict[str, str] | None = None):
+        self._content = io.BytesIO(content)
+        self.status = status
+        self.headers = headers or {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self._content.close()
+
+    def read(self, size=-1):
+        return self._content.read(size)
 
 
 def _dispatching_parse_sdrf_entrypoint():
@@ -297,6 +315,100 @@ def test_registry_read_sdrf_validates_by_default_with_click_group(tmp_path, monk
 
     assert metadata.loc[0, "source_name"] == "sample_1"
     assert calls == [(str(path), True)]
+
+
+def test_read_sdrf_url_materializes_local_file_for_validation(monkeypatch):
+    click = pytest.importorskip("click")
+    url = "https://example.test/sample.sdrf.tsv"
+    content = (
+        "\t".join(["source name", "assay name", "technology type"])
+        + "\n"
+        + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
+        + "\n"
+    ).encode()
+    opened = []
+    calls = []
+
+    def urlopen(opened_url, *, timeout):
+        opened.append((opened_url, timeout))
+        return _FakeUrlResponse(content, headers={"Content-Length": str(len(content))})
+
+    @click.group()
+    def cli():
+        pass
+
+    @cli.command("validate-sdrf")
+    @click.option("--sdrf_file")
+    @click.option("--skip-ontology", is_flag=True)
+    def validate_sdrf(sdrf_file, skip_ontology):
+        path = Path(sdrf_file)
+        calls.append(
+            {
+                "sdrf_file": sdrf_file,
+                "skip_ontology": skip_ontology,
+                "exists": path.exists(),
+                "name": path.name,
+            }
+        )
+
+    entrypoint = types.FunctionType(_dispatching_parse_sdrf_entrypoint.__code__, {"cli": cli})
+    monkeypatch.setattr(sdrf_module.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(sdrf_module.metadata, "version", lambda package: "0.0")
+    monkeypatch.setattr(sdrf_module, "_load_parse_sdrf_entrypoint", lambda: entrypoint)
+
+    metadata = read_sdrf(url)
+
+    assert metadata.loc[0, "source_name"] == "sample_1"
+    assert metadata.attrs["sdrf_file"] == url
+    assert opened == [(url, sdrf_module._SDRF_URL_TIMEOUT_SECONDS)]
+    assert len(calls) == 1
+    assert calls[0]["skip_ontology"] is True
+    assert calls[0]["exists"] is True
+    assert calls[0]["name"] == "remote.sdrf.tsv"
+    assert not calls[0]["sdrf_file"].startswith("http")
+
+
+def test_attach_sdrf_metadata_url_keeps_original_url_in_uns(monkeypatch):
+    url = "https://example.test/sample.sdrf.tsv"
+    content = (
+        "\t".join(["source name", "assay name", "technology type", "comment[data file]"])
+        + "\n"
+        + "\t".join(["sample_1", "assay_1", "mass spectrometry", "run_1.raw"])
+        + "\n"
+    ).encode()
+
+    def urlopen(opened_url, *, timeout):
+        assert opened_url == url
+        assert timeout == sdrf_module._SDRF_URL_TIMEOUT_SECONDS
+        return _FakeUrlResponse(content, headers={"Content-Length": str(len(content))})
+
+    monkeypatch.setattr(sdrf_module.urllib.request, "urlopen", urlopen)
+    mdata = _make_mdata(["run_1"])
+
+    out = attach_sdrf_metadata(mdata, url, validate=False)
+
+    assert out.uns["sdrf"]["path"] == url
+    assert out.mod["psm"].uns["sdrf"]["path"] == url
+    assert out.mod["psm"].obs["source_name"].tolist() == ["sample_1"]
+
+
+def test_read_sdrf_rejects_unsupported_url_scheme():
+    with pytest.raises(ValueError, match="Unsupported SDRF URL scheme 'ftp'"):
+        read_sdrf("ftp://example.test/sample.sdrf.tsv", validate=False)
+
+
+def test_read_sdrf_url_rejects_download_larger_than_limit(monkeypatch):
+    url = "https://example.test/large.sdrf.tsv"
+
+    def urlopen(opened_url, *, timeout):
+        assert opened_url == url
+        return _FakeUrlResponse(b"", headers={"Content-Length": "11"})
+
+    monkeypatch.setattr(sdrf_module.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(sdrf_module, "_MAX_SDRF_DOWNLOAD_BYTES", 10)
+
+    with pytest.raises(ValueError, match="exceeds maximum download size"):
+        read_sdrf(url, validate=False)
 
 
 def test_validate_sdrf_file_accepts_function_entrypoint_returning_click_command(tmp_path, monkeypatch):

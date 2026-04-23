@@ -7,7 +7,11 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterable
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
@@ -22,6 +26,10 @@ _TMT_LABEL_RE = re.compile(r"(?:TMT)?(1[0-9]{2}[NC]?)", re.IGNORECASE)
 _PATH_SUFFIXES = {".raw", ".mzml", ".mzxml", ".wiff", ".d"}
 # Deterministic scalar delimiter for obs values collapsed from multiple SDRF fraction rows.
 _COLLAPSED_VALUE_DELIMITER = " | "
+_REMOTE_SDRF_SCHEMES = {"http", "https"}
+_SDRF_URL_TIMEOUT_SECONDS = 30
+_MAX_SDRF_DOWNLOAD_BYTES = 100 * 1024 * 1024
+_SDRF_DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 
 
 def read_sdrf(
@@ -38,13 +46,14 @@ def read_sdrf(
     headers are preserved by suffixing repeated output columns with ``_2``,
     ``_3``, and so on.
     """
-    path = Path(sdrf_file)
-    if validate:
-        validate_sdrf_file(path, skip_ontology=skip_ontology)
+    source = str(sdrf_file)
+    with _materialized_sdrf_path(sdrf_file) as path:
+        if validate:
+            validate_sdrf_file(path, skip_ontology=skip_ontology)
 
-    raw_df, raw_headers = _read_tabular_sdrf(path)
+        raw_df, raw_headers = _read_tabular_sdrf(path)
     metadata_df = _normalise_sdrf_dataframe(raw_df, raw_headers)
-    metadata_df.attrs["sdrf_file"] = str(path)
+    metadata_df.attrs["sdrf_file"] = source
     metadata_df.attrs["sdrf_raw"] = _sdrf_source_table_payload(raw_df, raw_headers)
 
     return metadata_df
@@ -92,6 +101,77 @@ def attach_sdrf_metadata(
 
     sdrf_metadata = read_sdrf(sdrf_file, validate=validate, skip_ontology=skip_ontology)
     return merge_sdrf_metadata(mdata, sdrf_metadata, sdrf_file=sdrf_file)
+
+
+@contextlib.contextmanager
+def _materialized_sdrf_path(sdrf_file: str | Path) -> Iterator[Path]:
+    source = str(sdrf_file)
+    parsed = urllib.parse.urlparse(source)
+
+    if "://" in source and parsed.scheme in _REMOTE_SDRF_SCHEMES:
+        with tempfile.TemporaryDirectory(prefix="msmu-sdrf-") as temp_dir:
+            path = Path(temp_dir) / "remote.sdrf.tsv"
+            _download_sdrf_url(source, path)
+            yield path
+        return
+
+    if parsed.scheme and "://" in source:
+        supported = ", ".join(sorted(_REMOTE_SDRF_SCHEMES))
+        raise ValueError(f"Unsupported SDRF URL scheme '{parsed.scheme}'. Supported schemes are: {supported}.")
+
+    yield Path(sdrf_file)
+
+
+def _download_sdrf_url(
+    url: str,
+    destination: Path,
+    *,
+    timeout: int | None = None,
+    max_bytes: int | None = None,
+) -> None:
+    timeout = _SDRF_URL_TIMEOUT_SECONDS if timeout is None else timeout
+    max_bytes = _MAX_SDRF_DOWNLOAD_BYTES if max_bytes is None else max_bytes
+
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            status = getattr(response, "status", None)
+            if status is not None and status >= 400:
+                raise ValueError(f"Failed to download SDRF URL {url}: HTTP status {status}.")
+
+            content_length = response.headers.get("Content-Length")
+            if content_length is not None:
+                try:
+                    expected_size = int(content_length)
+                except ValueError:
+                    expected_size = None
+                if expected_size is not None and expected_size > max_bytes:
+                    raise ValueError(_sdrf_download_size_error(url, expected_size, max_bytes))
+
+            total_bytes = 0
+            with destination.open("wb") as handle:
+                while True:
+                    chunk = response.read(_SDRF_DOWNLOAD_CHUNK_BYTES)
+                    if not chunk:
+                        break
+
+                    total_bytes += len(chunk)
+                    if total_bytes > max_bytes:
+                        raise ValueError(_sdrf_download_size_error(url, total_bytes, max_bytes))
+                    handle.write(chunk)
+    except urllib.error.HTTPError as exc:
+        raise OSError(f"Failed to download SDRF URL {url}: HTTP status {exc.code} {exc.reason}.") from exc
+    except urllib.error.URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        raise OSError(f"Failed to download SDRF URL {url}: {reason}.") from exc
+    except OSError as exc:
+        raise OSError(f"Failed to download SDRF URL {url}: {exc}.") from exc
+
+
+def _sdrf_download_size_error(url: str, actual_bytes: int, max_bytes: int) -> str:
+    return (
+        f"SDRF URL {url} exceeds maximum download size of {max_bytes} bytes "
+        f"({actual_bytes} bytes received or advertised)."
+    )
 
 
 def merge_sdrf_metadata(

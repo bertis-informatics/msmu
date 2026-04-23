@@ -149,12 +149,6 @@ class LfqSageReader(SageReader):
     ) -> None:
         super().__init__(identification_file, identification_df, quantification_file, quantification_df)
         self.search_settings.label = "label_free"
-        self.used_feature_cols.extend(
-            [
-                "rt",
-                "calcmass",
-            ]
-        )
 
         if quantification_file is not None:
             self.search_settings.quantification_level = "peptide"
