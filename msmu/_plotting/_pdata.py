@@ -144,11 +144,11 @@ class PlotData:
             Tuple indicating whether the column is from 'obs' or 'var', and the column name.
         """
 
-        if groupby in self.mdata.obs_keys():
+        if groupby in self.mdata.obs.columns:
             key = "obs"
         elif groupby == obs_column and is_resolved_obs_groupby(self.mdata, groupby, obs_column):
             key = "obs"
-        elif groupby in self.mdata.mod[self.modality].var_keys():
+        elif groupby in self.mdata.mod[self.modality].var.columns:
             key = "var"
         elif is_resolved_obs_groupby(self.mdata, groupby, obs_column):
             key = "obs"

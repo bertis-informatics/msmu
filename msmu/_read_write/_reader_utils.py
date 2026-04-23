@@ -29,7 +29,7 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
             )
         else:
             mdata_components = _decompose_data(data=mdata, name=name_, parent_dict=mdata_components)
-            for mod in mdata.mod_names:
+            for mod in mdata.mod.keys():
                 adata_components = _decompose_data(
                     data=mdata.mod[mod],
                     name=name_,
@@ -212,6 +212,8 @@ def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict
                                     "Currently only DataFrame, dict, list, str, int, float, and NoneType are supported."
                                 )
     return merged_data
+
+
 def to_categorical(df: pd.DataFrame) -> pd.DataFrame:
     """
     Converts object-type columns in a DataFrame to categorical.

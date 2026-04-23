@@ -72,8 +72,7 @@ def validate_sdrf_file(sdrf_file: str | Path, *, skip_ontology: bool = True) -> 
         metadata.version("sdrf-pipelines")
     except metadata.PackageNotFoundError as exc:
         raise ImportError(
-            "SDRF validation requires the optional 'sdrf-pipelines' package. "
-            "Install it to use validate_sdrf=True."
+            "SDRF validation requires the optional 'sdrf-pipelines' package. " "Install it to use validate_sdrf=True."
         ) from exc
 
     args = ["validate-sdrf", "--sdrf_file", str(sdrf_file)]
@@ -188,7 +187,7 @@ def merge_sdrf_metadata(
     match_summary: dict[str, dict[str, object]] = {}
     metadata_columns = list(sdrf_metadata.columns)
 
-    for mod in mdata.mod_names:
+    for mod in mdata.mod.keys():
         adata = mdata.mod[mod]
         matched_obs, matched_column, matched_count = _match_metadata_to_obs(adata.obs.index, sdrf_metadata)
         adata.obs = _merge_obs_metadata(adata.obs, matched_obs)
@@ -204,7 +203,7 @@ def merge_sdrf_metadata(
         }
 
     global_metadata = pd.DataFrame(index=mdata.obs.index)
-    for mod in mdata.mod_names:
+    for mod in mdata.mod.keys():
         mod_obs = mdata.mod[mod].obs.reindex(global_metadata.index)
         for col in metadata_columns:
             if col not in mod_obs.columns:
@@ -347,7 +346,9 @@ def _call_parse_sdrf_function(parse_sdrf: Any, args: list[str], click: Any) -> _
                 returned = parse_sdrf()
             except SystemExit as exc:
                 exit_code = _normalise_exit_code(exc.code)
-                return _ValidationResult(exit_code, stdout.getvalue() + stderr.getvalue(), None if exit_code == 0 else exc)
+                return _ValidationResult(
+                    exit_code, stdout.getvalue() + stderr.getvalue(), None if exit_code == 0 else exc
+                )
             except click.ClickException as exc:
                 exc.show(file=stderr)
                 return _ValidationResult(exc.exit_code, stdout.getvalue() + stderr.getvalue(), exc)
@@ -358,7 +359,9 @@ def _call_parse_sdrf_function(parse_sdrf: Any, args: list[str], click: Any) -> _
 
     if isinstance(returned, click.Command):
         result = CliRunner().invoke(returned, args)
-        return _ValidationResult(result.exit_code, stdout.getvalue() + result.output + stderr.getvalue(), result.exception)
+        return _ValidationResult(
+            result.exit_code, stdout.getvalue() + result.output + stderr.getvalue(), result.exception
+        )
 
     if isinstance(returned, int):
         return _ValidationResult(returned, stdout.getvalue() + stderr.getvalue())
@@ -469,7 +472,9 @@ def _sdrf_source_table_uns_entry(raw_payload: object) -> dict[str, object] | Non
         return None
 
     headers_are_unique = len(set(original_headers)) == len(original_headers)
-    table_columns = original_headers if headers_are_unique else [f"column_{position}" for position in range(len(original_headers))]
+    table_columns = (
+        original_headers if headers_are_unique else [f"column_{position}" for position in range(len(original_headers))]
+    )
     table = pd.DataFrame(rows, columns=table_columns)
     return {
         "table": table,

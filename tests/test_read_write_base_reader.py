@@ -98,9 +98,9 @@ def test_build_mudata_feature_only(identification_df: pd.DataFrame):
     reader = DummyReader(identification_df, quant_df=None, quant_level=None, has_decoy=True)
     mudata_input = reader._make_mudata_input()
     mdata = reader._build_mudata(mudata_input)
-    assert "psm" in mdata.mod_names
+    assert "psm" in mdata.mod
     assert mdata.mod["psm"].var.index.tolist() == ["file1.raw.1"]
-    assert "decoy" in mdata.mod["psm"].uns_keys()
+    assert "decoy" in mdata.mod["psm"].uns
 
 
 def test_build_mudata_with_quantification(identification_df: pd.DataFrame):

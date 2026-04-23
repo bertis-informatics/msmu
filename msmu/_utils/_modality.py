@@ -25,7 +25,7 @@ def get_modality_dict(
 
     mod_dict: dict = dict()
     if level != None:
-        for mod_name in mdata.mod_names:
+        for mod_name in mdata.mod.keys():
             if mdata.mod[mod_name].uns["level"] == level:
                 mod_dict[mod_name] = mdata.mod[mod_name].copy()
     elif modality != None:
@@ -112,7 +112,7 @@ def reindex_obs(
     new_index = mdata.obs[column].astype(str)
     mdata.obs.reset_index(drop=False, inplace=True)
     mdata.obs.set_index(new_index, inplace=True, drop=False)
-    for mod in mdata.mod_names:
+    for mod in mdata.mod.keys():
         mdata.mod[mod].obs.reset_index(drop=False, inplace=True)
         mdata.mod[mod].obs.set_index(new_index, inplace=True, drop=False)
 

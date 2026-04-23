@@ -37,7 +37,7 @@ def test_uns_logger_adds_cmd_entry(labeled_mdata):
     assert "output_dimensions" in entry
     assert entry["input_dimensions"]["n_obs"] == out.n_obs
     assert entry["output_dimensions"]["n_obs"] == out.n_obs
-    first_mod = out.mod_names[0]
+    first_mod = next(iter(out.mod.keys()))
     assert "layers" in entry["input_dimensions"]["modalities"][first_mod]
     assert isinstance(entry["input_dimensions"]["modalities"][first_mod]["layers"], list)
     payload = entry["payload"]
@@ -155,7 +155,7 @@ def test_add_quant_flashlfq_adds_modality(labeled_mdata):
         }
     )
     out = add_quant(mdata, quant_data=quant, quant_tool="flashlfq")
-    assert "peptide" in out.mod_names
+    assert "peptide" in out.mod
     assert out["peptide"].uns["level"] == "peptide"
 
 

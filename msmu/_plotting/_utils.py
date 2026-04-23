@@ -192,7 +192,7 @@ def is_resolved_obs_groupby(
     Fallback observation columns are injected into plotting-only observation
     frames, so they are valid group columns even when absent from `mdata.obs`.
     """
-    if groupby in mdata.obs_keys():
+    if groupby in mdata.obs.columns:
         return True
 
     return groupby == obs_column

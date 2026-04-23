@@ -79,7 +79,7 @@ def write_pin(
     target_df: pd.DataFrame = mdata.mod["psm"].var[var_columns].copy()
     target_df["decoy"] = 0
 
-    if "decoy" in mdata.mod["psm"].uns.keys():
+    if "decoy" in mdata.mod["psm"].uns:
         decoy_df = mdata.mod["psm"].uns["decoy"].copy()
 
         pin_df = pd.concat([target_df, decoy_df], axis=0)

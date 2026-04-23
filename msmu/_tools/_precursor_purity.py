@@ -107,7 +107,7 @@ class PrecursorPurityCalculator:
             unit_ppm: Whether to use ppm for tolerance.
         """
         instance = cls(tolerance=tolerance, unit_ppm=unit_ppm)
-        if "psm" not in mdata.mod_names:
+        if "psm" not in mdata.mod:
             raise ValueError("MuData object must contain 'psm' layer with PSM data.")
 
         if "filename" not in mdata.mod["psm"].var.columns:

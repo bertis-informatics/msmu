@@ -112,7 +112,7 @@ def serialize(obj, *, depth: int = 0) -> object:
     if isinstance(obj, md.MuData):
         return {
             "__type__": "mudata",
-            "mod_names": [str(x) for x in obj.mod_names],
+            "mod_names": [str(x) for x in obj.mod.keys()],
         }
 
     if isinstance(obj, Sequence) and not isinstance(obj, str):
@@ -154,7 +154,7 @@ def append_cmd_log(
         log_entry["output_dimensions"] = serialize(dict(output_dimensions))
 
     normalize_cmd_for_runtime(mdata)
-    if "_cmd" not in mdata.uns_keys():
+    if "_cmd" not in mdata.uns:
         mdata.uns["_cmd"] = {}
 
     cmd_logs: dict[str, dict] = mdata.uns["_cmd"]
@@ -187,7 +187,7 @@ def normalize_cmd_for_runtime(mdata: md.MuData) -> md.MuData:
     """Ensure ``mdata.uns['_cmd']`` is ``dict[str, dict]`` in runtime."""
     if not isinstance(mdata, md.MuData):
         return mdata
-    if "_cmd" not in mdata.uns_keys():
+    if "_cmd" not in mdata.uns:
         return mdata
 
     raw = mdata.uns["_cmd"]
@@ -271,7 +271,7 @@ def _get_mdata_dimensions(mdata: md.MuData) -> dict[str, object]:
                 "n_vars": int(mdata.mod[mod].n_vars),
                 "layers": [str(layer) for layer in mdata.mod[mod].layers.keys()],
             }
-            for mod in mdata.mod_names
+            for mod in mdata.mod.keys()
         },
     }
 

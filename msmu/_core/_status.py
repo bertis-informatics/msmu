@@ -41,28 +41,23 @@ class MuDataStatus:
             self.set_anndata_flags(mod_name)
 
     def set_mudata_flags(self):
-        self.mod_names = list(self._mdata.mod_names)
+        self.mod_names = list(self._mdata.mod.keys())
 
     def set_anndata_flags(self, mod_name: str):
+        adata = self._mdata.mod[mod_name]
         setattr(
             self,
             mod_name,
             AnnDataFlags(
                 modality=mod_name,
-                label=(
-                    self._mdata.mod[mod_name].uns["label"]
-                    if "label" in self._mdata.mod[mod_name].uns_keys()
-                    else None
-                ),
+                label=adata.uns["label"] if "label" in adata.uns else None,
                 aquisition=(
-                    self._mdata.mod[mod_name].uns["acquisition"]
-                    if "acquisition" in self._mdata.mod[mod_name].uns_keys()
-                    else None
+                    adata.uns["acquisition"] if "acquisition" in adata.uns else None
                 ),
-                has_purity="purity" in self._mdata.mod[mod_name].var.columns,
-                has_decoy="decoy" in self._mdata.mod[mod_name].uns_keys(),
-                has_pep="PEP" in self._mdata.mod[mod_name].var.columns,
-                has_var=len(self._mdata.mod[mod_name].var) > 0,
-                has_quant=~np.isnan(self._mdata.mod[mod_name].X).all(),
+                has_purity="purity" in adata.var.columns,
+                has_decoy="decoy" in adata.uns,
+                has_pep="PEP" in adata.var.columns,
+                has_var=len(adata.var) > 0,
+                has_quant=~np.isnan(adata.X).all(),
             ),
         )

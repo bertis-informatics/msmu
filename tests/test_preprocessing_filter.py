@@ -22,7 +22,7 @@ def test_mask_boolean_filter_invalid():
 
 def test_add_filter_and_apply_filter_with_decoy(filter_mdata):
     filtered = add_filter(filter_mdata, modality="psm", column="score", keep="gt", value=15.0)
-    assert "filter" in filtered["psm"].varm_keys()
+    assert "filter" in filtered["psm"].varm.keys()
     assert filtered["psm"].varm["filter"].shape[1] == 1
 
     applied = apply_filter(filtered, modality="psm")
@@ -34,7 +34,7 @@ def test_add_filter_on_obs_stores_in_obsm(filter_mdata):
     mdata = filter_mdata.copy()
     mdata.mod["psm"].obs["group"] = ["A", "B"]
     out = add_filter(mdata, modality="psm", column="group", keep="eq", value="A", on="obs")
-    assert "filter" in out["psm"].obsm_keys()
+    assert "filter" in out["psm"].obsm.keys()
     assert out["psm"].obsm["filter"].shape[1] == 1
     assert out["psm"].obsm["filter"].iloc[:, 0].tolist() == [True, False]
 
@@ -43,7 +43,7 @@ def test_add_filter_on_obsm_with_key_stores_in_obsm(filter_mdata):
     mdata = filter_mdata.copy()
     mdata.mod["psm"].obsm["qc"] = pd.DataFrame({"score": [0.1, 0.9]}, index=mdata.mod["psm"].obs_names)
     out = add_filter(mdata, modality="psm", column="score", keep="gt", value=0.5, on="obsm", key="qc")
-    assert "filter" in out["psm"].obsm_keys()
+    assert "filter" in out["psm"].obsm.keys()
     assert out["psm"].obsm["filter"].iloc[:, 0].tolist() == [False, True]
 
 

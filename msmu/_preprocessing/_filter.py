@@ -76,17 +76,17 @@ def add_filter(
     mask = _mask_boolean_filter(series_to_mask=column_values, keep=keep, value=value)
 
     if store_axis == "varm":
-        if "filter" not in adata.varm_keys():
+        if "filter" not in adata.varm.keys():
             adata.varm["filter"] = mask.to_frame(name=filter_name)
         else:
             adata.varm["filter"][filter_name] = mask
     else:
-        if "filter" not in adata.obsm_keys():
+        if "filter" not in adata.obsm.keys():
             adata.obsm["filter"] = mask.to_frame(name=filter_name)
         else:
             adata.obsm["filter"][filter_name] = mask
 
-    if "filter" not in mdata.mod[modality].uns_keys():
+    if "filter" not in mdata.mod[modality].uns:
         mdata.mod[modality].uns["filter"] = [filter_name]
     else:
         mdata.mod[modality].uns["filter"] = list(set([*mdata.mod[modality].uns["filter"]] + [filter_name]))
@@ -99,7 +99,7 @@ def add_filter(
         else:
             decoy_mask = mask.reindex(decoy_df.index).fillna(False)
 
-        if "decoy_filter" not in mdata.mod[modality].uns_keys():
+        if "decoy_filter" not in mdata.mod[modality].uns:
             mdata.mod[modality].uns["decoy_filter"] = decoy_mask.to_frame(name=filter_name)
         else:
             mdata.mod[modality].uns["decoy_filter"][filter_name] = decoy_mask
@@ -166,7 +166,7 @@ def apply_filter(
     missing_filter_columns: list[str] = []
 
     if apply_var:
-        if "filter" not in adata_to_filter.varm_keys():
+        if "filter" not in adata_to_filter.varm.keys():
             if on == "var":
                 logger.warning("No filter found in %s.varm['filter'].", modality)
                 raise ValueError("No filter found in the modality's varm.")
@@ -193,7 +193,7 @@ def apply_filter(
                 var_mask = var_filter_df[var_filter_columns].all(axis=1)
 
     if apply_obs:
-        if "filter" not in adata_to_filter.obsm_keys():
+        if "filter" not in adata_to_filter.obsm.keys():
             if on == "obs":
                 logger.warning("No filter found in %s.obsm['filter'].", modality)
                 raise ValueError("No filter found in the modality's obsm.")
@@ -245,7 +245,7 @@ def apply_filter(
 
     if mstatus.__getattribute__(modality).has_decoy and var_filter_columns:
         decoy_df = adata_to_filter.uns["decoy"]
-        if "decoy_filter" not in adata_to_filter.uns_keys():
+        if "decoy_filter" not in adata_to_filter.uns:
             raise ValueError("No decoy filter found in the modality's uns.")
         decoy_filter = adata_to_filter.uns["decoy_filter"]
         decoy_use_columns = [col for col in var_filter_columns if col in decoy_filter.columns]
