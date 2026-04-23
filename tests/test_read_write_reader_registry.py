@@ -1,3 +1,4 @@
+import inspect
 import logging
 from pathlib import Path
 
@@ -47,6 +48,23 @@ def test_read_h5mu_logs_first_command(monkeypatch):
     _assert_cmd(out, "read_h5mu", expect_stdout=False)
 
 
+def test_public_readers_only_accept_sdrf_file_and_validate_by_default():
+    readers = [
+        rr.read_sage,
+        rr.read_diann,
+        rr.read_maxquant,
+        rr.read_fragpipe,
+        rr.read_delpi,
+        rr.read_sdrf,
+    ]
+
+    for reader in readers:
+        parameters = inspect.signature(reader).parameters
+        assert "sdrf_path" not in parameters
+        assert "sdrf_file" in parameters
+        assert parameters["validate_sdrf"].default is True
+
+
 def test_read_sage_logs_first_command(monkeypatch):
     monkeypatch.setattr(rr.SearchResultDataFrameConverter, "convert", _dummy_convert)
     monkeypatch.setattr(rr, "TmtSageReader", _DummyReader)
@@ -66,6 +84,23 @@ def test_read_diann_logs_first_command(monkeypatch):
     monkeypatch.setattr(rr, "DiannReader", _DummyReader)
     out = rr.read_diann("id.tsv")
     _assert_cmd(out, "read_diann")
+
+
+def test_read_diann_passes_sdrf_file_and_default_validation_to_attach(monkeypatch):
+    calls = []
+
+    def attach(mdata, sdrf_file, *, validate):
+        calls.append((sdrf_file, validate))
+        return mdata
+
+    monkeypatch.setattr(rr.SearchResultDataFrameConverter, "convert", _dummy_convert)
+    monkeypatch.setattr(rr, "DiannReader", _DummyReader)
+    monkeypatch.setattr(rr, "attach_sdrf_metadata", attach)
+
+    out = rr.read_diann("id.tsv", sdrf_file="meta.sdrf.tsv")
+
+    _assert_cmd(out, "read_diann")
+    assert calls == [("meta.sdrf.tsv", True)]
 
 
 def test_read_diann_protein_group_not_implemented():

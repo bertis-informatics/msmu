@@ -28,6 +28,7 @@ dependencies = [
     "statsmodels>=0.14.6",
     "tqdm>=4.67.1",
     "umap-learn>=0.5.11",
+    "sdrf-pipelines>=0.1.0",
 ]
 
 [project.optional-dependencies]

@@ -13,6 +13,7 @@ from ._read_write._reader_registry import (
     read_diann,
     read_maxquant,
     read_fragpipe,
+    read_sdrf,
     read_delpi,
     # read_cptac,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "read_diann",
     "read_maxquant",
     "read_fragpipe",
+    "read_sdrf",
     "read_delpi",
     # "read_cptac",
     "merge_mudata",

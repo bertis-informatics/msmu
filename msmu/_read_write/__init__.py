@@ -3,6 +3,7 @@ from ._reader_registry import (
     read_diann,
     read_maxquant,
     read_fragpipe,
+    read_sdrf,
     # read_cptac,
     read_delpi,
 )
@@ -13,6 +14,7 @@ __all__ = [
     "read_diann",
     "read_maxquant",
     "read_fragpipe",
+    "read_sdrf",
     # "read_cptac",
     "read_delpi",
     "to_readable",
