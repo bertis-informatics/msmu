@@ -1,3 +1,5 @@
+import warnings
+
 import anndata as ad
 import mudata as md
 import numpy as np
@@ -86,6 +88,8 @@ def normalise(
     method: str,
     modality: str,
     layer: str | None = None,
+    batch_key: str | None = None,
+    fraction_key: str | None = None,
     fraction: bool = False,
 ) -> md.MuData:
     """
@@ -94,13 +98,33 @@ def normalise(
     Parameters:
         mdata: MuData object to normalise.
         method: Normalisation method to use. Options are 'quantile', 'median', 'total_sum (not implemented)'.
-        modality: Modality to normalise. If None, all modalities at the specified level will be normalised.
+        modality: Modality to normalise.
         layer: Layer to normalise. If None, the default layer (.X) will be used.
-        fraction: If True, normalise within fractions. If False, normalise across all data. "fraction" yet supports fractionated TMT.
+        batch_key: Column name in ``adata.obs`` defining batches. If provided, normalisation
+            is performed independently within each batch. If None, no batch grouping is applied.
+        fraction_key: Column name in ``adata.var`` defining fractions (e.g. ``"filename"`` for
+            fractionated TMT or fractionated label-free workflows). If provided, normalisation
+            is performed independently within each fraction. If None, no fraction grouping
+            is applied.
+        fraction: Deprecated. If True, equivalent to ``fraction_key="filename"``. Use
+            ``fraction_key`` instead.
 
     Returns:
         Normalised MuData object.
+
+    Notes:
+        When both ``batch_key`` and ``fraction_key`` are provided, normalisation is performed
+        independently within each (batch × fraction) block.
     """
+    if fraction:
+        warnings.warn(
+            "`fraction=True` is deprecated; pass `fraction_key='filename'` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if fraction_key is None:
+            fraction_key = "filename"
+
     axis: str = "obs"
 
     mdata = mdata.copy()
@@ -112,29 +136,20 @@ def normalise(
     else:
         raw_arr: np.ndarray = adata.layers[layer]
 
-    rescale_arr: np.array[float] = np.array([])
-    rescale_arr = np.append(rescale_arr, raw_arr.flatten())
+    if batch_key is not None and batch_key not in adata.obs.columns:
+        raise KeyError(f"batch_key '{batch_key}' not found in adata.obs of modality '{modality}'.")
+    if fraction_key is not None and fraction_key not in adata.var.columns:
+        raise KeyError(f"fraction_key '{fraction_key}' not found in adata.var of modality '{modality}'.")
 
-    # TODO: refactor and package intra-fraction normalisation
-    if fraction:
-        normalised_arr = np.full_like(raw_arr, np.nan, dtype=float)
-        for frac in np.unique(adata.var["filename"]):
-            fraction_idx = adata.var["filename"] == frac
+    obs_groups = adata.obs[batch_key].to_numpy() if batch_key is not None else None
+    var_groups = adata.var[fraction_key].to_numpy() if fraction_key is not None else None
 
-            arr = raw_arr[:, fraction_idx]
-            not_all_nan_rows = ~np.all(np.isnan(arr), axis=1)
-            indices = np.where(not_all_nan_rows)[0]
-
-            arr = arr[indices, :]
-            fraction_normalised_data = norm_cls.normalise(arr=arr)
-
-            for i, r in enumerate(indices):
-                normalised_arr[r, fraction_idx] = fraction_normalised_data[i]
-            # normalised_arr[indices, fraction_idx] = fraction_normalised_data
-
-    else:
-        arr = raw_arr
-        normalised_arr = norm_cls.normalise(arr=arr)
+    normalised_arr = _normalise_by_groups(
+        raw_arr=raw_arr,
+        norm_cls=norm_cls,
+        obs_groups=obs_groups,
+        var_groups=var_groups,
+    )
 
     if layer is None:
         adata.X = normalised_arr
@@ -149,6 +164,8 @@ def normalize(
     method: str,
     modality: str,
     layer: str | None = None,
+    batch_key: str | None = None,
+    fraction_key: str | None = None,
     fraction: bool = False,
 ) -> md.MuData:
     """
@@ -159,8 +176,45 @@ def normalize(
         method=method,
         modality=modality,
         layer=layer,
+        batch_key=batch_key,
+        fraction_key=fraction_key,
         fraction=fraction,
     )
+
+
+def _partition_indices(groups: np.ndarray | None, length: int) -> list[np.ndarray]:
+    """Return positional index arrays — one per unique group, or a single full-range array if groups is None."""
+    if groups is None:
+        return [np.arange(length)]
+    unique_groups = np.unique(groups)
+    return [np.where(groups == group)[0] for group in unique_groups]
+
+
+def _normalise_by_groups(
+    raw_arr: np.ndarray,
+    norm_cls: Normalisation,
+    obs_groups: np.ndarray | None,
+    var_groups: np.ndarray | None,
+) -> np.ndarray:
+    """Normalise raw_arr within each (obs_group × var_group) block; un-grouped axes use a single block."""
+    obs_partitions = _partition_indices(obs_groups, raw_arr.shape[0])
+    var_partitions = _partition_indices(var_groups, raw_arr.shape[1])
+
+    normalised_arr = np.full_like(raw_arr, np.nan, dtype=float)
+
+    for obs_idx in obs_partitions:
+        for var_idx in var_partitions:
+            sub_block = raw_arr[np.ix_(obs_idx, var_idx)]
+            not_all_nan_rows = ~np.all(np.isnan(sub_block), axis=1)
+            valid_rows = np.where(not_all_nan_rows)[0]
+            if valid_rows.size == 0:
+                continue
+            block_normalised = norm_cls.normalise(arr=sub_block[valid_rows, :])
+            for local_row_idx, original_local_row in enumerate(valid_rows):
+                target_row = obs_idx[original_local_row]
+                normalised_arr[target_row, var_idx] = block_normalised[local_row_idx]
+
+    return normalised_arr
 
 
 @uns_logger
