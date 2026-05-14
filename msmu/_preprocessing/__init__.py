@@ -3,6 +3,7 @@ from ._infer_protein import infer_protein
 from ._summarise import to_peptide, to_protein, to_ptm
 from ._normalise import log2_transform, normalise, normalize, adjust_ptm_by_protein, scale_data
 from ._batch_correction import correct_batch_effect
+from ._collapse import collapse_obs
 
 __all__ = [
     "add_filter",
@@ -17,4 +18,5 @@ __all__ = [
     "infer_protein",
     "adjust_ptm_by_protein",
     "scale_data",
+    "collapse_obs",
 ]
