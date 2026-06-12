@@ -261,18 +261,22 @@ def capture_provenance_output():
         msmu_logger.propagate = original_propagate
 
 
-def _get_mdata_dimensions(mdata: md.MuData) -> dict[str, object]:
+def _get_mudata_dimensions(mdata: md.MuData) -> dict[str, object]:
+    def _get_mod_dimensions(mod_data: ad.AnnData | md.MuData) -> dict[str, object]:
+        dimensions: dict[str, object] = {
+            "n_obs": int(mod_data.n_obs),
+            "n_vars": int(mod_data.n_vars),
+        }
+        if isinstance(mod_data, ad.AnnData):
+            dimensions["layers"] = [str(layer) for layer in mod_data.layers.keys()]
+        else:
+            dimensions["modalities"] = [str(mod) for mod in mod_data.mod.keys()]
+        return dimensions
+
     return {
         "n_obs": int(mdata.n_obs),
         "n_vars": int(mdata.n_vars),
-        "modalities": {
-            mod: {
-                "n_obs": int(mdata.mod[mod].n_obs),
-                "n_vars": int(mdata.mod[mod].n_vars),
-                "layers": [str(layer) for layer in mdata.mod[mod].layers.keys()],
-            }
-            for mod in mdata.mod.keys()
-        },
+        "modalities": {mod: _get_mod_dimensions(mdata.mod[mod]) for mod in mdata.mod.keys()},
     }
 
 
@@ -287,8 +291,8 @@ def uns_logger(func):
 
         full_kwargs = get_bound_call_kwargs(func, mdata, *args, **kwargs)
         captured_stdout = stdout_buffer.getvalue().strip()
-        input_dimensions = _get_mdata_dimensions(mdata)
-        output_dimensions = _get_mdata_dimensions(result)
+        input_dimensions = _get_mudata_dimensions(mdata)
+        output_dimensions = _get_mudata_dimensions(result)
         return append_cmd_log(
             result,
             function=func.__name__,

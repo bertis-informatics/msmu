@@ -2,6 +2,8 @@ import pandas as pd
 from anndata import AnnData
 from mudata import MuData
 
+from ._mudata import get_anndata_mod
+
 
 def split_tmt(
     mdata: MuData,
@@ -31,27 +33,28 @@ def split_tmt(
     elif not isinstance(map, dict):
         raise ValueError("Map must be a dictionary, pandas Series, or DataFrame.")
 
-    mdata.mod["psm"].var["set"] = mdata.mod["psm"].var["filename"].str.rsplit(".", n=1).str[0].map(map)
+    psm_adata = get_anndata_mod(mdata, "psm")
+    psm_adata.var["set"] = psm_adata.var["filename"].str.rsplit(".", n=1).str[0].map(map)
 
-    df = mdata.mod["psm"].to_df().T.copy()
+    df = psm_adata.to_df().T.copy()
     set_dfs = {}
 
-    for set in mdata.mod["psm"].var["set"].unique():
-        set_index = mdata.mod["psm"].var.index[mdata.mod["psm"].var["set"] == set]
+    for set in psm_adata.var["set"].unique():
+        set_index = psm_adata.var.index[psm_adata.var["set"] == set]
         set_df = df.loc[set_index]
         set_df.columns = set_df.columns + f"_{set}"
         set_dfs[set] = set_df
 
     set_df = pd.concat(set_dfs.values(), axis=1)
-    set_df = set_df.loc[mdata.mod["psm"].var.index]
+    set_df = set_df.loc[psm_adata.var.index]
 
     new_adata = AnnData(
         X=set_df.T,
         obs=pd.DataFrame(index=set_df.T.index),
         var=pd.DataFrame(index=set_df.T.columns),
     )
-    new_adata.var = mdata.mod["psm"].var.copy()
-    new_adata.uns = mdata.mod["psm"].uns.copy()
+    new_adata.var = psm_adata.var.copy()
+    new_adata.uns = psm_adata.uns.copy()
 
     new_mdata = MuData({"psm": new_adata})
     new_mdata.var = mdata.var.copy()

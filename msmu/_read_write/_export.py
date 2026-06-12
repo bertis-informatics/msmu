@@ -2,6 +2,8 @@ import pandas as pd
 import mudata as md
 from pathlib import Path
 
+from .._utils._mudata import get_anndata_mod
+
 
 def write_flashlfq_input(mdata: md.MuData, filename: str | Path) -> None:
     """
@@ -21,7 +23,8 @@ def write_flashlfq_input(mdata: md.MuData, filename: str | Path) -> None:
         "proteins": "Protein Accession",
     }
 
-    source_df: pd.DataFrame = mdata.mod["psm"].var.copy()
+    psm_adata = get_anndata_mod(mdata, "psm")
+    source_df: pd.DataFrame = psm_adata.var.copy()
 
     source_df = source_df[required_column_dict.keys()]
     source_df = source_df.rename(columns=required_column_dict)
@@ -84,11 +87,12 @@ def write_pin(
         "expmass",
     ]
 
-    target_df: pd.DataFrame = mdata.mod["psm"].var[var_columns].copy()
+    psm_adata = get_anndata_mod(mdata, "psm")
+    target_df: pd.DataFrame = psm_adata.var[var_columns].copy()
     target_df["decoy"] = 0
 
-    if "decoy" in mdata.mod["psm"].uns:
-        decoy_df = mdata.mod["psm"].uns["decoy"].copy()
+    if "decoy" in psm_adata.uns:
+        decoy_df = psm_adata.uns["decoy"].copy()
 
         pin_df = pd.concat([target_df, decoy_df], axis=0)
     else:
@@ -150,7 +154,8 @@ def to_readable(
     Returns:
         A pandas DataFrame in a human-readable format.
     """
-    df = mdata.mod[modality].var.copy()
+    adata = get_anndata_mod(mdata, modality)
+    df = adata.var.copy()
 
     if include is None and exclude is None and not quantification:
         return df
@@ -164,7 +169,7 @@ def to_readable(
             exclude = [exclude]
         df = df.drop(columns=exclude)
     if quantification:
-        quant_df = mdata.mod[modality].to_df().T
+        quant_df = adata.to_df().T
         df = pd.concat([df, quant_df], axis=1)
 
     return df

@@ -2,11 +2,13 @@
 Module for preparing plotting data from MuData objects.
 """
 
+from typing import cast
+
 from mudata import MuData
 import numpy as np
 import pandas as pd
 
-from .._core._access import get_adata
+from .._utils._mudata import get_anndata_mod
 from ..logging_utils import get_logger
 from ._utils import BinInfo, get_bin_info, is_resolved_obs_groupby, prepare_obs_frame
 
@@ -148,7 +150,7 @@ class PlotData:
             key = "obs"
         elif groupby == obs_column and is_resolved_obs_groupby(self.mdata, groupby, obs_column):
             key = "obs"
-        elif groupby in self.mdata.mod[self.modality].var.columns:
+        elif groupby in get_anndata_mod(self.mdata, self.modality).var.columns:
             key = "var"
         elif is_resolved_obs_groupby(self.mdata, groupby, obs_column):
             key = "obs"
@@ -164,7 +166,7 @@ class PlotData:
         Returns:
             Copy of the modality's data matrix as a DataFrame.
         """
-        adata = get_adata(self.mdata, self.modality).copy()
+        adata = get_anndata_mod(self.mdata, self.modality).copy()
 
         if self.layer is not None:
             if self.layer not in adata.layers:
@@ -182,7 +184,7 @@ class PlotData:
         Returns:
             Copy of the modality's `var` table.
         """
-        var_df = self.mdata.mod[self.modality].var.copy()
+        var_df = cast(pd.DataFrame, get_anndata_mod(self.mdata, self.modality).var.copy())
 
         if groupby and groupby in var_df.columns:
             if not isinstance(var_df[groupby].dtype, pd.CategoricalDtype):
@@ -203,7 +205,7 @@ class PlotData:
             Concatenated `var` and selected varm DataFrame.
         """
         var_df: pd.DataFrame = self._get_var()
-        varm_df: pd.DataFrame = pd.DataFrame(self.mdata.mod[self.modality].varm[column].copy())
+        varm_df: pd.DataFrame = pd.DataFrame(get_anndata_mod(self.mdata, self.modality).varm[column].copy())
 
         return pd.concat([var_df, varm_df], axis=1)
 

@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 
 import mudata as md
-import numpy as np
+
+from .._utils._anndata import _has_quant_values
+from .._utils._mudata import get_anndata_mod
 
 
 @dataclass
@@ -44,7 +46,7 @@ class MuDataStatus:
         self.mod_names = list(self._mdata.mod.keys())
 
     def set_anndata_flags(self, mod_name: str):
-        adata = self._mdata.mod[mod_name]
+        adata = get_anndata_mod(self._mdata, mod_name)
         setattr(
             self,
             mod_name,
@@ -56,6 +58,6 @@ class MuDataStatus:
                 has_decoy="decoy" in adata.uns,
                 has_pep="PEP" in adata.var.columns,
                 has_var=len(adata.var) > 0,
-                has_quant=~np.isnan(adata.X).all(),
+                has_quant=_has_quant_values(adata.X),
             ),
         )

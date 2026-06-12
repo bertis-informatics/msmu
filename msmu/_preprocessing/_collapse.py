@@ -6,6 +6,7 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
+from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
 from ..logging_utils import get_logger
 
@@ -120,7 +121,8 @@ def collapse_obs(
         effective_agg_function = _AGG_FUNCTIONS[agg_method]
 
     aggregated_mods: dict[str, ad.AnnData] = {}
-    for modality_name, adata in mdata.mod.items():
+    for modality_name in mdata.mod.keys():
+        adata = get_anndata_mod(mdata, modality_name)
         if sample_key not in adata.obs.columns:
             raise KeyError(f"sample_key '{sample_key}' not found in obs of modality '{modality_name}'.")
         aggregated_mods[modality_name] = _collapse_anndata_obs(

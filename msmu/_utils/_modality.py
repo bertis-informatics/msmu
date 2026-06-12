@@ -5,7 +5,7 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
-from .._core._mudata import add_modality
+from ._mudata import add_modality
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -86,7 +86,7 @@ def add_quant(
         peptide_adata = ad.AnnData(X=input_arr.T)
         peptide_adata.uns["level"] = "peptide"
 
-        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["psm"])
+        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide")
 
         logger.info("Added quantification modality 'peptide' using %s data.", quant_tool)
         logger.debug("Added peptide quantification matrix with shape %s.", input_arr.shape)

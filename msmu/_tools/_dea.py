@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from typing import Literal
 
+from .._utils._mudata import get_anndata_mod
 from ..logging_utils import get_logger
 from .._statistics._permutation import PermutationTest
 from .._statistics._de_base import (
@@ -30,7 +31,7 @@ def _get_test_array(
     expr: str | None,
     layer: str | None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    mod_adata = mdata.mod[modality]
+    mod_adata = get_anndata_mod(mdata, modality)
     if layer is not None:
         data = pd.DataFrame(
             mod_adata.layers[layer],
@@ -163,7 +164,7 @@ def run_de(
 
     de_res.ctrl = ctrl
     de_res.expr = expr if expr is not None else "all_other_groups"
-    de_res.features = mdata.mod[modality].var.index.to_numpy()
+    de_res.features = get_anndata_mod(mdata, modality).var.index.to_numpy()
     de_res.repr_ctrl = repr_ctrl
     de_res.repr_expr = repr_expr
     de_res.pct_ctrl = _get_pct_expression(ctrl_arr)

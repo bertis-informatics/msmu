@@ -5,6 +5,7 @@ import mudata as md
 import numpy as np
 from typing import Literal
 
+from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
 from ..logging_utils import get_logger
 from ._normalisation import Normalisation, PTMProteinAdjuster
@@ -30,18 +31,19 @@ def log2_transform(
         Transformed MuData object.
     """
     mdata = mdata.copy()
+    adata = get_anndata_mod(mdata, modality)
 
     if layer is None:
-        raw_arr = mdata.mod[modality].X
+        raw_arr = adata.X
     else:
-        raw_arr = mdata.mod[modality].layers[layer]
+        raw_arr = adata.layers[layer]
 
     log2_arr = np.log2(raw_arr)
 
     if layer is None:
-        mdata.mod[modality].X = log2_arr
+        adata.X = log2_arr
     else:
-        mdata.mod[modality].layers[layer] = log2_arr
+        adata.layers[layer] = log2_arr
 
     return mdata
 
@@ -64,20 +66,21 @@ def scale_data(
         Scaled MuData object.
     """
     mdata = mdata.copy()
+    adata = get_anndata_mod(mdata, modality)
 
     if layer is None:
-        raw_arr: np.ndarray = mdata.mod[modality].X
+        raw_arr: np.ndarray = adata.X
     else:
-        raw_arr: np.ndarray = mdata.mod[modality].layers[layer]
+        raw_arr: np.ndarray = adata.layers[layer]
 
     mean_arr: np.ndarray = np.nanmean(raw_arr, axis=0)
     std_arr: np.ndarray = np.nanstd(raw_arr, axis=0)
     scaled_arr: np.ndarray = (raw_arr - mean_arr) / std_arr
 
     if layer is None:
-        mdata.mod[modality].X = scaled_arr
+        adata.X = scaled_arr
     else:
-        mdata.mod[modality].layers[layer] = scaled_arr
+        adata.layers[layer] = scaled_arr
 
     return mdata
 
@@ -128,7 +131,7 @@ def normalise(
     axis: str = "obs"
 
     mdata = mdata.copy()
-    adata: ad.AnnData = mdata.mod[modality]
+    adata: ad.AnnData = get_anndata_mod(mdata, modality)
     norm_cls: Normalisation = Normalisation(method=method, axis=axis)
 
     if layer is None:
@@ -242,9 +245,10 @@ def adjust_ptm_by_protein(
         Normalised MuData object.
     """
     mdata = mdata.copy()
+    adata = get_anndata_mod(mdata, modality)
 
     if layer is not None:
-        mdata.mod[modality].X = mdata.mod[modality].layers[layer]
+        adata.X = adata.layers[layer]
 
     ptm_adjuster: PTMProteinAdjuster = PTMProteinAdjuster(
         ptm_mdata=mdata,

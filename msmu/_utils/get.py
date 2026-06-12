@@ -1,5 +1,8 @@
-"""Backward-compatible accessors re-exported from :mod:`msmu._core`."""
+"""Backward-compatible accessors re-exported from :mod:`msmu._utils._mudata`."""
 
-from .._core._access import get_adata, get_mdata
+from ._mudata import get_anndata, get_anndata_mod, get_mudata, get_mudata_mod
 
-__all__ = ["get_adata", "get_mdata"]
+get_adata = get_anndata
+get_mdata = get_mudata
+
+__all__ = ["get_adata", "get_anndata", "get_anndata_mod", "get_mdata", "get_mudata", "get_mudata_mod"]

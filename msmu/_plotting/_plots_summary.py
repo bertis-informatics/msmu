@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from .._core._access import get_mdata
+from .._utils._mudata import get_mudata
 from ._pdata import PlotData
 from ._ptypes import PlotBar
 from ._template import DEFAULT_TEMPLATE
@@ -174,7 +174,7 @@ def plot_upset(
     subset_context = PlotContext.obs_only(mdata, modality, obs_column=subset_column, layer=layer)
 
     if subset is not None:
-        mdata = get_mdata(mdata[mdata.obs[subset_context.obs_column] == subset].copy())
+        mdata = get_mudata(mdata[mdata.obs[subset_context.obs_column] == subset].copy())
 
     context = PlotContext.grouped(mdata, modality, groupby=groupby, obs_column=obs_column, layer=layer)
     if context.groupby is None:

@@ -8,7 +8,7 @@ from mudata import MuData
 from umap import UMAP
 from typing import Any
 
-from .._core._access import get_adata
+from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
 
 
@@ -127,7 +127,7 @@ def umap(
     mdata = mdata.copy()
 
     # Drop columns with NaN values
-    adata = get_adata(mdata, modality)
+    adata = get_anndata_mod(mdata, modality)
     if layer is not None:
         data = pd.DataFrame(data=adata.layers[layer], index=adata.obs_names, columns=adata.var_names)
     else:
@@ -152,14 +152,14 @@ def umap(
 
     # Save UMAP results - dimensions
     dimensions = np.asarray(umap.transform(data))
-    mdata.mod[modality].obsm[key_added] = pd.DataFrame(
+    adata.obsm[key_added] = pd.DataFrame(
         dimensions,
-        index=mdata.mod[modality].obs_names,
-        columns=[f"UMAP_{i + 1}" for i in range(dimensions.shape[1])],
+        index=adata.obs_names,
+        columns=pd.Index([f"UMAP_{i + 1}" for i in range(dimensions.shape[1])]),
     )
 
     # Save UMAP results - metadata
-    mdata.mod[modality].uns[key_added] = {
+    adata.uns[key_added] = {
         "n_components": umap.n_components,
         "n_neighbors": n_neighbors,
         "metric": metric,

@@ -4,7 +4,7 @@ import anndata as ad
 import mudata as md
 import pandas as pd
 
-from .._core._mudata import add_modality as add_modality
+from .._utils._mudata import add_modality as add_modality
 
 
 # Utility functions for Readers

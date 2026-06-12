@@ -7,7 +7,7 @@ from mudata import MuData
 from sklearn.decomposition import PCA
 from typing import Literal, Any
 
-from .._core._access import get_adata
+from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
 
 
@@ -101,7 +101,7 @@ def pca(
     mdata = mdata.copy()
 
     # Drop columns with NaN values
-    adata = get_adata(mdata, modality)
+    adata = get_anndata_mod(mdata, modality)
     if layer is not None:
         data = pd.DataFrame(data=adata.layers[layer], index=adata.obs_names, columns=adata.var_names)
     else:
@@ -119,24 +119,24 @@ def pca(
 
     # Save PCA results - dimensions
     dimensions = pca.transform(data)
-    mdata.mod[modality].obsm[key_added] = pd.DataFrame(
+    adata.obsm[key_added] = pd.DataFrame(
         dimensions,
-        index=mdata.mod[modality].obs_names,
-        columns=[f"PC_{i + 1}" for i in range(dimensions.shape[1])],
+        index=adata.obs_names,
+        columns=pd.Index([f"PC_{i + 1}" for i in range(dimensions.shape[1])]),
     )
 
     # Save PCA results - loadings
     pcs = pd.DataFrame(
         pca.components_,
-        columns=pca.feature_names_in_,
+        columns=data.columns,
         index=pca.get_feature_names_out(),
     )
-    pcs_df = pd.DataFrame(index=mdata.mod[modality].var_names)
+    pcs_df = pd.DataFrame(index=adata.var_names)
     pcs_df = pcs_df.join(pcs.T)
-    mdata.mod[modality].varm[key_added] = pcs_df
+    adata.varm[key_added] = pcs_df
 
     # Save PCA results - explained variance and metadata
-    mdata.mod[modality].uns[key_added] = {
+    adata.uns[key_added] = {
         "variance": pca.explained_variance_,
         "variance_ratio": pca.explained_variance_ratio_,
         "n_components": pca.n_components_,

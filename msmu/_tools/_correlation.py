@@ -6,7 +6,7 @@ import pandas as pd
 from typing import Literal
 from mudata import MuData
 
-from .._core._access import get_adata
+from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
 
 
@@ -30,7 +30,7 @@ def corr(
         DataFrame representing the correlation matrix.
     """
     mdata = mdata.copy()
-    adata = get_adata(mdata, modality).copy()
+    adata = get_anndata_mod(mdata, modality).copy()
 
     if layer is not None:
         if layer not in adata.layers:
@@ -41,6 +41,6 @@ def corr(
 
     corr_matrix = data.T.corr(method=method)
 
-    mdata.mod[modality].obsp["X_corr"] = corr_matrix.values
+    adata.obsp["X_corr"] = corr_matrix.values
 
     return mdata

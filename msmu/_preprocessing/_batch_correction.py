@@ -5,6 +5,7 @@ import pandas as pd
 import statsmodels.api as sm
 from inmoose.pycombat import pycombat_norm
 
+from .._utils._mudata import get_anndata_mod, get_mudata
 from .._core._provenance import uns_logger
 from ..logging_utils import get_logger
 
@@ -52,6 +53,8 @@ def correct_batch_effect(
     )
 
     if method == "gis":
+        if gis_samples is None:
+            raise ValueError("gis_samples must be provided when method is 'gis'.")
         corrected_arr: np.ndarray = batch_corrector.gis(gis_samples=gis_samples)
     elif method == "median_center":
         corrected_arr: np.ndarray = batch_corrector.median_center()
@@ -79,13 +82,14 @@ def correct_batch_effect(
         corrected_arr.shape,
     )
 
+    adata = get_anndata_mod(mdata, modality)
     if layer is None:
-        mdata.mod[modality].X = corrected_arr
+        adata.X = corrected_arr
     else:
-        mdata.mod[modality].layers[layer] = corrected_arr
+        adata.layers[layer] = corrected_arr
 
-    if drop_gis and method == "gis" and gis_samples is not None:
-        mdata = mdata[mdata.mod[modality].obs_names.difference(gis_samples), :].copy()
+    if drop_gis and method == "gis":
+        mdata = get_mudata(mdata[adata.obs_names.difference(gis_samples), :].copy())
 
     return mdata
 
@@ -104,10 +108,9 @@ class BatchCorrector:
         self.layer = layer
         self.category = category
         self.log_transformed = log_transformed
+        self.adata = get_anndata_mod(self.mdata, self.modality)
 
-        self.original_arr = (
-            self.mdata.mod[self.modality].X if self.layer is None else self.mdata.mod[self.modality].layers[self.layer]
-        )
+        self.original_arr = self.adata.X if self.layer is None else self.adata.layers[self.layer]
         self.corrected_arr: np.ndarray | None = None  # placeholder for corrected array
 
     def gis(self, gis_samples: list[str]):
@@ -169,8 +172,8 @@ class BatchCorrector:
 
         df = pd.DataFrame(
             self.original_arr,
-            columns=self.mdata.mod[self.modality].var_names,
-            index=self.mdata.mod[self.modality].obs_names,
+            columns=self.adata.var_names,
+            index=self.adata.obs_names,
         ).T
 
         df_sorted = df.iloc[:, sorted_idx]

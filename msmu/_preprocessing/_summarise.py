@@ -3,7 +3,7 @@ import warnings
 import anndata as ad
 import pandas as pd
 
-from .._core._mudata import add_modality
+from .._utils._mudata import add_modality, get_anndata_mod, get_mudata, get_mudata_mod_as_mutable
 from .._core._provenance import uns_logger
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
@@ -56,7 +56,7 @@ def to_peptide(
         MuData object containing peptide-level data.
     """
     mdata = mdata.copy()
-    adata_to_summarise: ad.AnnData = mdata.mod["psm"]
+    adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "psm")
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for peptide summarisation.", layer)
@@ -145,7 +145,8 @@ def to_peptide(
         not mstatus.psm.has_quant and "peptide" in mstatus.mod_names
     ):  # for lfq (dda) data with peptide quantification already existing
         logger.info("Using existing peptide quantification data.")
-        quant_df_agg = mdata.mod["peptide"].to_df().T
+        existing_peptide_adata = get_anndata_mod(mdata, "peptide")
+        quant_df_agg = existing_peptide_adata.to_df().T
         quant_df_agg = pd.merge(
             ident_df_agg[[]],
             quant_df_agg,
@@ -158,8 +159,8 @@ def to_peptide(
             X=quant_df_agg.T,
             var=ident_df_agg,
         )
-        mdata = mdata[:, [v not in mdata.mod["peptide"].var_names for v in mdata.var_names]].copy()
-        mdata.mod["peptide"] = peptide_adata
+        mdata = get_mudata(mdata[:, [v not in existing_peptide_adata.var_names for v in mdata.var_names]].copy())
+        get_mudata_mod_as_mutable(mdata)["peptide"] = peptide_adata
         # mdata["peptide"].var = ident_df_agg
 
     else:  # all other cases
@@ -170,11 +171,12 @@ def to_peptide(
         )
 
         # add modality
-        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["psm"])
-    mdata.mod["peptide"].uns["level"] = "peptide"
+        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide")
+    peptide_mod = get_anndata_mod(mdata, "peptide")
+    peptide_mod.uns["level"] = "peptide"
 
     if mstatus.psm.has_decoy:
-        mdata.mod["peptide"].uns["decoy"] = decoy_df_agg
+        peptide_mod.uns["decoy"] = decoy_df_agg
 
     return mdata
 
@@ -228,7 +230,7 @@ def to_protein(
     else:
         mdata = original_mdata
 
-    adata_to_summarise: ad.AnnData = mdata.mod["peptide"]
+    adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "peptide")
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for protein summarisation.", layer)
@@ -300,16 +302,12 @@ def to_protein(
     )
 
     # add modality
-    mdata = add_modality(
-        mdata=original_mdata,
-        adata=protein_adata,
-        mod_name="protein",
-        parent_mods=["peptide"],
-    )
-    mdata.mod["protein"].uns["level"] = "protein"
+    mdata = add_modality(mdata=original_mdata, adata=protein_adata, mod_name="protein")
+    protein_mod = get_anndata_mod(mdata, "protein")
+    protein_mod.uns["level"] = "protein"
 
     if mstatus.peptide.has_decoy:
-        mdata.mod["protein"].uns["decoy"] = agg_decoy_df
+        protein_mod.uns["decoy"] = agg_decoy_df
 
     return mdata
 
@@ -338,7 +336,7 @@ def to_ptm(
     Returns:
         MuData: MuData object containing PTM-level data.
     """
-    adata_to_summarise: ad.AnnData = mdata.mod["peptide"].copy()
+    adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "peptide").copy()
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for PTM summarisation.", layer)
@@ -398,7 +396,7 @@ def to_ptm(
     )
 
     # add modality
-    mdata = add_modality(mdata=mdata, adata=ptm_adata, mod_name=modality_name, parent_mods=["peptide"])
-    mdata.mod[modality_name].uns["level"] = "ptm_site"
+    mdata = add_modality(mdata=mdata, adata=ptm_adata, mod_name=modality_name)
+    get_anndata_mod(mdata, modality_name).uns["level"] = "ptm_site"
 
     return mdata
