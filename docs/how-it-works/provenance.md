@@ -21,6 +21,10 @@ contains:
 - `print(...)` output and `logging` output (from `msmu` loggers) are shown on
   screen and captured into `_cmd` (`stdout`).
 - Reader functions (`read_*`, `read_h5mu`) also append `_cmd` entries.
+- `mm.read_sdrf(...)` and `mm.pp.add_meta(..., format="sdrf")` share the same
+  SDRF parsing and validation flow.
+- `mm.pp.add_meta(..., format="sdrf")` records the SDRF source and matching
+  arguments in `_cmd` instead of persisting SDRF-specific payloads in `.uns`.
 - When reading `.h5mu`, `_cmd` is normalized back to runtime `dict[str, dict]` format.
 
 ## Example

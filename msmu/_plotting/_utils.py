@@ -14,7 +14,7 @@ import plotly.io as pio
 from ..logging_utils import get_logger
 
 _FALLBACK_COLUMN = "__obs_idx__"
-_DEFAULT_OBS_PRIORITY = ("source_name", "sample", "filename", _FALLBACK_COLUMN)
+_DEFAULT_OBS_PRIORITY = ("source name", "source_name", "sample", "filename", _FALLBACK_COLUMN)
 
 logger = get_logger(__name__)
 
