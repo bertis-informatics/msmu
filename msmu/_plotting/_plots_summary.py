@@ -89,7 +89,14 @@ def _build_upset_figure(
     fig.update_xaxes(ticklen=0, showticklabels=False, row=1, col=2)
     fig.update_xaxes(ticklen=0, showticklabels=False, row=2, col=2)
 
-    fig.update_yaxes(autorange="reversed", showticklabels=False, ticklen=0, side="right", row=2, col=1)
+    fig.update_yaxes(
+        autorange="reversed",
+        showticklabels=False,
+        ticklen=0,
+        side="right",
+        row=2,
+        col=1,
+    )
     fig.update_yaxes(side="right", tickformat=",d", showticklabels=True, row=1, col=2)
     fig.update_yaxes(side="right", showticklabels=True, row=2, col=2)
 
@@ -125,7 +132,12 @@ def plot_id(
     yaxis_title = f"Number of {context.modality_label}s"
     hovertemplate = f"{xaxis_title}: %{{x}}<br>{yaxis_title}: %{{y:,d}}<extra></extra>"
 
-    data = PlotData(context.mdata, context.modality, layer=context.layer, obs_column=context.obs_column)
+    data = PlotData(
+        context.mdata,
+        context.modality,
+        layer=context.layer,
+        obs_column=context.obs_column,
+    )
     plot = PlotBar(
         data=data.prep_id_bar(context.groupby, obs_column=context.obs_column),
         x=context.groupby,
@@ -170,7 +182,12 @@ def plot_upset(
 
     title_text = f"Intersection of Proteins among {context.groupby.capitalize()}"
 
-    data = PlotData(context.mdata, context.modality, layer=context.layer, obs_column=context.obs_column)
+    data = PlotData(
+        context.mdata,
+        context.modality,
+        layer=context.layer,
+        obs_column=context.obs_column,
+    )
     fig = _build_upset_figure(data.prep_id_upset(context.groupby, context.obs_column))
     fig.update_layout(title_text=title_text)
 

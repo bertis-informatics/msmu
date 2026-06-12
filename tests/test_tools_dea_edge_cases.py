@@ -1,5 +1,3 @@
-import numpy as np
-
 from msmu._tools._dea import run_de
 
 

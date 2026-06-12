@@ -51,9 +51,7 @@ class MuDataStatus:
             AnnDataFlags(
                 modality=mod_name,
                 label=adata.uns["label"] if "label" in adata.uns else None,
-                aquisition=(
-                    adata.uns["acquisition"] if "acquisition" in adata.uns else None
-                ),
+                aquisition=(adata.uns["acquisition"] if "acquisition" in adata.uns else None),
                 has_purity="purity" in adata.var.columns,
                 has_decoy="decoy" in adata.uns,
                 has_pep="PEP" in adata.var.columns,

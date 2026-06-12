@@ -74,7 +74,15 @@ def write_pin(
     Returns:
         A pandas DataFrame in Percolator input format if filename is None, otherwise None.
     """
-    var_columns = ["filename", "scan_num", "charge", "peptide", "proteins", "calcmass", "expmass"]
+    var_columns = [
+        "filename",
+        "scan_num",
+        "charge",
+        "peptide",
+        "proteins",
+        "calcmass",
+        "expmass",
+    ]
 
     target_df: pd.DataFrame = mdata.mod["psm"].var[var_columns].copy()
     target_df["decoy"] = 0

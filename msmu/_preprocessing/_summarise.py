@@ -72,7 +72,7 @@ def to_peptide(
 
     # Filtering for TMT purity in peptide quantification
     if mstatus.psm.label == "tmt":
-        if mstatus.psm.has_purity == False:
+        if not mstatus.psm.has_purity:
             logger.warning("Purity column not found in psm modality for TMT data. Skipping purity filtering.")
         elif purity_threshold is None:
             logger.debug("No purity threshold provided for TMT data. Skipping purity filtering.")
@@ -81,7 +81,10 @@ def to_peptide(
 
     # Ranking for top_n features
     if top_n is not None:
-        summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
+        summarisation_prep.rank_tuple = (
+            rank_method,
+            top_n,
+        )  # e.g. ("total_intensity", 3)
 
     identification_df, quantification_df, decoy_df = summarisation_prep.prep()
     logger.debug(
@@ -138,12 +141,18 @@ def to_peptide(
     logger.debug("Aggregated peptide quantification shape: %s", quant_df_agg.shape)
 
     # build peptide-level anndata
-    if (mstatus.psm.has_quant == False) & (
-        "peptide" in mstatus.mod_names
+    if (
+        not mstatus.psm.has_quant and "peptide" in mstatus.mod_names
     ):  # for lfq (dda) data with peptide quantification already existing
         logger.info("Using existing peptide quantification data.")
         quant_df_agg = mdata.mod["peptide"].to_df().T
-        quant_df_agg = pd.merge(ident_df_agg[[]], quant_df_agg, left_index=True, right_index=True, how="left")
+        quant_df_agg = pd.merge(
+            ident_df_agg[[]],
+            quant_df_agg,
+            left_index=True,
+            right_index=True,
+            how="left",
+        )
         logger.debug("Merged existing peptide quantification shape: %s", quant_df_agg.shape)
         peptide_adata = ad.AnnData(
             X=quant_df_agg.T,
@@ -226,12 +235,17 @@ def to_protein(
 
     # Preparation
     summarisation_prep = SummarisationPrep(
-        adata=adata_to_summarise, col_to_groupby=_protein_col, has_decoy=mstatus.peptide.has_decoy
+        adata=adata_to_summarise,
+        col_to_groupby=_protein_col,
+        has_decoy=mstatus.peptide.has_decoy,
     )
 
     # Ranking for top_n features
     if top_n is not None:
-        summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g ("total_intensity", 3)
+        summarisation_prep.rank_tuple = (
+            rank_method,
+            top_n,
+        )  # e.g ("total_intensity", 3)
 
     identification_df, quantification_df, decoy_df = summarisation_prep.prep()
     logger.debug(
@@ -286,7 +300,12 @@ def to_protein(
     )
 
     # add modality
-    mdata = add_modality(mdata=original_mdata, adata=protein_adata, mod_name="protein", parent_mods=["peptide"])
+    mdata = add_modality(
+        mdata=original_mdata,
+        adata=protein_adata,
+        mod_name="protein",
+        parent_mods=["peptide"],
+    )
     mdata.mod["protein"].uns["level"] = "protein"
 
     if mstatus.peptide.has_decoy:
@@ -340,7 +359,10 @@ def to_ptm(
 
     # Ranking for top_n features
     if top_n is not None:
-        summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
+        summarisation_prep.rank_tuple = (
+            rank_method,
+            top_n,
+        )  # e.g. ("total_intensity", 3)
 
     identification_df, quantification_df = summarisation_prep.prep()
     logger.debug(

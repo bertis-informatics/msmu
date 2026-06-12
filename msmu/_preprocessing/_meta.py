@@ -211,7 +211,9 @@ def _load_metadata_input(
     return _LoadedMetadata(dataframe, resolved_format, source)
 
 
-def _detect_metadata_input_kind(metadata: pd.DataFrame | str | PathLike[str]) -> Literal["dataframe", "path", "url"]:
+def _detect_metadata_input_kind(
+    metadata: pd.DataFrame | str | PathLike[str],
+) -> Literal["dataframe", "path", "url"]:
     if isinstance(metadata, pd.DataFrame):
         return "dataframe"
     if isinstance(metadata, PathLike):
@@ -248,7 +250,9 @@ def _resolve_source_metadata_format(
     return inferred
 
 
-def _infer_source_metadata_format(source: str | Path) -> Literal["csv", "tsv", "parquet", "sdrf"] | None:
+def _infer_source_metadata_format(
+    source: str | Path,
+) -> Literal["csv", "tsv", "parquet", "sdrf"] | None:
     source_path = _source_path_for_detection(source)
     lower_source = str(source_path).lower()
     if lower_source.endswith(".sdrf.tsv") or lower_source.endswith(".sdrf.tab") or lower_source.endswith(".sdrf"):

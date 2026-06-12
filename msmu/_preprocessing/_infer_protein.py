@@ -112,7 +112,9 @@ def _resolve_protein_mappings(
     )
 
 
-def _resolve_mapping_source(propagated_from: md.MuData | str | Path | None) -> md.MuData | None:
+def _resolve_mapping_source(
+    propagated_from: md.MuData | str | Path | None,
+) -> md.MuData | None:
     """Normalize propagated mapping inputs into a MuData source."""
     if propagated_from is None:
         return None
@@ -126,7 +128,9 @@ def _resolve_mapping_source(propagated_from: md.MuData | str | Path | None) -> m
     raise TypeError("propagated_from must be a MuData object, path string, Path, or None.")
 
 
-def _get_required_mapping_tables(source_mdata: md.MuData) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _get_required_mapping_tables(
+    source_mdata: md.MuData,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Read propagated mapping tables with explicit validation."""
     missing_keys = [key for key in ("peptide_map", "protein_map") if key not in source_mdata.uns]
     if missing_keys:
@@ -135,7 +139,11 @@ def _get_required_mapping_tables(source_mdata: md.MuData) -> tuple[pd.DataFrame,
     peptide_map = source_mdata.uns["peptide_map"]
     protein_map = source_mdata.uns["protein_map"]
     _require_columns(peptide_map, columns=["peptide", "protein_group"], context="uns['peptide_map']")
-    _require_columns(protein_map, columns=["initial_protein", "protein_group"], context="uns['protein_map']")
+    _require_columns(
+        protein_map,
+        columns=["initial_protein", "protein_group"],
+        context="uns['protein_map']",
+    )
 
     return peptide_map, protein_map
 

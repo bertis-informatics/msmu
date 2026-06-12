@@ -2,7 +2,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from msmu._preprocessing._summarisation import Aggregator, FeatureRanker, Scorer, SummarisationPrep
+from msmu._preprocessing._summarisation import (
+    Aggregator,
+    FeatureRanker,
+    Scorer,
+    SummarisationPrep,
+)
 
 
 def test_feature_ranker_total_intensity():

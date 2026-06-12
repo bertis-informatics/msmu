@@ -4,7 +4,12 @@ import pytest
 from anndata import AnnData
 from mudata import MuData
 
-from msmu._preprocessing._infer_protein import _make_peptide_map, _make_protein_map, infer_protein, select_representative
+from msmu._preprocessing._infer_protein import (
+    _make_peptide_map,
+    _make_protein_map,
+    infer_protein,
+    select_representative,
+)
 
 
 def _make_peptide_mdata(

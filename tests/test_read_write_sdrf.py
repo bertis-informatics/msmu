@@ -54,7 +54,16 @@ def test_read_sdrf_preserves_pandas_headers_and_duplicate_suffixes(tmp_path):
             ]
         )
         + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry", "Homo sapiens", "human", "run_1.raw"])
+        + "\t".join(
+            [
+                "sample_1",
+                "assay_1",
+                "mass spectrometry",
+                "Homo sapiens",
+                "human",
+                "run_1.raw",
+            ]
+        )
         + "\n",
     )
 
@@ -158,7 +167,15 @@ def test_add_meta_sdrf_validates_through_pipeline_and_only_logs_validation_resul
 def test_add_meta_sdrf_raw_dataframe_keeps_headers_before_matching(monkeypatch, tmp_path):
     path = _write_sdrf(
         tmp_path,
-        "\t".join(["source name", "assay name", "technology type", "comment[data file]", "factor value[condition]"])
+        "\t".join(
+            [
+                "source name",
+                "assay name",
+                "technology type",
+                "comment[data file]",
+                "factor value[condition]",
+            ]
+        )
         + "\n"
         + "\t".join(["sample_1", "assay_1", "mass spectrometry", "run_1.raw", "treated"])
         + "\n",
@@ -214,7 +231,15 @@ def test_add_meta_sdrf_defaults_to_metadata_index_when_metadata_on_is_omitted(tm
 def test_add_meta_sdrf_can_target_named_obs_column(tmp_path):
     path = _write_sdrf(
         tmp_path,
-        "\t".join(["source name", "assay name", "technology type", "comment[data file]", "factor value[condition]"])
+        "\t".join(
+            [
+                "source name",
+                "assay name",
+                "technology type",
+                "comment[data file]",
+                "factor value[condition]",
+            ]
+        )
         + "\n"
         + "\t".join(["sample_1", "assay_1", "mass spectrometry", "fileA.raw", "treated"])
         + "\n"
@@ -224,7 +249,14 @@ def test_add_meta_sdrf_can_target_named_obs_column(tmp_path):
     mdata = _make_mdata(["sample_a", "sample_b"])
     mdata.mod["psm"].obs["run"] = ["fileA.raw", "fileB.raw"]
 
-    out = add_meta(mdata, path, format="sdrf", metadata_on="comment[data file]", obs_columns="run", validate_sdrf=False)
+    out = add_meta(
+        mdata,
+        path,
+        format="sdrf",
+        metadata_on="comment[data file]",
+        obs_columns="run",
+        validate_sdrf=False,
+    )
 
     assert out.obs["source name"].tolist() == ["sample_1", "sample_2"]
     assert out.obs["factor value[condition]"].tolist() == ["treated", "control"]
@@ -280,7 +312,10 @@ def test_tools_validate_sdrf_dataframe_raises_for_pipeline_errors(monkeypatch):
     monkeypatch.setattr(schemas, "SchemaRegistry", lambda: object())
     monkeypatch.setattr(schemas, "SchemaValidator", FakeValidator)
 
-    with pytest.raises(ValueError, match="SDRF validation failed for sample.sdrf.tsv: missing source name"):
+    with pytest.raises(
+        ValueError,
+        match="SDRF validation failed for sample.sdrf.tsv: missing source name",
+    ):
         sdrf_tools.validate_sdrf_dataframe(
             pd.DataFrame({"source name": ["sample_1"], "assay name": ["assay_1"]}),
             source="sample.sdrf.tsv",

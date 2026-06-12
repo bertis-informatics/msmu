@@ -109,7 +109,12 @@ def pca(
     data = data.dropna(axis=1)
 
     # Calculate PCA
-    pca = PCA(n_components=n_components, svd_solver=svd_solver, random_state=random_state, **kwargs)
+    pca = PCA(
+        n_components=n_components,
+        svd_solver=svd_solver,
+        random_state=random_state,
+        **kwargs,
+    )
     pca.fit(data)
 
     # Save PCA results - dimensions
@@ -121,7 +126,11 @@ def pca(
     )
 
     # Save PCA results - loadings
-    pcs = pd.DataFrame(pca.components_, columns=pca.feature_names_in_, index=pca.get_feature_names_out())
+    pcs = pd.DataFrame(
+        pca.components_,
+        columns=pca.feature_names_in_,
+        index=pca.get_feature_names_out(),
+    )
     pcs_df = pd.DataFrame(index=mdata.mod[modality].var_names)
     pcs_df = pcs_df.join(pcs.T)
     mdata.mod[modality].varm[key_added] = pcs_df

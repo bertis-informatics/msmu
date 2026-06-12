@@ -1,7 +1,7 @@
-import numpy as np
 import pandas as pd
 from anndata import AnnData
 from mudata import MuData
+
 
 def split_tmt(
     mdata: MuData,

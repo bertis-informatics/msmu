@@ -1,7 +1,6 @@
 import numpy as np
 
 from msmu._statistics._permutation import PermutationTest
-from msmu._statistics._statistics import simple_test
 
 
 def test_permutation_test_empirical_q_values():

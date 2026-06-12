@@ -68,7 +68,7 @@ def normalise_quantile(arr: np.ndarray) -> np.ndarray:
     N = valSize[0]
 
     # create space for output
-    if tiedFlag == True:
+    if tiedFlag:
         rr = np.empty([valSize[1]], dtype=object)
 
     # for each column we want to ordered values and the ranks with ties
@@ -131,7 +131,13 @@ def normalise_total_sum():
 
 
 class PTMProteinAdjuster:
-    def __init__(self, ptm_mdata: md.MuData, global_mdata: md.MuData, ptm_mod: str, global_mod: str):
+    def __init__(
+        self,
+        ptm_mdata: md.MuData,
+        global_mdata: md.MuData,
+        ptm_mod: str,
+        global_mod: str,
+    ):
         self.ptm_mdata = ptm_mdata
         self.ptm_mod = ptm_mod
         self.global_mdata = global_mdata
@@ -189,7 +195,13 @@ class PTMProteinAdjuster:
 
                 residual: np.ndarray = y_full - y_hat
 
-                records.append({"ptm_site": row["ptm_site"], "protein_group": pid, "residual": residual})
+                records.append(
+                    {
+                        "ptm_site": row["ptm_site"],
+                        "protein_group": pid,
+                        "residual": residual,
+                    }
+                )
 
         result_df: pd.DataFrame = pd.DataFrame(records)
         residual_df = result_df.drop(columns="residual").copy()

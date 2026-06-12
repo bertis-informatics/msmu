@@ -16,7 +16,7 @@ def corr(
     modality: str,
     layer: str | None = None,
     method: Literal["pearson", "spearman", "kendall"] = "pearson",
-) -> pd.DataFrame:
+) -> MuData:
     """
     Compute the correlation matrix for the specified modality in a MuData object.
 

@@ -136,7 +136,11 @@ class FragPipeReader(SearchResultReader):
 
 class TmtFragPipeReader(FragPipeReader):
     def __init__(self, identification_file: str | Path, identification_df: pd.DataFrame) -> None:
-        super().__init__(identification_file=identification_file, identification_df=identification_df, label="tmt")
+        super().__init__(
+            identification_file=identification_file,
+            identification_df=identification_df,
+            label="tmt",
+        )
         self.search_settings.quantification_level = "psm"
 
     def _split_merged_identification_quantification(

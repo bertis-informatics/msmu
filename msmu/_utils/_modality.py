@@ -17,18 +17,18 @@ def get_modality_dict(
     modality: str | None = None,
 ) -> dict[str, ad.AnnData]:
     """Get modality data from MuData object."""
-    if (level == None) & (modality == None):
+    if level is None and modality is None:
         raise ValueError("Either level or modality must be provided")
 
-    if (level != None) & (modality != None):
+    if level is not None and modality is not None:
         logger.warning("Both level and modality are provided. Using level prior to modality.")
 
     mod_dict: dict = dict()
-    if level != None:
+    if level is not None:
         for mod_name in mdata.mod.keys():
             if mdata.mod[mod_name].uns["level"] == level:
                 mod_dict[mod_name] = mdata.mod[mod_name].copy()
-    elif modality != None:
+    elif modality is not None:
         mod_dict[modality] = mdata.mod[modality].copy()
 
     return mod_dict

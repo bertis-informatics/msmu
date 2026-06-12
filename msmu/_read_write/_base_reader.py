@@ -155,7 +155,11 @@ class SearchResultDataFrameConverter:
         else:
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 future_file = {executor.submit(self.__class__._read_file, file): file for file in file_paths}
-                for future in tqdm(as_completed(future_file), total=len(file_paths), desc="Reading files"):
+                for future in tqdm(
+                    as_completed(future_file),
+                    total=len(file_paths),
+                    desc="Reading files",
+                ):
                     file = future_file[future]
                     try:
                         result = future.result()
@@ -459,7 +463,8 @@ class SearchResultReader:
         # (e.g., feature: psm, quantification: peptide)
         else:
             dummy_quantification_df = pd.DataFrame(
-                index=mudata_input.norm_identification_df.index, columns=mudata_input.norm_quant_df.columns
+                index=mudata_input.norm_identification_df.index,
+                columns=mudata_input.norm_quant_df.columns,
             )
             feat_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
             feat_adata.var = mudata_input.norm_identification_df

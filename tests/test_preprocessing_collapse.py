@@ -131,9 +131,7 @@ def test_collapse_obs_single_row_per_sample_is_noop(fractionated_mdata):
     out = collapse_obs(fractionated_mdata, sample_key="filename")
     assert out.mod["psm"].n_obs == fractionated_mdata.mod["psm"].n_obs
     # single-row groups: nansum returns the original value (or NaN if originally NaN)
-    pd.testing.assert_frame_equal(
-        out.mod["psm"].var, fractionated_mdata.mod["psm"].var
-    )
+    pd.testing.assert_frame_equal(out.mod["psm"].var, fractionated_mdata.mod["psm"].var)
 
 
 def test_collapse_obs_default_call_works(fractionated_mdata):
@@ -158,9 +156,15 @@ def test_collapse_obs_sum_on_log_converts_via_linear(fractionated_mdata):
 def test_collapse_obs_median_unchanged_by_log_flag(fractionated_mdata):
     """Median is monotonic — same result regardless of log_transformed flag."""
     out_false = collapse_obs(
-        fractionated_mdata, sample_key="sample", agg_method="median", log_transformed=False
+        fractionated_mdata,
+        sample_key="sample",
+        agg_method="median",
+        log_transformed=False,
     )
     out_true = collapse_obs(
-        fractionated_mdata, sample_key="sample", agg_method="median", log_transformed=True
+        fractionated_mdata,
+        sample_key="sample",
+        agg_method="median",
+        log_transformed=True,
     )
     assert np.allclose(out_false.mod["psm"].X, out_true.mod["psm"].X, equal_nan=True)

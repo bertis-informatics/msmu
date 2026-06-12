@@ -109,7 +109,12 @@ class TmtSageReader(SageReader):
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
-        super().__init__(identification_file, identification_df, quantification_file, quantification_df)
+        super().__init__(
+            identification_file,
+            identification_df,
+            quantification_file,
+            quantification_df,
+        )
         self.search_settings.label = "tmt"
         self.search_settings.quantification_level = "psm"
 
@@ -147,7 +152,12 @@ class LfqSageReader(SageReader):
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
-        super().__init__(identification_file, identification_df, quantification_file, quantification_df)
+        super().__init__(
+            identification_file,
+            identification_df,
+            quantification_file,
+            quantification_df,
+        )
         self.search_settings.label = "label_free"
 
         if quantification_file is not None:

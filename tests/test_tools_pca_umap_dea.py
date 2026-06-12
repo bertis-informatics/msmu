@@ -1,6 +1,5 @@
 import os
 
-import numpy as np
 import pytest
 
 os.environ.setdefault("NUMBA_DISABLE_CACHE", "1")

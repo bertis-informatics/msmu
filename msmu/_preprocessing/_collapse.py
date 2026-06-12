@@ -112,9 +112,7 @@ def collapse_obs(
         - ``var`` and modality ``uns`` are preserved.
     """
     if agg_method not in _AGG_FUNCTIONS:
-        raise ValueError(
-            f"agg_method '{agg_method}' not recognised. Choose from {sorted(_AGG_FUNCTIONS)}."
-        )
+        raise ValueError(f"agg_method '{agg_method}' not recognised. Choose from {sorted(_AGG_FUNCTIONS)}.")
 
     if log_transformed and agg_method == "sum":
         effective_agg_function = _nansum_log2_space
@@ -124,9 +122,7 @@ def collapse_obs(
     aggregated_mods: dict[str, ad.AnnData] = {}
     for modality_name, adata in mdata.mod.items():
         if sample_key not in adata.obs.columns:
-            raise KeyError(
-                f"sample_key '{sample_key}' not found in obs of modality '{modality_name}'."
-            )
+            raise KeyError(f"sample_key '{sample_key}' not found in obs of modality '{modality_name}'.")
         aggregated_mods[modality_name] = _collapse_anndata_obs(
             adata=adata,
             sample_key=sample_key,

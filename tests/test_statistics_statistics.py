@@ -3,7 +3,6 @@ import pytest
 from scipy.stats import t
 
 from msmu._statistics._statistics import (
-    NullDistribution,
     calc_permutation_pvalue,
     simple_test,
     HypothesisTesting,

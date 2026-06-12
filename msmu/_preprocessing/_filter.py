@@ -236,7 +236,11 @@ def apply_filter(
                 all_available_columns.update(obs_filter_df.columns)
             missing_filter_columns = [col for col in columns if col not in all_available_columns]
             if missing_filter_columns:
-                logger.warning("Filter columns not found in %s: %s", modality, missing_filter_columns)
+                logger.warning(
+                    "Filter columns not found in %s: %s",
+                    modality,
+                    missing_filter_columns,
+                )
             if not selected_filter_columns:
                 raise ValueError(f"No matching filter columns found in {modality}.")
 

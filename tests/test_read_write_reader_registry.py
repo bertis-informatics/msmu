@@ -12,7 +12,11 @@ def _dummy_mdata() -> MuData:
     from anndata import AnnData
     import numpy as np
 
-    adata = AnnData(X=np.array([[1.0]]), obs=pd.DataFrame(index=["s1"]), var=pd.DataFrame(index=["f1"]))
+    adata = AnnData(
+        X=np.array([[1.0]]),
+        obs=pd.DataFrame(index=["s1"]),
+        var=pd.DataFrame(index=["f1"]),
+    )
     return MuData({"psm": adata})
 
 
@@ -108,6 +112,7 @@ def test_read_diann_rejects_removed_sdrf_file_parameter(monkeypatch):
 
 def test_read_diann_protein_group_not_implemented():
     import pytest
+
     with pytest.raises(NotImplementedError):
         rr.read_diann("id.tsv", level="protein_group")
 

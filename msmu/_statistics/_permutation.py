@@ -212,7 +212,11 @@ class PermutationTest:
         return stat_res
 
     def _calc_permuted_log2fc(
-        self, concated_arr: np.ndarray, combinations: np.ndarray, measure: str, log_transformed: bool
+        self,
+        concated_arr: np.ndarray,
+        combinations: np.ndarray,
+        measure: str,
+        log_transformed: bool,
     ) -> StatResult:
         perm_ctrl, perm_expr = self._set_permuted_comparison(concated_arr, combinations)
 

@@ -7,7 +7,19 @@ from msmu._preprocessing._normalise import log2_transform, normalise
 def test_log2_transform(simple_mdata):
     out = log2_transform(simple_mdata, modality="psm")
     assert np.allclose(
-        out["psm"].X, np.log2(np.array([[1.0, 2.0], [3.0, 4.0], [6.0, 6.0], [7.0, 8.0], [9.0, 10.0], [11.0, 12.0]]))
+        out["psm"].X,
+        np.log2(
+            np.array(
+                [
+                    [1.0, 2.0],
+                    [3.0, 4.0],
+                    [6.0, 6.0],
+                    [7.0, 8.0],
+                    [9.0, 10.0],
+                    [11.0, 12.0],
+                ]
+            )
+        ),
     )
 
 
@@ -60,13 +72,22 @@ def test_normalise_batch_and_fraction_combined(mdata):
     """Both grouping keys together: normalise within each (batch × fraction) block."""
     mdata.mod["psm"].var["filename"] = ["f1", "f2", "f1"]
     out = normalise(
-        mdata, method="median_center", modality="psm", batch_key="batch", fraction_key="filename"
+        mdata,
+        method="median_center",
+        modality="psm",
+        batch_key="batch",
+        fraction_key="filename",
     )
     arr = out["psm"].X
     # batches: "x" → obs rows [0, 2]; "y" → obs rows [1, 3]
     # fractions: "f1" → var cols [0, 2]; "f2" → var col [1]
     # axis="obs" normalises per-sample, so each row's median within each block should be 0
-    for obs_idx, var_idx in [([0, 2], [0, 2]), ([0, 2], [1]), ([1, 3], [0, 2]), ([1, 3], [1])]:
+    for obs_idx, var_idx in [
+        ([0, 2], [0, 2]),
+        ([0, 2], [1]),
+        ([1, 3], [0, 2]),
+        ([1, 3], [1]),
+    ]:
         block = arr[np.ix_(obs_idx, var_idx)]
         row_medians = np.nanmedian(block, axis=1)
         assert np.allclose(row_medians[~np.isnan(row_medians)], 0.0)

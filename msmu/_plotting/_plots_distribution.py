@@ -5,7 +5,15 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from ._pdata import PlotData
-from ._ptypes import PlotBox, PlotHeatmap, PlotHistogram, PlotScatter, PlotSimpleBox, PlotStackedBar, PlotViolin
+from ._ptypes import (
+    PlotBox,
+    PlotHeatmap,
+    PlotHistogram,
+    PlotScatter,
+    PlotSimpleBox,
+    PlotStackedBar,
+    PlotViolin,
+)
 from ._template import DEFAULT_TEMPLATE
 from ._utils import PlotContext, finalize_figure
 
@@ -36,7 +44,12 @@ def plot_intensity(
         raise ValueError("plot_intensity requires a grouping column.")
 
     title_text = f"{context.modality_label} Intensity Distribution"
-    data = PlotData(context.mdata, context.modality, layer=context.layer, obs_column=context.obs_column)
+    data = PlotData(
+        context.mdata,
+        context.modality,
+        layer=context.layer,
+        obs_column=context.obs_column,
+    )
 
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
@@ -96,7 +109,12 @@ def plot_missingness(
 ) -> go.Figure:
     """Plot cumulative completeness percentages for a modality."""
     context = PlotContext.obs_only(mdata, modality, obs_column=obs_column, layer=layer)
-    data = PlotData(context.mdata, context.modality, layer=context.layer, obs_column=context.obs_column)
+    data = PlotData(
+        context.mdata,
+        context.modality,
+        layer=context.layer,
+        obs_column=context.obs_column,
+    )
 
     title_text = f"{context.modality_label} Level"
     xaxis_title = "Data Completeness (%)"
@@ -137,7 +155,12 @@ def plot_correlation(
     if context.groupby is None:
         raise ValueError("plot_correlation requires a grouping column.")
 
-    data = PlotData(context.mdata, context.modality, layer=context.layer, obs_column=context.obs_column)
+    data = PlotData(
+        context.mdata,
+        context.modality,
+        layer=context.layer,
+        obs_column=context.obs_column,
+    )
     plot = PlotHeatmap(
         data=data.prep_intensity_correlation(context.groupby, context.obs_column),
         hovertemplate="<b>%{x} / %{y}</b><br>Pearson's <i>r</i> : %{z:.4f}<extra></extra>",
@@ -183,7 +206,12 @@ def plot_var(
     yaxis_title = f"Number of {modality_label}s"
     hovertemplate = f"{column_label}: %{{meta}}<br>Number of {modality_label}s: %{{y:2,d}}<extra></extra>"
 
-    data = PlotData(context.mdata, context.modality, layer=context.layer, obs_column=context.obs_column)
+    data = PlotData(
+        context.mdata,
+        context.modality,
+        layer=context.layer,
+        obs_column=context.obs_column,
+    )
     if ptype in ["stack", "stackd", "stacked_bar"]:
         plot_data = data.prep_var_bar(context.groupby, var_column, context.obs_column)
         plot = PlotStackedBar(

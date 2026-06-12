@@ -77,7 +77,14 @@ def test_plot_id_supports_duplicate_default_obs_column(mdata):
 
 
 def test_plot_intensity_hist_builds_traces(mdata):
-    fig = plot_intensity(mdata, modality="psm", groupby="group", ptype="hist", obs_column="sample", bins=2)
+    fig = plot_intensity(
+        mdata,
+        modality="psm",
+        groupby="group",
+        ptype="hist",
+        obs_column="sample",
+        bins=2,
+    )
     assert len(fig.data) == 2
     assert all(trace.type == "bar" for trace in fig.data)
 
@@ -104,11 +111,23 @@ def test_plot_pca_and_umap_with_custom_keys(mdata):
     mdata_local["protein"].uns["X_pca_custom"] = mdata_local["protein"].uns["X_pca"].copy()
     mdata_local["protein"].obsm["X_umap_custom"] = mdata_local["protein"].obsm["X_umap"].copy()
 
-    pca_fig = plot_pca(mdata_local, modality="protein", groupby="group", obs_column="sample", key="X_pca_custom")
+    pca_fig = plot_pca(
+        mdata_local,
+        modality="protein",
+        groupby="group",
+        obs_column="sample",
+        key="X_pca_custom",
+    )
     assert len(pca_fig.data) == 2
     assert all(trace.type == "scatter" for trace in pca_fig.data)
 
-    umap_fig = plot_umap(mdata_local, modality="protein", groupby="group", obs_column="sample", key="X_umap_custom")
+    umap_fig = plot_umap(
+        mdata_local,
+        modality="protein",
+        groupby="group",
+        obs_column="sample",
+        key="X_umap_custom",
+    )
     assert len(umap_fig.data) == 2
     assert all(trace.type == "scatter" for trace in umap_fig.data)
 

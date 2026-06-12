@@ -325,7 +325,11 @@ class SummarisationPrep:
         if self._has_decoy:
             decoy_df: pd.DataFrame = self.adata.uns["decoy"].copy()
 
-        return identification_df, quantification_df, decoy_df if self._has_decoy else None
+        return (
+            identification_df,
+            quantification_df,
+            decoy_df if self._has_decoy else None,
+        )
 
     def _make_filter_mask(self, id_df: pd.DataFrame):
         filter_indices = pd.Series(False, index=id_df.index)
@@ -368,7 +372,11 @@ class SummarisationPrep:
             rank_mask = self._make_rank_mask()
             quantification_df = self._mask_quantification(quantification_df, rank_mask)
 
-        return identification_df, quantification_df, decoy_df if self._has_decoy else None
+        return (
+            identification_df,
+            quantification_df,
+            decoy_df if self._has_decoy else None,
+        )
 
 
 class PtmSummarisationPrep(SummarisationPrep):

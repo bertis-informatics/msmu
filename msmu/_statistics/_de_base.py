@@ -134,7 +134,10 @@ class DeaResult:
         )
 
     def plot_volcano(
-        self, log2fc_threshold: float | None = None, pval_threshold: float = 0.05, label_top: int | None = None
+        self,
+        log2fc_threshold: float | None = None,
+        pval_threshold: float = 0.05,
+        label_top: int | None = None,
     ) -> go.Figure:
         """
         Plots a volcano plot for the DEA results.
@@ -150,7 +153,7 @@ class DeaResult:
 
         df = self.to_df().copy()
 
-        if log2fc_threshold == None:
+        if log2fc_threshold is None:
             if self.fc_pct_5:
                 log2fc_threshold = self.fc_pct_5
             else:
@@ -220,7 +223,10 @@ class DeaResult:
             showarrow=False,
         )
         f.add_annotation(
-            x=float(df["log2fc"].max()), y=float(df["logp"].min()), text=f"{self.expr} ({up_count})", showarrow=False
+            x=float(df["log2fc"].max()),
+            y=float(df["logp"].min()),
+            text=f"{self.expr} ({up_count})",
+            showarrow=False,
         )
 
         if label_top is not None:
@@ -230,6 +236,12 @@ class DeaResult:
             concated_tops = pd.concat([up_top, down_top])
 
             for _, row in concated_tops.iterrows():
-                f.add_annotation(x=row["log2fc"], y=row["logp"], text=row["features"], arrowhead=0, arrowwidth=1)
+                f.add_annotation(
+                    x=row["log2fc"],
+                    y=row["logp"],
+                    text=row["features"],
+                    arrowhead=0,
+                    arrowwidth=1,
+                )
 
         return f

@@ -62,4 +62,7 @@ def test_attach_and_map_fasta(tmp_path, mdata):
     mapped = map_fasta(out, modality="protein", categories=["Gene"])
     assert mapped["protein"].var["Gene"].tolist()[0] == "GENE1"
     assert mapped["protein"].var["Gene"].tolist()[1] == "GENE2"
-    assert set(mapped["protein"].var["Gene"].tolist()[2].split(";")) == {"GENE1", "GENE2"}
+    assert set(mapped["protein"].var["Gene"].tolist()[2].split(";")) == {
+        "GENE1",
+        "GENE2",
+    }

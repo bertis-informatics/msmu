@@ -135,7 +135,10 @@ def read_diann(
     identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
 
     with capture_provenance_output() as stdout_buffer:
-        mdata = DiannReader(identification_file=identification_file_, identification_df=identification_df_).read()
+        mdata = DiannReader(
+            identification_file=identification_file_,
+            identification_df=identification_df_,
+        ).read()
     return append_cmd_log(
         mdata,
         function="read_diann",
@@ -256,7 +259,10 @@ def read_fragpipe(
     identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
 
     if label == "tmt" and acquisition == "dda":
-        reader = TmtFragPipeReader(identification_file=identification_file_, identification_df=identification_df_)
+        reader = TmtFragPipeReader(
+            identification_file=identification_file_,
+            identification_df=identification_df_,
+        )
     elif label == "label_free" and acquisition == "dda":
         if quantification_file is not None:
             logger.info(f"Reading FragPipe quantification data from {len(quantification_files)} quantification file(s)")

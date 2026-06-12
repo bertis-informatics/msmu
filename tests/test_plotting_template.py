@@ -1,6 +1,10 @@
 import plotly.io as pio
 
-from msmu._plotting._template import add_msmu_pastel_template, add_msmu_template, set_default_template
+from msmu._plotting._template import (
+    add_msmu_pastel_template,
+    add_msmu_template,
+    set_default_template,
+)
 
 
 def test_add_msmu_template_registers():

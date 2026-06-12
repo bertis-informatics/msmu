@@ -53,7 +53,7 @@ def test_sage_make_needed_columns_for_identification():
     assert out["stripped_peptide"].iloc[0] == "ACDEK"
     assert out["decoy"].iloc[0] == 1
     assert out["contaminant"].iloc[0] == 0
-    assert out["PEP"].iloc[0] == 10 ** -2
+    assert out["PEP"].iloc[0] == 10**-2
 
 
 def test_tmt_sage_rename_dict_for_obs():

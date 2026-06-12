@@ -1,7 +1,11 @@
 from pathlib import Path
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings, SearchResultDataFrameConverter
+from ._base_reader import (
+    SearchResultReader,
+    SearchResultSettings,
+    SearchResultDataFrameConverter,
+)
 from . import label_info
 
 
@@ -26,7 +30,10 @@ class MaxQuantReader(SearchResultReader):
     """
 
     def __init__(
-        self, identification_file: str | Path, identification_df: pd.DataFrame, drop_search_result: bool = False
+        self,
+        identification_file: str | Path,
+        identification_df: pd.DataFrame,
+        drop_search_result: bool = False,
     ) -> None:
         super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
@@ -155,8 +162,15 @@ class MaxLfqReader(MaxQuantReader):
 
 class MaxDiaReader(MaxQuantReader):
     def __init__(
-        self, identification_file: str | Path, identification_df: pd.DataFrame, drop_search_result: bool = False
+        self,
+        identification_file: str | Path,
+        identification_df: pd.DataFrame,
+        drop_search_result: bool = False,
     ):
-        super().__init__(identification_file, identification_df, drop_search_result=drop_search_result)
+        super().__init__(
+            identification_file,
+            identification_df,
+            drop_search_result=drop_search_result,
+        )
         self.search_settings.label = "label_free"
         self.search_settings.acquisition = "dia"

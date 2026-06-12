@@ -24,7 +24,10 @@ def test_get_groupby_column_accepts_fallback_obs_column(mdata):
     mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
     pdata = PlotData(mdata_local, "protein", obs_column="__obs_idx__")
 
-    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == ("obs", "__obs_idx__")
+    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == (
+        "obs",
+        "__obs_idx__",
+    )
     assert "__obs_idx__" not in mdata_local.obs.columns
 
 
@@ -35,7 +38,10 @@ def test_get_groupby_column_fallback_obs_wins_var_name_collision(mdata):
     mdata_local.mod["protein"].var["__obs_idx__"] = ["var_a", "var_b", "var_c"]
     pdata = PlotData(mdata_local, "protein", obs_column="__obs_idx__")
 
-    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == ("obs", "__obs_idx__")
+    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == (
+        "obs",
+        "__obs_idx__",
+    )
 
 
 def test_get_bin_info_raises_on_empty(mdata):

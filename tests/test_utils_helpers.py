@@ -1,6 +1,5 @@
 import io
 import logging
-import numpy as np
 import pandas as pd
 import pytest
 from mudata import MuData
@@ -108,7 +107,9 @@ def test_uns_logger_prunes_closed_msmu_handler(labeled_mdata):
         logger.propagate = original_propagate
 
 
-def test_uns_logger_keeps_existing_dimensions_intact_across_multiple_calls(labeled_mdata):
+def test_uns_logger_keeps_existing_dimensions_intact_across_multiple_calls(
+    labeled_mdata,
+):
     @uns_logger
     def dummy(mdata: MuData):
         return mdata

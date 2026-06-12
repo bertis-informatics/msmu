@@ -5,7 +5,12 @@ from typing import Literal
 
 from ..logging_utils import get_logger
 from .._statistics._permutation import PermutationTest
-from .._statistics._de_base import PermTestResult, StatTestResult, DeaValidator, DeaResult
+from .._statistics._de_base import (
+    PermTestResult,
+    StatTestResult,
+    DeaValidator,
+    DeaResult,
+)
 from .._statistics._statistics import (
     simple_test,
     _measure_central_tendency,
@@ -27,7 +32,11 @@ def _get_test_array(
 ) -> tuple[np.ndarray, np.ndarray]:
     mod_adata = mdata.mod[modality]
     if layer is not None:
-        data = pd.DataFrame(mod_adata.layers[layer], index=mod_adata.obs_names, columns=mod_adata.var_names)
+        data = pd.DataFrame(
+            mod_adata.layers[layer],
+            index=mod_adata.obs_names,
+            columns=mod_adata.var_names,
+        )
     else:
         data = mod_adata.to_df()
 
@@ -82,7 +91,7 @@ def run_de(
     if stat_method not in ["welch", "student", "wilcoxon"]:
         raise ValueError(f"Invalid statistic: {stat_method}. Choose from 'welch', 'student', 'wilcoxon'.")
     if fdr not in ["empirical", "bh", False]:
-        raise ValueError(f"invalied fdr (mutiple test correction). Choose from 'empirical', 'bh', or False (bool)")
+        raise ValueError("invalied fdr (mutiple test correction). Choose from 'empirical', 'bh', or False (bool)")
 
     ctrl_arr, expr_arr = _get_test_array(
         mdata=mdata,
@@ -118,7 +127,11 @@ def run_de(
         valid_expr_arr[:, ~dea_validator.sufficient_feature_indices] = np.nan
 
         if n_resamples is not None:
-            logger.debug("Running permutation-based DEA with %s resamples and fdr=%s.", n_resamples, fdr)
+            logger.debug(
+                "Running permutation-based DEA with %s resamples and fdr=%s.",
+                n_resamples,
+                fdr,
+            )
             perm_test: PermutationTest = PermutationTest(
                 ctrl_arr=valid_ctrl_arr,
                 expr_arr=valid_expr_arr,

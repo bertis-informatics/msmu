@@ -2,7 +2,11 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
-from ._base_reader import SearchResultReader, SearchResultSettings, SearchResultDataFrameConverter
+from ._base_reader import (
+    SearchResultReader,
+    SearchResultSettings,
+    SearchResultDataFrameConverter,
+)
 from ._sage import SageReader
 from . import label_info
 
@@ -75,7 +79,7 @@ class CPTACReader(SearchResultReader):
 
     @staticmethod
     def _label_decoy(label: int) -> int:
-        if label == False:
+        if not label:
             return 0
         else:
             return 1
@@ -106,7 +110,8 @@ class CPTACReader(SearchResultReader):
         identification_df["scan_num"] = identification_df["spectrumID"].apply(SageReader._extract_scan_number)
         identification_df["decoy"] = identification_df["isDecoy"].apply(self._label_decoy)
         identification_df["peptide"] = identification_df.apply(
-            lambda row: self._make_peptide(row["PeptideSequence"], row["Modification"]), axis=1
+            lambda row: self._make_peptide(row["PeptideSequence"], row["Modification"]),
+            axis=1,
         )
         identification_df["peptide_length"] = identification_df["PeptideSequence"].apply(len)
         identification_df["proteins"] = identification_df["accession"].apply(";".join)
@@ -141,7 +146,11 @@ class TmtCPTACReader(CPTACReader):
         identification_df: pd.DataFrame,
         _drop_search_result: bool = True,
     ) -> None:
-        super().__init__(identification_file, identification_df, _drop_search_result=_drop_search_result)
+        super().__init__(
+            identification_file,
+            identification_df,
+            _drop_search_result=_drop_search_result,
+        )
         self.search_settings.quantification = "ReAdW4Mascot2"
         self.search_settings.quantification_level = "psm"
         self.search_settings.label = "tmt"
@@ -166,9 +175,9 @@ class TmtCPTACReader(CPTACReader):
             x
             for x in identification_df.columns
             if ("TMT" in x)
-            and (x.endswith("Flags") == False)
-            and (x.endswith("FractionOfTotalAb") == False)
-            and (x.endswith("TotalAb") == False)
+            and not x.endswith("Flags")
+            and not x.endswith("FractionOfTotalAb")
+            and not x.endswith("TotalAb")
         ]
         split_quant_df = split_identification_df[quant_cols]
 
@@ -196,6 +205,10 @@ class LfqCPTACReader(CPTACReader):
         identification_df: pd.DataFrame,
         _drop_search_result: bool = True,
     ) -> None:
-        super().__init__(identification_file, identification_df, _drop_search_result=_drop_search_result)
+        super().__init__(
+            identification_file,
+            identification_df,
+            _drop_search_result=_drop_search_result,
+        )
         self.search_settings.label = "label_free"
         self.search_settings.ident_quant_merged = False

@@ -247,7 +247,10 @@ def adjust_ptm_by_protein(
         mdata.mod[modality].X = mdata.mod[modality].layers[layer]
 
     ptm_adjuster: PTMProteinAdjuster = PTMProteinAdjuster(
-        ptm_mdata=mdata, global_mdata=global_mdata, ptm_mod=modality, global_mod="protein"
+        ptm_mdata=mdata,
+        global_mdata=global_mdata,
+        ptm_mod=modality,
+        global_mod="protein",
     )
     adj_ptm_mdata: md.MuData = ptm_adjuster.adjust(method=method, rescale=rescale)
 

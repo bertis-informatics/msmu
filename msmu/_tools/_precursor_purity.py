@@ -1,9 +1,11 @@
 import os
-from tqdm import tqdm
 from pathlib import Path
 from threading import Lock
-import pandas as pd
+from typing import TYPE_CHECKING
+
 import numpy as np
+import pandas as pd
+from tqdm import tqdm
 
 # import concurrent.futures
 
@@ -13,6 +15,9 @@ import mudata as md
 
 from .._plotting._plots import plot_var
 import plotly.graph_objects as go
+
+if TYPE_CHECKING:
+    import pyopenms as oms
 
 
 class PurityResult:
@@ -31,7 +36,13 @@ class PurityResult:
         Returns:
             pd.DataFrame: DataFrame containing purity, scan_num, and filename.
         """
-        return pd.DataFrame({"purity": self.purity, "scan_num": self.scan_num, "filename": self.filename})
+        return pd.DataFrame(
+            {
+                "purity": self.purity,
+                "scan_num": self.scan_num,
+                "filename": self.filename,
+            }
+        )
 
     @property
     def _dummy_mdata(self) -> md.MuData:
@@ -227,7 +238,11 @@ class PrecursorPurityCalculator:
 
     def calculate_precursor_isolation_purities(self) -> pd.DataFrame:
         purities: pd.DataFrame = pd.DataFrame(
-            {"scan_num": self.ms2_scan_num, "scan_index": self.ms2_indices, "filename": self.mzml.name}
+            {
+                "scan_num": self.ms2_scan_num,
+                "scan_index": self.ms2_indices,
+                "filename": self.mzml.name,
+            }
         )
         purities["purity"] = purities["scan_index"].apply(self._calculate_precursor_isolation_purity)
 
@@ -278,7 +293,10 @@ def compute_precursor_isolation_purity_from_mzml(
 
 
 def compute_precursor_isolation_purity(
-    mdata: md.MuData, mzml_paths: str | Path | list, tolerance: float = 20.0, unit_ppm: bool = True
+    mdata: md.MuData,
+    mzml_paths: str | Path | list,
+    tolerance: float = 20.0,
+    unit_ppm: bool = True,
 ) -> md.MuData:
     """
     Calculate precursor isolation purity for PSMs in the given MuData object and mzML file.

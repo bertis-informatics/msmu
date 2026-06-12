@@ -98,9 +98,9 @@ def simple_test(
         if fdr == "bh":
             corrected_pvals = PvalueCorrection.bh(test_res.p_value)
         else:
-            logger.error(f"'bh' is the only implemented FDR correction method for simple test. Set fdr='bh'.")
+            logger.error("'bh' is the only implemented FDR correction method for simple test. Set fdr='bh'.")
             raise NotImplementedError(
-                f"'bh' is the only implemented FDR correction method for simple test. Set fdr='bh'."
+                "'bh' is the only implemented FDR correction method for simple test. Set fdr='bh'."
             )
 
     stat_res = StatTestResult(
