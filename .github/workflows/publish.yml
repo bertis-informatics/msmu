@@ -76,6 +76,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Create release from tag
         env:
           GH_TOKEN: ${{ github.token }}
