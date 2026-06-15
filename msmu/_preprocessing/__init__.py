@@ -11,6 +11,7 @@ from ._normalise import (
 from ._batch_correction import correct_batch_effect
 from ._collapse import collapse_obs
 from ._meta import add_meta
+from ._tmt import split_tmt
 
 __all__ = [
     "add_filter",
@@ -27,4 +28,5 @@ __all__ = [
     "adjust_ptm_by_protein",
     "scale_data",
     "collapse_obs",
+    "split_tmt",
 ]

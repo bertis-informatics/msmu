@@ -2,7 +2,7 @@ import pandas as pd
 from anndata import AnnData
 from mudata import MuData
 
-from ._mudata import get_anndata_mod
+from .._utils._mudata import get_anndata_mod
 
 
 def split_tmt(
@@ -39,11 +39,11 @@ def split_tmt(
     df = psm_adata.to_df().T.copy()
     set_dfs = {}
 
-    for set in psm_adata.var["set"].unique():
-        set_index = psm_adata.var.index[psm_adata.var["set"] == set]
+    for set_name in psm_adata.var["set"].unique():
+        set_index = psm_adata.var.index[psm_adata.var["set"] == set_name]
         set_df = df.loc[set_index]
-        set_df.columns = set_df.columns + f"_{set}"
-        set_dfs[set] = set_df
+        set_df.columns = set_df.columns + f"_{set_name}"
+        set_dfs[set_name] = set_df
 
     set_df = pd.concat(set_dfs.values(), axis=1)
     set_df = set_df.loc[psm_adata.var.index]
@@ -54,10 +54,13 @@ def split_tmt(
         var=pd.DataFrame(index=set_df.T.columns),
     )
     new_adata.var = psm_adata.var.copy()
-    new_adata.uns = psm_adata.uns.copy()
+    new_adata.uns = dict(psm_adata.uns)
 
     new_mdata = MuData({"psm": new_adata})
     new_mdata.var = mdata.var.copy()
-    new_mdata.uns = mdata.uns.copy()
+    new_mdata.uns = dict(mdata.uns)
 
     return new_mdata
+
+
+__all__ = ["split_tmt"]

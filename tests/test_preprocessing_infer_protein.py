@@ -8,8 +8,8 @@ from msmu._preprocessing._infer_protein import (
     _make_peptide_map,
     _make_protein_map,
     infer_protein,
-    select_representative,
 )
+from msmu._utils.protein import select_representative
 
 
 def _make_peptide_mdata(
@@ -42,6 +42,12 @@ def test_select_representative_prefers_swissprot_canonical():
     protein_group = "P1,P2;P3"
     protein_info = {"P1": "sp_P1", "P2": "sp_P2-2", "P3": "tr_P3"}
     assert select_representative(protein_group, protein_info) == "P1"
+
+
+def test_select_representative_uses_contaminant_behavior():
+    protein_group = "C1"
+    protein_info = {"C1": "contam_sp_contam_C1"}
+    assert select_representative(protein_group, protein_info) == "contam_C1"
 
 
 def test_make_peptide_map_groups():
