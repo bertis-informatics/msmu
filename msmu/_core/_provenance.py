@@ -23,6 +23,15 @@ MAX_SEQ_ITEMS = 20
 MAX_STRING_LEN = 500
 MAX_DEPTH = 10
 
+__all__ = [
+    "append_cmd_log",
+    "capture_provenance_output",
+    "get_bound_call_kwargs",
+    "normalize_cmd_for_runtime",
+    "serialize",
+    "uns_logger",
+]
+
 
 def _truncate_string(value: str, max_len: int = MAX_STRING_LEN) -> str:
     if len(value) <= max_len:

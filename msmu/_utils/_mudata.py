@@ -4,10 +4,15 @@ from typing import Any, TypeAlias, cast
 import anndata as ad
 import mudata as md
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
+
+from ..logging_utils import get_logger
 
 MutableMuDataMod: TypeAlias = MutableMapping[str, ad.AnnData | md.MuData]
 MutableMuDataObsMap: TypeAlias = MutableMapping[str, NDArray[np.integer]]
+
+logger = get_logger(__name__)
 
 
 def get_anndata_mod(mdata: md.MuData, mod_name: str) -> ad.AnnData:
@@ -107,6 +112,42 @@ def add_modality(
     return mdata
 
 
+def reindex_obs(
+    mdata: md.MuData,
+    column: str,
+) -> md.MuData:
+    """
+    Reindex the observation (obs) of the MuData object to ensure consistency across modalities.
+    """
+    mdata = mdata.copy()
+    if column not in mdata.obs.columns:
+        msg = f"Column '{column}' not found in mdata.obs."
+        logger.error(msg)
+        raise KeyError(msg)
+
+    new_index = mdata.obs[column].astype(str)
+    mdata.obs.reset_index(drop=False, inplace=True)
+    mdata.obs.set_index(new_index, inplace=True, drop=False)
+    for mod in mdata.mod.keys():
+        adata = get_anndata_mod(mdata, mod)
+        mod_obs = adata.obs
+        if not isinstance(mod_obs, pd.DataFrame):
+            msg = f"Expected DataFrame-backed obs for mdata.mod['{mod}'], got {type(mod_obs).__name__}."
+            logger.error(msg)
+            raise TypeError(msg)
+
+        if column not in mod_obs.columns:
+            msg = f"Column '{column}' not found in mdata.mod['{mod}'].obs."
+            logger.error(msg)
+            raise KeyError(msg)
+
+        mod_new_index = mod_obs[column].astype(str)
+        mod_obs.reset_index(drop=False, inplace=True)
+        mod_obs.set_index(mod_new_index, inplace=True, drop=False)
+
+    return mdata
+
+
 __all__ = [
     "MutableMuDataMod",
     "MutableMuDataObsMap",
@@ -118,4 +159,5 @@ __all__ = [
     "get_mudata_mod_as_mutable",
     "mutable_mudata_mod",
     "mutable_mudata_obsmap",
+    "reindex_obs",
 ]

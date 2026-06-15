@@ -1,9 +1,18 @@
 from typing import Any, cast
 
 from anndata.abc import CSCDataset, CSRDataset
+from anndata.experimental.backed import Dataset2D
 from anndata.typing import XDataType
 import numpy as np
+from pandas import DataFrame
 from scipy import sparse as sp
+
+
+def _require_columns(frame: DataFrame | Dataset2D, columns: list[str], context: str) -> None:
+    """Raise a single, readable error when required columns are missing."""
+    missing_columns = [column for column in columns if column not in frame.columns]
+    if missing_columns:
+        raise ValueError(f"Required columns missing from {context}: {missing_columns}")
 
 
 def _has_quant_values(matrix: XDataType | None) -> bool:
@@ -32,4 +41,4 @@ def _has_quant_values(matrix: XDataType | None) -> bool:
     return not bool(np.isnan(values).all())
 
 
-__all__ = ["_has_quant_values"]
+__all__ = ["_has_quant_values", "_require_columns"]
