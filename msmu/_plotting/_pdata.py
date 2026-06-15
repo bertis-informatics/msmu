@@ -10,7 +10,7 @@ import pandas as pd
 
 from .._utils._mudata import get_anndata_mod
 from ..logging_utils import get_logger
-from ._utils import BinInfo, get_bin_info, is_resolved_obs_groupby, prepare_obs_frame
+from ._utils import BinInfo, get_bin_info, is_resolved_obs_groupby, obsm_embedding_to_frame, prepare_obs_frame
 
 logger = get_logger(__name__)
 
@@ -606,7 +606,7 @@ class PlotData:
         """Join embedding coordinates with resolved observation metadata."""
         obs = self._get_obs(obs_column, groupby=groupby)
 
-        orig_df = pd.DataFrame(self.mdata.mod[modality].obsm[key][columns])
+        orig_df = obsm_embedding_to_frame(self.mdata, modality, key, columns)
         join_df = orig_df.join(obs, how="left")
         join_df[groupby] = pd.Categorical(join_df[groupby], categories=obs[groupby].unique())
 

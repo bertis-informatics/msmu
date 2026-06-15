@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -103,6 +104,30 @@ def test_plot_pca_and_umap(mdata):
     umap_fig = plot_umap(mdata, modality="protein", groupby="group", obs_column="sample")
     assert len(umap_fig.data) == 2
     assert all(trace.type == "scatter" for trace in umap_fig.data)
+
+
+def test_plot_pca_accepts_ndarray_obsm(mdata):
+    mdata_local = mdata.copy()
+    mdata_local["protein"].obsm["X_pca"] = np.asarray(mdata_local["protein"].obsm["X_pca"])
+
+    fig = plot_pca(mdata_local, modality="protein", groupby="group", obs_column="sample")
+
+    assert len(fig.data) == 2
+    assert all(trace.type == "scatter" for trace in fig.data)
+    assert fig.layout.xaxis.title.text.startswith("PC_1")
+    assert fig.layout.yaxis.title.text.startswith("PC_2")
+
+
+def test_plot_umap_accepts_ndarray_obsm(mdata):
+    mdata_local = mdata.copy()
+    mdata_local["protein"].obsm["X_umap"] = np.asarray(mdata_local["protein"].obsm["X_umap"])
+
+    fig = plot_umap(mdata_local, modality="protein", groupby="group", obs_column="sample")
+
+    assert len(fig.data) == 2
+    assert all(trace.type == "scatter" for trace in fig.data)
+    assert fig.layout.xaxis.title.text == "UMAP_1"
+    assert fig.layout.yaxis.title.text == "UMAP_2"
 
 
 def test_plot_pca_and_umap_with_custom_keys(mdata):
