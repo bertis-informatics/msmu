@@ -6,7 +6,6 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from ..logging_utils import get_logger
-from .._plotting._ptypes import PlotScatter
 
 logger = get_logger(__name__)
 
@@ -151,8 +150,6 @@ class DeaResult:
             Plotly Figure object containing the volcano plot.
         """
 
-        df = self.to_df().copy()
-
         if log2fc_threshold is None:
             if self.fc_pct_5:
                 log2fc_threshold = self.fc_pct_5
@@ -160,88 +157,13 @@ class DeaResult:
                 logger.error("log2fc_threshold not provided. set log2fc_threshold or run permutation test")
                 raise
 
-        df["logp"] = -np.log10(df["p_value"])
-        up_cond = df["log2fc"] > log2fc_threshold
-        down_cond = df["log2fc"] < -log2fc_threshold
-        sig_cond = df["p_value"] < pval_threshold
+        from .. import pl
 
-        df.loc[:, "de"] = "nonDE"
-        df.loc[up_cond & sig_cond, "de"] = "UP"
-        df.loc[down_cond & sig_cond, "de"] = "DOWN"
-
-        up_count = len(df.loc[df["de"] == "UP",])
-        down_count = len(df.loc[df["de"] == "DOWN",])
-
-        p = PlotScatter(
-            data=df,
-            x="log2fc",
-            y="logp",
-            name="de",
-            meta="features",
-            text="p_value",
-            hovertemplate="<b>%{meta}</b><br>Log<sub>2</sub>FC: %{x}<br>p-value: %{text}",
+        return pl.plot_volcano(
+            self.to_df(),
+            ctrl=self.ctrl,
+            expr=self.expr,
+            log2fc_threshold=log2fc_threshold,
+            pval_threshold=pval_threshold,
+            label_top=label_top,
         )
-
-        f = p.figure(mode="markers")
-
-        f.update_xaxes(title="log<sub>2</sub>FC")
-        f.update_yaxes(title="-log<sub>10</sub>p")
-
-        f.update_traces(marker=dict(color="#E15759"), selector=dict(name="UP"))
-        f.update_traces(marker=dict(color="#4E79A7"), selector=dict(name="DOWN"))
-        f.update_traces(marker=dict(color="#BAB0AC"), selector=dict(name="nonDE"))
-
-        f.update_traces(
-            marker=dict(
-                size=4,
-            )
-        )
-
-        f.update_layout(
-            title=f"{self.ctrl} vs. {self.expr}",
-            width=600,
-            height=500,
-        )
-
-        f.add_hline(
-            y=-np.log10(pval_threshold),
-            line=dict(color="grey", dash="dot", width=1),
-        )
-        f.add_vline(
-            x=log2fc_threshold,
-            line=dict(color="grey", dash="dot", width=1),
-        )
-        f.add_vline(
-            x=-log2fc_threshold,
-            line=dict(color="grey", dash="dot", width=1),
-        )
-
-        f.add_annotation(
-            x=float(df["log2fc"].min()),
-            y=float(df["logp"].min()),
-            text=f"{self.ctrl} ({down_count})",
-            showarrow=False,
-        )
-        f.add_annotation(
-            x=float(df["log2fc"].max()),
-            y=float(df["logp"].min()),
-            text=f"{self.expr} ({up_count})",
-            showarrow=False,
-        )
-
-        if label_top is not None:
-            up_top = df.loc[(df["de"] == "UP"), :].sort_values("log2fc").tail(label_top)
-            down_top = df.loc[(df["de"] == "DOWN"), :].sort_values("log2fc").head(label_top)
-
-            concated_tops = pd.concat([up_top, down_top])
-
-            for _, row in concated_tops.iterrows():
-                f.add_annotation(
-                    x=row["log2fc"],
-                    y=row["logp"],
-                    text=row["features"],
-                    arrowhead=0,
-                    arrowwidth=1,
-                )
-
-        return f
