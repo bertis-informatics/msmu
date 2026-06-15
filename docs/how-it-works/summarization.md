@@ -30,7 +30,7 @@ Peptide-level PEP is calculated with `best_pep` method by default and peptide-le
 
 For quantification aggregation, the default method is `median`, and an optional `top_n` argument can be used to restrict aggregation using top N (e.g., top 3) features within each peptide. Feature ranking is based on `median_intensity` unless specified otherwise.
 
-In TMT studies, PSMs with low precursor isolation purity may be excluded prior to quantification aggregation to remove spectra with low quantitative accuracy. Precursor isolation purity should be computed with `mm.pp.compute_precursor_isolation_purity()` before calling `to_peptide()`. A `purity_threshold` (commonly `0.7`) can be applied during aggregation.
+In TMT studies, PSMs with low precursor isolation purity may be excluded prior to quantification aggregation to remove spectra with low quantitative accuracy. Precursor isolation purity should be computed with `mm.tl.compute_precursor_isolation_purity()` before calling `to_peptide()`. A `purity_threshold` (commonly `0.7`) can be applied during aggregation.
 
 Note that filtering by `top_n` or `purity_threshold` affects quantification aggregation only and does not modify identification feature aggregation.
 

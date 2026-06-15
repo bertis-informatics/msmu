@@ -29,7 +29,6 @@ else:
 logger = ensure_null_handler()
 
 mudata.set_options(pull_on_update=False)
-pl.set_templates()
 
 del mudata
 
