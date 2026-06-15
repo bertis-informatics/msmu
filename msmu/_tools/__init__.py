@@ -2,7 +2,7 @@ from ._pca import pca
 from ._correlation import corr
 from ._dea import run_de
 
-from ._precursor_purity import (
+from ._pyopenms import (
     compute_precursor_isolation_purity,
     compute_precursor_isolation_purity_from_mzml,
 )

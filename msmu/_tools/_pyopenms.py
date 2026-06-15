@@ -12,8 +12,7 @@ from tqdm import tqdm
 import anndata as ad
 import mudata as md
 
-
-from .._plotting._plots import plot_var
+from .._utils._anndata import _require_columns
 import plotly.graph_objects as go
 
 if TYPE_CHECKING:
@@ -57,7 +56,9 @@ class PurityResult:
         return purity_mdata
 
     def hist(self) -> go.Figure:
-        return plot_var(
+        from .. import pl
+
+        return pl.plot_var(
             mdata=self._dummy_mdata,
             groupby="filename",
             ptype="hist",
@@ -67,7 +68,9 @@ class PurityResult:
         )
 
     def box(self) -> go.Figure:
-        return plot_var(
+        from .. import pl
+
+        return pl.plot_var(
             mdata=self._dummy_mdata,
             groupby="filename",
             ptype="box",
@@ -121,10 +124,7 @@ class PrecursorPurityCalculator:
         if "psm" not in mdata.mod:
             raise ValueError("MuData object must contain 'psm' layer with PSM data.")
 
-        if "filename" not in mdata.mod["psm"].var.columns:
-            raise ValueError("MuData object must contain 'filename' in the psm variable data.")
-        if "scan_num" not in mdata.mod["psm"].var.columns:
-            raise ValueError("MuData object must contain 'scan_num' in the psm variable data.")
+        _require_columns(mdata.mod["psm"].var, columns=["filename", "scan_num"], context="psm.var")
 
         instance._var_df = mdata.mod["psm"].var.copy()
 
