@@ -21,11 +21,12 @@ class SageReader(SearchResultReader):
     def __init__(
         self,
         identification_file: str | Path,
+        drop_search_result: bool,
         identification_df: pd.DataFrame | None = None,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="sage",
             quantification="sage",
@@ -105,15 +106,17 @@ class TmtSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
+        drop_search_result: bool,
         identification_df: pd.DataFrame | None = None,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
         super().__init__(
-            identification_file,
-            identification_df,
-            quantification_file,
-            quantification_df,
+            identification_file=identification_file,
+            identification_df=identification_df,
+            quantification_file=quantification_file,
+            quantification_df=quantification_df,
+            drop_search_result=drop_search_result,
         )
         self.search_settings.label = "tmt"
         self.search_settings.quantification_level = "psm"
@@ -148,15 +151,17 @@ class LfqSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
+        drop_search_result: bool,
         identification_df: pd.DataFrame | None = None,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
         super().__init__(
-            identification_file,
-            identification_df,
-            quantification_file,
-            quantification_df,
+            identification_file=identification_file,
+            identification_df=identification_df,
+            quantification_file=quantification_file,
+            quantification_df=quantification_df,
+            drop_search_result=drop_search_result,
         )
         self.search_settings.label = "label_free"
 

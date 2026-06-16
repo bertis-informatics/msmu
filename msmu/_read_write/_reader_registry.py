@@ -28,6 +28,7 @@ def read_sage(
     identification_file: str | Path,
     label: Literal["tmt", "label_free"],
     quantification_file: str | Path | None = None,
+    drop_search_result: bool = False,
 ) -> md.MuData:
     """
     Reads Sage output and returns a MuData object.
@@ -79,6 +80,8 @@ def read_sage(
             identification_df=identification_df_,
             quantification_file=quantification_file_,
             quantification_df=quantification_df_,
+            drop_search_result=drop_search_result,
+
         )
     elif label == "label_free":
         reader = LfqSageReader(
@@ -86,6 +89,7 @@ def read_sage(
             identification_df=identification_df_,
             quantification_file=quantification_file_,
             quantification_df=quantification_df_,
+            drop_search_result=drop_search_result,
         )
     else:
         raise ValueError("Argument label should be one of 'tmt', 'label_free'.")
@@ -108,6 +112,7 @@ def read_sage(
 
 def read_diann(
     identification_file: str | Path | list,
+    drop_search_result: bool = False,
     level: Literal["precursor", "protein_group"] = "precursor",
 ) -> md.MuData:
     """
@@ -138,6 +143,7 @@ def read_diann(
         mdata = DiannReader(
             identification_file=identification_file_,
             identification_df=identification_df_,
+            drop_search_result=drop_search_result,
         ).read()
     return append_cmd_log(
         mdata,

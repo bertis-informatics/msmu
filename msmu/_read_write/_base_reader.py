@@ -213,7 +213,7 @@ class SearchResultReader:
             Reads and processes the search results into a MuData object.
     """
 
-    def __init__(self, _drop_search_result: bool = False) -> None:
+    def __init__(self, _drop_search_result: bool) -> None:
         md.set_options(pull_on_update=False)
         self.search_settings: SearchResultSettings
         self._drop_search_result = _drop_search_result

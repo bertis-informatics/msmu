@@ -10,11 +10,12 @@ class FragPipeReader(SearchResultReader):
         self,
         identification_file: str | Path,
         identification_df: pd.DataFrame,
+        drop_search_result: bool,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
         label: Literal["tmt", "label_free"] | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="fragpipe",
             quantification="fragpipe",
@@ -135,11 +136,17 @@ class FragPipeReader(SearchResultReader):
 
 
 class TmtFragPipeReader(FragPipeReader):
-    def __init__(self, identification_file: str | Path, identification_df: pd.DataFrame) -> None:
+    def __init__(
+            self, 
+            identification_file: str | Path, 
+            identification_df: pd.DataFrame,
+            drop_search_result: bool,
+            ) -> None:
         super().__init__(
             identification_file=identification_file,
             identification_df=identification_df,
             label="tmt",
+            drop_search_result=drop_search_result,
         )
         self.search_settings.quantification_level = "psm"
 
@@ -160,6 +167,7 @@ class LfqFragPipeReader(FragPipeReader):
         self,
         identification_file: str | Path,
         identification_df: pd.DataFrame,
+        drop_search_result: bool,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
@@ -168,6 +176,7 @@ class LfqFragPipeReader(FragPipeReader):
             identification_df=identification_df,
             quantification_file=quantification_file,
             quantification_df=quantification_df,
+            drop_search_result=drop_search_result,
         )
         self.search_settings.label = "label_free"
         self.search_settings.ident_quant_merged = False

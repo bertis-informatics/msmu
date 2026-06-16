@@ -18,8 +18,9 @@ class DiannReader(SearchResultReader):
         self,
         identification_file: str | Path,
         identification_df: pd.DataFrame,
+        drop_search_result: bool,
     ) -> None:
-        super().__init__()
+        super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="diann",
             quantification="diann",
