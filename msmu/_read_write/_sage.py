@@ -85,14 +85,15 @@ class SageReader(SearchResultReader):
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
         identification_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
-        identification_df["filename"] = identification_df["filename"].apply(self._strip_filename)
+        identification_df["filename"] = self._map_unique(identification_df["filename"], self._strip_filename)
         identification_df["scan_num"] = identification_df["scannr"].apply(self._extract_scan_number)
         identification_df["stripped_peptide"] = identification_df["peptide"].apply(self._make_stripped_peptide)
-        identification_df["decoy"] = identification_df["label"].apply(self._label_decoy)
-        identification_df["contaminant"] = identification_df["proteins"].apply(self._label_possible_contaminant)
+        identification_df["decoy"] = (identification_df["label"] == -1).astype(int)
+        identification_df["contaminant"] = identification_df["proteins"].str.contains("contam_", regex=False).astype(int)
         identification_df["PEP"] = np.power(10, identification_df["posterior_error"])  # convert log10 PEP to PEP
 
-        return identification_df.copy()
+        # _normalise_identification_df already passes a private copy; mutate it in place.
+        return identification_df
 
 
 class TmtSageReader(SageReader):
@@ -122,7 +123,7 @@ class TmtSageReader(SageReader):
         self.search_settings.quantification_level = "psm"
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        quantification_df["filename"] = quantification_df["filename"].apply(self._strip_filename)
+        quantification_df["filename"] = self._map_unique(quantification_df["filename"], self._strip_filename)
         quantification_df["scan_num"] = quantification_df["scannr"].apply(self._extract_scan_number)
         quantification_df = self._make_unique_index(quantification_df)
         quantification_df = quantification_df.drop(["filename", "scannr", "scan_num", "ion_injection_time"], axis=1)

@@ -92,16 +92,14 @@ class DiannReader(SearchResultReader):
         return split_identification_df, split_quant_df
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        identification_df = identification_df.copy()
+        # _normalise_identification_df already passes a private copy; mutate it in place.
         self._set_mbr(identification_df)  # set self._mbr for _feature_rename_dict
         self._set_decoy(identification_df)
 
         identification_df["proteins"] = identification_df["Protein.Ids"]
         identification_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
-        identification_df["missed_cleavages"] = identification_df["Stripped.Sequence"].apply(
-            self._count_missed_cleavages
-        )
-        identification_df["peptide_length"] = identification_df["Stripped.Sequence"].apply(self._get_peptide_length)
+        identification_df["missed_cleavages"] = identification_df["Stripped.Sequence"].str.count(r"(?<=[KR])(?!P)")
+        identification_df["peptide_length"] = identification_df["Stripped.Sequence"].str.len()
         if not self.search_settings.has_decoy:
             identification_df["decoy"] = 0
 

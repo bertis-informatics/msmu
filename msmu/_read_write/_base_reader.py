@@ -247,6 +247,16 @@ class SearchResultReader:
     def _strip_filename(filename: str) -> str:
         return Path(filename).name.rsplit(".", 1)[0]
 
+    @staticmethod
+    def _map_unique(series: pd.Series, scalar_func) -> pd.Series:
+        """Apply a scalar function over distinct values only, then map back.
+
+        Equivalent to ``series.apply(scalar_func)`` but evaluates ``scalar_func``
+        once per unique value -- a large win for low-cardinality columns such as
+        ``filename`` (a handful of raw files repeated across millions of PSMs).
+        """
+        return series.map({value: scalar_func(value) for value in series.unique()})
+
     def _stringify_cols(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Convert mixed type of pd.Series to sting to store as h5mu.
@@ -346,7 +356,6 @@ class SearchResultReader:
                 quantification_df.shape,
             )
         else:
-            identification_df = norm_identification_df.copy()
             quantification_df = raw_dict["quantification"] if self.search_settings.quantification is not None else None
 
         if self.search_settings.has_decoy and "decoy" not in self.used_feature_cols:
