@@ -217,6 +217,11 @@ class SearchResultReader:
         md.set_options(pull_on_update=False)
         self.search_settings: SearchResultSettings
         self._drop_search_result = _drop_search_result
+        # Readers that build the feature frame on a fresh DataFrame (reading the
+        # raw frame read-only, never mutating it) flip this so the raw frame is
+        # not defensively copied before normalisation -- it stays intact to serve
+        # varm or be freed. Legacy in-place readers leave it False.
+        self._builds_feature_frame_fresh = False
 
         self._calc_exp_mz: Callable = _calc_exp_mz
         self._count_missed_cleavages: Callable = _count_missed_cleavages
@@ -308,8 +313,11 @@ class SearchResultReader:
         )
 
     def _normalise_identification_df(self, identification_df: pd.DataFrame) -> pd.DataFrame:
+        # Non-destructive readers build a fresh frame, so the raw frame can be read
+        # directly; legacy in-place readers still get a defensive copy.
+        source_df = identification_df if self._builds_feature_frame_fresh else identification_df.copy()
         norm_identification_df = self._make_needed_columns_for_identification(
-            identification_df.copy()
+            source_df
         )  # this will be method overriden in inherited class
         norm_identification_df = norm_identification_df.rename(columns=self._feature_rename_dict)
         norm_identification_df = self._make_unique_index(norm_identification_df)

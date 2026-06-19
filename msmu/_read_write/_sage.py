@@ -27,6 +27,7 @@ class SageReader(SearchResultReader):
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
         super().__init__(_drop_search_result=drop_search_result)
+        self._builds_feature_frame_fresh = True
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="sage",
             quantification="sage",
@@ -84,16 +85,29 @@ class SageReader(SearchResultReader):
         return config
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        identification_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
-        identification_df["filename"] = self._map_unique(identification_df["filename"], self._strip_filename)
-        identification_df["scan_num"] = identification_df["scannr"].apply(self._extract_scan_number)
-        identification_df["stripped_peptide"] = identification_df["peptide"].apply(self._make_stripped_peptide)
-        identification_df["decoy"] = (identification_df["label"] == -1).astype(int)
-        identification_df["contaminant"] = identification_df["proteins"].str.contains("contam_", regex=False).astype(int)
-        identification_df["PEP"] = np.power(10, identification_df["posterior_error"])  # convert log10 PEP to PEP
+        # Build the feature frame on a FRESH DataFrame rather than mutating the input,
+        # so the caller keeps the raw frame intact (to serve varm or be freed) without
+        # a defensive copy. Column operations mirror the previous in-place version.
+        feature_df = pd.DataFrame(index=identification_df.index)
+        feature_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
+        feature_df["peptide"] = identification_df["peptide"]
+        feature_df["filename"] = self._map_unique(identification_df["filename"], self._strip_filename)
+        feature_df["scan_num"] = identification_df["scannr"].apply(self._extract_scan_number)
+        feature_df["stripped_peptide"] = identification_df["peptide"].apply(self._make_stripped_peptide)
+        feature_df["charge"] = identification_df["charge"]
+        feature_df["peptide_len"] = identification_df["peptide_len"]
+        feature_df["expmass"] = identification_df["expmass"]
+        feature_df["calcmass"] = identification_df["calcmass"]
+        feature_df["rt"] = identification_df["rt"]
+        feature_df["missed_cleavages"] = identification_df["missed_cleavages"]
+        feature_df["semi_enzymatic"] = identification_df["semi_enzymatic"]
+        feature_df["decoy"] = (identification_df["label"] == -1).astype(int)
+        feature_df["contaminant"] = feature_df["proteins"].str.contains("contam_", regex=False).astype(int)
+        feature_df["PEP"] = np.power(10, identification_df["posterior_error"])  # convert log10 PEP to PEP
+        feature_df["hyperscore"] = identification_df["hyperscore"]
+        feature_df["spectrum_q"] = identification_df["spectrum_q"]
 
-        # _normalise_identification_df already passes a private copy; mutate it in place.
-        return identification_df
+        return feature_df
 
 
 class TmtSageReader(SageReader):
