@@ -237,11 +237,13 @@ class SearchResultReader:
 
     @staticmethod
     def _make_unique_index(input_df: pd.DataFrame) -> pd.DataFrame:
-        df = input_df.copy()
-        df["tmp_index"] = df["filename"] + "." + df["scan_num"].astype(str)
-        df = df.set_index("tmp_index", drop=True).rename_axis(index=None)
-
-        return df
+        # Callers pass a freshly-built frame they own, so mutate in place. The old
+        # defensive `input_df.copy()` materialized a third full copy of the multi-GB
+        # identification frame at the read peak (measured: it owns ~13 GB of the
+        # normalise spike). set_index returns a new frame that shares column blocks,
+        # so the only added allocation here is the single tmp_index column.
+        input_df["tmp_index"] = input_df["filename"] + "." + input_df["scan_num"].astype(str)
+        return input_df.set_index("tmp_index", drop=True).rename_axis(index=None)
 
     @staticmethod
     def _strip_filename(filename: str) -> str:
