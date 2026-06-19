@@ -400,14 +400,6 @@ class SearchResultReader:
             # Keep raw and normalized rows in strict positional sync.
             raw_identification_df = raw_identification_df.iloc[target_mask, :].copy()
 
-        # The raw identification frame has now been fully consumed: the feature frame
-        # (var) is built and, when kept, varm holds its own copy above. Release the
-        # original so it is not carried -- unused -- through quantification
-        # normalisation and mudata construction. Mode-agnostic: dead when dropped,
-        # redundant with the varm copy when kept.
-        raw_dict["identification"] = None
-        self.search_settings.identification_df = None
-
         norm_quant_df = self._normalise_quantification_df(quantification_df) if quantification_df is not None else None
 
         mudata_input: MuDataInput = MuDataInput(
