@@ -10,7 +10,7 @@ class FragPipeReader(SearchResultReader):
         self,
         identification_file: str | Path,
         identification_df: pd.DataFrame,
-        drop_search_result: bool,
+        drop_search_result: bool = False,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
         label: Literal["tmt", "label_free"] | None = None,
@@ -109,30 +109,40 @@ class FragPipeReader(SearchResultReader):
             return 0
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        identification_df["filename"] = identification_df["Spectrum"].apply(lambda x: x.split(".")[0])
-        identification_df["scan_num"] = identification_df["Spectrum"].apply(lambda x: int(x.split(".")[1]))
+        # Build the feature frame on a FRESH DataFrame (read the raw frame read-only so it
+        # stays intact for varm or to be freed). Quantification (TMT channels) is taken from
+        # the raw frame by TmtFragPipeReader._extract_quant_from_raw. Carry-through columns
+        # keep their raw names and are renamed by _normalise_identification_df.
+        feature_df = pd.DataFrame(index=identification_df.index)
 
-        identification_df["proteins"] = (
-            identification_df["Protein"].astype(str) + "," + identification_df["Mapped Proteins"].astype(str)
-        )
-        identification_df["proteins"] = identification_df["proteins"].apply(
-            lambda x: [y.strip() for y in x.split(",") if y != "nan"]
-        )
-        identification_df["proteins"] = identification_df["proteins"].apply(lambda x: ",".join(x))
-        identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace(",", ";"))
+        feature_df["filename"] = identification_df["Spectrum"].apply(lambda x: x.split(".")[0])
+        feature_df["scan_num"] = identification_df["Spectrum"].apply(lambda x: int(x.split(".")[1]))
 
-        identification_df["peptide"] = identification_df["Modified Peptide"]
-        identification_df.loc[identification_df["peptide"].isna(), "peptide"] = identification_df.loc[
-            identification_df["peptide"].isna(), "Peptide"
-        ]
+        proteins = identification_df["Protein"].astype(str) + "," + identification_df["Mapped Proteins"].astype(str)
+        proteins = proteins.apply(lambda x: [y.strip() for y in x.split(",") if y != "nan"])
+        proteins = proteins.apply(lambda x: ",".join(x))
+        proteins = proteins.apply(lambda x: x.replace(",", ";"))
+        feature_df["proteins"] = proteins
 
-        identification_df["decoy"] = identification_df["proteins"].apply(self._label_decoy)
-        if identification_df["decoy"].unique().tolist() == [0]:
+        peptide = identification_df["Modified Peptide"].copy()
+        peptide.loc[peptide.isna()] = identification_df.loc[peptide.isna(), "Peptide"]
+        feature_df["peptide"] = peptide
+
+        feature_df["decoy"] = feature_df["proteins"].apply(self._label_decoy)
+        if feature_df["decoy"].unique().tolist() == [0]:
             self.search_settings.has_decoy = False
 
-        identification_df["rt"] = identification_df["Retention"] / 60.0  # convert to minutes
+        feature_df["rt"] = identification_df["Retention"] / 60.0  # convert to minutes
 
-        return identification_df
+        feature_df["Peptide"] = identification_df["Peptide"]  # -> stripped_peptide
+        feature_df["Charge"] = identification_df["Charge"]  # -> charge
+        feature_df["Peptide Length"] = identification_df["Peptide Length"]  # -> peptide_length
+        feature_df["Number of Missed Cleavages"] = identification_df["Number of Missed Cleavages"]  # -> missed_cleavages
+        feature_df["Calculated Peptide Mass"] = identification_df["Calculated Peptide Mass"]  # -> calcmass
+        feature_df["observed mass"] = identification_df["observed mass"]  # -> expmass
+        feature_df["Hyperscore"] = identification_df["Hyperscore"]  # -> score
+
+        return feature_df
 
 
 class TmtFragPipeReader(FragPipeReader):
@@ -140,7 +150,7 @@ class TmtFragPipeReader(FragPipeReader):
             self, 
             identification_file: str | Path, 
             identification_df: pd.DataFrame,
-            drop_search_result: bool,
+            drop_search_result: bool = False,
             ) -> None:
         super().__init__(
             identification_file=identification_file,
@@ -150,16 +160,25 @@ class TmtFragPipeReader(FragPipeReader):
         )
         self.search_settings.quantification_level = "psm"
 
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_identification_df = identification_df.copy()
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
+        # Real TMT channels only: raw columns that are neither FragPipe descriptors
+        # (desc_cols) nor identification columns the reader renames (_feature_rename_dict
+        # keys, e.g. "observed mass"). Sourcing from the raw frame -- where those columns
+        # still carry their descriptor names -- avoids the old split's leak of renamed
+        # identification cols (rt/calcmass/expmass/score) into quant. Re-indexed via
+        # _make_unique_index (filename.scan_num) to align with the fresh feature frame.
+        non_quant_cols = set(self.desc_cols) | set(self._feature_rename_dict.keys())
+        quant_cols = [c for c in raw_identification_df.columns if c not in non_quant_cols]
 
-        quant_cols = [x for x in identification_df.columns if x not in self.desc_cols]
-        split_quant_df = split_identification_df[quant_cols]
-        split_identification_df = split_identification_df.drop(columns=quant_cols)
+        quant = pd.DataFrame(index=raw_identification_df.index)
+        quant["filename"] = raw_identification_df["Spectrum"].apply(lambda x: x.split(".")[0])
+        quant["scan_num"] = raw_identification_df["Spectrum"].apply(lambda x: int(x.split(".")[1]))
+        for col in quant_cols:
+            quant[col] = raw_identification_df[col]
+        quant = self._make_unique_index(quant)
+        quant = quant.drop(columns=["filename", "scan_num"])
 
-        return split_identification_df, split_quant_df
+        return quant
 
 
 class LfqFragPipeReader(FragPipeReader):
@@ -167,7 +186,7 @@ class LfqFragPipeReader(FragPipeReader):
         self,
         identification_file: str | Path,
         identification_df: pd.DataFrame,
-        drop_search_result: bool,
+        drop_search_result: bool = False,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:

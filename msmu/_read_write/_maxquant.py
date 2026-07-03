@@ -72,21 +72,31 @@ class MaxQuantReader(SearchResultReader):
         }
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        identification_df["decoy"] = identification_df["Reverse"].apply(lambda x: 1 if x == "+" else 0)
-        identification_df["contaminant"] = identification_df["Potential contaminant"].apply(
-            lambda x: 1 if x == "+" else 0
-        )
+        # Build the feature frame on a FRESH DataFrame (read the raw frame read-only so it
+        # stays intact for varm or to be freed). Quantification is taken from the raw frame
+        # by each subclass's _extract_quant_from_raw. Columns are carried under their raw
+        # names and renamed by _normalise_identification_df via _feature_rename_dict.
+        feature_df = pd.DataFrame(index=identification_df.index)
 
-        identification_df["proteins"] = identification_df["Proteins"]
-        identification_df.loc[identification_df["decoy"] == 1, "proteins"] = identification_df.loc[
-            identification_df["decoy"] == 1, "Leading proteins"
-        ]
-        # identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("REV__", "rev_"))
-        # identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("CON__", "contam_"))
+        decoy = identification_df["Reverse"].apply(lambda x: 1 if x == "+" else 0)
+        feature_df["decoy"] = decoy
+        feature_df["contaminant"] = identification_df["Potential contaminant"].apply(lambda x: 1 if x == "+" else 0)
 
-        # identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
+        proteins = identification_df["Proteins"].copy()
+        proteins.loc[decoy == 1] = identification_df.loc[decoy == 1, "Leading proteins"]
+        feature_df["proteins"] = proteins
 
-        return identification_df
+        feature_df["Sequence"] = identification_df["Sequence"]  # -> stripped_peptide
+        feature_df["Modified sequence"] = identification_df["Modified sequence"]  # -> peptide
+        feature_df["Length"] = identification_df["Length"]  # -> peptide_length
+        feature_df["Missed cleavages"] = identification_df["Missed cleavages"]  # -> missed_cleavages
+        feature_df["Charge"] = identification_df["Charge"]  # -> charge
+        feature_df["Raw file"] = identification_df["Raw file"]  # -> filename
+        feature_df["MS/MS Scan Number"] = identification_df["MS/MS Scan Number"]  # -> scan_num
+        feature_df["Retention time"] = identification_df["Retention time"]  # -> rt
+        feature_df["PEP"] = identification_df["PEP"]
+
+        return feature_df
 
 
 class MaxTmtReader(MaxQuantReader):
@@ -100,17 +110,20 @@ class MaxTmtReader(MaxQuantReader):
         self.search_settings.label = "tmt"
         self.search_settings.acquisition = "dda"
 
-    def _split_merged_identification_quantification(
-        self, feature_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_identification_df = feature_df.copy()
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
+        # Same "Reporter intensity corrected *" channels as the old split, but sourced from
+        # the raw frame and re-indexed via _make_unique_index (filename.scan_num) so it
+        # aligns with the fresh feature frame.
+        reporter_cols = [c for c in raw_identification_df.columns if c.startswith("Reporter intensity corrected")]
+        quant = pd.DataFrame(index=raw_identification_df.index)
+        quant["filename"] = raw_identification_df["Raw file"]
+        quant["scan_num"] = raw_identification_df["MS/MS Scan Number"]
+        for col in reporter_cols:
+            quant[col] = raw_identification_df[col]
+        quant = self._make_unique_index(quant)
+        quant = quant.drop(columns=["filename", "scan_num"])
 
-        quant_cols = [x for x in feature_df.columns if x.startswith("Reporter intensity corrected")]
-        split_quant_df = split_identification_df[quant_cols]
-
-        split_identification_df = split_identification_df.drop(columns=quant_cols)
-
-        return split_identification_df, split_quant_df
+        return quant
 
     def _make_rename_dict_for_obs(self, quantification_df: pd.DataFrame) -> dict:
         plex = len(quantification_df.columns)
@@ -139,25 +152,22 @@ class MaxLfqReader(MaxQuantReader):
         self.search_settings.quantification_level = "peptide" if _quantification else None
         self.search_settings.acquisition = "dda"
 
-    def _make_peptide_quantification(self, split_identification_df: pd.DataFrame) -> pd.DataFrame:
-        # make quantification dataframe from identification dataframe by grouping by peptide
-        # (summing intensities of PSMs with the same peptide sequence)
-        pep_quant_df = split_identification_df[["filename", "peptide", "Intensity"]].copy()
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
+        # Peptide-level quantification: sum PSM "Intensity" per (peptide, filename) and pivot
+        # to peptide x filename. Sourced from the raw frame -- "Modified sequence"/"Raw file"
+        # are the raw names of the feature frame's "peptide"/"filename", so the result matches
+        # the old split (which pivoted the normalised frame).
+        pep_quant_df = pd.DataFrame(
+            {
+                "filename": raw_identification_df["Raw file"].to_numpy(),
+                "peptide": raw_identification_df["Modified sequence"].to_numpy(),
+                "Intensity": raw_identification_df["Intensity"].to_numpy(),
+            }
+        )
         pep_quant_df = pep_quant_df.pivot_table(index="peptide", columns="filename", values="Intensity", aggfunc="sum")
         pep_quant_df = pep_quant_df.rename_axis(index=None, columns=None)
 
         return pep_quant_df
-
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_identification_df = identification_df.copy()
-        split_identification_df = split_identification_df.drop(columns=["Intensity"])
-
-        split_quant_df = identification_df[["filename", "peptide", "Intensity"]].reset_index()
-        split_quant_df = self._make_peptide_quantification(split_quant_df)
-
-        return split_identification_df, split_quant_df
 
 
 class MaxDiaReader(MaxQuantReader):

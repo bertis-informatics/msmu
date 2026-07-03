@@ -12,7 +12,14 @@ def test_diann_make_needed_columns_sets_decoy_and_lengths():
         {
             "Protein.Ids": ["sp|P1|P1_HUMAN"],
             "Stripped.Sequence": ["ACDK"],
+            "Modified.Sequence": ["ACDK"],
+            "Run": ["sample.raw"],
+            "Precursor.Charge": [2],
+            "Precursor.Id": ["ACDK2"],
+            "RT": [10.5],
+            "PEP": [0.01],
             "Lib.Q.Value": [0.0],
+            "Global.Q.Value": [0.01],
         }
     )
     out = reader._make_needed_columns_for_identification(df)
@@ -46,6 +53,15 @@ def test_sage_make_needed_columns_for_identification():
             "peptide": ["ACDEK"],
             "label": [-1],
             "posterior_error": [-2.0],
+            "charge": [2],
+            "peptide_len": [5],
+            "expmass": [565.2],
+            "calcmass": [565.1],
+            "rt": [10.5],
+            "missed_cleavages": [0],
+            "semi_enzymatic": [False],
+            "hyperscore": [12.0],
+            "spectrum_q": [0.01],
         }
     )
     out = reader._make_needed_columns_for_identification(df)
@@ -136,7 +152,7 @@ def test_fragpipe_tmt_reader_init_requires_identification_df():
 
 
 def test_fragpipe_lfq_quantification_columns():
-    reader = LfqFragPipeReader("id.tsv", "quant.tsv")
+    reader = LfqFragPipeReader("id.tsv", "quant.tsv", drop_search_result=False)
     df = pd.DataFrame(
         {
             "Modified Sequence": ["AA", "BB"],
@@ -150,6 +166,25 @@ def test_fragpipe_lfq_quantification_columns():
     assert rename["Sample1 Intensity"] == "Sample1"
 
 
+def test_fragpipe_tmt_extract_quant_from_raw_keeps_only_channels():
+    reader = TmtFragPipeReader("id.tsv", pd.DataFrame(), drop_search_result=False)
+    raw = pd.DataFrame(
+        {
+            "Spectrum": ["fileA.00010.00010.2", "fileA.00011.00011.2"],
+            "Calculated Peptide Mass": [500.1, 510.2],
+            "observed mass": [500.0, 510.0],
+            "Hyperscore": [20.0, 25.0],
+            "126": [100.0, 110.0],
+            "127N": [200.0, 210.0],
+        }
+    )
+    quant = reader._extract_quant_from_raw(raw)
+    # only the real TMT channels survive; renamed id cols (calcmass/expmass/score) do NOT leak
+    assert quant.columns.tolist() == ["126", "127N"]
+    assert quant.index.tolist() == ["fileA.10", "fileA.11"]
+    assert quant.loc["fileA.10", "126"] == 100.0
+
+
 def test_maxquant_make_needed_columns_for_identification():
     reader = MaxQuantReader("id.tsv", pd.DataFrame())
     df = pd.DataFrame(
@@ -158,13 +193,26 @@ def test_maxquant_make_needed_columns_for_identification():
             "Potential contaminant": ["", "+"],
             "Proteins": ["P1", "CON__P2"],
             "Leading proteins": ["REV__P3", "P4"],
+            "Sequence": ["AA", "BB"],
+            "Modified sequence": ["_AA_", "_BB_"],
+            "Length": [2, 2],
+            "Missed cleavages": [0, 1],
+            "Charge": [2, 3],
+            "Raw file": ["f1", "f2"],
+            "MS/MS Scan Number": [10, 20],
+            "Retention time": [1.0, 2.0],
+            "PEP": [0.01, 0.02],
         }
     )
     out = reader._make_needed_columns_for_identification(df)
+    # fresh build: the raw frame is read read-only, not mutated
+    assert "decoy" not in df.columns
     assert out["decoy"].tolist() == [1, 0]
     assert out["contaminant"].tolist() == [0, 1]
-    assert out["proteins"].tolist()[0] == "REV__P3"
-    assert out["proteins"].tolist()[1] == "CON__P2"
+    # decoy row takes Leading proteins; target row keeps Proteins
+    assert out["proteins"].tolist() == ["REV__P3", "CON__P2"]
+    # pre-rename columns are carried for _normalise_identification_df to rename
+    assert out["Modified sequence"].tolist() == ["_AA_", "_BB_"]
 
 
 def test_maxquant_tmt_rename_dict_for_obs():
@@ -175,15 +223,35 @@ def test_maxquant_tmt_rename_dict_for_obs():
     assert rename["Reporter intensity corrected 2"] == "127"
 
 
-def test_maxquant_lfq_split_merged_identification_quantification():
+def test_maxquant_lfq_extract_quant_from_raw():
     reader = MaxLfqReader("id.tsv", pd.DataFrame())
-    df = pd.DataFrame(
+    raw = pd.DataFrame(
         {
-            "filename": ["f1", "f2"],
-            "peptide": ["AA", "AA"],
-            "Intensity": [1.0, 2.0],
+            "Raw file": ["f1", "f2", "f1"],
+            "Modified sequence": ["AA", "AA", "BB"],
+            "Intensity": [1.0, 2.0, 5.0],
         }
     )
-    ident, quant = reader._split_merged_identification_quantification(df)
-    assert "Intensity" not in ident.columns
+    quant = reader._extract_quant_from_raw(raw)
+    # peptide-level sum, pivoted to peptide x filename
     assert quant.loc["AA", "f1"] == 1.0
+    assert quant.loc["AA", "f2"] == 2.0
+    assert quant.loc["BB", "f1"] == 5.0
+
+
+def test_maxquant_tmt_extract_quant_from_raw():
+    reader = MaxTmtReader("id.tsv", pd.DataFrame())
+    raw = pd.DataFrame(
+        {
+            "Raw file": ["f1", "f1"],
+            "MS/MS Scan Number": [10, 11],
+            "Reporter intensity corrected 1": [100.0, 150.0],
+            "Reporter intensity corrected 2": [200.0, 250.0],
+            "Other": ["x", "y"],
+        }
+    )
+    quant = reader._extract_quant_from_raw(raw)
+    # indexed filename.scan_num; only the reporter channels are kept
+    assert quant.index.tolist() == ["f1.10", "f1.11"]
+    assert quant.columns.tolist() == ["Reporter intensity corrected 1", "Reporter intensity corrected 2"]
+    assert quant.loc["f1.10", "Reporter intensity corrected 1"] == 100.0

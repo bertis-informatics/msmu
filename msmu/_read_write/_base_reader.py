@@ -213,7 +213,7 @@ class SearchResultReader:
             Reads and processes the search results into a MuData object.
     """
 
-    def __init__(self, _drop_search_result: bool) -> None:
+    def __init__(self, _drop_search_result: bool = False) -> None:
         md.set_options(pull_on_update=False)
         self.search_settings: SearchResultSettings
         self._drop_search_result = _drop_search_result
@@ -237,15 +237,27 @@ class SearchResultReader:
 
     @staticmethod
     def _make_unique_index(input_df: pd.DataFrame) -> pd.DataFrame:
-        df = input_df.copy()
-        df["tmp_index"] = df["filename"] + "." + df["scan_num"].astype(str)
-        df = df.set_index("tmp_index", drop=True).rename_axis(index=None)
-
-        return df
+        # Callers pass a freshly-built frame they own, so mutate in place. The old
+        # defensive `input_df.copy()` materialized a third full copy of the multi-GB
+        # identification frame at the read peak (measured: it owns ~13 GB of the
+        # normalise spike). set_index returns a new frame that shares column blocks,
+        # so the only added allocation here is the single tmp_index column.
+        input_df["tmp_index"] = input_df["filename"] + "." + input_df["scan_num"].astype(str)
+        return input_df.set_index("tmp_index", drop=True).rename_axis(index=None)
 
     @staticmethod
     def _strip_filename(filename: str) -> str:
         return Path(filename).name.rsplit(".", 1)[0]
+
+    @staticmethod
+    def _map_unique(series: pd.Series, scalar_func) -> pd.Series:
+        """Apply a scalar function over distinct values only, then map back.
+
+        Equivalent to ``series.apply(scalar_func)`` but evaluates ``scalar_func``
+        once per unique value -- a large win for low-cardinality columns such as
+        ``filename`` (a handful of raw files repeated across millions of PSMs).
+        """
+        return series.map({value: scalar_func(value) for value in series.unique()})
 
     def _stringify_cols(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -283,11 +295,16 @@ class SearchResultReader:
 
         return output_dict
 
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
+        """Build the quantification frame directly from the raw merged frame.
+
+        Used by merged readers that build the feature frame fresh: the feature
+        frame carries identification columns only, so quantification is extracted
+        from the raw frame (indexed to match the feature frame) instead of being
+        split back out of the normalised frame.
+        """
         raise NotImplementedError(
-            "_split_merged_identification_quantification method needs to be implemented in inherited class."
+            "_extract_quant_from_raw must be implemented by merged readers that build the feature frame fresh."
         )
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
@@ -296,8 +313,11 @@ class SearchResultReader:
         )
 
     def _normalise_identification_df(self, identification_df: pd.DataFrame) -> pd.DataFrame:
+        # All readers build the feature frame on a fresh DataFrame, reading the raw frame
+        # read-only, so it is passed directly without a defensive copy -- the raw frame
+        # stays intact to serve varm or be freed.
         norm_identification_df = self._make_needed_columns_for_identification(
-            identification_df.copy()
+            identification_df
         )  # this will be method overriden in inherited class
         norm_identification_df = norm_identification_df.rename(columns=self._feature_rename_dict)
         norm_identification_df = self._make_unique_index(norm_identification_df)
@@ -313,8 +333,11 @@ class SearchResultReader:
         return dict()
 
     def _normalise_quantification_df(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
+        # The quantification frame is never stored (varm holds the identification raw,
+        # not this), so it can be mutated directly -- no defensive copy. Readers whose
+        # _make_needed_columns_for_quantification needs its own copy still make one.
         norm_quant_df = self._make_needed_columns_for_quantification(
-            quantification_df.copy()
+            quantification_df
         )  # this will be method overriden in inherited classs
         quant_rename_dict = self._make_rename_dict_for_obs(
             norm_quant_df
@@ -337,16 +360,10 @@ class SearchResultReader:
 
         norm_identification_df: pd.DataFrame = self._normalise_identification_df(raw_identification_df)
         if self.search_settings.ident_quant_merged:
-            identification_df, quantification_df = self._split_merged_identification_quantification(
-                norm_identification_df
-            )
-            logger.debug(
-                "Identification and quantification data split: %s, %s",
-                identification_df.shape,
-                quantification_df.shape,
-            )
+            # Feature frame is built fresh (identification columns only); extract
+            # quantification straight from the raw frame.
+            quantification_df = self._extract_quant_from_raw(raw_identification_df)
         else:
-            identification_df = norm_identification_df.copy()
             quantification_df = raw_dict["quantification"] if self.search_settings.quantification is not None else None
 
         if self.search_settings.has_decoy and "decoy" not in self.used_feature_cols:

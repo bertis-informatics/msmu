@@ -18,7 +18,7 @@ class DiannReader(SearchResultReader):
         self,
         identification_file: str | Path,
         identification_df: pd.DataFrame,
-        drop_search_result: bool,
+        drop_search_result: bool = False,
     ) -> None:
         super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
@@ -91,25 +91,55 @@ class DiannReader(SearchResultReader):
 
         return split_identification_df, split_quant_df
 
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
+        # Same pivot as _split_merged_identification_quantification's quant half, but
+        # sourced from the raw frame: filename = Run, index = "Run.Precursor.Id"
+        # (matching _make_unique_index), so it aligns with the fresh feature frame.
+        quant_source = pd.DataFrame(
+            {
+                "filename": raw_identification_df["Run"].to_numpy(),
+                "Precursor.Quantity": raw_identification_df["Precursor.Quantity"].to_numpy(),
+            },
+            index=(raw_identification_df["Run"] + "." + raw_identification_df["Precursor.Id"]).to_numpy(),
+        )
+        quant_df = quant_source.reset_index()
+        quant_df = quant_df.pivot(index="index", columns="filename", values="Precursor.Quantity")
+        quant_df = quant_df.rename_axis(index=None, columns=None)
+        quant_df = quant_df.replace(0, np.nan)
+
+        return quant_df
+
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        identification_df = identification_df.copy()
-        self._set_mbr(identification_df)  # set self._mbr for _feature_rename_dict
+        # Build the feature frame on a FRESH DataFrame (identification columns only),
+        # reading the raw frame read-only so it stays intact for varm (or to be
+        # freed). Quantification is taken from the raw frame by _extract_quant_from_raw.
+        self._set_mbr(identification_df)  # sets self._mbr (selects the q-value column to rename)
         self._set_decoy(identification_df)
 
-        identification_df["proteins"] = identification_df["Protein.Ids"]
-        identification_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
-        identification_df["missed_cleavages"] = identification_df["Stripped.Sequence"].apply(
-            self._count_missed_cleavages
-        )
-        identification_df["peptide_length"] = identification_df["Stripped.Sequence"].apply(self._get_peptide_length)
-        if not self.search_settings.has_decoy:
-            identification_df["decoy"] = 0
-
+        # object columns of the raw frame -> stringified into varm when kept
         for col in identification_df.columns:
             if identification_df[col].dtype == "object":
                 self._cols_to_stringify.append(col)
 
-        return identification_df
+        feature_df = pd.DataFrame(index=identification_df.index)
+        feature_df["proteins"] = parse_uniprot_accession(identification_df["Protein.Ids"])
+        feature_df["missed_cleavages"] = identification_df["Stripped.Sequence"].str.count(r"(?<=[KR])(?!P)")
+        feature_df["peptide_length"] = identification_df["Stripped.Sequence"].str.len()
+        feature_df["PEP"] = identification_df["PEP"]
+        feature_df["Modified.Sequence"] = identification_df["Modified.Sequence"]  # -> peptide
+        feature_df["Stripped.Sequence"] = identification_df["Stripped.Sequence"]  # -> stripped_peptide
+        feature_df["Run"] = identification_df["Run"]  # -> filename
+        feature_df["Precursor.Charge"] = identification_df["Precursor.Charge"]  # -> charge
+        feature_df["RT"] = identification_df["RT"]  # -> rt
+        feature_df["Precursor.Id"] = identification_df["Precursor.Id"]  # for _make_unique_index (dropped at subset)
+        q_value_source = "Lib.Q.Value" if self._mbr else "Global.Q.Value"
+        feature_df[q_value_source] = identification_df[q_value_source]  # -> q_value
+        if self.search_settings.has_decoy:
+            feature_df["Decoy"] = identification_df["Decoy"]  # -> decoy
+        else:
+            feature_df["decoy"] = 0
+
+        return feature_df
 
     def _set_mbr(self, identification_df: pd.DataFrame) -> None:
         if identification_df["Lib.Q.Value"].sum() == 0:
