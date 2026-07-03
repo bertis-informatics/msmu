@@ -17,8 +17,9 @@ class DelpiReader(SearchResultReader):
         self,
         identification_file: str | Path,
         identification_df: pd.DataFrame,
+        drop_search_result: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="delpi",
             quantification="delpi",
@@ -72,14 +73,47 @@ class DelpiReader(SearchResultReader):
 
         return split_indentification_df, split_quantification_df
 
-    def _make_needed_columns_for_identification(self, identification_df):
-        identification_df["rt"] = identification_df["observed_rt"] / 60.0  # convert to minutes
-        identification_df["proteins"] = parse_uniprot_accession(identification_df["fasta_id"])
-        identification_df["peptide"] = (
-            identification_df["peptide"].str.strip("<").str.strip(">").str.strip(".").str.strip("_")
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
+        # Same pivot as _split_merged_identification_quantification's quant half, but
+        # sourced from the raw frame: filename = run_name, index = "run_name.pmsm_index"
+        # (matching _make_unique_index), so it aligns with the fresh feature frame.
+        quant_source = pd.DataFrame(
+            {
+                "filename": raw_identification_df["run_name"].to_numpy(),
+                "ms2_area": raw_identification_df["ms2_area"].to_numpy(),
+            },
+            index=(
+                raw_identification_df["run_name"].astype(str) + "." + raw_identification_df["pmsm_index"].astype(str)
+            ).to_numpy(),
         )
-        identification_df["modified_sequence"] = (
-            identification_df["modified_sequence"].str.strip("<").str.strip(">").str.strip(".").str.strip("_")
-        )
+        quant_df = quant_source.reset_index()
+        quant_df = quant_df.pivot(index="index", columns="filename", values="ms2_area")
+        quant_df = quant_df.rename_axis(index=None, columns=None)
 
-        return identification_df
+        return quant_df
+
+    def _make_needed_columns_for_identification(self, identification_df):
+        # Build the feature frame on a FRESH DataFrame (identification columns only),
+        # reading the raw frame read-only so it stays intact for varm (or to be
+        # freed). Quantification (ms2_area) is taken from the raw frame by
+        # _extract_quant_from_raw. ("rt" is computed by the legacy path but dropped
+        # at the used_feature_cols subset, so it is omitted here.)
+        feature_df = pd.DataFrame(index=identification_df.index)
+        feature_df["proteins"] = parse_uniprot_accession(identification_df["fasta_id"])
+        feature_df["peptide"] = (
+            identification_df["peptide"].str.strip("<").str.strip(">").str.strip(".").str.strip("_")
+        )  # -> stripped_peptide
+        feature_df["modified_sequence"] = (
+            identification_df["modified_sequence"].str.strip("<").str.strip(">").str.strip(".").str.strip("_")
+        )  # -> peptide
+        feature_df["run_name"] = identification_df["run_name"]  # -> filename
+        feature_df["frame_num"] = identification_df["frame_num"]  # -> scan_num
+        feature_df["precursor_charge"] = identification_df["precursor_charge"]  # -> charge
+        feature_df["sequence_length"] = identification_df["sequence_length"]  # -> peptide_length
+        feature_df["posterior_error"] = identification_df["posterior_error"]  # -> PEP
+        feature_df["global_precursor_q_value"] = identification_df["global_precursor_q_value"]  # -> q_value
+        feature_df["score"] = identification_df["score"]
+        feature_df["is_decoy"] = identification_df["is_decoy"]  # -> decoy
+        feature_df["pmsm_index"] = identification_df["pmsm_index"]  # for _make_unique_index (dropped at subset)
+
+        return feature_df

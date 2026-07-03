@@ -21,13 +21,12 @@ class SageReader(SearchResultReader):
     def __init__(
         self,
         identification_file: str | Path,
-        drop_search_result: bool,
+        drop_search_result: bool = False,
         identification_df: pd.DataFrame | None = None,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
         super().__init__(_drop_search_result=drop_search_result)
-        self._builds_feature_frame_fresh = True
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="sage",
             quantification="sage",
@@ -121,7 +120,7 @@ class TmtSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
-        drop_search_result: bool,
+        drop_search_result: bool = False,
         identification_df: pd.DataFrame | None = None,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
@@ -166,7 +165,7 @@ class LfqSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
-        drop_search_result: bool,
+        drop_search_result: bool = False,
         identification_df: pd.DataFrame | None = None,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,

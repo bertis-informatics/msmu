@@ -56,12 +56,10 @@ class DummyReader(SearchResultReader):
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
         return identification_df
 
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
         if self._quant_df is None:
             raise ValueError("quant_df is required when ident/quant are merged")
-        return identification_df, self._quant_df
+        return self._quant_df
 
 
 @pytest.fixture
@@ -83,7 +81,9 @@ def identification_df() -> pd.DataFrame:
 def test_stringify_cols_casts_to_str(identification_df: pd.DataFrame):
     reader = DummyReader(identification_df)
     out = reader._stringify_cols(identification_df)
-    assert out["ScanNum"].dtype == object
+    # pandas >=3.0 stores the result under the dedicated string dtype rather than
+    # object; the contract is that every value is a Python str (h5mu-serializable).
+    assert out["ScanNum"].map(type).eq(str).all()
 
 
 def test_make_mudata_input_feature_only(identification_df: pd.DataFrame):
