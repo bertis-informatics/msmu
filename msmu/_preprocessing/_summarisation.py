@@ -1,4 +1,5 @@
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -12,6 +13,89 @@ from typing import Literal
 
 
 logger = get_logger(__name__)
+
+MEDIAN_POLISH_MAX_ITERATIONS: int = 10
+# Relative convergence on the sum of absolute residuals, matching R's ``stats::medpolish``
+# (the summarisation used by MSstats). Median polish does not always converge to a unique
+# fixed point on data with missing values, so this stops at the standard residual criterion
+# rather than iterating to machine precision.
+MEDIAN_POLISH_CONVERGENCE_TOLERANCE: float = 1e-4
+
+
+def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
+    """Summarise a feature-by-sample matrix to per-sample estimates via Tukey's median polish.
+
+    Median polish fits the additive model ``value[feature, sample] = overall +
+    row_effect[feature] + col_effect[sample] + residual`` by iteratively sweeping row
+    and column medians out of the matrix. The rollup estimate for each sample is
+    ``overall + col_effect[sample]``.
+
+    Convergence follows R's ``stats::medpolish`` (MSstats' summarisation): iterate until the
+    relative change in the sum of absolute residuals falls below
+    ``MEDIAN_POLISH_CONVERGENCE_TOLERANCE`` or ``MEDIAN_POLISH_MAX_ITERATIONS`` is reached.
+    Convergence on ``overall`` alone is NOT sufficient — it can stabilise while the row/column
+    effects are still moving, stopping early with a wrong estimate.
+
+    IMPORTANT: this is an *additive* model, so it must be applied to log-space
+    intensities (e.g. log2). Applying it to linear intensities is not meaningful.
+
+    NaN handling: missing values are ignored via ``nanmedian``. A sample column with no
+    observed values across every feature yields ``NaN`` (there is nothing to summarise).
+
+    Args:
+        feature_by_sample_matrix (np.ndarray): 2D array of log-space intensities with
+            shape ``(n_features, n_samples)``. May contain NaN for missing values.
+
+    Returns:
+        np.ndarray: 1D array of length ``n_samples`` with the per-sample rollup estimate.
+    """
+    residual_matrix = np.array(feature_by_sample_matrix, dtype=float, copy=True)
+
+    if residual_matrix.ndim != 2:
+        raise ValueError("median polish expects a 2D feature-by-sample matrix.")
+
+    number_of_features, number_of_samples = residual_matrix.shape
+    fully_missing_sample_mask = np.all(np.isnan(residual_matrix), axis=0)
+
+    overall_effect: float = 0.0
+    row_effects = np.zeros(number_of_features, dtype=float)
+    col_effects = np.zeros(number_of_samples, dtype=float)
+    previous_residual_sum: float = np.inf
+
+    with warnings.catch_warnings():
+        # nanmedian legitimately hits all-NaN rows/columns for fully-missing features/samples.
+        warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
+        for iteration in range(MEDIAN_POLISH_MAX_ITERATIONS):
+            # Row sweep: remove the median of each feature (row) across samples.
+            row_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=1))
+            residual_matrix -= row_medians[:, np.newaxis]
+            row_effects += row_medians
+            col_alignment = np.nan_to_num(np.nanmedian(col_effects))
+            col_effects -= col_alignment
+            overall_effect += col_alignment
+
+            # Column sweep: remove the median of each sample (column) across features.
+            col_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=0))
+            residual_matrix -= col_medians[np.newaxis, :]
+            col_effects += col_medians
+            row_alignment = np.nan_to_num(np.nanmedian(row_effects))
+            row_effects -= row_alignment
+            overall_effect += row_alignment
+
+            # Convergence on the sum of absolute residuals (R medpolish criterion).
+            current_residual_sum = float(np.nansum(np.abs(residual_matrix)))
+            if current_residual_sum == 0.0:
+                break
+            if iteration > 0 and abs(previous_residual_sum - current_residual_sum) < (
+                MEDIAN_POLISH_CONVERGENCE_TOLERANCE * current_residual_sum
+            ):
+                break
+            previous_residual_sum = current_residual_sum
+
+    sample_estimates = overall_effect + col_effects
+    sample_estimates[fully_missing_sample_mask] = np.nan
+
+    return sample_estimates
 
 
 class FeatureRanker:
@@ -150,13 +234,13 @@ class Aggregator:
         identification_df: pd.DataFrame,
         quantification_df: pd.DataFrame,
         decoy_df: pd.DataFrame | None,
-        agg_method: Literal["median", "mean", "sum"],
+        agg_method: Literal["median", "mean", "sum", "median_polish"],
         score_method: Literal["best_pep"],
     ) -> None:
         self._id_df: pd.DataFrame = identification_df.copy()
         self._quant_df: pd.DataFrame = quantification_df.copy()
         self._decoy_id_df: pd.DataFrame = decoy_df.copy() if decoy_df is not None else pd.DataFrame()
-        self._agg_method: Literal["median", "mean", "sum"] = agg_method
+        self._agg_method: Literal["median", "mean", "sum", "median_polish"] = agg_method
         self._score_method: Literal["best_pep"] = score_method
 
         self._id_agg_dict: dict = dict()  # placeholder
@@ -262,9 +346,22 @@ class Aggregator:
         return agg_id_df
 
     def aggregate_quantification(self) -> pd.DataFrame:
+        sample_columns = self._quant_df.columns
         agg_quant_df: pd.DataFrame = self._quant_df.copy()
         agg_quant_df[self._col_to_groupby] = self._id_df[self._col_to_groupby]
-        agg_quant_df = agg_quant_df.groupby(self._col_to_groupby, observed=False).agg(self._agg_method)
+        grouped_quant = agg_quant_df.groupby(self._col_to_groupby, observed=False)
+
+        if self._agg_method == "median_polish":
+            # Median polish operates on each group's full feature-by-sample submatrix,
+            # so it cannot be expressed as a column-wise pandas aggregation.
+            agg_quant_df = grouped_quant[sample_columns].apply(
+                lambda group_quant: pd.Series(
+                    _median_polish(group_quant.to_numpy(dtype=float)),
+                    index=sample_columns,
+                )
+            )
+        else:
+            agg_quant_df = grouped_quant.agg(self._agg_method)
 
         agg_quant_df = agg_quant_df.rename_axis(index=None)
 
