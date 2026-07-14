@@ -331,6 +331,3 @@ def calc_permutation_pvalue(stat_obs: np.ndarray, null_dist: np.ndarray) -> np.n
     pvals[valid_mask] = (exceeded + 1) / (pooled_null.size + 1)
 
     return pvals
-
-
-class Limma: ...

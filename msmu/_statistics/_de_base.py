@@ -113,6 +113,7 @@ class DeaResult:
     pct_ctrl: np.ndarray | None = None
     pct_expr: np.ndarray | None = None
     log2fc: np.ndarray | None = None
+    contrast_label: str | None = None
 
     def __init__(self, test_result: PermTestResult | StatTestResult) -> None:
         for field in test_result.__dataclass_fields__:
