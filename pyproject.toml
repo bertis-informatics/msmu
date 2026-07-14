@@ -17,6 +17,7 @@ dynamic = ["version"]
 dependencies = [
     "anndata>=0.12.0",
     "biopython>=1.86",
+    "directlfq>=0.3.3,<0.4",
     "fastparquet>=2025.12.0",
     "inmoose>=0.9.1",
     "kaleido>=1.2.0",

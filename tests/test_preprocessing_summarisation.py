@@ -7,6 +7,7 @@ from msmu._preprocessing._summarisation import (
     FeatureRanker,
     Scorer,
     SummarisationPrep,
+    _directlfq_rollup,
     _median_polish,
 )
 
@@ -145,6 +146,94 @@ def test_aggregator_quantification_median_polish():
     assert list(quant.columns) == ["s1", "s2"]
     # Protein B has a single peptide, so its estimate is just that peptide's value.
     np.testing.assert_allclose(quant.loc["B", ["s1", "s2"]].to_numpy(dtype=float), [5.0, 6.0], atol=1e-8)
+
+
+def test_directlfq_rollup_additive_matrix_recovers_column_effects():
+    # DirectLFQ aligns feature traces then medians; on an exactly additive log2 matrix the
+    # per-sample profile should recover the column effects up to a constant offset.
+    row_effects = np.array([0.0, 1.0, 2.0, 3.0])
+    col_effects = np.array([10.0, 11.0, 12.0])
+    matrix = row_effects[:, None] + col_effects[None, :]
+
+    estimates = _directlfq_rollup(matrix)
+
+    # The absolute level is anchored by directlfq; only the between-sample shape is defined.
+    centered = estimates - estimates[0]
+    np.testing.assert_allclose(centered, col_effects - col_effects[0], atol=1e-8)
+
+
+def test_directlfq_rollup_is_robust_to_a_single_outlier_peptide():
+    base = np.array([0.0, 1.0, 2.0, 3.0])[:, None] + np.array([10.0, 11.0, 12.0])[None, :]
+    with_outlier = base.copy()
+    with_outlier[0, :] = with_outlier[0, :] + 8.0  # one wildly shifted peptide
+
+    estimates = _directlfq_rollup(with_outlier)
+
+    centered = estimates - estimates[0]
+    np.testing.assert_allclose(centered, [0.0, 1.0, 2.0], atol=1e-8)
+
+
+def test_directlfq_rollup_single_feature_returns_that_feature():
+    estimates = _directlfq_rollup(np.array([[10.0, 11.0, 12.0]]))
+    np.testing.assert_allclose(estimates, [10.0, 11.0, 12.0], atol=1e-8)
+
+
+def test_directlfq_rollup_fully_missing_sample_is_nan():
+    matrix = np.array(
+        [
+            [10.0, np.nan, 12.0],
+            [11.0, np.nan, 13.0],
+        ]
+    )
+    estimates = _directlfq_rollup(matrix)
+
+    assert np.isnan(estimates[1])  # sample 1 has no observations at all
+    assert not np.isnan(estimates[0])
+    assert not np.isnan(estimates[2])
+
+
+def test_directlfq_rollup_all_missing_matrix_is_all_nan():
+    estimates = _directlfq_rollup(np.full((3, 3), np.nan))
+    assert np.all(np.isnan(estimates))
+
+
+def test_aggregator_quantification_directlfq():
+    id_df = pd.DataFrame(
+        {
+            "peptide": ["p1", "p2", "p3"],
+            "protein_group": ["A", "A", "B"],
+            "stripped_peptide": ["p1", "p2", "p3"],
+            "PEP": [0.1, 0.2, 0.3],
+        },
+        index=["f1", "f2", "f3"],
+    )
+    quant_df = pd.DataFrame(
+        {"s1": [10.0, 12.0, 5.0], "s2": [11.0, 13.0, 6.0]},
+        index=id_df.index,
+    )
+    agg = Aggregator.protein(
+        identification_df=id_df,
+        quantification_df=quant_df,
+        decoy_df=None,
+        agg_method="directlfq",
+        score_method="best_pep",
+        protein_col="protein_group",
+    )
+    quant = agg.aggregate_quantification()
+
+    # Two protein groups, both samples present.
+    assert sorted(quant.index) == ["A", "B"]
+    assert list(quant.columns) == ["s1", "s2"]
+    # Protein B has a single peptide, so its estimate is just that peptide's value.
+    np.testing.assert_allclose(quant.loc["B", ["s1", "s2"]].to_numpy(dtype=float), [5.0, 6.0], atol=1e-8)
+
+
+@pytest.mark.parametrize("rejected_method", ["median_polish", "directlfq"])
+def test_to_peptide_rejects_matrix_rollups(mdata, rejected_method):
+    from msmu._preprocessing._summarise import to_peptide
+
+    with pytest.raises(ValueError, match="to_protein"):
+        to_peptide(mdata, agg_method=rejected_method)
 
 
 def test_summarisation_prep_filters_and_ranks(simple_adata):
