@@ -1,4 +1,5 @@
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -12,6 +13,180 @@ from typing import Literal
 
 
 logger = get_logger(__name__)
+
+MEDIAN_POLISH_MAX_ITERATIONS: int = 10
+# Relative convergence on the sum of absolute residuals, matching R's ``stats::medpolish``
+# (the summarisation used by MSstats). Median polish does not always converge to a unique
+# fixed point on data with missing values, so this stops at the standard residual criterion
+# rather than iterating to machine precision.
+MEDIAN_POLISH_CONVERGENCE_TOLERANCE: float = 1e-4
+
+# directlfq's within-protein normalisation caps how many samples it uses to build the
+# pairwise-shift graph (directlfq's ``number_of_quadratic_samples`` default) and requires at
+# least this many observed ions to emit a protein estimate.
+DIRECTLFQ_NUM_SAMPLES_QUADRATIC: int = 10
+DIRECTLFQ_MIN_NON_MISSING_IONS: int = 1
+
+# directlfq's low-level per-protein worker (unlike its top-level ``run_lfq``) never runs the
+# copy-flag probe itself. On pandas>=3 / numpy>=2, ``DataFrame.to_numpy()`` returns a read-only
+# (copy-on-write) array that directlfq's in-place sample shift cannot mutate, so the flag has to
+# be set before the first call. Guarded so the one-off configuration runs at most once per process.
+_directlfq_runtime_configured: bool = False
+
+
+def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
+    """Summarise a feature-by-sample matrix to per-sample estimates via directlfq (DirectLFQ).
+
+    DirectLFQ (Ammar et al. 2023) aligns each feature's intensity trace onto a common scale
+    (a within-group "peptide shift") and takes the per-sample median of the aligned traces.
+    It is a fast, MaxLFQ-inspired label-free quantification method, but a *distinct* algorithm
+    from the classical MaxLFQ pairwise-ratio least-squares — the results are correlated, not
+    identical.
+
+    This calls directlfq's per-protein worker on a single group's submatrix, so the estimate for
+    each group depends only on that group's own features (directlfq's cross-group step is its
+    between-sample normalisation, which is skipped here — msmu handles normalisation upstream).
+    That keeps this rollup a drop-in per-group aggregation, symmetric with ``_median_polish``.
+
+    IMPORTANT: like median polish this operates in log space. directlfq's per-protein worker
+    consumes log2 intensities and returns a log2-space profile, so the input must be log2
+    (e.g. apply log2_transform first) and the output is log2.
+
+    NaN handling: missing values propagate as directlfq's own missingness. Features (rows) with
+    no observed values are dropped before the call; a sample column with no observed values
+    across every feature yields ``NaN``.
+
+    Args:
+        feature_by_sample_matrix (np.ndarray): 2D array of log-space intensities with
+            shape ``(n_features, n_samples)``. May contain NaN for missing values.
+
+    Returns:
+        np.ndarray: 1D array of length ``n_samples`` with the per-sample rollup estimate.
+    """
+    global _directlfq_runtime_configured
+
+    import directlfq.config as directlfq_config
+    import directlfq.protein_intensity_estimation as directlfq_estimation
+
+    if not _directlfq_runtime_configured:
+        directlfq_config.check_wether_to_copy_numpy_arrays_derived_from_pandas()
+        # The worker is called once per group with idx=0, and directlfq logs an INFO line
+        # whenever idx % 100 == 0 (always true at idx=0). Left on, that emits one identical
+        # "lfq-object 0" line per protein group — thousands of lines on a real run.
+        directlfq_config.set_log_processed_proteins(log_processed_proteins=False)
+        _directlfq_runtime_configured = True
+
+    matrix = np.asarray(feature_by_sample_matrix, dtype=float)
+    if matrix.ndim != 2:
+        raise ValueError("directlfq rollup expects a 2D feature-by-sample matrix.")
+
+    _number_of_features, number_of_samples = matrix.shape
+    sample_estimates = np.full(number_of_samples, np.nan, dtype=float)
+
+    # Drop features with no observed values; they contribute nothing and match directlfq's own
+    # all-NaN-row removal. A fully-missing sample column is preserved and returns NaN.
+    observed_feature_mask = ~np.all(np.isnan(matrix), axis=1)
+    if not observed_feature_mask.any():
+        return sample_estimates
+
+    observed_matrix = matrix[observed_feature_mask]
+    peptide_by_sample_df = pd.DataFrame(
+        observed_matrix,
+        index=pd.MultiIndex.from_arrays(
+            [
+                np.zeros(observed_matrix.shape[0], dtype=int),  # single protein group
+                np.arange(observed_matrix.shape[0]),  # ion (feature) identifiers
+            ],
+            names=[directlfq_config.PROTEIN_ID, directlfq_config.QUANT_ID],
+        ),
+    )
+
+    protein_profile, _shifted_peptides = directlfq_estimation.calculate_peptide_and_protein_intensities(
+        0,
+        peptide_by_sample_df,
+        DIRECTLFQ_NUM_SAMPLES_QUADRATIC,
+        DIRECTLFQ_MIN_NON_MISSING_IONS,
+    )
+    if protein_profile is None:
+        return sample_estimates
+
+    return np.asarray(protein_profile, dtype=float)
+
+
+def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
+    """Summarise a feature-by-sample matrix to per-sample estimates via Tukey's median polish.
+
+    Median polish fits the additive model ``value[feature, sample] = overall +
+    row_effect[feature] + col_effect[sample] + residual`` by iteratively sweeping row
+    and column medians out of the matrix. The rollup estimate for each sample is
+    ``overall + col_effect[sample]``.
+
+    Convergence follows R's ``stats::medpolish`` (MSstats' summarisation): iterate until the
+    relative change in the sum of absolute residuals falls below
+    ``MEDIAN_POLISH_CONVERGENCE_TOLERANCE`` or ``MEDIAN_POLISH_MAX_ITERATIONS`` is reached.
+    Convergence on ``overall`` alone is NOT sufficient — it can stabilise while the row/column
+    effects are still moving, stopping early with a wrong estimate.
+
+    IMPORTANT: this is an *additive* model, so it must be applied to log-space
+    intensities (e.g. log2). Applying it to linear intensities is not meaningful.
+
+    NaN handling: missing values are ignored via ``nanmedian``. A sample column with no
+    observed values across every feature yields ``NaN`` (there is nothing to summarise).
+
+    Args:
+        feature_by_sample_matrix (np.ndarray): 2D array of log-space intensities with
+            shape ``(n_features, n_samples)``. May contain NaN for missing values.
+
+    Returns:
+        np.ndarray: 1D array of length ``n_samples`` with the per-sample rollup estimate.
+    """
+    residual_matrix = np.array(feature_by_sample_matrix, dtype=float, copy=True)
+
+    if residual_matrix.ndim != 2:
+        raise ValueError("median polish expects a 2D feature-by-sample matrix.")
+
+    number_of_features, number_of_samples = residual_matrix.shape
+    fully_missing_sample_mask = np.all(np.isnan(residual_matrix), axis=0)
+
+    overall_effect: float = 0.0
+    row_effects = np.zeros(number_of_features, dtype=float)
+    col_effects = np.zeros(number_of_samples, dtype=float)
+    previous_residual_sum: float = np.inf
+
+    with warnings.catch_warnings():
+        # nanmedian legitimately hits all-NaN rows/columns for fully-missing features/samples.
+        warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
+        for iteration in range(MEDIAN_POLISH_MAX_ITERATIONS):
+            # Row sweep: remove the median of each feature (row) across samples.
+            row_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=1))
+            residual_matrix -= row_medians[:, np.newaxis]
+            row_effects += row_medians
+            col_alignment = np.nan_to_num(np.nanmedian(col_effects))
+            col_effects -= col_alignment
+            overall_effect += col_alignment
+
+            # Column sweep: remove the median of each sample (column) across features.
+            col_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=0))
+            residual_matrix -= col_medians[np.newaxis, :]
+            col_effects += col_medians
+            row_alignment = np.nan_to_num(np.nanmedian(row_effects))
+            row_effects -= row_alignment
+            overall_effect += row_alignment
+
+            # Convergence on the sum of absolute residuals (R medpolish criterion).
+            current_residual_sum = float(np.nansum(np.abs(residual_matrix)))
+            if current_residual_sum == 0.0:
+                break
+            if iteration > 0 and abs(previous_residual_sum - current_residual_sum) < (
+                MEDIAN_POLISH_CONVERGENCE_TOLERANCE * current_residual_sum
+            ):
+                break
+            previous_residual_sum = current_residual_sum
+
+    sample_estimates = overall_effect + col_effects
+    sample_estimates[fully_missing_sample_mask] = np.nan
+
+    return sample_estimates
 
 
 class FeatureRanker:
@@ -150,13 +325,13 @@ class Aggregator:
         identification_df: pd.DataFrame,
         quantification_df: pd.DataFrame,
         decoy_df: pd.DataFrame | None,
-        agg_method: Literal["median", "mean", "sum"],
+        agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"],
         score_method: Literal["best_pep"],
     ) -> None:
         self._id_df: pd.DataFrame = identification_df.copy()
         self._quant_df: pd.DataFrame = quantification_df.copy()
         self._decoy_id_df: pd.DataFrame = decoy_df.copy() if decoy_df is not None else pd.DataFrame()
-        self._agg_method: Literal["median", "mean", "sum"] = agg_method
+        self._agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = agg_method
         self._score_method: Literal["best_pep"] = score_method
 
         self._id_agg_dict: dict = dict()  # placeholder
@@ -262,9 +437,27 @@ class Aggregator:
         return agg_id_df
 
     def aggregate_quantification(self) -> pd.DataFrame:
+        sample_columns = self._quant_df.columns
         agg_quant_df: pd.DataFrame = self._quant_df.copy()
         agg_quant_df[self._col_to_groupby] = self._id_df[self._col_to_groupby]
-        agg_quant_df = agg_quant_df.groupby(self._col_to_groupby, observed=False).agg(self._agg_method)
+        grouped_quant = agg_quant_df.groupby(self._col_to_groupby, observed=False)
+
+        # Matrix rollups operate on each group's full feature-by-sample submatrix, so they cannot
+        # be expressed as a column-wise pandas aggregation and are applied per group instead.
+        matrix_rollups = {
+            "median_polish": _median_polish,
+            "directlfq": _directlfq_rollup,
+        }
+        if self._agg_method in matrix_rollups:
+            rollup_function = matrix_rollups[self._agg_method]
+            agg_quant_df = grouped_quant[sample_columns].apply(
+                lambda group_quant: pd.Series(
+                    rollup_function(group_quant.to_numpy(dtype=float)),
+                    index=sample_columns,
+                )
+            )
+        else:
+            agg_quant_df = grouped_quant.agg(self._agg_method)
 
         agg_quant_df = agg_quant_df.rename_axis(index=None)
 

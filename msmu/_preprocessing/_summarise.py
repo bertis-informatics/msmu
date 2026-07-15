@@ -22,6 +22,12 @@ warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
 logger = get_logger(__name__)
 
+# median_polish and directlfq model per-feature response factors, which is meaningful when
+# combining distinct peptides into a protein but not when combining PSMs of the same peptide
+# (replicate measurements, typically 1-3 per peptide). PSM->peptide is restricted to the
+# column-wise reductions; the matrix rollups belong to the peptide->protein step (to_protein).
+PEPTIDE_AGG_METHODS: tuple[str, ...] = ("median", "mean", "sum")
+
 
 @uns_logger
 def to_peptide(
@@ -46,7 +52,7 @@ def to_peptide(
     Parameters:
         mdata: MuData object containing PSM-level data.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method for quantification to use. Defaults to "median".
+        agg_method: Aggregation method for quantification to use. One of "median", "mean", or "sum". Defaults to "median". The matrix rollups "median_polish" and "directlfq" are not offered here; they model per-peptide response factors and belong to the peptide-to-protein step (to_protein).
         purity_threshold: Purity threshold for TMT data quantification aggregation (does not filter out features). If None, no filtering is applied. Defaults to 0.7.
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
@@ -55,6 +61,13 @@ def to_peptide(
     Returns:
         MuData object containing peptide-level data.
     """
+    if agg_method not in PEPTIDE_AGG_METHODS:
+        raise ValueError(
+            f"to_peptide supports agg_method in {PEPTIDE_AGG_METHODS}, got {agg_method!r}. "
+            "The matrix rollups 'median_polish' and 'directlfq' model per-peptide response "
+            "factors and are intended for the peptide-to-protein step (to_protein)."
+        )
+
     mdata = mdata.copy()
     adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "psm")
     if layer is not None:
@@ -185,7 +198,7 @@ def to_peptide(
 def to_protein(
     mdata: md.MuData,
     layer: str | None = None,
-    agg_method: Literal["median", "mean", "sum"] = "median",
+    agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median",
     top_n: int | None = 3,
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
     calculate_q: bool = True,
@@ -196,7 +209,7 @@ def to_protein(
     Parameters:
         mdata: MuData object containing Peptide-level data.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. Defaults to "median".
+        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median". "median_polish" applies Tukey's median polish per protein group and "directlfq" applies the DirectLFQ rollup per protein group; both assume the quantification is in log2 space (apply log2_transform first).
         top_n: Number of top peptides to consider for summarisation. If None, all peptides are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
         calculate_q: Whether to calculate q-values. Defaults to True.
@@ -318,7 +331,7 @@ def to_ptm(
     modi_name: str,
     modification: str,
     layer: str | None = None,
-    agg_method: Literal["median", "mean", "sum"] = "median",
+    agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median",
     top_n: int | None = None,
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
 ) -> md.MuData:
@@ -329,7 +342,7 @@ def to_ptm(
         modi_name: Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
         modification: Modification string (e.g., "[+79.96633]", "(unimod:21)").
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. Defaults to "median".
+        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply log2_transform first).
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
 
