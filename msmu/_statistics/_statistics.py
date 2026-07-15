@@ -105,6 +105,7 @@ def simple_test(
 
     stat_res = StatTestResult(
         stat_method=test_res.stat_method,
+        statistic=test_res.statistic,
         p_value=test_res.p_value,
         q_value=corrected_pvals if fdr else None,
     )

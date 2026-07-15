@@ -70,6 +70,10 @@ class StatTestResult:
         pct_ctrl: Percentage of non-zero values in the control group.
         pct_expr: Percentage of non-zero values in the experimental group.
         log2fc: Log2 fold change between experimental and control groups.
+        statistic: Per-feature test statistic. Its meaning depends on stat_method:
+            Welch/Student t, Wilcoxon rank-sum, or limma moderated t. For the
+            permutation path it is the observed parametric statistic (the value
+            ranked against the empirical null), while p_value stays empirical.
         p_value: P-values from the statistical test.
         q_value: Adjusted p-values (q-values) after multiple testing correction.
 
@@ -79,6 +83,7 @@ class StatTestResult:
     """
 
     stat_method: str
+    statistic: np.ndarray | None = None
     p_value: np.ndarray | None = None
     q_value: np.ndarray | None = None
 
@@ -128,6 +133,7 @@ class DeaResult:
                 "pct_ctrl": self.pct_ctrl,
                 "pct_expr": self.pct_expr,
                 "log2fc": self.log2fc,
+                "statistic": self.statistic,
                 "p_value": self.p_value,
                 "q_value": self.q_value,
             }

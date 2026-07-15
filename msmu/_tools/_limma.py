@@ -62,7 +62,12 @@ def _run_limma(
         result.features.size,
     )
 
-    test_res = StatTestResult(stat_method="limma", p_value=result.p_value, q_value=result.q_value)
+    test_res = StatTestResult(
+        stat_method="limma",
+        statistic=result.moderated_t,
+        p_value=result.p_value,
+        q_value=result.q_value,
+    )
     de_res = DeaResult(test_res)
     de_res.stat_method = "limma"
     de_res.ctrl = ctrl

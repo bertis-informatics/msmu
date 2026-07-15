@@ -182,6 +182,20 @@ def test_covariate_adjustment_runs(level2_mdata):
 def test_result_frame_has_expected_columns(level1_mdata):
     res = run_de(level1_mdata, "protein", category="cond", ctrl="A", expr="B", stat_method="limma")
     frame = res.to_df()
-    for column in ["features", "log2fc", "p_value", "q_value"]:
+    for column in ["features", "log2fc", "statistic", "p_value", "q_value"]:
         assert column in frame.columns
     assert len(frame) == 6
+
+
+def test_statistic_field_is_moderated_t(level1_mdata):
+    res = run_de(level1_mdata, "protein", category="cond", ctrl="A", expr="B", stat_method="limma")
+    # limma surfaces the moderated t on DeaResult.statistic (aligned to features)
+    assert res.statistic is not None
+    assert res.statistic.size == res.features.size
+    # P1 is up in B (injected): positive log2fc AND positive moderated t, and the
+    # moderated t agrees in sign with the fold change everywhere it is defined
+    p1 = np.where(res.features == "P1")[0][0]
+    assert res.statistic[p1] > 0
+    assert np.isfinite(res.statistic[p1])
+    defined = np.isfinite(res.statistic) & np.isfinite(res.log2fc)
+    np.testing.assert_array_equal(np.sign(res.statistic[defined]), np.sign(res.log2fc[defined]))
