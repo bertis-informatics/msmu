@@ -18,6 +18,7 @@ from .._statistics._statistics import (
     _calc_log2fc,
     _get_pct_expression,
 )
+from ._limma import _run_limma
 
 
 logger = get_logger(__name__)
@@ -62,11 +63,14 @@ def run_de(
     expr: str | None = None,
     min_pct: float = 0.5,
     layer: str | None = None,
-    stat_method: Literal["welch", "student", "wilcoxon"] = "welch",  # TODO: add "limma"
+    stat_method: Literal["welch", "student", "wilcoxon", "limma"] = "welch",
     measure: Literal["median", "mean"] = "median",
     n_resamples: int | None = 1000,
     fdr: bool | Literal["empirical", "bh"] = "empirical",
     log_transformed: bool = True,
+    interaction: str | None = None,
+    interaction_levels: list | None = None,
+    covariates: list[str] | None = None,
     _force_resample: bool = False,
 ) -> DeaResult:
     """
@@ -77,20 +81,46 @@ def run_de(
         modality: Modality name within the MuData to analyze.
         category: Observation category to define groups.
         ctrl: Name of the control group.
-        expr: Name of the experimental group. If None, all other groups are used.
+        expr: Name of the experimental group. If None, all other groups are used
+            (not supported for stat_method="limma", which needs an explicit group).
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        stat_method: Statistical test to use ("welch", "student", "wilcoxon").
+        stat_method: Statistical test to use ("welch", "student", "wilcoxon", "limma").
         measure: Measure of central tendency to use ("median" or "mean") for fold-change.
         n_resamples: Number of resamples for permutation test. If None, no permutation test is performed.
         fdr: Method for multiple test correction ("empirical", "bh", or False).
         log_transformed: If True, data is assumed to be log-transformed. Defaults to True.
+        interaction: limma only — obs column of a second factor. If set, tests the
+            interaction (difference-in-differences) of ``expr - ctrl`` across two of its levels.
+        interaction_levels: limma only — the two ``interaction`` levels to contrast.
+        covariates: limma only — obs columns to adjust for.
         _force_resample: If True, forces resampling even if the number of resamples exceeds the number of combinations.
 
     Returns:
         DeaResult containing DE analysis results.
     """
-    if stat_method not in ["welch", "student", "wilcoxon"]:
-        raise ValueError(f"Invalid statistic: {stat_method}. Choose from 'welch', 'student', 'wilcoxon'.")
+    if stat_method not in ["welch", "student", "wilcoxon", "limma"]:
+        raise ValueError(
+            f"Invalid statistic: {stat_method}. Choose from 'welch', 'student', 'wilcoxon', 'limma'."
+        )
+
+    if stat_method == "limma":
+        if expr is None:
+            raise ValueError("stat_method='limma' requires an explicit 'expr' group (expr=None is not supported).")
+        return _run_limma(
+            mdata=mdata,
+            modality=modality,
+            category=category,
+            ctrl=ctrl,
+            expr=expr,
+            interaction=interaction,
+            interaction_levels=interaction_levels,
+            covariates=covariates,
+            min_pct=min_pct,
+            layer=layer,
+        )
+
+    if interaction is not None or interaction_levels is not None or covariates is not None:
+        raise ValueError("'interaction', 'interaction_levels' and 'covariates' are only supported with stat_method='limma'.")
     if fdr not in ["empirical", "bh", False]:
         raise ValueError("invalied fdr (mutiple test correction). Choose from 'empirical', 'bh', or False (bool)")
 

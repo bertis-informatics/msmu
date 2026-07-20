@@ -163,6 +163,8 @@ class PermutationTest:
         # put results to PermutationTestResult
         perm_test_res.p_value = pval_permutation
         perm_test_res.q_value = q_vals
+        # observed parametric statistic (the value ranked against the empirical null)
+        perm_test_res.statistic = obs_stats.statistic
 
         # Calculate the fold change percentile
         fc_pct_criteria = [1, 5]  # 1% and 5% thresholds
