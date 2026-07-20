@@ -153,3 +153,6 @@ msmu/_version.py
 
 # uv
 uv.lock
+
+# scratch / local analysis outputs
+scratch/
