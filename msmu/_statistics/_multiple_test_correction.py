@@ -1,6 +1,14 @@
 import numpy as np
 from statsmodels.stats.multitest import multipletests
 
+# Percentile of the observed statistics used as the exceedance threshold when estimating pi0
+# from the permutation null. Because the threshold is a quantile of the very statistics whose
+# exceedances are counted, S/m is pinned at (1 - PI0_NULL_PERCENTILE/100) whatever the data,
+# so the estimator's numerator (1 - S/m) is always PI0_NULL_PERCENTILE/100 and pi0 cannot fall
+# below it.
+PI0_NULL_PERCENTILE = 95
+PI0_LOWER_BOUND = PI0_NULL_PERCENTILE / 100.0
+
 
 class PvalueCorrection:
     """
@@ -119,6 +127,12 @@ class PvalueCorrection:
         Based on Equation (8): compares observed and null test statistic exceedances at a given threshold.
         pi0 = (1 - S/m) / (1 - S_star/m)
 
+        Both S and S_star are counts of *features* exceeding the threshold: S over the observed
+        statistics, S_star averaged over permutations. Summing the null matrix over its
+        permutation axis instead would make S_star a count of permutations, i.e. roughly
+        m/n_permutations times too small, which drives the denominator to 1 and collapses pi0
+        onto the constant (1 - percentile/100) regardless of the data.
+
         Parameters:
             stat_valid: 1D array of observed test statistics (NaN-excluded).
             null_matrix_valid: 2D array of null test statistics (shape: [n_permutations, m_valid]), aligned with stat_valid (i.e., same features, same filtering).
@@ -131,7 +145,7 @@ class PvalueCorrection:
         threshold = np.percentile(stat_valid, percentile)
 
         s = np.sum(stat_valid >= threshold)
-        s_star = np.mean(np.sum(null_matrix_valid >= threshold, axis=0))
+        s_star = np.mean(np.sum(null_matrix_valid >= threshold, axis=1))
         denominator = 1 - (s_star / m)
         pi0 = (1 - s / m) / denominator if denominator != 0 else 1.0
         pi0 = min(max(pi0, 0.0), 1.0)
@@ -180,7 +194,7 @@ class PvalueCorrection:
 
         # pi0 estimation (direct pi0 estimation from null distribution)
         pi0 = PvalueCorrection.estimate_pi0_null(
-            stat_valid=stat_valid, null_matrix_valid=null_matrix_valid, percentile=95
+            stat_valid=stat_valid, null_matrix_valid=null_matrix_valid, percentile=PI0_NULL_PERCENTILE
         )
 
         # # pi0 estimation (storey's)

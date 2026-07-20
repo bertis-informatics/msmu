@@ -29,6 +29,34 @@ def test_estimate_pi0_null_bounds():
     assert 0 <= pi0 <= 1
 
 
+def test_estimate_pi0_null_counts_features_per_permutation():
+    # s_star must be the number of *features* exceeding the threshold per permutation, not the
+    # number of permutations exceeding it per feature. m=100, B=4, exactly 3 features clear the
+    # 95th percentile of the observed in every permutation.
+    stat = np.arange(100, dtype=float)  # 95th percentile = 94.05 -> s = 5, so 1 - s/m = 0.95
+    null = np.zeros((4, 100))
+    null[:, 97:] = 200.0
+
+    pi0 = PvalueCorrection.estimate_pi0_null(stat_valid=stat, null_matrix_valid=null, percentile=95)
+
+    # s_star = 3 features -> pi0 = 0.95 / (1 - 3/100). Summing the other axis would give
+    # s_star = 4*3/100 = 0.12 and pi0 = 0.95 / (1 - 0.0012) = 0.9512.
+    assert np.isclose(pi0, 0.95 / 0.97)
+
+
+def test_estimate_pi0_null_is_one_under_complete_null():
+    # Observed and null statistics share a distribution, so essentially every hypothesis is null
+    # and pi0 must land at ~1. A pi0 that ignores the feature axis collapses onto the constant
+    # 1 - percentile/100 = 0.95 instead, whatever the data.
+    rng = np.random.default_rng(0)
+    stat = np.abs(rng.normal(size=2000))
+    null = np.abs(rng.normal(size=(20, 2000)))
+
+    pi0 = PvalueCorrection.estimate_pi0_null(stat_valid=stat, null_matrix_valid=null, percentile=95)
+
+    assert pi0 > 0.98
+
+
 def test_empirical():
     stat = np.array([3.0, 2.0, 1.0])
     null = np.array([[0.5, 1.5, 2.5], [0.1, 2.0, 1.2]])

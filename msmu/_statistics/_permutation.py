@@ -13,8 +13,46 @@ from ._statistics import (
     _calc_log2fc,
     _measure_central_tendency,
 )
-from ._multiple_test_correction import PvalueCorrection
+from ._multiple_test_correction import PvalueCorrection, PI0_LOWER_BOUND
 from ._de_base import PermTestResult
+from ..logging_utils import get_logger
+
+logger = get_logger(__name__)
+
+# q threshold that reported hits are conventionally screened at; used to decide whether a
+# design's floor makes significance unreachable and therefore worth warning about.
+_CONVENTIONAL_Q_CUTOFF = 0.05
+
+
+def min_achievable_q(n_ctrl: int, n_expr: int, n_permutations: int, fdr: str) -> float:
+    """
+    Smallest q-value a permutation design can produce, whatever the data says.
+
+    The observed labelling is itself one of the permutations the null is built from, so every
+    observed feature at ``|stat| >= s`` contributes its own statistic back into the null pool.
+    A balanced design contributes it twice, because the complement of the observed split is
+    another split of the same sizes and is therefore also enumerated. That forces
+    ``fp >= self_inclusion * tp`` and leaves a floor under q that no effect size can cross.
+
+    For fdr="empirical" the estimator is ``pi0 * (fp+1)/(B+1) / (tp+1)``, which is increasing
+    in tp, so the floor is taken at tp=1. For fdr="bh" the pooled p-value is
+    ``(fp+1)/(B*m+1)`` and BH multiplies by m/k, leaving ``self_inclusion/B`` in the limit.
+
+    Parameters:
+        n_ctrl: Number of control samples.
+        n_expr: Number of experimental samples.
+        n_permutations: Number of permutations the null is actually built from.
+        fdr: Multiple testing correction in use ("empirical" or "bh").
+
+    Returns:
+        The minimum q-value attainable for this design.
+    """
+    self_inclusion = 2 if n_ctrl == n_expr else 1
+
+    if fdr == "bh":
+        return self_inclusion / n_permutations
+
+    return PI0_LOWER_BOUND * (self_inclusion + 1) / ((n_permutations + 1) * 2)
 
 
 class PermutationTest:
@@ -52,6 +90,49 @@ class PermutationTest:
         self._force_resample: bool = _force_resample
         self._permutation_method: str = self._get_permutation_method()
         self.fdr: bool | str = fdr
+
+        self._warn_if_resamples_ignored()
+        self._warn_if_significance_unreachable()
+
+    def _warn_if_resamples_ignored(self) -> None:
+        if self._permutation_method != "exact" or self._n_resamples <= self._possible_combination_count:
+            return
+
+        logger.warning(
+            "n_resamples=%s exceeds the %s distinct %s vs %s splits that exist, so every split is "
+            "enumerated instead and the null is built from %s permutations. Drawing more would "
+            "only resample the same splits.",
+            self._n_resamples,
+            self._possible_combination_count,
+            len(self.ctrl_arr),
+            len(self.expr_arr),
+            self._possible_combination_count,
+        )
+
+    def _warn_if_significance_unreachable(self) -> None:
+        if self.fdr not in ("empirical", "bh") or self.n_permutations_used < 1:
+            return
+
+        floor = min_achievable_q(
+            n_ctrl=len(self.ctrl_arr),
+            n_expr=len(self.expr_arr),
+            n_permutations=self.n_permutations_used,
+            fdr=self.fdr,
+        )
+        if floor < _CONVENTIONAL_Q_CUTOFF:
+            return
+
+        logger.warning(
+            "%s vs %s with fdr='%s' cannot produce q < %s: the null is built from only %s "
+            "permutations and the observed labelling is one of them, which floors q at %.3f "
+            "no matter how strong the effect. Use stat_method='limma' for this design.",
+            len(self.ctrl_arr),
+            len(self.expr_arr),
+            self.fdr,
+            _CONVENTIONAL_Q_CUTOFF,
+            self.n_permutations_used,
+            floor,
+        )
 
     def _get_permutation_method(self) -> str:
         if self._n_resamples == -np.inf:
@@ -266,6 +347,13 @@ class PermutationTest:
     @property
     def possible_combination_count(self):
         return self._possible_combination_count
+
+    @property
+    def n_permutations_used(self) -> int:
+        """Number of permutations the null is actually built from ('exact' enumerates every split)."""
+        if self._permutation_method == "exact":
+            return self._possible_combination_count
+        return self._n_resamples
 
     @property
     def permutation_method(self):
