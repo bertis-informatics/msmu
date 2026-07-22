@@ -30,10 +30,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import t as t_distribution
 
-from ..logging_utils import get_logger
 from ._multiple_test_correction import PvalueCorrection
-
-logger = get_logger(__name__)
 
 POSITIVE_DIRECTION_NOTE = "positive log2 fold change means higher in 'expr'"
 
@@ -192,31 +189,27 @@ def build_contrast(
     )
 
 
-def _estimable_feature_mask(
-    expr_matrix: pd.DataFrame,
-    contrast: LimmaContrast,
-    min_pct: float,
-) -> np.ndarray:
-    """Boolean mask over features (rows of ``expr_matrix``) that are testable for this contrast.
+def cell_blocks_for_contrast(fit_matrix: pd.DataFrame, contrast: LimmaContrast) -> list[np.ndarray]:
+    """One ``(n_features x n_cell_samples)`` block per design cell, for feature validation.
 
-    A feature is kept when every cell has at least ``min_pct`` (and at least one)
-    non-missing observation and the total residual degrees of freedom are positive.
-    This guarantees the per-gene observed design stays full rank, so inmoose's
-    NA-aware fit never hits a singular sub-design.
+    The blocks feed the shared ``DeaValidator`` / ``sufficient_feature_mask``: limma keeps a
+    feature only when every design cell has at least ``min_pct`` (and at least one) non-missing
+    observation and the total residual degrees of freedom are positive (``require_residual_df``),
+    so the per-gene observed design stays full rank and inmoose's NA-aware fit never hits a
+    singular sub-design.
+
+    Args:
+        fit_matrix: features x samples DataFrame aligned to ``contrast.kept_samples``.
+        contrast: the means-model contrast whose ``cell_columns`` define the design cells.
+
+    Returns:
+        One numpy block per cell, in ``contrast.cell_columns`` order.
     """
     cell_design = contrast.design[contrast.cell_columns]
-    n_cells = len(contrast.cell_columns)
-    total_non_missing = np.zeros(expr_matrix.shape[0], dtype=float)
-    keep = np.ones(expr_matrix.shape[0], dtype=bool)
-    for cell in contrast.cell_columns:
-        cell_samples = cell_design.index[cell_design[cell] > 0]
-        cell_block = expr_matrix.loc[:, cell_samples].to_numpy()
-        non_missing = np.sum(~np.isnan(cell_block), axis=1)
-        total_non_missing += non_missing
-        required = max(1.0, min_pct * cell_samples.size)
-        keep &= non_missing >= required
-    keep &= total_non_missing > n_cells  # residual df >= 1
-    return keep
+    return [
+        fit_matrix.loc[:, cell_design.index[cell_design[cell] > 0]].to_numpy()
+        for cell in contrast.cell_columns
+    ]
 
 
 def _fit_contrast(expr_matrix: pd.DataFrame, contrast: LimmaContrast) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -258,70 +251,35 @@ def _fit_contrast(expr_matrix: pd.DataFrame, contrast: LimmaContrast) -> tuple[n
     return log2fc, moderated_t, p_value
 
 
-def limma_de(
-    expr_matrix: pd.DataFrame,
-    obs: pd.DataFrame,
-    category: str,
-    ctrl: str,
-    expr: str,
-    interaction: str | None = None,
-    interaction_levels=None,
-    covariates: list[str] | None = None,
-    min_pct: float = 0.5,
-) -> LimmaResult:
-    """Run a limma moderated-t differential expression test.
+def fit_limma(fit_matrix: pd.DataFrame, contrast: LimmaContrast, feature_mask: np.ndarray) -> LimmaResult:
+    """Fit a validated limma contrast and assemble per-feature moderated-t results.
+
+    The test step of ``run_de(stat_method="limma")``: the contrast and the estimable-feature mask
+    are built earlier (validation), so this only fits the estimable features and fills the rest
+    with NaN. Positive log2 fold change means higher in ``expr``. The model log2 fold change is the
+    contrast coefficient (an intrinsic output of the fit), while representative values, detection %
+    and the fold-change guidance line are filled in by ``run_de``'s common post-processing.
 
     Parameters:
-        expr_matrix: features x samples log2-intensity DataFrame (missing = NaN).
-        obs: sample metadata (index aligned to ``expr_matrix`` columns).
-        category: obs column holding the primary factor levels.
-        ctrl: reference level of ``category``.
-        expr: comparison level of ``category`` (positive log2FC = higher in ``expr``).
-        interaction: obs column of a second factor; if given, tests the interaction
-            (difference-in-differences) of ``expr - ctrl`` across two of its levels.
-        interaction_levels: the two ``interaction`` levels to contrast (defaults to the two present).
-        covariates: obs columns to adjust for (numeric passed through, categorical one-hot).
-        min_pct: minimum non-missing fraction required in every design cell.
+        fit_matrix: features x samples log2-intensity DataFrame aligned to ``contrast.kept_samples``.
+        contrast: the means-model contrast to fit.
+        feature_mask: boolean mask over ``fit_matrix`` rows marking the estimable features
+            (from ``DeaValidator``); assumed to have at least one True (guaranteed by validation).
 
     Returns:
-        LimmaResult with per-feature log2fc, moderated t, p-value and BH q-value.
+        LimmaResult with per-feature log2fc, moderated t, p-value and BH q-value, aligned to every
+        feature (NaN where not estimable).
     """
-    contrast = build_contrast(
-        obs=obs,
-        category=category,
-        ctrl=ctrl,
-        expr=expr,
-        interaction=interaction,
-        interaction_levels=interaction_levels,
-        covariates=covariates,
-    )
-
-    features = np.asarray(expr_matrix.index)
-    fit_matrix = expr_matrix.loc[:, contrast.kept_samples]
-
-    estimable_mask = _estimable_feature_mask(fit_matrix, contrast, min_pct)
-    n_estimable = int(np.sum(estimable_mask))
-    logger.debug(
-        "limma contrast '%s': %d/%d features estimable after min_pct=%.2f filter.",
-        contrast.label,
-        n_estimable,
-        features.size,
-        min_pct,
-    )
-    if n_estimable == 0:
-        raise ValueError(
-            f"No features pass the min_pct={min_pct} coverage filter for contrast '{contrast.label}'."
-        )
-
+    features = np.asarray(fit_matrix.index)
     log2fc = np.full(features.size, np.nan)
     moderated_t = np.full(features.size, np.nan)
     p_value = np.full(features.size, np.nan)
 
-    estimable_matrix = fit_matrix.loc[estimable_mask]
+    estimable_matrix = fit_matrix.loc[feature_mask]
     fitted_log2fc, fitted_t, fitted_p = _fit_contrast(estimable_matrix, contrast)
-    log2fc[estimable_mask] = fitted_log2fc
-    moderated_t[estimable_mask] = fitted_t
-    p_value[estimable_mask] = fitted_p
+    log2fc[feature_mask] = fitted_log2fc
+    moderated_t[feature_mask] = fitted_t
+    p_value[feature_mask] = fitted_p
 
     q_value = PvalueCorrection.bh(p_value)
 

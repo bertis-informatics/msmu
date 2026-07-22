@@ -1,8 +1,4 @@
-import math
-from itertools import combinations
-
 import numpy as np
-from scipy.stats import percentileofscore
 from tqdm import tqdm
 
 from ._statistics import (
@@ -10,11 +6,17 @@ from ._statistics import (
     StatResult,
     HypothesisTesting,
     calc_permutation_pvalue,
-    _calc_log2fc,
-    _measure_central_tendency,
 )
 from ._multiple_test_correction import PvalueCorrection, PI0_LOWER_BOUND
 from ._de_base import PermTestResult
+from ._permutation_core import (
+    count_combinations,
+    resolve_method,
+    make_iterations,
+    split,
+    permuted_log2fc,
+    fc_threshold_from_null,
+)
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -85,10 +87,10 @@ class PermutationTest:
         self._ctrl_arr: np.ndarray = ctrl_arr
         self._expr_arr: np.ndarray = expr_arr
 
-        self._possible_combination_count: int = self._get_number_of_combinations()
+        self._possible_combination_count: int = count_combinations(len(ctrl_arr), len(expr_arr))
         self._n_resamples: int = n_resamples
         self._force_resample: bool = _force_resample
-        self._permutation_method: str = self._get_permutation_method()
+        self._permutation_method: str = resolve_method(len(ctrl_arr), len(expr_arr), n_resamples, _force_resample)
         self.fdr: bool | str = fdr
 
         self._warn_if_resamples_ignored()
@@ -133,43 +135,6 @@ class PermutationTest:
             self.n_permutations_used,
             floor,
         )
-
-    def _get_permutation_method(self) -> str:
-        if self._n_resamples == -np.inf:
-            permutation_method = "exact"
-        elif self._n_resamples == self._possible_combination_count:
-            permutation_method = "exact"
-        elif (self._n_resamples > self._possible_combination_count) and not self._force_resample:
-            permutation_method = "exact"
-        elif (self._n_resamples > self._possible_combination_count) and self._force_resample:
-            permutation_method = "randomised"
-        else:
-            permutation_method = "randomised"
-
-        return permutation_method
-
-    def _get_combinations(self) -> list:
-        total_sample_num = len(self.ctrl_arr) + len(self.expr_arr)
-
-        return list(combinations(range(total_sample_num), len(self.ctrl_arr)))
-
-    def _get_number_of_combinations(self) -> int:
-        total_sample_num = len(self.ctrl_arr) + len(self.expr_arr)
-        combination_count = math.comb(total_sample_num, len(self.ctrl_arr))
-
-        return combination_count
-
-    def _get_iterations(self, method: str, n_resamples: int) -> list:
-        if method == "exact":
-            return self._get_combinations()
-        elif method == "randomised":
-            return [np.random.permutation(range(len(self.ctrl_arr) + len(self.expr_arr))) for _ in range(n_resamples)]
-
-    def _get_fc_percentile(self, obs_med_diff, null_med_diff) -> np.ndarray:
-        return percentileofscore(null_med_diff, obs_med_diff, kind="rank", nan_policy="omit")
-
-    def _calc_two_sided_p_value(self, stat_obs, stat_perm):
-        return np.mean(np.abs(stat_perm) >= np.abs(stat_obs), axis=0)
 
     def _perm_test(
         self,
@@ -250,49 +215,14 @@ class PermutationTest:
         # Calculate the fold change percentile
         fc_pct_criteria = [1, 5]  # 1% and 5% thresholds
         perm_test_res.fc_pct_1, perm_test_res.fc_pct_5 = [
-            self._get_fc_threshold(log2fc_null_dist.null_distribution, x) for x in fc_pct_criteria
+            fc_threshold_from_null(log2fc_null_dist.null_distribution, x) for x in fc_pct_criteria
         ]
 
         return perm_test_res
 
-    @staticmethod
-    def _get_fc_threshold(null_med_diff: np.ndarray, percentile: int) -> float:
-        x = np.asarray(null_med_diff)
-        if x.ndim == 2:
-            x = x.ravel()
-        x = x[~np.isnan(x)]
-        if x.size == 0:
-            return float("nan")
-        p = float(percentile)
-        low = np.nanpercentile(x, p)  # e.g., 5th
-        high = np.nanpercentile(x, 100.0 - p)  # e.g., 95th
-        q = (abs(low) + abs(high)) / 2.0
-
-        return round(float(q), 2)
-
-    def _set_permuted_comparison(
-        self, concated_arr: np.ndarray, combinations: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
-        if self.permutation_method == "exact":
-            total_index: np.ndarray = np.arange(len(self.ctrl_arr) + len(self.expr_arr))
-            ctrl_idx = list(combinations)
-            expr_idx: np.ndarray = np.delete(total_index, ctrl_idx)
-        else:  # randomised
-            total_index = combinations
-            ctrl_idx = total_index[: len(self.ctrl_arr)]
-            expr_idx: np.ndarray = total_index[len(self.ctrl_arr) :]
-
-        perm_ctrl: np.ndarray = concated_arr[ctrl_idx, :]
-        perm_expr: np.ndarray = concated_arr[expr_idx, :]
-
-        return perm_ctrl, perm_expr
-
     def _calc_permuted_stats(self, concated_arr: np.ndarray, combinations: np.ndarray, stat_method: str) -> StatResult:
-        perm_ctrl, perm_expr = self._set_permuted_comparison(concated_arr, combinations)
-
-        stat_res: StatResult = HypothesisTesting.test(ctrl=perm_ctrl, expr=perm_expr, stat_method=stat_method)
-
-        return stat_res
+        perm_ctrl, perm_expr = split(concated_arr, combinations, self.permutation_method, len(self.ctrl_arr))
+        return HypothesisTesting.test(ctrl=perm_ctrl, expr=perm_expr, stat_method=stat_method)
 
     def _calc_permuted_log2fc(
         self,
@@ -301,15 +231,10 @@ class PermutationTest:
         measure: str,
         log_transformed: bool,
     ) -> StatResult:
-        perm_ctrl, perm_expr = self._set_permuted_comparison(concated_arr, combinations)
-
-        repr_ctrl: np.ndarray = _measure_central_tendency(perm_ctrl, measure)
-        repr_expr: np.ndarray = _measure_central_tendency(perm_expr, measure)
-        log2fc: np.ndarray = _calc_log2fc(repr_ctrl, repr_expr, log_transformed=log_transformed)
-
-        fc_res: StatResult = StatResult(stat_method=None, statistic=log2fc, p_value=None)
-
-        return fc_res
+        log2fc: np.ndarray = permuted_log2fc(
+            concated_arr, combinations, self.permutation_method, len(self.ctrl_arr), measure, log_transformed
+        )
+        return StatResult(stat_method=None, statistic=log2fc, p_value=None)
 
     def run(
         self,
@@ -321,9 +246,8 @@ class PermutationTest:
 
         concated_arr: np.ndarray = np.concatenate((self.ctrl_arr, self.expr_arr), axis=0)
 
-        iterations: list = self._get_iterations(
-            method=self.permutation_method,
-            n_resamples=n_permutations,
+        iterations: list = make_iterations(
+            len(self.ctrl_arr), len(self.expr_arr), self.permutation_method, n_permutations
         )
 
         perm_test_res: PermTestResult = self._perm_test(
