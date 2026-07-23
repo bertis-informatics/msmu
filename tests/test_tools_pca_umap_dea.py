@@ -4,7 +4,7 @@ import pytest
 
 os.environ.setdefault("NUMBA_DISABLE_CACHE", "1")
 
-from msmu._tools._dea import _get_test_array, run_de
+from msmu._tools._dea import DeaInputs, run_de
 from msmu._tools._pca import pca
 
 try:
@@ -30,17 +30,17 @@ def test_umap_writes_outputs(simple_mdata):
     assert out["psm"].uns["X_umap"]["n_components"] == 2
 
 
-def test_get_test_array_splits_groups(mdata):
-    ctrl_arr, expr_arr = _get_test_array(
+def test_dea_inputs_splits_groups(mdata):
+    inputs = DeaInputs.from_mudata(
         mdata=mdata,
         modality="protein",
         category="group",
-        control="A",
+        ctrl="A",
         expr="B",
         layer=None,
     )
-    assert ctrl_arr.shape[0] == 2
-    assert expr_arr.shape[0] == 2
+    assert inputs.ctrl_arr.shape[0] == 2
+    assert inputs.expr_arr.shape[0] == 2
 
 
 def test_run_de_with_simple_test(mdata):

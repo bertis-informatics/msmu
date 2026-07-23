@@ -10,49 +10,65 @@ from ..logging_utils import get_logger
 logger = get_logger(__name__)
 
 
+def sufficient_feature_mask(
+    cell_blocks: list[np.ndarray],
+    min_pct: float,
+    require_residual_df: bool = False,
+) -> np.ndarray:
+    """Boolean mask over features to keep, by per-cell non-missing coverage (single min_pct rule).
+
+    A feature is kept when every cell has at least ``max(1, min_pct * cell_size)`` non-missing
+    observations. With ``require_residual_df`` the total non-missing across cells must also exceed
+    the number of cells, so a per-feature linear fit has residual degrees of freedom >= 1 — needed
+    by limma; the permutation path, which fits no model, leaves it off. Both DE engines route
+    their min_pct filtering through this one function.
+
+    Args:
+        cell_blocks: one ``(n_features x n_cell_samples)`` array per design cell / group.
+        min_pct: minimum non-missing fraction required in every cell.
+        require_residual_df: also require total non-missing across cells > number of cells.
+
+    Returns:
+        Boolean array of length n_features, True for features to keep.
+    """
+    n_features = cell_blocks[0].shape[0]
+    n_cells = len(cell_blocks)
+    total_non_missing = np.zeros(n_features, dtype=float)
+    keep = np.ones(n_features, dtype=bool)
+
+    for cell_block in cell_blocks:
+        non_missing = np.sum(~np.isnan(cell_block), axis=1)
+        total_non_missing += non_missing
+        required = max(1.0, min_pct * cell_block.shape[1])
+        keep &= non_missing >= required
+
+    if require_residual_df:
+        keep &= total_non_missing > n_cells
+
+    return keep
+
+
 class DeaValidator:
-    def __init__(self, ctrl_arr, expr_arr, min_pct) -> None:
-        self.min_pct = min_pct
-        self.ctrl_arr = ctrl_arr
-        self.expr_arr = expr_arr
+    """Pre-flight feature/sample validation for one DE comparison, expressed over design cells.
 
-        self._min_sample_size_availability: bool = True
-        self._sufficient_feature_indices: np.ndarray = np.array([])
+    Given one ``(n_features x n_cell_samples)`` block per comparison cell, it produces the
+    usable-feature mask (via the shared :func:`sufficient_feature_mask`) and whether every cell
+    has enough samples to test. Both DE engines build their own cells and route through this one
+    validator, so the single ``min_pct`` rule stays in one place:
 
-        self.validate_inputs()
-        self.validate_sample_size()
-        self.get_sufficient_feature_indices()
+    * the permutation path passes the two groups with ``require_residual_df=False`` (it fits no
+      model), and
+    * limma passes its design cells with ``require_residual_df=True`` (a per-feature linear fit
+      needs at least one residual degree of freedom).
+    """
 
-    def validate_inputs(self) -> None:
-        if not isinstance(self.ctrl_arr, np.ndarray) or not isinstance(self.expr_arr, np.ndarray):
-            logger.error("Control and experimental arrays must be numpy arrays.")
-            raise TypeError("Control and experimental arrays must be numpy arrays.")
-        if self.ctrl_arr.shape[1] == 0 or self.expr_arr.shape[1] == 0:
-            logger.error("Control and experimental arrays must have at least one sample (column).")
-            raise ValueError("Control and experimental arrays must have at least one sample (column).")
+    MIN_SAMPLES_PER_CELL = 2  # a two-sample comparison needs at least this many samples per cell
 
-    def validate_sample_size(self) -> None:
-        if self.ctrl_arr.shape[1] < 2 or self.expr_arr.shape[1] < 2:
-            logger.debug("Control and experimental arrays have fewer than two samples in at least one group.")
-            self._min_sample_size_availability = False
-
-    def get_sufficient_feature_indices(self) -> None:
-        ctrl_sample_cutoff = self.ctrl_arr.shape[0] * self.min_pct
-        expr_sample_cutoff = self.expr_arr.shape[0] * self.min_pct
-        sufficient_ctrl_indices = np.sum(~np.isnan(self.ctrl_arr), axis=0) >= ctrl_sample_cutoff
-        sufficient_expr_indices = np.sum(~np.isnan(self.expr_arr), axis=0) >= expr_sample_cutoff
-
-        sufficient_indices = sufficient_ctrl_indices & sufficient_expr_indices
-
-        self._sufficient_feature_indices = sufficient_indices
-
-    @property
-    def min_sample_size_availability(self) -> bool:
-        return self._min_sample_size_availability
-
-    @property
-    def sufficient_feature_indices(self) -> np.ndarray:
-        return self._sufficient_feature_indices
+    def __init__(self, cell_blocks: list[np.ndarray], min_pct: float, require_residual_df: bool) -> None:
+        self.feature_mask: np.ndarray = sufficient_feature_mask(cell_blocks, min_pct, require_residual_df)
+        self.has_enough_samples: bool = all(
+            cell.shape[1] >= self.MIN_SAMPLES_PER_CELL for cell in cell_blocks
+        )
 
 
 @dataclass
@@ -119,6 +135,11 @@ class DeaResult:
     pct_expr: np.ndarray | None = None
     log2fc: np.ndarray | None = None
     contrast_label: str | None = None
+    # Fold-change guidance-line thresholds. Declared here so the attribute always exists
+    # regardless of the engine: the permutation path copies these from PermTestResult, while
+    # limma / simple results have them filled in by run_de's engine-independent computation.
+    fc_pct_1: float | None = None
+    fc_pct_5: float | None = None
 
     def __init__(self, test_result: PermTestResult | StatTestResult) -> None:
         for field in test_result.__dataclass_fields__:
@@ -158,11 +179,15 @@ class DeaResult:
         """
 
         if log2fc_threshold is None:
-            if self.fc_pct_5:
+            if self.fc_pct_5 is not None:
                 log2fc_threshold = self.fc_pct_5
             else:
-                logger.error("log2fc_threshold not provided. set log2fc_threshold or run permutation test")
-                raise
+                message = (
+                    "log2fc_threshold is None and no fold-change guidance line (fc_pct_5) is "
+                    "available; pass log2fc_threshold explicitly."
+                )
+                logger.error(message)
+                raise ValueError(message)
 
         from .. import pl
 
