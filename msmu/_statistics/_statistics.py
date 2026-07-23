@@ -3,11 +3,8 @@ from dataclasses import dataclass
 from typing import Callable
 
 from ..logging_utils import get_logger
-from msmu._statistics._de_base import StatTestResult
 import numpy as np
 from scipy.stats import ranksums, t
-
-from ._multiple_test_correction import PvalueCorrection
 
 
 logger = get_logger(__name__)
@@ -64,53 +61,6 @@ class NullDistribution:
             nd2d = np.vstack([nd2d, row])
 
         return NullDistribution(stat_method=self.stat_method, null_distribution=nd2d)
-
-
-def simple_test(
-    ctrl: np.ndarray,
-    expr: np.ndarray,
-    stat_method: str,
-    fdr: bool | str = "bh",
-) -> StatTestResult:
-    """
-    Perform a simple statistical test between two groups.
-
-    Parameters:
-        ctrl: array-like (n_samples_ctrl x n_features)
-        expr: array-like (n_samples_expr x n_features)
-        stat_method: Statistical test to perform ('welch', 'student', 'wilcoxon', 'med_diff').
-        fc_method: Method to calculate fold change ('med_diff' or 'mean_diff').
-        fdr: Method for multiple test correction ('bh', 'storey', or False).
-
-    Returns:
-        StatResult containing the test statistics and p-values.
-    """
-    test_res = HypothesisTesting.test(ctrl=ctrl, expr=expr, stat_method=stat_method)
-    logger.debug(
-        "Computed simple '%s' test for ctrl=%s expr=%s with fdr=%s.",
-        stat_method,
-        ctrl.shape,
-        expr.shape,
-        fdr,
-    )
-
-    if fdr and test_res.p_value is not None:
-        if fdr == "bh":
-            corrected_pvals = PvalueCorrection.bh(test_res.p_value)
-        else:
-            logger.error("'bh' is the only implemented FDR correction method for simple test. Set fdr='bh'.")
-            raise NotImplementedError(
-                "'bh' is the only implemented FDR correction method for simple test. Set fdr='bh'."
-            )
-
-    stat_res = StatTestResult(
-        stat_method=test_res.stat_method,
-        statistic=test_res.statistic,
-        p_value=test_res.p_value,
-        q_value=corrected_pvals if fdr else None,
-    )
-
-    return stat_res
 
 
 class HypothesisTesting:

@@ -16,7 +16,6 @@ from .._statistics._de_base import (
     DeaValidator,
 )
 from .._statistics._statistics import (
-    simple_test,
     _measure_central_tendency,
     _calc_log2fc,
     _get_pct_expression,
@@ -30,6 +29,34 @@ from .._statistics._limma import (
 
 
 logger = get_logger(__name__)
+
+_PERMUTATION_METHODS = ("welch", "student", "wilcoxon")
+_STAT_METHODS = _PERMUTATION_METHODS + ("limma",)
+_DEFAULT_STAT_METHOD = "limma"
+
+# Shuffle count for the engine-independent fold-change guidance line. Only limma reaches the
+# standalone computation (the permutation engines reuse their own shuffle byproduct), and limma
+# never permutes for its test, so the guidance line uses this fixed count independent of the
+# caller's ``n_resamples`` — keeping limma results reproducible regardless of that permutation knob.
+_FC_GUIDANCE_LINE_RESAMPLES = 1000
+
+# BID-71 transition notice: the default DE engine changed to limma. Shown once per process while
+# limma runs, so callers who relied on the old permutation default notice the change. A literal
+# default (not a sentinel) can't tell an explicit "limma" from the default, so this fires for any
+# limma run — once per session keeps it unobtrusive.
+# TODO(BID-71): remove this notice in the release after the one that ships the new default.
+_default_engine_notice_shown = False
+
+
+def _notify_default_engine_transition(stat_method: str) -> None:
+    global _default_engine_notice_shown
+    if stat_method != "limma" or _default_engine_notice_shown:
+        return
+    _default_engine_notice_shown = True
+    logger.warning(
+        "mm.tl.run_de: the default DE engine is now 'limma' (previously a permutation test). "
+        "Pass stat_method explicitly to choose an engine. This notice will be removed in a future release."
+    )
 
 
 @dataclass(frozen=True)
@@ -142,12 +169,19 @@ class DeEngine(ABC):
 
 
 class PermutationEngine(DeEngine):
-    """Label-permutation (or parametric two-sample) DE test over the two groups.
+    """Label-permutation DE test over the two groups (welch / student / wilcoxon statistic).
 
     Validation masks features below ``min_pct`` coverage on the two groups (no model is fitted, so
-    residual degrees of freedom are not required). The test runs the permutation test, or the
-    parametric ``simple_test`` when ``n_resamples`` is None. The fold-change guidance line falls
-    out of the permutation shuffles as a byproduct, so it is set here and not recomputed downstream.
+    residual degrees of freedom are not required). The test always runs the permutation test — the
+    parametric alternative is limma, not a special mode of this engine — and its p-values use the
+    empirical (permutation) FDR. The fold-change guidance line falls out of the shuffles as a
+    byproduct, so it is set here and not recomputed downstream.
+
+    ``effect_measure`` follows the statistic's location so significance and effect size stay on the
+    same central tendency: welch / student test the mean (mean-based fold change), wilcoxon the
+    rank/median (median-based). For wilcoxon the reported fold change is the difference of group
+    medians — a pragmatic proxy for the Hodges-Lehmann shift the rank-sum statistic localizes (they
+    coincide under a pure location shift).
     """
 
     # The permutation log2fc is the raw two-group difference, so its guidance line is always comparable.
@@ -156,17 +190,14 @@ class PermutationEngine(DeEngine):
     def __init__(
         self,
         stat_method: str,
-        measure: str,
-        n_resamples: int | None,
-        fdr: bool | str,
+        n_resamples: int,
         log_transformed: bool,
         min_pct: float,
         force_resample: bool,
     ) -> None:
         self.stat_method = stat_method
-        self.effect_measure = measure
+        self.effect_measure = "mean" if stat_method in ("welch", "student") else "median"
         self.n_resamples = n_resamples
-        self.fdr = fdr
         self.log_transformed = log_transformed
         self.min_pct = min_pct
         self.force_resample = force_resample
@@ -192,27 +223,20 @@ class PermutationEngine(DeEngine):
         valid_expr_arr = inputs.expr_arr.copy()
         valid_expr_arr[:, ~validation.feature_mask] = np.nan
 
-        if self.n_resamples is not None:
-            logger.debug("Running permutation-based DEA with %s resamples and fdr=%s.", self.n_resamples, self.fdr)
-            perm_test = PermutationTest(
-                ctrl_arr=valid_ctrl_arr,
-                expr_arr=valid_expr_arr,
-                n_resamples=self.n_resamples,
-                _force_resample=self.force_resample,
-                fdr=self.fdr,
-            )
-            test_res = perm_test.run(
-                n_permutations=self.n_resamples,
-                stat_method=self.stat_method,
-                measure=self.effect_measure,
-                log_transformed=self.log_transformed,
-            )
-        else:
-            logger.debug("Running simple DEA without resampling and fdr=%s.", self.fdr)
-            test_res = simple_test(
-                ctrl=valid_ctrl_arr, expr=valid_expr_arr, stat_method=self.stat_method, fdr=self.fdr
-            )
-
+        logger.debug("Running permutation DEA with %s resamples (empirical FDR).", self.n_resamples)
+        perm_test = PermutationTest(
+            ctrl_arr=valid_ctrl_arr,
+            expr_arr=valid_expr_arr,
+            n_resamples=self.n_resamples,
+            _force_resample=self.force_resample,
+            fdr="empirical",
+        )
+        test_res = perm_test.run(
+            n_permutations=self.n_resamples,
+            stat_method=self.stat_method,
+            measure=self.effect_measure,
+            log_transformed=self.log_transformed,
+        )
         return DeaResult(test_res)
 
 
@@ -222,8 +246,8 @@ class LimmaEngine(DeEngine):
     Validation builds the means-model contrast and the estimable-feature mask (every design cell
     needs coverage AND the per-feature fit needs residual degrees of freedom). The test fits the
     validated contrast. The model log2 fold change is the contrast coefficient — an intrinsic,
-    mean-based output of the fit — so ``effect_measure`` is fixed to "mean" and the caller's
-    ``measure`` is ignored.
+    mean-based output of the fit — so ``effect_measure`` is fixed to "mean" (limma is the parametric
+    engine; the permutation engines carry the median option).
     """
 
     effect_measure = "mean"
@@ -315,10 +339,8 @@ def run_de(
     expr: str | None = None,
     min_pct: float = 0.5,
     layer: str | None = None,
-    stat_method: Literal["welch", "student", "wilcoxon", "limma"] = "welch",
-    measure: Literal["median", "mean"] = "median",
-    n_resamples: int | None = 1000,
-    fdr: bool | Literal["empirical", "bh"] = "empirical",
+    stat_method: Literal["welch", "student", "wilcoxon", "limma"] = "limma",
+    n_resamples: int = 1000,
     log_transformed: bool = True,
     interaction: str | None = None,
     interaction_levels: list | None = None,
@@ -340,11 +362,16 @@ def run_de(
         expr: Name of the experimental group. If None, all other groups are used
             (not supported for stat_method="limma", which needs an explicit group).
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        stat_method: Statistical test to use ("welch", "student", "wilcoxon", "limma").
-        measure: Measure of central tendency for the fold change ("median" or "mean"). Applies to
-            the permutation / simple engines; limma's fold change is its mean-based model contrast.
-        n_resamples: Number of resamples for permutation test. If None, no permutation test is performed.
-        fdr: Method for multiple test correction ("empirical", "bh", or False).
+        stat_method: Statistical test to use. Defaults to "limma" (empirical-Bayes moderated-t,
+            recommended for the small sample sizes where a permutation null is degenerate). The
+            permutation engines "welch"/"student"/"wilcoxon" always run a label-permutation test.
+            The fold-change central tendency follows the test: welch/student/limma are mean-based,
+            wilcoxon median-based (so significance and effect size stay on the same scale). For
+            wilcoxon the fold change is the median difference, a pragmatic proxy for the
+            Hodges-Lehmann shift the rank-sum statistic localizes.
+        n_resamples: Number of label permutations for the permutation engines (welch/student/
+            wilcoxon); must be a positive integer (e.g. 1000). Ignored by limma (which does not
+            permute). It is not an on/off switch — for a parametric analysis use stat_method="limma".
         log_transformed: If True, data is assumed to be log-transformed. Defaults to True.
         interaction: limma only — obs column of a second factor. If set, tests the
             interaction (difference-in-differences) of ``expr - ctrl`` across two of its levels.
@@ -355,7 +382,10 @@ def run_de(
     Returns:
         DeaResult containing DE analysis results.
     """
-    _validate_run_de_args(stat_method, expr, interaction, interaction_levels, covariates, fdr)
+    # Notify before validating so a migrating expr=None caller (old default "vs all other groups")
+    # learns the default engine changed before hitting limma's "explicit expr required" error.
+    _notify_default_engine_transition(stat_method)
+    _validate_run_de_args(stat_method, expr, interaction, interaction_levels, covariates, n_resamples)
 
     # 1. Data validation: read the modality once, then let the engine validate the features. The
     #    engines' feasibility checks are not interchangeable (the permutation path validates sample
@@ -366,9 +396,7 @@ def run_de(
     )
     engine = _select_engine(
         stat_method,
-        measure=measure,
         n_resamples=n_resamples,
-        fdr=fdr,
         log_transformed=log_transformed,
         force_resample=_force_resample,
         min_pct=min_pct,
@@ -406,8 +434,6 @@ def run_de(
         validation,
         engine.effect_measure,
         log_transformed=log_transformed,
-        n_resamples=n_resamples,
-        force_resample=_force_resample,
         draw_guidance_line=engine.provides_comparable_fold_change,
     )
 
@@ -420,30 +446,37 @@ def _validate_run_de_args(
     interaction: str | None,
     interaction_levels: list | None,
     covariates: list[str] | None,
-    fdr: bool | str,
+    n_resamples: int,
 ) -> None:
-    if stat_method not in ["welch", "student", "wilcoxon", "limma"]:
+    if stat_method not in _STAT_METHODS:
         raise ValueError(
             f"Invalid statistic: {stat_method}. Choose from 'welch', 'student', 'wilcoxon', 'limma'."
         )
     if stat_method == "limma":
         if expr is None:
-            raise ValueError("stat_method='limma' requires an explicit 'expr' group (expr=None is not supported).")
+            raise ValueError(
+                "stat_method='limma' requires an explicit 'expr' group (expr=None is not supported). "
+                "For a comparison against all other groups (expr=None), use a permutation method such "
+                "as stat_method='welch'."
+            )
         return
+    # permutation family (welch / student / wilcoxon)
     if interaction is not None or interaction_levels is not None or covariates is not None:
         raise ValueError(
             "'interaction', 'interaction_levels' and 'covariates' are only supported with stat_method='limma'."
         )
-    if fdr not in ["empirical", "bh", False]:
-        raise ValueError("invalied fdr (mutiple test correction). Choose from 'empirical', 'bh', or False (bool)")
+    if isinstance(n_resamples, bool) or not isinstance(n_resamples, int) or n_resamples < 1:
+        raise ValueError(
+            f"stat_method='{stat_method}' always uses a permutation test; n_resamples is the number of "
+            f"label shuffles, not an on/off switch (n_resamples={n_resamples!r} does not disable it). "
+            f"Pass a positive integer (e.g. n_resamples=1000), or stat_method='limma' for a parametric test."
+        )
 
 
 def _select_engine(
     stat_method: str,
     *,
-    measure: str,
-    n_resamples: int | None,
-    fdr: bool | str,
+    n_resamples: int,
     log_transformed: bool,
     force_resample: bool,
     min_pct: float,
@@ -467,9 +500,7 @@ def _select_engine(
         )
     return PermutationEngine(
         stat_method=stat_method,
-        measure=measure,
         n_resamples=n_resamples,
-        fdr=fdr,
         log_transformed=log_transformed,
         min_pct=min_pct,
         force_resample=force_resample,
@@ -487,8 +518,8 @@ def _attach_fold_change(
     Group labels, features, group centres (``repr``) and detection percentages are always set from
     the prepared inputs, in the engine's ``effect_measure``. The log2 fold change is derived from
     the group centres here only when the engine did not report one: limma reports the model
-    contrast (an intrinsic, mean-based test output), while the permutation / simple paths get their
-    measure-based difference at this step.
+    contrast (an intrinsic, mean-based test output), while the permutation path gets its
+    effect_measure-based difference at this step.
     """
     result.ctrl = inputs.ctrl_label
     result.expr = inputs.expr_label
@@ -509,8 +540,6 @@ def _attach_fc_guidance_line(
     validation: DeaValidation,
     effect_measure: str,
     log_transformed: bool,
-    n_resamples: int | None,
-    force_resample: bool,
     draw_guidance_line: bool,
 ) -> None:
     """Set the fold-change guidance line (``fc_pct_1``/``fc_pct_5``) of ``result`` in place.
@@ -518,20 +547,22 @@ def _attach_fc_guidance_line(
     Skipped when ``draw_guidance_line`` is False — the reported log2fc is not a raw two-group
     difference the label-permutation null can match (limma interaction / covariate-adjusted
     contrasts) — and when the engine already produced the line (the permutation shuffle byproduct),
-    so the null is never built twice. limma main effects and the parametric simple test compute it
-    here from the same label-permutation log2FC null, reusing the engine's usable-feature mask and
-    its ``effect_measure``.
+    so the null is never built twice. limma main effects compute it here from the same
+    label-permutation log2FC null, reusing the engine's usable-feature mask and its ``effect_measure``.
     """
     if not draw_guidance_line or result.fc_pct_5 is not None:
         return
+    # Only limma reaches here (the permutation engine reuses its own shuffle byproduct), and it does
+    # not permute for its test, so the guidance line uses a fixed shuffle count — not the caller's
+    # n_resamples — so limma output does not depend on that permutation-only knob.
     result.fc_pct_1, result.fc_pct_5 = compute_fc_guidance_line(
         inputs.ctrl_arr,
         inputs.expr_arr,
         validation.feature_mask,
         measure=effect_measure,
         log_transformed=log_transformed,
-        n_resamples=n_resamples,
-        force_resample=force_resample,
+        n_resamples=_FC_GUIDANCE_LINE_RESAMPLES,
+        force_resample=False,
     )
 
 

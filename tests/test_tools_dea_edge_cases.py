@@ -15,8 +15,6 @@ def test_run_de_expr_none_uses_all_other_groups(mdata):
         ctrl="A",
         expr=None,
         stat_method="welch",
-        n_resamples=None,
-        fdr=False,
     )
     assert res.expr == "all_other_groups"
 
@@ -49,7 +47,6 @@ def test_run_de_permutation_path(mdata):
         expr="B",
         stat_method="welch",
         n_resamples=2,
-        fdr="bh",
         _force_resample=True,
     )
     assert res.p_value.shape[0] == mdata.mod["protein"].var.shape[0]
