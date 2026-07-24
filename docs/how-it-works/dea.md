@@ -15,18 +15,6 @@ Two knobs are no longer needed, because both are now decided by the engine:
 - **The fold-change measure follows the test.** The central tendency behind `log2FC` (and the group `repr_ctrl` / `repr_expr` values) is fixed by the statistic, so significance and effect size describe the same quantity: `welch`, `student` and `limma` are mean-based, `wilcoxon` is median-based. There is no `measure` argument. (For `wilcoxon`, the reported difference of medians is a pragmatic proxy for the Hodges–Lehmann shift that the rank-sum statistic actually localizes.)
 - **The q-value method follows the engine.** The permutation engines report an empirical (permutation) FDR; limma reports Benjamini-Hochberg q-values. Both always return `p_value` and `q_value`, so there is no `fdr` argument — for uncorrected significance, read the `p_value` column.
 
-### Permutation engines
-
-The permutation statistic is Welch's t (`welch`, suitable for unequal variances between groups), Student's t (`student`), or the Wilcoxon rank-sum W (`wilcoxon`). These engines **always** permute: `n_resamples` is the number of label shuffles — a positive integer, default `1000` — and **not** an on/off switch. For a parametric analysis, use `stat_method="limma"`.
-
-If the design has fewer distinct label splits than `n_resamples`, every split is enumerated and the p-values are exact (exact test).
-
-`p-value` from the permutation test is computed with the proportion of permuted statistics that are as extreme or more extreme than the observed statistic in null distribution with two-sided test.
-
-`q-value` with `empirical` FDR is calculated by `E[FDR] = pi0 * E[FP] / E[TP]` referred to [Yang Xie et al., Bioinformatics, 2011.](https://academic.oup.com/bioinformatics/article/21/23/4280/194680) and [Storey et al., 2003](https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100).
-
-With very small groups the permutation null has few distinct label splits — only 20 for a 3-vs-3 comparison — and because the observed labelling is itself one of them, the empirical/BH q-value is floored (around `0.068` for 3-vs-3) regardless of effect size. **This is why `limma` is the default.** `run_de()` warns when a permutation design cannot reach `q < 0.05`; the floor drops below 0.05 by roughly 4-vs-4.
-
 See more details in the [`msmu.tl.run_de`](../../reference/tl/run_de/) and usage examples in the tutorial [`DE Analysis`](../../tutorials/dea/).
 
 ```python
@@ -36,11 +24,9 @@ de_res = mm.tl.run_de(
     category="condition",    # column in .obs defining groups
     ctrl="control",          # control group label
     expr="treated",          # experimental group label
-    stat_method="welch",     # "limma" (moderated-t, default) or "welch"/"student"/"wilcoxon" (permutation)
     min_pct=0.5,             # minimum fraction of non-missing values in at least one group, default 0.5
-    n_resamples=1000,        # label shuffles for the permutation engines (positive int); ignored by limma
-    log_transformed=True     # whether data is log-transformed, default True
-)
+    log_transformed=True,    # whether data is log-transformed, default True
+)                            # stat_method omitted -> the default limma engine runs
 
 de_res.to_df() # get results as pandas DataFrame
 ```
@@ -51,7 +37,7 @@ DE results can be accessed as a pandas `DataFrame` using the `to_df()` method.
 
 ## limma moderated-t
 
-`stat_method="limma"` runs limma's moderated-t test instead of a permutation test. It borrows information across features through an empirical-Bayes shrinkage of the per-feature variance, which stabilizes each variance estimate and recovers power at small sample sizes. `msmu`'s limma is a thin layer over [inmoose](https://inmoose.readthedocs.io/) (a Python port of Smyth's limma, validated numerically against R limma) and reports Benjamini-Hochberg q-values. The moderated-t method is due to [Smyth, Statistical Applications in Genetics and Molecular Biology, 2004](https://doi.org/10.2202/1544-6115.1027), and the limma framework is described in [Ritchie et al., Nucleic Acids Research, 2015](https://doi.org/10.1093/nar/gkv007).
+This is the **default** engine — `stat_method="limma"`, or simply omit the argument. It borrows information across features through an empirical-Bayes shrinkage of the per-feature variance, which stabilizes each variance estimate and recovers power at small sample sizes. `msmu`'s limma is a thin layer over [inmoose](https://inmoose.readthedocs.io/) (a Python port of Smyth's limma, validated numerically against R limma) and reports Benjamini-Hochberg q-values. The moderated-t method is due to [Smyth, Statistical Applications in Genetics and Molecular Biology, 2004](https://doi.org/10.2202/1544-6115.1027), and the limma framework is described in [Ritchie et al., Nucleic Acids Research, 2015](https://doi.org/10.1093/nar/gkv007).
 
 Because limma builds an explicit design matrix, it supports designs the permutation path does not:
 
@@ -87,6 +73,32 @@ de_res = mm.tl.run_de(
 )
 
 de_res.to_df()  # get results as pandas DataFrame
+```
+
+## Permutation test
+
+Passing `welch`, `student`, or `wilcoxon` to `stat_method` opts out of limma and into a non-parametric **label-permutation test**. The statistic is Welch's t (`welch`, suitable for unequal variances between groups), Student's t (`student`), or the Wilcoxon rank-sum W (`wilcoxon`).
+
+These engines **always** permute: `n_resamples` is the number of label shuffles — a positive integer, default `1000` — and **not** an on/off switch. For a parametric analysis, use `stat_method="limma"`.
+
+If the design has fewer distinct label splits than `n_resamples`, every split is enumerated and the p-values are exact (exact test).
+
+`p-value` from the permutation test is computed with the proportion of permuted statistics that are as extreme or more extreme than the observed statistic in null distribution with two-sided test.
+
+`q-value` with `empirical` FDR is calculated by `E[FDR] = pi0 * E[FP] / E[TP]` referred to [Yang Xie et al., Bioinformatics, 2011.](https://academic.oup.com/bioinformatics/article/21/23/4280/194680) and [Storey et al., 2003](https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100).
+
+With very small groups the permutation null has few distinct label splits — only 20 for a 3-vs-3 comparison — and because the observed labelling is itself one of them, the empirical/BH q-value is floored (around `0.068` for 3-vs-3) regardless of effect size. **This is why `limma` is the default.** `run_de()` warns when a permutation design cannot reach `q < 0.05`; the floor drops below 0.05 by roughly 4-vs-4.
+
+```python
+de_res = mm.tl.run_de(
+    mdata,
+    modality="protein",
+    category="condition",
+    ctrl="control",
+    expr="treated",
+    stat_method="welch",     # "welch", "student" or "wilcoxon"
+    n_resamples=1000,        # number of label shuffles (positive integer)
+)
 ```
 
 ## Visualization of DEA Results
