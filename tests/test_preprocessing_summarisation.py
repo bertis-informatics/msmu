@@ -117,6 +117,46 @@ def test_median_polish_fully_missing_sample_is_nan():
     assert not np.isnan(estimates[2])
 
 
+def test_median_polish_ignores_fully_missing_features():
+    # Regression: all-NaN peptide rows (e.g. shared peptides masked out during the protein
+    # rollup) must not drag the protein level toward zero. The estimate has to match the same
+    # matrix with those empty rows removed and stay on the input's log2 scale, not collapse to ~0.
+    signal = np.array([16.64, 16.73, 16.55, 16.55, 15.99, 16.53])
+    empty = np.full_like(signal, np.nan)
+    with_empty_rows = np.vstack([signal, empty, empty, empty])
+
+    estimates = _median_polish(with_empty_rows)
+
+    np.testing.assert_allclose(estimates, _median_polish(signal[None, :]), atol=1e-8)
+    np.testing.assert_allclose(estimates, signal, atol=1e-8)
+    assert np.nanmedian(estimates) > 5.0  # not collapsed toward zero
+
+
+def test_median_polish_level_survives_majority_missing_features():
+    # A few observed peptides among many all-NaN rows (a large protein group quantified by only
+    # a handful of unique peptides). The recovered level must track the ~21 observations, not 0.
+    observed = np.array(
+        [
+            [20.8, 20.9, 20.8, 20.8, 19.0, 20.8],
+            [21.1, 21.3, 21.1, 21.0, 17.8, 21.1],
+            [21.7, 21.7, 21.5, 21.7, 20.0, 21.4],
+        ]
+    )
+    padded = np.full((50, observed.shape[1]), np.nan)
+    padded[[10, 25, 40], :] = observed
+
+    estimates = _median_polish(padded)
+
+    np.testing.assert_allclose(estimates, _median_polish(observed), atol=1e-8)
+    assert np.nanmin(estimates) > 15.0  # on the ~21 log2 scale, not collapsed toward zero
+
+
+def test_median_polish_all_missing_matrix_is_all_nan():
+    estimates = _median_polish(np.full((3, 4), np.nan))
+    assert estimates.shape == (4,)
+    assert np.all(np.isnan(estimates))
+
+
 def test_aggregator_quantification_median_polish():
     id_df = pd.DataFrame(
         {
