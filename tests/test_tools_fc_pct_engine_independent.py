@@ -52,15 +52,13 @@ def test_limma_result_has_fc_pct(mdata_3v3):
 def test_fc_pct_identical_across_engines_at_matching_effect_measure(mdata_3v3):
     """Same data + same effect measure -> same guidance line regardless of engine.
 
-    limma's fold change is its mean-based model contrast, so its guidance line is built on the mean
-    (``effect_measure="mean"``); it therefore matches a permutation engine run with ``measure="mean"``.
-    Exact enumeration (3 vs 3 has only C(6,3)=20 splits) makes the null deterministic, so the
-    thresholds are identical.
+    limma and welch are both mean-based (limma's model contrast; welch tests the mean), so their
+    guidance lines are built on the same central tendency. Exact enumeration (3 vs 3 has only
+    C(6,3)=20 splits) makes the null deterministic, so the thresholds are identical.
     """
     limma = run_de(mdata_3v3, "protein", category="cond", ctrl="A", expr="B", stat_method="limma")
     welch = run_de(
-        mdata_3v3, "protein", category="cond", ctrl="A", expr="B",
-        stat_method="welch", measure="mean", n_resamples=1000,
+        mdata_3v3, "protein", category="cond", ctrl="A", expr="B", stat_method="welch", n_resamples=1000
     )
 
     assert limma.fc_pct_1 == welch.fc_pct_1

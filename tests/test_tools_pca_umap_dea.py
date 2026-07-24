@@ -43,22 +43,6 @@ def test_dea_inputs_splits_groups(mdata):
     assert inputs.expr_arr.shape[0] == 2
 
 
-def test_run_de_with_simple_test(mdata):
-    res = run_de(
-        mdata=mdata,
-        modality="protein",
-        category="group",
-        ctrl="A",
-        expr="B",
-        stat_method="welch",
-        n_resamples=None,
-        fdr=False,
-    )
-    assert res.ctrl == "A"
-    assert res.expr == "B"
-    assert res.features.size == mdata.mod["protein"].var.shape[0]
-
-
 def test_run_de_invalid_stat_method_raises(mdata):
     with pytest.raises(ValueError, match="Invalid statistic"):
         run_de(
@@ -68,38 +52,7 @@ def test_run_de_invalid_stat_method_raises(mdata):
             ctrl="A",
             expr="B",
             stat_method="nope",
-            n_resamples=None,
         )
-
-
-def test_run_de_invalid_fdr_raises(mdata):
-    with pytest.raises(ValueError, match="invalied fdr"):
-        run_de(
-            mdata,
-            modality="protein",
-            category="group",
-            ctrl="A",
-            expr="B",
-            fdr="nope",
-            n_resamples=None,
-        )
-
-
-def test_run_de_simple_test_exposes_statistic(mdata):
-    res = run_de(
-        mdata,
-        modality="protein",
-        category="group",
-        ctrl="A",
-        expr="B",
-        stat_method="welch",
-        n_resamples=None,
-        fdr=False,
-    )
-    # the Welch t is now surfaced on DeaResult.statistic (was previously dropped)
-    assert res.statistic is not None
-    assert res.statistic.size == res.features.size
-    assert "statistic" in res.to_df().columns
 
 
 def test_run_de_permutation_exposes_observed_statistic(mdata):
@@ -111,7 +64,6 @@ def test_run_de_permutation_exposes_observed_statistic(mdata):
         expr="B",
         stat_method="welch",
         n_resamples=1000,
-        fdr="bh",
     )
     # permutation path surfaces the observed (Welch) statistic; p_value stays empirical
     assert res.statistic is not None

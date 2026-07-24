@@ -68,9 +68,9 @@ def compute_fc_guidance_line(
 
     Masks features outside ``feature_mask`` (the engine's usable-feature set from validation), then
     builds the label-permutation log2FC null via ``compute_fc_thresholds``. The guidance line is
-    always produced: it uses the test's ``n_resamples`` when that is a positive permutation count
-    (so it matches the permutation engine's own byproduct), otherwise ``default_resamples`` for
-    engines whose test does not resample (limma, the parametric simple test).
+    always produced: it uses the caller's ``n_resamples`` when that is a positive permutation count,
+    otherwise ``default_resamples``. Only limma reaches this (its test does not resample), and it
+    passes a fixed count so its guidance line does not depend on the permutation-only ``n_resamples``.
 
     Args:
         ctrl_arr: Control group data (n_samples_ctrl x n_features).
