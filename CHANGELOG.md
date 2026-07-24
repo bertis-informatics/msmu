@@ -12,9 +12,9 @@ under-powered permutation designs; the merge also brings a large memory-usage re
 the search-result readers and several new importers.
 
 > **⚠️ Breaking — `mm.tl.run_de`.** limma is now the **default** DE engine, the permutation test is
-> opt-in and always shuffles, and the `measure` / `fdr` parameters are **removed** (the fold-change
-> measure and the q-value method are now decided by the engine). See **Changed** and **Removed**
-> below before upgrading.
+> opt-in and always shuffles, `min_pct` now defaults to `0.0` (estimability-only), and the
+> `measure` / `fdr` parameters are **removed** (the fold-change measure and the q-value method are
+> now decided by the engine). See **Changed** and **Removed** below before upgrading.
 
 ### Added
 
@@ -79,6 +79,16 @@ the search-result readers and several new importers.
   median-based. Previously `welch` defaulted to a **median** fold change while testing the **mean**,
   which could disagree in sign. `welch`/`student` fold changes therefore change from median- to
   mean-based. (BID-71)
+- **BREAKING — `min_pct` defaults to `0.0` (estimability-only).** `mm.tl.run_de(min_pct=...)`
+  previously defaulted to `0.5`. Above the estimability floor (every group needs a non-missing
+  value; limma additionally needs residual df >= 1), `min_pct` is a pure extra coverage filter
+  whose reach grows with the missing rate — a no-op on complete data, but on sparse data it drops a
+  large fraction of features, disproportionately the significant ones. The default now imposes only
+  the estimability floor, so every feature whose contrast can be estimated is tested, and `min_pct`
+  becomes an opt-in stringency knob to raise from the coverage you observe (`pct_ctrl` / `pct_expr`).
+  Callers that relied on the old default now see more features tested — their low-coverage rows gain
+  `p_value` / `q_value` instead of NaN; pass `min_pct=0.5` explicitly to restore the previous
+  behaviour. (BID-78)
 
 ### Removed
 
