@@ -365,10 +365,12 @@ def run_de(
         min_pct: Minimum non-missing coverage required in **every** group (design cell), not in at
             least one. It is applied as a count: a feature needs ``max(1, ceil(min_pct * n))``
             non-missing values in each group — at the default 0.5 that is 2 of 3, 2 of 4, 3 of 5.
-            Features below it are not tested (limma additionally requires residual df >= 1).
-            Requiring both groups is what makes the contrast estimable without imputation; the
-            consequence is that on/off features, present in one group and absent in the other, are
-            excluded rather than tested.
+            Features below it are not tested (limma additionally requires residual df >= 1): they
+            stay in the result as rows with ``repr_*`` / ``pct_*`` filled but ``p_value`` /
+            ``q_value`` set to NaN. Requiring both groups is what makes the contrast estimable
+            without imputation; the consequence is that on/off features (present in one group,
+            absent in the other) are reported this way rather than receiving a p-value — read them
+            off ``pct_ctrl`` / ``pct_expr``.
         stat_method: Statistical test to use. Defaults to "limma" (empirical-Bayes moderated-t,
             recommended for the small sample sizes where a permutation null is degenerate). The
             permutation engines "welch"/"student"/"wilcoxon" always run a label-permutation test.
