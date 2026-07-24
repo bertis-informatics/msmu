@@ -362,6 +362,13 @@ def run_de(
         expr: Name of the experimental group. If None, all other groups are used
             (not supported for stat_method="limma", which needs an explicit group).
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
+        min_pct: Minimum non-missing coverage required in **every** group (design cell), not in at
+            least one. It is applied as a count: a feature needs ``max(1, ceil(min_pct * n))``
+            non-missing values in each group — at the default 0.5 that is 2 of 3, 2 of 4, 3 of 5.
+            Features below it are not tested (limma additionally requires residual df >= 1).
+            Requiring both groups is what makes the contrast estimable without imputation; the
+            consequence is that on/off features, present in one group and absent in the other, are
+            excluded rather than tested.
         stat_method: Statistical test to use. Defaults to "limma" (empirical-Bayes moderated-t,
             recommended for the small sample sizes where a permutation null is degenerate). The
             permutation engines "welch"/"student"/"wilcoxon" always run a label-permutation test.

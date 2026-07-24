@@ -15,6 +15,10 @@ Two knobs are no longer needed, because both are now decided by the engine:
 - **The fold-change measure follows the test.** The central tendency behind `log2FC` (and the group `repr_ctrl` / `repr_expr` values) is fixed by the statistic, so significance and effect size describe the same quantity: `welch`, `student` and `limma` are mean-based, `wilcoxon` is median-based. There is no `measure` argument. (For `wilcoxon`, the reported difference of medians is a pragmatic proxy for the Hodges–Lehmann shift that the rank-sum statistic actually localizes.)
 - **The q-value method follows the engine.** The permutation engines report an empirical (permutation) FDR; limma reports Benjamini-Hochberg q-values. Both always return `p_value` and `q_value`, so there is no `fdr` argument — for uncorrected significance, read the `p_value` column.
 
+`min_pct` sets the minimum non-missing coverage a feature needs **in every group**, not in at least one. It is applied as a count — `max(1, ceil(min_pct × n))` non-missing values per group — so the default `0.5` means 2 of 3, 2 of 4, or 3 of 5. Requiring both groups is what keeps the contrast estimable without imputation: a feature absent from one group has no contrast to estimate, and limma additionally needs residual degrees of freedom. The value itself is a convention rather than a derived optimum, and 2-of-3 is the count most commonly used in the field.
+
+The consequence is that **on/off features — present in one group and absent in the other — are excluded rather than tested**. Workflows that keep such features do so by imputing the missing group, which `msmu` does not; inspect them directly (for example via the detection percentages `pct_ctrl` / `pct_expr`) rather than expecting a p-value for them.
+
 See more details in the [`msmu.tl.run_de`](../../reference/tl/run_de/) and usage examples in the tutorial [`DE Analysis`](../../tutorials/dea/).
 
 ```python
@@ -24,7 +28,7 @@ de_res = mm.tl.run_de(
     category="condition",    # column in .obs defining groups
     ctrl="control",          # control group label
     expr="treated",          # experimental group label
-    min_pct=0.5,             # minimum fraction of non-missing values in at least one group, default 0.5
+    min_pct=0.5,             # min non-missing coverage required in EVERY group; as a count, 2 of 3 at 0.5
     log_transformed=True,    # whether data is log-transformed, default True
 )                            # stat_method omitted -> the default limma engine runs
 
