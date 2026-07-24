@@ -130,8 +130,12 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     IMPORTANT: this is an *additive* model, so it must be applied to log-space
     intensities (e.g. log2). Applying it to linear intensities is not meaningful.
 
-    NaN handling: missing values are ignored via ``nanmedian``. A sample column with no
-    observed values across every feature yields ``NaN`` (there is nothing to summarise).
+    NaN handling: fully-missing features (all-NaN rows) are dropped before polishing --
+    they carry no information, and keeping them would bias the row-effect alignment median
+    that recovers the overall protein level toward zero (collapsing groups whose features
+    are mostly all-NaN, e.g. proteins quantified by a few unique peptides among many masked
+    shared ones). Remaining missing values are ignored via ``nanmedian``. A sample column
+    with no observed values across every feature yields ``NaN`` (there is nothing to summarise).
 
     Args:
         feature_by_sample_matrix (np.ndarray): 2D array of log-space intensities with
@@ -140,13 +144,26 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 1D array of length ``n_samples`` with the per-sample rollup estimate.
     """
-    residual_matrix = np.array(feature_by_sample_matrix, dtype=float, copy=True)
+    input_matrix = np.asarray(feature_by_sample_matrix, dtype=float)
 
-    if residual_matrix.ndim != 2:
+    if input_matrix.ndim != 2:
         raise ValueError("median polish expects a 2D feature-by-sample matrix.")
 
-    number_of_features, number_of_samples = residual_matrix.shape
-    fully_missing_sample_mask = np.all(np.isnan(residual_matrix), axis=0)
+    number_of_samples = input_matrix.shape[1]
+    fully_missing_sample_mask = np.all(np.isnan(input_matrix), axis=0)
+
+    # Drop fully-missing features before polishing (symmetric with ``_directlfq_rollup``). An
+    # all-NaN row carries no information, yet ``nanmedian`` still yields a placeholder row effect
+    # that, folded back through the row-effect alignment median, drags ``overall`` -- and therefore
+    # every sample estimate -- toward zero. When such rows are the majority of a protein group
+    # (e.g. a few unique peptides among many masked shared ones) they collapse the whole protein
+    # to ~0. Boolean indexing returns a fresh writable copy, so the sweeps mutate in place safely.
+    observed_feature_mask = ~np.all(np.isnan(input_matrix), axis=1)
+    if not observed_feature_mask.any():
+        return np.full(number_of_samples, np.nan, dtype=float)
+    residual_matrix = input_matrix[observed_feature_mask]
+
+    number_of_features = residual_matrix.shape[0]
 
     overall_effect: float = 0.0
     row_effects = np.zeros(number_of_features, dtype=float)
@@ -154,7 +171,8 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     previous_residual_sum: float = np.inf
 
     with warnings.catch_warnings():
-        # nanmedian legitimately hits all-NaN rows/columns for fully-missing features/samples.
+        # nanmedian legitimately hits all-NaN columns for fully-missing samples (all-NaN rows
+        # were dropped above), so silence the resulting empty-slice warning.
         warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
         for iteration in range(MEDIAN_POLISH_MAX_ITERATIONS):
             # Row sweep: remove the median of each feature (row) across samples.
