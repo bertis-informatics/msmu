@@ -337,7 +337,7 @@ def run_de(
     category: str,
     ctrl: str,
     expr: str | None = None,
-    min_pct: float = 0.5,
+    min_pct: float = 0.0,
     layer: str | None = None,
     stat_method: Literal["welch", "student", "wilcoxon", "limma"] = "limma",
     n_resamples: int = 1000,
@@ -363,10 +363,14 @@ def run_de(
             (not supported for stat_method="limma", which needs an explicit group).
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
         min_pct: Minimum non-missing coverage required in **every** group (design cell), not in at
-            least one. It is applied as a count: a feature needs ``max(1, ceil(min_pct * n))``
-            non-missing values in each group — at the default 0.5 that is 2 of 3, 2 of 4, 3 of 5.
-            Features below it are not tested (limma additionally requires residual df >= 1): they
-            stay in the result as rows with ``repr_*`` / ``pct_*`` filled but ``p_value`` /
+            least one, applied as a count: a feature needs ``max(1, ceil(min_pct * n))`` non-missing
+            values in each group. The default ``0.0`` imposes only the estimability floor — every
+            group needs at least one non-missing value (limma additionally requires residual
+            df >= 1) — so every feature whose contrast can be estimated is tested. Raise it as an
+            opt-in stringency knob to also demand a minimum coverage per group (e.g. ``0.5`` is 2 of
+            3, 2 of 4, 3 of 5); choose it from the coverage you observe (``pct_ctrl`` / ``pct_expr``),
+            not from which features come out significant. Features below the threshold are not tested:
+            they stay in the result as rows with ``repr_*`` / ``pct_*`` filled but ``p_value`` /
             ``q_value`` set to NaN. Requiring both groups is what makes the contrast estimable
             without imputation; the consequence is that on/off features (present in one group,
             absent in the other) are reported this way rather than receiving a p-value — read them

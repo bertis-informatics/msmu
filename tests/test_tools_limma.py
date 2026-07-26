@@ -170,6 +170,25 @@ def test_min_pct_filters_low_coverage_features():
     assert not np.isnan(res.p_value[np.where(res.features == "P1")[0][0]])
 
 
+def test_default_min_pct_tests_estimable_low_coverage_feature():
+    # P0 is estimable (>=1 non-missing per group, residual df >= 1) but below 0.5 coverage in
+    # group A (1 of 3). The default min_pct=0.0 imposes only the estimability floor, so P0 is
+    # tested; raising min_pct to 0.5 (2 of 3) drops it back to an untested NaN row.
+    obs = pd.DataFrame({"cond": ["A", "A", "A", "B", "B", "B"]}, index=[f"S{j}" for j in range(6)])
+    y = _Y1.copy()
+    y[0, 1:3] = np.nan  # feature P0: group A keeps 1 of 3 non-missing, group B stays full
+    mdata = _make_mdata(y, obs)
+    p0 = 0
+
+    res_default = run_de(mdata, "protein", category="cond", ctrl="A", expr="B", stat_method="limma")
+    assert not np.isnan(res_default.p_value[p0])  # estimability-only default tests it
+
+    res_strict = run_de(
+        mdata, "protein", category="cond", ctrl="A", expr="B", stat_method="limma", min_pct=0.5
+    )
+    assert np.isnan(res_strict.p_value[p0])  # opt-in 0.5 requires 2 of 3, so P0 is not tested
+
+
 def test_covariate_adjustment_runs(level2_mdata):
     res = run_de(
         level2_mdata, "protein", category="geno", ctrl="d", expr="c",
