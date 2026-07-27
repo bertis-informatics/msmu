@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Literal
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings
+from ._base_reader import SearchResultReader, SearchResultSettings, _is_polars
 
 
 class FragPipeReader(SearchResultReader):
@@ -113,6 +113,8 @@ class FragPipeReader(SearchResultReader):
         # stays intact for varm or to be freed). Quantification (TMT channels) is taken from
         # the raw frame by TmtFragPipeReader._extract_quant_from_raw. Carry-through columns
         # keep their raw names and are renamed by _normalise_identification_df.
+        if _is_polars(identification_df):
+            return self._identification_columns_polars(identification_df)
         feature_df = pd.DataFrame(index=identification_df.index)
 
         feature_df["filename"] = identification_df["Spectrum"].apply(lambda x: x.split(".")[0])
@@ -144,6 +146,47 @@ class FragPipeReader(SearchResultReader):
 
         return feature_df
 
+    def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
+        """polars-native equivalent of the pandas feature build (same columns/values).
+
+        proteins = (``Protein`` + ``Mapped Proteins``) tokens, whitespace-stripped, the literal
+        ``"nan"`` (pandas ``astype(str)`` of a missing value) dropped, joined with ``;`` -- so a
+        null column must first become ``"nan"`` (``fill_null("nan")``) to match. scan_num goes
+        through int (``00123`` -> ``123``) exactly like the pandas ``int(...)``.
+        """
+        import polars as pl
+
+        combined = (
+            pl.col("Protein").cast(pl.Utf8).fill_null("nan")
+            + pl.lit(",")
+            + pl.col("Mapped Proteins").cast(pl.Utf8).fill_null("nan")
+        )
+        proteins_expr = (
+            combined.str.split(",")
+            .list.eval(pl.element().str.strip_chars())
+            .list.eval(pl.element().filter(pl.element() != "nan"))
+            .list.join(";")
+        )
+        out = identification_df.select(
+            pl.col("Spectrum").str.split(".").list.get(0).alias("filename"),
+            pl.col("Spectrum").str.split(".").list.get(1).cast(pl.Int64).alias("scan_num"),
+            proteins_expr.alias("proteins"),
+            pl.col("Modified Peptide").fill_null(pl.col("Peptide")).alias("peptide"),
+            (pl.col("Retention") / 60.0).alias("rt"),  # convert to minutes
+            pl.col("Peptide"),  # -> stripped_peptide
+            pl.col("Charge"),  # -> charge
+            pl.col("Peptide Length"),  # -> peptide_length
+            pl.col("Number of Missed Cleavages"),  # -> missed_cleavages
+            pl.col("Calculated Peptide Mass"),  # -> calcmass
+            pl.col("observed mass"),  # -> expmass
+            pl.col("Hyperscore"),  # -> score
+        ).with_columns(
+            pl.col("proteins").str.contains("rev_", literal=True).cast(pl.Int64).alias("decoy"),
+        )
+        if out.select(pl.col("decoy").sum()).item() == 0:
+            self.search_settings.has_decoy = False
+        return out.to_pandas()
+
 
 class TmtFragPipeReader(FragPipeReader):
     def __init__(
@@ -169,6 +212,25 @@ class TmtFragPipeReader(FragPipeReader):
         # _make_unique_index (filename.scan_num) to align with the fresh feature frame.
         non_quant_cols = set(self.desc_cols) | set(self._feature_rename_dict.keys())
         quant_cols = [c for c in raw_identification_df.columns if c not in non_quant_cols]
+
+        if _is_polars(raw_identification_df):
+            import polars as pl
+
+            # index == pandas _make_unique_index output: filename + "." + str(int(scan)) -- the
+            # int() strips leading zeros ("00123" -> "123"), so cast through Int64 before Utf8.
+            return (
+                raw_identification_df.select(
+                    (
+                        pl.col("Spectrum").str.split(".").list.get(0)
+                        + pl.lit(".")
+                        + pl.col("Spectrum").str.split(".").list.get(1).cast(pl.Int64).cast(pl.Utf8)
+                    ).alias("tmp_index"),
+                    *[pl.col(col) for col in quant_cols],
+                )
+                .to_pandas()
+                .set_index("tmp_index")
+                .rename_axis(index=None)
+            )
 
         quant = pd.DataFrame(index=raw_identification_df.index)
         quant["filename"] = raw_identification_df["Spectrum"].apply(lambda x: x.split(".")[0])
@@ -213,6 +275,16 @@ class LfqFragPipeReader(FragPipeReader):
             self.search_settings.quantification = None
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
+        if _is_polars(quantification_df):
+            import polars as pl
+
+            intensity_cols = [col for col in quantification_df.columns if col.endswith(" Intensity")]
+            return (
+                quantification_df.select("Modified Sequence", *[pl.col(col) for col in intensity_cols])
+                .to_pandas()
+                .set_index("Modified Sequence")
+                .rename_axis(index=None)
+            )
         quantification_df = quantification_df.set_index("Modified Sequence", drop=True).rename_axis(index=None).copy()
         intensity_cols = [col for col in quantification_df.columns if col.endswith(" Intensity")]
         quantification_df = quantification_df[intensity_cols]

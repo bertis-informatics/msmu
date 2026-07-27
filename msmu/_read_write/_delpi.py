@@ -1,8 +1,8 @@
 from pathlib import Path
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings
-from .._utils.fasta import parse_uniprot_accession
+from ._base_reader import SearchResultReader, SearchResultSettings, _is_polars
+from .._utils.fasta import parse_uniprot_accession, parse_uniprot_accession_group
 
 
 class DelpiReader(SearchResultReader):
@@ -77,6 +77,24 @@ class DelpiReader(SearchResultReader):
         # Same pivot as _split_merged_identification_quantification's quant half, but
         # sourced from the raw frame: filename = run_name, index = "run_name.pmsm_index"
         # (matching _make_unique_index), so it aligns with the fresh feature frame.
+        if _is_polars(raw_identification_df):
+            import polars as pl
+
+            pivoted = (
+                raw_identification_df.select(
+                    (
+                        pl.col("run_name").cast(pl.Utf8) + pl.lit(".") + pl.col("pmsm_index").cast(pl.Utf8)
+                    ).alias("index"),
+                    pl.col("run_name").alias("filename"),
+                    pl.col("ms2_area"),
+                )
+                .pivot(on="filename", index="index", values="ms2_area")
+                .sort("index")  # pandas pivot sorts the index
+                .to_pandas()
+                .set_index("index")
+                .rename_axis(index=None)
+            )
+            return pivoted.reindex(sorted(pivoted.columns), axis=1)  # match pandas column sort
         quant_source = pd.DataFrame(
             {
                 "filename": raw_identification_df["run_name"].to_numpy(),
@@ -98,6 +116,8 @@ class DelpiReader(SearchResultReader):
         # freed). Quantification (ms2_area) is taken from the raw frame by
         # _extract_quant_from_raw. ("rt" is computed by the legacy path but dropped
         # at the used_feature_cols subset, so it is omitted here.)
+        if _is_polars(identification_df):
+            return self._identification_columns_polars(identification_df)
         feature_df = pd.DataFrame(index=identification_df.index)
         feature_df["proteins"] = parse_uniprot_accession(identification_df["fasta_id"])
         feature_df["peptide"] = (
@@ -117,3 +137,36 @@ class DelpiReader(SearchResultReader):
         feature_df["pmsm_index"] = identification_df["pmsm_index"]  # for _make_unique_index (dropped at subset)
 
         return feature_df
+
+    def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
+        """polars-native equivalent of the pandas feature build (same columns/values).
+
+        The pandas peptide cleanup ``.strip("<").strip(">").strip(".").strip("_")`` strips each
+        character *in sequence* (not as a set), so it is replicated as four single-char
+        ``strip_chars`` calls -- ``strip_chars("<>._")`` would over-strip (e.g. ``._<AB>_.`` ->
+        ``AB`` instead of ``<AB>``). Accession parsing is deduplicated via ``replace_strict``.
+        """
+        import polars as pl
+
+        uniq = identification_df.select("fasta_id").unique().to_series().to_list()
+        accession_map = {value: parse_uniprot_accession_group(value) for value in uniq}
+
+        def _strip_delim(col):
+            return (
+                pl.col(col).str.strip_chars("<").str.strip_chars(">").str.strip_chars(".").str.strip_chars("_")
+            )
+
+        return identification_df.select(
+            pl.col("fasta_id").replace_strict(accession_map).alias("proteins"),
+            _strip_delim("peptide").alias("peptide"),  # -> stripped_peptide
+            _strip_delim("modified_sequence").alias("modified_sequence"),  # -> peptide
+            pl.col("run_name"),  # -> filename
+            pl.col("frame_num"),  # -> scan_num
+            pl.col("precursor_charge"),  # -> charge
+            pl.col("sequence_length"),  # -> peptide_length
+            pl.col("posterior_error"),  # -> PEP
+            pl.col("global_precursor_q_value"),  # -> q_value
+            pl.col("score"),
+            pl.col("is_decoy"),  # -> decoy
+            pl.col("pmsm_index"),  # for _make_unique_index (dropped at subset)
+        ).to_pandas()

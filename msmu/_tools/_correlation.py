@@ -7,6 +7,7 @@ from typing import Literal
 from mudata import MuData
 
 from .._utils._mudata import get_anndata_mod
+from .._core._blockdiag import to_dense_df
 from .._core._provenance import uns_logger
 
 
@@ -37,7 +38,7 @@ def corr(
             raise ValueError(f"Layer '{layer}' not found in modality '{modality}'.")
         data = pd.DataFrame(adata.layers[layer], index=adata.obs_names, columns=adata.var_names)
     else:
-        data = adata.to_df()
+        data = to_dense_df(adata)
 
     corr_matrix = data.T.corr(method=method)
 

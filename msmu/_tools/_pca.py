@@ -8,6 +8,7 @@ from sklearn.decomposition import PCA
 from typing import Literal, Any
 
 from .._utils._mudata import get_anndata_mod
+from .._core._blockdiag import to_dense_df
 from .._core._provenance import uns_logger
 
 
@@ -105,7 +106,7 @@ def pca(
     if layer is not None:
         data = pd.DataFrame(data=adata.layers[layer], index=adata.obs_names, columns=adata.var_names)
     else:
-        data = adata.to_df()
+        data = to_dense_df(adata)
     data = data.dropna(axis=1)
 
     # Calculate PCA

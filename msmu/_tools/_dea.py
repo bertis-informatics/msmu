@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from .._utils._mudata import get_anndata_mod
+from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
 from .._statistics._permutation import PermutationTest
 from .._statistics._fc_threshold import compute_fc_guidance_line
@@ -104,7 +105,7 @@ class DeaInputs:
                 columns=mod_adata.var_names,
             )
         else:
-            data = mod_adata.to_df()
+            data = to_dense_df(mod_adata)
 
         expr_matrix = data.T  # features x samples (single transpose, reused below)
 

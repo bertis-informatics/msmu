@@ -8,6 +8,7 @@ import pandas as pd
 
 from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
+from .._core._blockdiag import dense_block, is_sparse
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -146,8 +147,10 @@ def _collapse_anndata_obs(
     layer: str | None,
 ) -> ad.AnnData:
     raw_arr = adata.X if layer is None else adata.layers[layer]
-    if hasattr(raw_arr, "toarray"):
-        raw_arr = raw_arr.toarray()
+    if is_sparse(raw_arr):
+        # dense_block restores absent cells as NaN; a plain .toarray() would fill them with 0
+        # and silently corrupt the NaN-aware aggregations below.
+        raw_arr = dense_block(raw_arr)
     raw_arr = np.asarray(raw_arr, dtype=float)
 
     group_values = adata.obs[sample_key].to_numpy()

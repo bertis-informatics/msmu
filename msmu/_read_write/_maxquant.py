@@ -5,6 +5,7 @@ from ._base_reader import (
     SearchResultReader,
     SearchResultSettings,
     SearchResultDataFrameConverter,
+    _is_polars,
 )
 from . import label_info
 
@@ -14,9 +15,14 @@ class MaxQuantDataFrameConverter(SearchResultDataFrameConverter):
         super().__init__()
 
     @staticmethod
-    def _read_file(file_path):
-        file_path, identification_df = SearchResultDataFrameConverter._read_file(file_path)
-        identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
+    def _read_file(file_path, as_polars: bool = False):
+        file_path, identification_df = SearchResultDataFrameConverter._read_file(file_path, as_polars=as_polars)
+        if _is_polars(identification_df):
+            import polars as pl
+
+            identification_df = identification_df.filter(~pl.col("Type").is_in(["MULTI-SECPEP"]))
+        else:
+            identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
 
         return file_path, identification_df
 
@@ -76,6 +82,8 @@ class MaxQuantReader(SearchResultReader):
         # stays intact for varm or to be freed). Quantification is taken from the raw frame
         # by each subclass's _extract_quant_from_raw. Columns are carried under their raw
         # names and renamed by _normalise_identification_df via _feature_rename_dict.
+        if _is_polars(identification_df):
+            return self._identification_columns_polars(identification_df)
         feature_df = pd.DataFrame(index=identification_df.index)
 
         decoy = identification_df["Reverse"].apply(lambda x: 1 if x == "+" else 0)
@@ -98,6 +106,31 @@ class MaxQuantReader(SearchResultReader):
 
         return feature_df
 
+    def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
+        """polars-native equivalent of the pandas feature build (same columns/values).
+
+        ``Reverse``/``Potential contaminant`` are "+" or null; null must map to 0 (pandas
+        ``x == "+"`` is False for NaN), hence ``fill_null(False)``. Decoy rows take
+        ``Leading proteins`` instead of ``Proteins`` (the pandas conditional assignment).
+        """
+        import polars as pl
+
+        is_decoy = (pl.col("Reverse") == "+").fill_null(False)
+        return identification_df.select(
+            is_decoy.cast(pl.Int64).alias("decoy"),
+            (pl.col("Potential contaminant") == "+").fill_null(False).cast(pl.Int64).alias("contaminant"),
+            pl.when(is_decoy).then(pl.col("Leading proteins")).otherwise(pl.col("Proteins")).alias("proteins"),
+            pl.col("Sequence"),  # -> stripped_peptide
+            pl.col("Modified sequence"),  # -> peptide
+            pl.col("Length"),  # -> peptide_length
+            pl.col("Missed cleavages"),  # -> missed_cleavages
+            pl.col("Charge"),  # -> charge
+            pl.col("Raw file"),  # -> filename
+            pl.col("MS/MS Scan Number"),  # -> scan_num
+            pl.col("Retention time"),  # -> rt
+            pl.col("PEP"),
+        ).to_pandas()
+
 
 class MaxTmtReader(MaxQuantReader):
     def __init__(
@@ -114,6 +147,21 @@ class MaxTmtReader(MaxQuantReader):
         # Same "Reporter intensity corrected *" channels as the old split, but sourced from
         # the raw frame and re-indexed via _make_unique_index (filename.scan_num) so it
         # aligns with the fresh feature frame.
+        if _is_polars(raw_identification_df):
+            import polars as pl
+
+            reporter_cols = [c for c in raw_identification_df.columns if c.startswith("Reporter intensity corrected")]
+            return (
+                raw_identification_df.select(
+                    (
+                        pl.col("Raw file") + pl.lit(".") + pl.col("MS/MS Scan Number").cast(pl.Utf8)
+                    ).alias("tmp_index"),
+                    *[pl.col(col) for col in reporter_cols],
+                )
+                .to_pandas()
+                .set_index("tmp_index")
+                .rename_axis(index=None)
+            )
         reporter_cols = [c for c in raw_identification_df.columns if c.startswith("Reporter intensity corrected")]
         quant = pd.DataFrame(index=raw_identification_df.index)
         quant["filename"] = raw_identification_df["Raw file"]
@@ -157,6 +205,19 @@ class MaxLfqReader(MaxQuantReader):
         # to peptide x filename. Sourced from the raw frame -- "Modified sequence"/"Raw file"
         # are the raw names of the feature frame's "peptide"/"filename", so the result matches
         # the old split (which pivoted the normalised frame).
+        if _is_polars(raw_identification_df):
+            import polars as pl
+
+            pivoted = (
+                raw_identification_df.group_by(["Modified sequence", "Raw file"])
+                .agg(pl.col("Intensity").sum())
+                .pivot(on="Raw file", index="Modified sequence", values="Intensity")
+                .sort("Modified sequence")  # pandas pivot_table sorts the index
+                .to_pandas()
+                .set_index("Modified sequence")
+                .rename_axis(index=None)
+            )
+            return pivoted.reindex(sorted(pivoted.columns), axis=1)  # match pandas column sort
         pep_quant_df = pd.DataFrame(
             {
                 "filename": raw_identification_df["Raw file"].to_numpy(),

@@ -8,6 +8,7 @@ from sklearn.linear_model import Ridge
 from typing import Callable
 
 from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
+from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -151,11 +152,11 @@ class PTMProteinAdjuster:
         ptm_adata = get_anndata_mod(self.ptm_mdata, self.ptm_mod)
         global_adata = get_anndata_mod(self.global_mdata, self.global_mod)
 
-        ptm_data: pd.DataFrame = ptm_adata.to_df().T.copy()
+        ptm_data: pd.DataFrame = to_dense_df(ptm_adata).T.copy()
         ptm_data["ptm_site"] = ptm_data.index
         ptm_data["protein_group"] = ptm_adata.var["protein_group"]
 
-        global_data: pd.DataFrame = global_adata.to_df().T.copy()
+        global_data: pd.DataFrame = to_dense_df(global_adata).T.copy()
         global_data = global_data[self.sample_cols]  # sort sample order
         global_data["protein_group"] = global_data.index
 

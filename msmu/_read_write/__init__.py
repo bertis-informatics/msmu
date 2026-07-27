@@ -9,9 +9,11 @@ from ._reader_registry import (
 )
 from ._export import to_readable, write_csv, write_flashlfq_input, write_pin
 from ._import import add_quant
+from ._base_reader import set_polars_reader
 
 __all__ = [
     "add_quant",
+    "set_polars_reader",
     "read_sage",
     "read_diann",
     "read_maxquant",

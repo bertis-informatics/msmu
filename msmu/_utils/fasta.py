@@ -69,26 +69,30 @@ def _get_protein_info_from_uniprot() -> pd.DataFrame:
     raise
 
 
+def parse_uniprot_accession_group(protein_group: str) -> str:
+    """Parse one semicolon-delimited protein group into its accession string.
+
+    Kept as a per-value function so callers can deduplicate (map over distinct protein groups)
+    instead of parsing every PSM row -- protein groups repeat heavily across PSMs.
+    """
+    group_accessions: list[str] = []
+    for protein in protein_group.split(";"):
+        parts = protein.split("|")
+        accession = parts[1] if len(parts) == 3 else parts[0]
+
+        if protein.startswith("rev_"):
+            accession = f"rev_{accession}"
+        elif protein.startswith("contam_"):
+            accession = f"contam_{accession}"
+
+        group_accessions.append(accession)
+
+    return ";".join(group_accessions)
+
+
 def parse_uniprot_accession(proteins: pd.Series) -> list[str]:
-    parsed_accessions: list[str] = []
-
     # Keep parsing in a tight Python loop; this avoids expensive explode + row-wise apply.
-    for protein_group in proteins:
-        group_accessions: list[str] = []
-        for protein in protein_group.split(";"):
-            parts = protein.split("|")
-            accession = parts[1] if len(parts) == 3 else parts[0]
-
-            if protein.startswith("rev_"):
-                accession = f"rev_{accession}"
-            elif protein.startswith("contam_"):
-                accession = f"contam_{accession}"
-
-            group_accessions.append(accession)
-
-        parsed_accessions.append(";".join(group_accessions))
-
-    return parsed_accessions
+    return [parse_uniprot_accession_group(protein_group) for protein_group in proteins]
 
 
 def _split_uniprot_fasta_entry(entry: str) -> tuple[str, str, str]:

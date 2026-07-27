@@ -7,6 +7,7 @@ from typing import Literal
 
 from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
+from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise
 from ..logging_utils import get_logger
 from ._normalisation import Normalisation, PTMProteinAdjuster
 
@@ -38,7 +39,9 @@ def log2_transform(
     else:
         raw_arr = adata.layers[layer]
 
-    log2_arr = np.log2(raw_arr)
+    # log2 is elementwise, so on a sparse block-diagonal it transforms only the stored
+    # (observed) values and keeps the matrix sparse -- absent cells stay absent.
+    log2_arr = sparse_apply_elementwise(raw_arr, np.log2)
 
     if layer is None:
         adata.X = log2_arr
@@ -72,6 +75,10 @@ def scale_data(
         raw_arr: np.ndarray = adata.X
     else:
         raw_arr: np.ndarray = adata.layers[layer]
+
+    # Scaling needs per-feature mean/std across all samples, so it densifies (NaN for absent).
+    if is_sparse(raw_arr):
+        raw_arr = dense_block(raw_arr).astype(raw_arr.dtype)
 
     mean_arr: np.ndarray = np.nanmean(raw_arr, axis=0)
     std_arr: np.ndarray = np.nanstd(raw_arr, axis=0)
@@ -146,6 +153,12 @@ def normalise(
 
     obs_groups = adata.obs[batch_key].to_numpy() if batch_key is not None else None
     var_groups = adata.var[fraction_key].to_numpy() if fraction_key is not None else None
+
+    # Normalisation (median/quantile) needs per-sample distributions across features, so it
+    # densifies a sparse block-diagonal (NaN for absent, same dtype as the dense path). Memory-
+    # efficient sparse normalisation is a follow-up; correctness here matches the dense path.
+    if is_sparse(raw_arr):
+        raw_arr = dense_block(raw_arr).astype(raw_arr.dtype)
 
     normalised_arr = _normalise_by_groups(
         raw_arr=raw_arr,

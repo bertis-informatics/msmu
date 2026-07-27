@@ -23,6 +23,7 @@ dependencies = [
     "kaleido>=1.2.0",
     "mudata>=0.3.2",
     "plotly>=6.5.2",
+    "polars>=1.0.0",
     "pyopenms>=3.5.0",
     "scikit-learn>=1.8.0",
     "scipy>=1.17.0",

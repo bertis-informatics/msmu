@@ -7,6 +7,7 @@ from inmoose.pycombat import pycombat_norm
 
 from .._utils._mudata import get_anndata_mod, get_mudata
 from .._core._provenance import uns_logger
+from .._core._blockdiag import dense_block, is_sparse
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -111,6 +112,10 @@ class BatchCorrector:
         self.adata = get_anndata_mod(self.mdata, self.modality)
 
         self.original_arr = self.adata.X if self.layer is None else self.adata.layers[self.layer]
+        # Batch correction (median/ComBat/lowess) works on a dense array; densify a sparse
+        # block-diagonal with NaN for absent cells (0-fill would corrupt the corrections).
+        if is_sparse(self.original_arr):
+            self.original_arr = dense_block(self.original_arr).astype(self.original_arr.dtype)
         self.corrected_arr: np.ndarray | None = None  # placeholder for corrected array
 
     def gis(self, gis_samples: list[str]):

@@ -20,7 +20,7 @@ def _dummy_mdata() -> MuData:
     return MuData({"psm": adata})
 
 
-def _dummy_convert(self, file_paths, max_workers=4):
+def _dummy_convert(self, file_paths, max_workers=4, as_polars=False):
     return file_paths[0], pd.DataFrame()
 
 

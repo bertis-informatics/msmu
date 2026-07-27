@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Literal
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm.auto import tqdm
 
 from ..logging_utils import get_logger
+from .._core._blockdiag import SparseQuantFrame
 from .._utils.peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -22,6 +24,43 @@ from .._utils.peptide import (
 
 
 logger = get_logger(__name__)
+
+# polars is the default reader path: csv/tsv/parquet are parsed with polars (multi-threaded) and
+# the identification frame stays polars through the reader transforms, converting to pandas once
+# at the AnnData boundary. Every reader (Sage, DIA-NN, MaxQuant, FragPipe, DELPI) implements the
+# polars transforms; a DataFrame passed directly still takes the pandas path. Set
+# MSMU_DISABLE_POLARS=1 (or set_polars_reader(False)) to fall back to the pandas read+transform
+# path (e.g. for debugging).
+_POLARS_ENABLED: bool = os.environ.get("MSMU_DISABLE_POLARS", "0").lower() not in ("1", "true", "yes")
+
+
+def set_polars_reader(enabled: bool = True) -> None:
+    """Enable (default) or disable the polars reader path at runtime."""
+    global _POLARS_ENABLED
+    _POLARS_ENABLED = enabled
+
+
+def polars_native_enabled() -> bool:
+    """True when the polars reader path is active (the default)."""
+    return _POLARS_ENABLED
+
+
+def _is_polars(obj) -> bool:
+    """True if obj is a polars DataFrame, without importing polars."""
+    return type(obj).__module__.split(".", 1)[0] == "polars"
+
+
+def _polars_read_native(file_path, suffix: str):
+    """Read csv/tsv/parquet with polars and return a polars DataFrame (no pandas conversion)."""
+    import polars as pl
+
+    if suffix == ".csv":
+        return pl.read_csv(file_path)
+    if suffix in (".tsv", ".tab", ".psm", ".txt"):
+        return pl.read_csv(file_path, separator="\t")
+    if suffix == ".parquet":
+        return pl.read_parquet(file_path)
+    return None
 
 
 @dataclass
@@ -103,12 +142,13 @@ class SearchResultDataFrameConverter:
             raise ValueError("file_path should be a Path object, or DataFrame.")
 
     @staticmethod
-    def _read_file(file_path: str | Path) -> tuple[str | Path | None, pd.DataFrame]:
+    def _read_file(file_path: str | Path, as_polars: bool = False) -> tuple[str | Path | None, pd.DataFrame]:
         """
         Reads a file and returns its path and content as a DataFrame.
 
         Parameters:
             file_path: The path to the file to be read.
+            as_polars: return a polars DataFrame (polars-native path) instead of pandas.
 
         Returns:
             A tuple containing the file path and the content as a DataFrame.
@@ -120,6 +160,11 @@ class SearchResultDataFrameConverter:
         tmp_file_path = Path(file_path)
 
         suffix = tmp_file_path.suffix
+        if as_polars:
+            native_df = _polars_read_native(file_path, suffix)
+            if native_df is not None:
+                return file_path, native_df
+            # polars does not read this format (e.g. .xlsx/.json): fall through to pandas.
         if suffix in [".csv"]:
             df = pd.read_csv(file_path)
         elif suffix in [".tsv", ".tab", ".psm", ".txt"]:
@@ -137,16 +182,30 @@ class SearchResultDataFrameConverter:
 
         return file_path, df
 
-    def _read_files(self, file_paths: list[Path | pd.DataFrame], max_workers: int) -> tuple[Path | None, pd.DataFrame]:
+    def _read_files(
+        self, file_paths: list[Path | pd.DataFrame], max_workers: int, as_polars: bool = False
+    ) -> tuple[Path | None, pd.DataFrame]:
         """
         Reads a file and returns its path and content as a DataFrame.
 
         Parameters:
             file_path: The path to the file to be read.
+            as_polars: read into a polars DataFrame (polars-native path); merged with polars.
 
         Returns:
             A tuple containing the file path and the content as a DataFrame.
         """
+
+        if as_polars:
+            # polars is internally multi-threaded; read in-process (no ProcessPool) and concat
+            # with polars so the frame never touches pandas until the reader's AnnData boundary.
+            import polars as pl
+
+            results = [self.__class__._read_file(fp, as_polars=True) for fp in file_paths]
+            frames = [r[1] for r in results]
+            merged_df = pl.concat(frames, how="vertical_relaxed") if len(frames) > 1 else frames[0]
+            merged_file_path = [r[0] for r in results if r[0] is not None]
+            return merged_file_path, merged_df
 
         results = []
         if len(file_paths) == 1:
@@ -178,7 +237,7 @@ class SearchResultDataFrameConverter:
         return merged_file_path, merged_df
 
     def convert(
-        self, file_paths: list[str | Path | pd.DataFrame], max_workers: int = 4
+        self, file_paths: list[str | Path | pd.DataFrame], max_workers: int = 4, as_polars: bool | None = None
     ) -> tuple[str | Path | None, pd.DataFrame]:
         """
         Converts a list of file paths or DataFrames into a single DataFrame.
@@ -186,11 +245,17 @@ class SearchResultDataFrameConverter:
         Parameters:
             file_paths: A list of file paths or DataFrames to be converted.
             max_workers: The maximum number of worker processes to use for reading files.
+            as_polars: return a merged polars DataFrame (polars-native reader path). Defaults to
+                the module setting (polars on unless disabled via set_polars_reader(False)).
         Returns:
             A tuple containing the merged file path (if applicable) and the merged DataFrame.
         """
+        if as_polars is None:
+            as_polars = _POLARS_ENABLED
         file_paths_ = [self._convert_to_path(fp) for fp in file_paths]
-        merged_file_path, merged_df = self._read_files(file_paths=file_paths_, max_workers=max_workers)
+        merged_file_path, merged_df = self._read_files(
+            file_paths=file_paths_, max_workers=max_workers, as_polars=as_polars
+        )
         merged_file_path = [self._convert_to_string(fp) for fp in merged_file_path]
 
         logger.debug("Files imported and merged into DataFrame with shape %s.", merged_df.shape)
@@ -333,6 +398,10 @@ class SearchResultReader:
         return dict()
 
     def _normalise_quantification_df(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
+        # A sparse block-diagonal quant carrier already stores observed cells only (0/NaN are
+        # absent), so the column rename / replace(0, NaN) below do not apply -- pass it through.
+        if isinstance(quantification_df, SparseQuantFrame):
+            return quantification_df
         # The quantification frame is never stored (varm holds the identification raw,
         # not this), so it can be mutated directly -- no defensive copy. Readers whose
         # _make_needed_columns_for_quantification needs its own copy still make one.
@@ -390,6 +459,10 @@ class SearchResultReader:
             # Keep only index alignment when raw search_result is not stored.
             raw_identification_df = pd.DataFrame(index=target_df.index)
         else:
+            # The raw frame is stored in varm, which must be pandas. On the polars-native path it
+            # is still a polars frame here (the transforms consumed it as polars) -- convert once.
+            if _is_polars(raw_identification_df):
+                raw_identification_df = raw_identification_df.to_pandas()
             raw_identification_df = raw_identification_df.copy()
             raw_identification_df.index = norm_identification_df.index
             # Keep raw and normalized rows in strict positional sync.
@@ -445,9 +518,20 @@ class SearchResultReader:
 
         # both feature and quantification are available in the same level
         if self.search_settings.quantification_level == self.search_settings.identification_level:
-            common_index = mudata_input.norm_identification_df.index.intersection(mudata_input.norm_quant_df.index)
-            mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T)
-            mod_adata.var = mudata_input.norm_identification_df.loc[common_index, :]
+            if isinstance(mudata_input.norm_quant_df, SparseQuantFrame):
+                sparse_quant = mudata_input.norm_quant_df
+                common_index = mudata_input.norm_identification_df.index.intersection(sparse_quant.index)
+                mod_adata = ad.AnnData(
+                    X=sparse_quant.anndata_x(common_index),  # (samples x features) sparse, no dense pivot
+                    obs=pd.DataFrame(index=sparse_quant.columns),
+                    var=mudata_input.norm_identification_df.loc[common_index, :],
+                )
+            else:
+                common_index = mudata_input.norm_identification_df.index.intersection(
+                    mudata_input.norm_quant_df.index
+                )
+                mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T)
+                mod_adata.var = mudata_input.norm_identification_df.loc[common_index, :]
             if not self._drop_search_result:
                 mod_adata.varm["search_result"] = mudata_input.raw_identification_df.loc[common_index, :]
 
