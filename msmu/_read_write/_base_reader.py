@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 from pathlib import Path
 from typing import Literal
 from dataclasses import dataclass
@@ -50,14 +51,44 @@ def _is_polars(obj) -> bool:
     return type(obj).__module__.split(".", 1)[0] == "polars"
 
 
+class ReaderEngine(Enum):
+    """Which transform implementation a reader dispatches to.
+
+    Decided once per read from the engine of the merged identification frame (polars unless the
+    kill-switch is set or the input format/DataFrame forced the pandas fallback), then consulted by
+    every transform. This replaces the per-call ``_is_polars(df)`` sniffing so the pandas path is a
+    single, explicit branch that collapses cleanly when it is deleted.
+    """
+
+    POLARS = "polars"
+    PANDAS = "pandas"
+
+
+# pandas' default NA sentinels (pandas.io.parsers.STR_NA_VALUES), hard-coded to avoid a private
+# import. polars only treats an empty field as null by default, so without this a "NA"/"#N/A"/"null"
+# in a numeric column keeps the whole column as String (silently -> string values land in var, or a
+# later numeric op crashes) instead of pandas' float-with-NaN. Passed to pl.read_csv so the two
+# engines agree on which tokens are missing.
+_PANDAS_NA_VALUES: list[str] = [
+    "", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan",
+    "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA", "NULL", "NaN", "None", "n/a", "nan", "null",
+]
+
+
 def _polars_read_native(file_path, suffix: str):
-    """Read csv/tsv/parquet with polars and return a polars DataFrame (no pandas conversion)."""
+    """Read csv/tsv/parquet with polars and return a polars DataFrame (no pandas conversion).
+
+    ``infer_schema_length=None`` scans every row for dtype inference (matching pandas' whole-file
+    scan) so a column that only widens past the first 100 rows -- e.g. integer scans then a float,
+    or a numeric column with a late non-numeric token -- does not hard-fail. ``null_values`` aligns
+    the missing-token set with pandas (see ``_PANDAS_NA_VALUES``).
+    """
     import polars as pl
 
     if suffix == ".csv":
-        return pl.read_csv(file_path)
+        return pl.read_csv(file_path, infer_schema_length=None, null_values=_PANDAS_NA_VALUES)
     if suffix in (".tsv", ".tab", ".psm", ".txt"):
-        return pl.read_csv(file_path, separator="\t")
+        return pl.read_csv(file_path, separator="\t", infer_schema_length=None, null_values=_PANDAS_NA_VALUES)
     if suffix == ".parquet":
         return pl.read_parquet(file_path)
     return None
@@ -203,7 +234,10 @@ class SearchResultDataFrameConverter:
 
             results = [self.__class__._read_file(fp, as_polars=True) for fp in file_paths]
             frames = [r[1] for r in results]
-            merged_df = pl.concat(frames, how="vertical_relaxed") if len(frames) > 1 else frames[0]
+            # diagonal_relaxed unions columns (missing -> null) AND relaxes dtypes, matching pandas'
+            # concat: multi-file inputs with an optional column (e.g. DIA-NN with/without Decoy)
+            # merge instead of raising the schema-mismatch error vertical_relaxed would.
+            merged_df = pl.concat(frames, how="diagonal_relaxed") if len(frames) > 1 else frames[0]
             merged_file_path = [r[0] for r in results if r[0] is not None]
             return merged_file_path, merged_df
 
@@ -282,6 +316,9 @@ class SearchResultReader:
         md.set_options(pull_on_update=False)
         self.search_settings: SearchResultSettings
         self._drop_search_result = _drop_search_result
+        # Resolved lazily from the identification frame on first use (search_settings is set by the
+        # subclass after this super().__init__), then cached; see the _engine property.
+        self._engine_cache: ReaderEngine | None = None
 
         self._calc_exp_mz: Callable = _calc_exp_mz
         self._count_missed_cleavages: Callable = _count_missed_cleavages
@@ -299,6 +336,20 @@ class SearchResultReader:
         ]
 
         self._cols_to_stringify: list[str] = []  # placeholder, will be defined in inherited class
+
+    @property
+    def _engine(self) -> ReaderEngine:
+        """The transform engine for this read, decided once from the identification frame.
+
+        Directly-constructed readers (unit tests) pass a pandas frame and get PANDAS; the production
+        path passes whatever ``convert()`` produced (polars unless it fell back). Cached so every
+        dispatcher consults one explicit value instead of re-sniffing each frame.
+        """
+        if self._engine_cache is None:
+            self._engine_cache = (
+                ReaderEngine.POLARS if _is_polars(self.search_settings.identification_df) else ReaderEngine.PANDAS
+            )
+        return self._engine_cache
 
     @staticmethod
     def _make_unique_index(input_df: pd.DataFrame) -> pd.DataFrame:
@@ -401,6 +452,19 @@ class SearchResultReader:
         # A sparse block-diagonal quant carrier already stores observed cells only (0/NaN are
         # absent), so the column rename / replace(0, NaN) below do not apply -- pass it through.
         if isinstance(quantification_df, SparseQuantFrame):
+            # Correct only when this reader does not customise the quantification hooks (DIA-NN, the
+            # sole sparse producer today, overrides neither). Guard so a reader that DOES override
+            # them cannot later emit a sparse carrier and have its rename/select silently skipped.
+            overrides_quant_hooks = (
+                type(self)._make_needed_columns_for_quantification
+                is not SearchResultReader._make_needed_columns_for_quantification
+                or type(self)._make_rename_dict_for_obs is not SearchResultReader._make_rename_dict_for_obs
+            )
+            if overrides_quant_hooks:
+                raise NotImplementedError(
+                    f"{type(self).__name__} customises a quantification hook but emitted a "
+                    "SparseQuantFrame; the sparse path does not apply those hooks yet."
+                )
             return quantification_df
         # The quantification frame is never stored (varm holds the identification raw,
         # not this), so it can be mutated directly -- no defensive copy. Readers whose
@@ -461,7 +525,7 @@ class SearchResultReader:
         else:
             # The raw frame is stored in varm, which must be pandas. On the polars-native path it
             # is still a polars frame here (the transforms consumed it as polars) -- convert once.
-            if _is_polars(raw_identification_df):
+            if self._engine is ReaderEngine.POLARS:
                 raw_identification_df = raw_identification_df.to_pandas()
             raw_identification_df = raw_identification_df.copy()
             raw_identification_df.index = norm_identification_df.index
@@ -530,7 +594,10 @@ class SearchResultReader:
                 common_index = mudata_input.norm_identification_df.index.intersection(
                     mudata_input.norm_quant_df.index
                 )
-                mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T)
+                # float32 to match msmu's .X convention (the other three .X builders below, the
+                # sparse branch above, and read_diann's sparse output are all float32); without this
+                # the dense same-level path was the lone float64 producer.
+                mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T.astype(np.float32))
                 mod_adata.var = mudata_input.norm_identification_df.loc[common_index, :]
             if not self._drop_search_result:
                 mod_adata.varm["search_result"] = mudata_input.raw_identification_df.loc[common_index, :]

@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
+import pytest
 import scipy.sparse as sp
 from anndata import AnnData
 from mudata import MuData
 
 import msmu as mm
 import msmu._utils as msmu_utils
-from msmu._core._blockdiag import dense_block
+from msmu._core._blockdiag import dense_block, to_observed_sparse
 
 
 def _make_tmt_mdata() -> MuData:
@@ -39,6 +40,7 @@ def _make_tmt_psm_mdata(n_psm: int = 4000, n_channels: int = 6, n_sets: int = 5,
             "stripped_peptide": peptides[pep_idx],
             "proteins": [f"P{p % 500}" for p in pep_idx],
             "PEP": rng.random(n_psm).astype(np.float32),
+            "purity": rng.random(n_psm).astype(np.float32),
         },
         index=[f"psm{i}" for i in range(n_psm)],
     )
@@ -53,11 +55,44 @@ def _make_tmt_psm_mdata(n_psm: int = 4000, n_channels: int = 6, n_sets: int = 5,
     return MuData({"psm": adata}), fmap
 
 
+def _dense_split_reference(mdata: MuData, fmap: dict) -> MuData:
+    """The dense block-diagonal split built BY HAND (never calls ``split_tmt``).
+
+    Reproduces exactly what ``split_tmt(..., sparse=False)`` produces -- obs ordering, the block
+    placement of each PSM's channel values into its own set, and NaN everywhere else -- so the
+    sparse path can be checked against an oracle that survives the deletion of the dense builder.
+    """
+    psm = mdata.mod["psm"]
+    source = np.asarray(psm.X, dtype=float)  # (n_channels, n_psm); read as float64, cast back below
+    n_channels, n_psm = source.shape
+    channels = list(psm.obs_names)
+    set_labels = psm.var["filename"].str.rsplit(".", n=1).str[0].map(fmap)
+    set_names = list(pd.unique(set_labels))  # first-occurrence order, matching split_tmt
+    obs_names = [f"{channel}_{set_name}" for set_name in set_names for channel in channels]
+
+    set_code = set_labels.map({name: i for i, name in enumerate(set_names)}).to_numpy()
+    # Match split_tmt's stored dtype (the source .X dtype, e.g. float32); a float64 block would
+    # normalise/rollup with slightly different rounding than the sparse path and fail on tolerance.
+    block = np.full((n_channels * len(set_names), n_psm), np.nan, dtype=psm.X.dtype)
+    for psm_index in range(n_psm):
+        base = set_code[psm_index] * n_channels
+        block[base : base + n_channels, psm_index] = source[:, psm_index]
+
+    var = psm.var.copy()
+    var["set"] = set_labels.to_numpy()
+    reference_adata = AnnData(X=block, obs=pd.DataFrame(index=pd.Index(obs_names)), var=var)
+    reference_adata.uns = dict(psm.uns)
+    reference_mdata = MuData({"psm": reference_adata})
+    reference_mdata.var = mdata.var.copy()
+    reference_mdata.uns = dict(mdata.uns)
+    return reference_mdata
+
+
 def test_split_tmt_sparse_matches_dense_exactly():
     """sparse=True stores a SciPy sparse .X identical (obs/var/values/NaN) to the dense result."""
     mdata, fmap = _make_tmt_psm_mdata()
     out_sparse = mm.pp.split_tmt(mdata, fmap, sparse=True)
-    out_dense = mm.pp.split_tmt(mdata, fmap, sparse=False)
+    out_dense = _dense_split_reference(mdata, fmap)
 
     x_sparse = out_sparse.mod["psm"].X
     assert sp.issparse(x_sparse)
@@ -80,7 +115,7 @@ def test_split_tmt_sparse_to_peptide_matches_dense():
     kwargs = dict(agg_method="median", purity_threshold=None, top_n=None, calculate_q=False)
 
     peptide_sparse = mm.pp.to_peptide(mm.pp.split_tmt(mdata, fmap, sparse=True), **kwargs)
-    peptide_dense = mm.pp.to_peptide(mm.pp.split_tmt(mdata, fmap, sparse=False), **kwargs)
+    peptide_dense = mm.pp.to_peptide(_dense_split_reference(mdata, fmap), **kwargs)
 
     a = peptide_sparse.mod["peptide"]
     b = peptide_dense.mod["peptide"]
@@ -91,6 +126,63 @@ def test_split_tmt_sparse_to_peptide_matches_dense():
     assert np.array_equal(np.isnan(xa), np.isnan(xb))
     # median rollup is order-independent -> exact match.
     assert np.allclose(np.nan_to_num(xa), np.nan_to_num(xb), rtol=0, atol=0)
+
+
+def test_split_tmt_on_sparse_input_preserves_nan():
+    """split_tmt(sparse=True) on a sparse input .X restores absent cells as NaN, never 0 (§C-1)."""
+    mdata, fmap = _make_tmt_psm_mdata()
+    dense_x = np.asarray(mdata.mod["psm"].X, dtype=np.float32)
+    mdata.mod["psm"].X = to_observed_sparse(dense_x, dtype=np.float32)  # as a sparse-only reader would
+
+    out = mm.pp.split_tmt(mdata, fmap, sparse=True)
+    reference, _ = _make_tmt_psm_mdata()  # same seed -> same data, still dense
+    expected = _dense_split_reference(reference, fmap)
+
+    got = dense_block(out.mod["psm"].X)
+    want = np.asarray(expected.mod["psm"].X, dtype=float)
+    assert np.array_equal(np.isnan(got), np.isnan(want)), "absent cells must stay NaN, not become 0"
+    assert np.allclose(np.nan_to_num(got), np.nan_to_num(want), rtol=1e-4, atol=1e-3)
+
+
+@pytest.mark.parametrize("sparse", [False, True])
+def test_split_tmt_unmapped_filename_raises(sparse):
+    """An incomplete set map must raise on both paths, not scatter PSMs into a phantom set (§C-2)."""
+    mdata = _make_tmt_mdata()  # filenames runA.raw / runB.raw
+    with pytest.raises(ValueError, match="no set mapping"):
+        mm.pp.split_tmt(mdata, {"runA": "set1"}, sparse=sparse)  # runB unmapped
+
+
+def test_to_peptide_purity_filter_on_sparse_stays_sparse_and_matches_dense():
+    """to_peptide with a purity filter keeps the block-diagonal sparse through the mask, and the
+    peptide result matches the dense path (the mask drops feature columns, never densifies)."""
+    mdata, fmap = _make_tmt_psm_mdata()
+    reference, _ = _make_tmt_psm_mdata()  # same seed -> identical data incl. purity
+    kwargs = dict(agg_method="median", purity_threshold=0.7, top_n=None, calculate_q=False)
+
+    peptide_sparse = mm.pp.to_peptide(mm.pp.split_tmt(mdata, fmap, sparse=True), **kwargs)
+    peptide_dense = mm.pp.to_peptide(_dense_split_reference(reference, fmap), **kwargs)
+
+    a = peptide_sparse.mod["peptide"]
+    b = peptide_dense.mod["peptide"]
+    assert list(a.obs_names) == list(b.obs_names)
+    assert list(a.var_names) == list(b.var_names)
+    xa = _psm_values(peptide_sparse, "peptide")
+    xb = _psm_values(peptide_dense, "peptide")
+    assert np.array_equal(np.isnan(xa), np.isnan(xb))
+    assert np.allclose(np.nan_to_num(xa), np.nan_to_num(xb), rtol=1e-4, atol=1e-3)
+
+
+def test_summarisation_prep_purity_filter_keeps_sparse():
+    """A purity/column filter on a sparse psm keeps the quant a SparseQuant (never densified)."""
+    from msmu._preprocessing._summarisation import SummarisationPrep, SparseQuant
+
+    mdata, fmap = _make_tmt_psm_mdata()
+    adata = mm.pp.split_tmt(mdata, fmap, sparse=True).mod["psm"]
+    prep = SummarisationPrep(adata, col_to_groupby="peptide", has_decoy=False)
+    prep.filter_dict = {"purity": ("gt", 0.7)}
+
+    _, quantification_df, _ = prep.prep()
+    assert isinstance(quantification_df, SparseQuant), "purity filter must keep the block-diagonal sparse"
 
 
 def test_split_tmt_is_preprocessing_api():
@@ -121,7 +213,7 @@ def test_log2_transform_keeps_sparse_and_matches_dense():
     """log2 on a sparse psm stays sparse (elementwise on stored values) and matches the dense result."""
     mdata, fmap = _make_tmt_psm_mdata()
     s = mm.pp.log2_transform(mm.pp.split_tmt(mdata, fmap, sparse=True), "psm")
-    d = mm.pp.log2_transform(mm.pp.split_tmt(mdata, fmap, sparse=False), "psm")
+    d = mm.pp.log2_transform(_dense_split_reference(mdata, fmap), "psm")
 
     assert sp.issparse(s.mod["psm"].X)  # sparse-preserving
     xa, xb = _psm_values(s, "psm"), _psm_values(d, "psm")
@@ -133,7 +225,7 @@ def test_normalise_median_on_sparse_matches_dense():
     """normalise(median) on a sparse psm produces the same result as on the dense psm."""
     mdata, fmap = _make_tmt_psm_mdata()
     s = mm.pp.normalise(mm.pp.split_tmt(mdata, fmap, sparse=True), method="median", modality="psm")
-    d = mm.pp.normalise(mm.pp.split_tmt(mdata, fmap, sparse=False), method="median", modality="psm")
+    d = mm.pp.normalise(_dense_split_reference(mdata, fmap), method="median", modality="psm")
     xa, xb = _psm_values(s, "psm"), _psm_values(d, "psm")
     assert np.array_equal(np.isnan(xa), np.isnan(xb))
     assert np.allclose(np.nan_to_num(xa), np.nan_to_num(xb), rtol=1e-4, atol=1e-3)
@@ -145,7 +237,7 @@ def test_plot_get_data_on_sparse_returns_nan_not_zero():
 
     mdata, fmap = _make_tmt_psm_mdata()
     s = mm.pp.split_tmt(mdata, fmap, sparse=True)
-    d = mm.pp.split_tmt(mdata, fmap, sparse=False)
+    d = _dense_split_reference(mdata, fmap)
     a = PlotData(s, "psm")._get_data().to_numpy(dtype=float)
     b = PlotData(d, "psm")._get_data().to_numpy(dtype=float)
     assert np.array_equal(np.isnan(a), np.isnan(b))  # absent -> NaN, never 0

@@ -4,6 +4,7 @@ import scipy.sparse as sp
 from anndata import AnnData
 from mudata import MuData
 
+from .._core._blockdiag import dense_block, to_dense_df
 from .._utils._mudata import get_anndata_mod
 
 
@@ -56,6 +57,12 @@ def split_tmt(
 
     psm_adata = get_anndata_mod(mdata, "psm")
     set_labels = psm_adata.var["filename"].str.rsplit(".", n=1).str[0].map(map)
+    # Fail loud on a filename with no set mapping. The dense path raises a KeyError later, but the
+    # sparse path would silently scatter those PSMs into a phantom ``nan`` set; raise here so both
+    # behave the same and a bad/incomplete map cannot pass unnoticed.
+    if set_labels.isna().any():
+        unmapped = psm_adata.var["filename"].str.rsplit(".", n=1).str[0][set_labels.isna()].unique()
+        raise ValueError(f"split_tmt: no set mapping for filename(s): {list(unmapped)[:5]}")
     psm_adata.var["set"] = set_labels
 
     channels = list(psm_adata.obs_names)
@@ -88,7 +95,10 @@ def _build_block_diagonal_sparse(source_x, set_labels, set_names, n_channels) ->
     Builds ``(n_channels * n_set, n_psm)`` directly as COO (no dense block-diagonal is ever
     materialised); NaN/absent cells are simply not stored.
     """
-    source = source_x.toarray() if sp.issparse(source_x) else np.asarray(source_x)
+    # dense_block (not toarray) restores a sparse input's structurally-absent cells as NaN. toarray
+    # fills them with 0, and np.isfinite(0) is True, so every absent cell would be stored as an
+    # observed zero -- the exact corruption this block-diagonal representation exists to prevent.
+    source = dense_block(source_x).astype(source_x.dtype) if sp.issparse(source_x) else np.asarray(source_x)
     n_psm = source.shape[1]
     set_code = set_labels.map({name: i for i, name in enumerate(set_names)}).to_numpy()
 
@@ -112,7 +122,8 @@ def _build_block_diagonal_sparse(source_x, set_labels, set_names, n_channels) ->
 
 def _build_block_diagonal_dense(psm_adata, set_labels, set_names) -> pd.DataFrame:
     """Legacy dense block-diagonal (materialises the full ``channel_set x psm`` matrix)."""
-    df = psm_adata.to_df().T.copy()
+    # to_dense_df (not to_df) restores a sparse input's absent cells as NaN; to_df would 0-fill them.
+    df = to_dense_df(psm_adata).T.copy()
     set_dfs = {}
     for set_name in set_names:
         set_index = psm_adata.var.index[set_labels == set_name]

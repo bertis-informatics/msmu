@@ -129,10 +129,9 @@ def umap(
 
     # Drop columns with NaN values
     adata = get_anndata_mod(mdata, modality)
-    if layer is not None:
-        data = pd.DataFrame(data=adata.layers[layer], index=adata.obs_names, columns=adata.var_names)
-    else:
-        data = to_dense_df(adata)
+    # to_dense_df restores absent cells as NaN for a sparse .X/layer (a plain DataFrame over
+    # the raw sparse matrix crashes, and a densify would poison absent cells with 0).
+    data = to_dense_df(adata, layer=layer)
     data = data.dropna(axis=1)
 
     # Set n_neighbors

@@ -170,7 +170,10 @@ def to_dense_df(adata, layer: str | None = None) -> pd.DataFrame:
     """
     matrix = adata.X if layer is None else adata.layers[layer]
     if sp.issparse(matrix):
-        values = dense_block(matrix).astype(matrix.dtype, copy=False)
+        # dense_block already returns float64 with NaN for absent cells; keep that (do not re-cast to
+        # matrix.dtype) so the sparse and dense branches return the same dtype, and so a non-float .X
+        # cannot turn the NaN fill back into 0.
+        values = dense_block(matrix)
     else:
         values = np.asarray(matrix, dtype=float)
     return pd.DataFrame(values, index=adata.obs_names, columns=adata.var_names)

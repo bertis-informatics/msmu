@@ -3,9 +3,10 @@ import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 
-from ._base_reader import SearchResultReader, SearchResultSettings, _is_polars
+from ._base_reader import SearchResultReader, SearchResultSettings, ReaderEngine
+from . import _readers_pandas
 from .._core._blockdiag import SparseQuantFrame
-from .._utils.fasta import parse_uniprot_accession, parse_uniprot_accession_group
+from .._utils.fasta import parse_uniprot_accession_group
 
 
 class DiannReader(SearchResultReader):
@@ -101,7 +102,7 @@ class DiannReader(SearchResultReader):
         # in every other -- a (n_precursor_obs x n_run) matrix with ~one non-null per row. The
         # dense pivot below materialises all of it (0.5% filled); the sparse path builds only the
         # observed cells as a COO/CSR, avoiding the dense pivot entirely.
-        if _is_polars(raw_identification_df):
+        if self._engine is ReaderEngine.POLARS:
             # polars-native path: pull only the three columns this needs, as pandas, then reuse the
             # exact same COO/pivot logic below (bit-identical to the pandas read path).
             raw_identification_df = raw_identification_df.select(
@@ -139,35 +140,9 @@ class DiannReader(SearchResultReader):
         # Build the feature frame on a FRESH DataFrame (identification columns only),
         # reading the raw frame read-only so it stays intact for varm (or to be
         # freed). Quantification is taken from the raw frame by _extract_quant_from_raw.
-        if _is_polars(identification_df):
-            return self._identification_columns_polars(identification_df)
-        self._set_mbr(identification_df)  # sets self._mbr (selects the q-value column to rename)
-        self._set_decoy(identification_df)
-
-        # object columns of the raw frame -> stringified into varm when kept
-        for col in identification_df.columns:
-            if identification_df[col].dtype == "object":
-                self._cols_to_stringify.append(col)
-
-        feature_df = pd.DataFrame(index=identification_df.index)
-        feature_df["proteins"] = parse_uniprot_accession(identification_df["Protein.Ids"])
-        feature_df["missed_cleavages"] = identification_df["Stripped.Sequence"].str.count(r"(?<=[KR])(?!P)")
-        feature_df["peptide_length"] = identification_df["Stripped.Sequence"].str.len()
-        feature_df["PEP"] = identification_df["PEP"]
-        feature_df["Modified.Sequence"] = identification_df["Modified.Sequence"]  # -> peptide
-        feature_df["Stripped.Sequence"] = identification_df["Stripped.Sequence"]  # -> stripped_peptide
-        feature_df["Run"] = identification_df["Run"]  # -> filename
-        feature_df["Precursor.Charge"] = identification_df["Precursor.Charge"]  # -> charge
-        feature_df["RT"] = identification_df["RT"]  # -> rt
-        feature_df["Precursor.Id"] = identification_df["Precursor.Id"]  # for _make_unique_index (dropped at subset)
-        q_value_source = "Lib.Q.Value" if self._mbr else "Global.Q.Value"
-        feature_df[q_value_source] = identification_df[q_value_source]  # -> q_value
-        if self.search_settings.has_decoy:
-            feature_df["Decoy"] = identification_df["Decoy"]  # -> decoy
-        else:
-            feature_df["decoy"] = 0
-
-        return feature_df
+        if self._engine is ReaderEngine.PANDAS:
+            return _readers_pandas.diann_identification(self, identification_df)
+        return self._identification_columns_polars(identification_df)
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values/dtypes).
@@ -178,8 +153,11 @@ class DiannReader(SearchResultReader):
         """
         import polars as pl
 
-        # mbr / decoy flags (normally set by _set_mbr / _set_decoy) computed on the polars frame
-        self._mbr = identification_df.select(pl.col("Lib.Q.Value").sum()).item() != 0
+        # mbr / decoy flags (normally set by _set_mbr / _set_decoy) computed on the polars frame.
+        # Cast Lib.Q.Value before summing: a non-MBR run can leave it entirely empty, which polars
+        # types as String (nothing to infer) and would crash .sum(); cast-to-float sums all-null to
+        # 0 -> mbr False, matching pandas.
+        self._mbr = identification_df.select(pl.col("Lib.Q.Value").cast(pl.Float64, strict=False).sum()).item() != 0
         self.search_settings.has_decoy = ("Decoy" in identification_df.columns) and bool(
             identification_df.select(pl.col("Decoy").cast(pl.Boolean).any()).item()
         )

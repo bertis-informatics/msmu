@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 
-from ._base_reader import SearchResultReader, SearchResultSettings, _is_polars
+from ._base_reader import SearchResultReader, SearchResultSettings, ReaderEngine
+from . import _readers_pandas
 from .._utils.fasta import parse_uniprot_accession_group
 from . import label_info
 
@@ -90,28 +90,9 @@ class SageReader(SearchResultReader):
         # Deduplicate the per-PSM string transforms: protein groups, scan strings and peptides
         # each have far fewer distinct values than PSM rows, so evaluate once per distinct value
         # and map back (self._map_unique) instead of once per row. Identical result, much faster.
-        if _is_polars(identification_df):
-            return self._identification_columns_polars(identification_df)
-        feature_df = pd.DataFrame(index=identification_df.index)
-        feature_df["proteins"] = self._map_unique(identification_df["proteins"], parse_uniprot_accession_group)
-        feature_df["peptide"] = identification_df["peptide"]
-        feature_df["filename"] = self._map_unique(identification_df["filename"], self._strip_filename)
-        feature_df["scan_num"] = self._map_unique(identification_df["scannr"], self._extract_scan_number)
-        feature_df["stripped_peptide"] = self._map_unique(identification_df["peptide"], self._make_stripped_peptide)
-        feature_df["charge"] = identification_df["charge"]
-        feature_df["peptide_len"] = identification_df["peptide_len"]
-        feature_df["expmass"] = identification_df["expmass"]
-        feature_df["calcmass"] = identification_df["calcmass"]
-        feature_df["rt"] = identification_df["rt"]
-        feature_df["missed_cleavages"] = identification_df["missed_cleavages"]
-        feature_df["semi_enzymatic"] = identification_df["semi_enzymatic"]
-        feature_df["decoy"] = (identification_df["label"] == -1).astype(int)
-        feature_df["contaminant"] = feature_df["proteins"].str.contains("contam_", regex=False).astype(int)
-        feature_df["PEP"] = np.power(10, identification_df["posterior_error"])  # convert log10 PEP to PEP
-        feature_df["hyperscore"] = identification_df["hyperscore"]
-        feature_df["spectrum_q"] = identification_df["spectrum_q"]
-
-        return feature_df
+        if self._engine is ReaderEngine.PANDAS:
+            return _readers_pandas.sage_identification(self, identification_df)
+        return self._identification_columns_polars(identification_df)
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values/dtypes).
@@ -123,6 +104,18 @@ class SageReader(SearchResultReader):
           filename strip    ``Path(x).name.rsplit(".",1)[0]`` == ``split("/").list.last().replace(r"\\.[^.]*$", "")``
         """
         import polars as pl
+
+        # Fail loud on a scannr with no "scan=<number>" token (e.g. a non-Thermo instrument), the
+        # way the old pandas int(...) did -- otherwise the polars extract nulls the scan, the index
+        # float-promotes, and every feature is silently dropped at the ident/quant intersection.
+        invalid_scannr = identification_df.filter(
+            pl.col("scannr").is_not_null() & pl.col("scannr").str.extract(r"scan=(\d+)", 1).is_null()
+        )
+        if invalid_scannr.height > 0:
+            raise ValueError(
+                "Sage scannr has no 'scan=<number>' token (non-Thermo scan format is not supported): "
+                f"{invalid_scannr['scannr'].head(3).to_list()}"
+            )
 
         uniq = identification_df.select("proteins").unique().to_series().to_list()
         accession_map = {value: parse_uniprot_accession_group(value) for value in uniq}
@@ -139,7 +132,7 @@ class SageReader(SearchResultReader):
             pl.col("rt"),
             pl.col("missed_cleavages"),
             pl.col("semi_enzymatic"),
-            (pl.col("label") == -1).cast(pl.Int64).alias("decoy"),
+            (pl.col("label") == -1).fill_null(False).cast(pl.Int64).alias("decoy"),  # null label -> target (0)
             (pl.lit(10.0) ** pl.col("posterior_error")).alias("PEP"),  # convert log10 PEP to PEP
             pl.col("hyperscore"),
             pl.col("spectrum_q"),
@@ -176,14 +169,9 @@ class TmtSageReader(SageReader):
         self.search_settings.quantification_level = "psm"
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        if _is_polars(quantification_df):
-            return self._quantification_columns_polars(quantification_df)
-        quantification_df["filename"] = self._map_unique(quantification_df["filename"], self._strip_filename)
-        quantification_df["scan_num"] = quantification_df["scannr"].apply(self._extract_scan_number)
-        quantification_df = self._make_unique_index(quantification_df)
-        quantification_df = quantification_df.drop(["filename", "scannr", "scan_num", "ion_injection_time"], axis=1)
-
-        return quantification_df
+        if self._engine is ReaderEngine.PANDAS:
+            return _readers_pandas.tmt_sage_quant(self, quantification_df)
+        return self._quantification_columns_polars(quantification_df)
 
     def _quantification_columns_polars(self, quantification_df) -> pd.DataFrame:
         """polars-native TMT quant: build the ``filename.scan_num`` index and keep the tmt columns.
@@ -199,7 +187,9 @@ class TmtSageReader(SageReader):
                 (
                     pl.col("filename").str.split("/").list.last().str.replace(r"\.[^.]*$", "")
                     + pl.lit(".")
-                    + pl.col("scannr").str.extract(r"scan=(\d+)", 1)
+                    # cast through Int64 to strip leading zeros (scan=001001 -> 1001), matching the
+                    # identification side's int cast so the two indexes intersect.
+                    + pl.col("scannr").str.extract(r"scan=(\d+)", 1).cast(pl.Int64).cast(pl.Utf8)
                 ).alias("tmp_index"),
                 *[pl.col(col) for col in tmt_cols],
             )
@@ -253,7 +243,7 @@ class LfqSageReader(SageReader):
         # The LFQ peptide-quant table is small (peptides x samples); on the polars-native path
         # convert it to pandas here and reuse the pandas transform -- the identification frame is
         # where the polars win lives, not this table.
-        if _is_polars(quantification_df):
+        if self._engine is ReaderEngine.POLARS:
             quantification_df = quantification_df.to_pandas()
         quantification_df = quantification_df.set_index("peptide", drop=True).rename_axis(index=None).copy()
         quantification_df = quantification_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)

@@ -29,8 +29,12 @@ def _has_quant_values(matrix: XDataType | None) -> bool:
         if rows == 0 or cols == 0:
             return False
 
-        if sparse_matrix.nnz < rows * cols:
-            return True
+        # An all-absent (nnz == 0) sparse matrix is the sparse form of an all-NaN dense matrix -> no
+        # quant values. (The old "nnz < rows*cols -> True" shortcut answered "is it sparse", not "has
+        # values", and wrongly reported True here.) Otherwise there are values iff any stored one is
+        # non-NaN.
+        if sparse_matrix.nnz == 0:
+            return False
 
         return not bool(np.isnan(sparse_matrix.data).all())
 

@@ -1,8 +1,9 @@
 from pathlib import Path
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings, _is_polars
-from .._utils.fasta import parse_uniprot_accession, parse_uniprot_accession_group
+from ._base_reader import SearchResultReader, SearchResultSettings, ReaderEngine
+from . import _readers_pandas
+from .._utils.fasta import parse_uniprot_accession_group
 
 
 class DelpiReader(SearchResultReader):
@@ -74,27 +75,15 @@ class DelpiReader(SearchResultReader):
         return split_indentification_df, split_quantification_df
 
     def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
-        # Same pivot as _split_merged_identification_quantification's quant half, but
-        # sourced from the raw frame: filename = run_name, index = "run_name.pmsm_index"
-        # (matching _make_unique_index), so it aligns with the fresh feature frame.
-        if _is_polars(raw_identification_df):
-            import polars as pl
+        # Block-diagonal precursor quant: filename = run_name, index = "run_name.pmsm_index". The
+        # index is built with the SAME astype(str) formatting as the identification frame's
+        # _make_unique_index (a null pmsm_index -> "nan" after the to_pandas float-promotion), so
+        # the two indexes intersect. On the polars path pull just the three columns to pandas and
+        # share this one tail -- a polars cast(Utf8) would format a null index differently and drop
+        # features at the ident/quant intersection.
+        if self._engine is ReaderEngine.POLARS:
+            raw_identification_df = raw_identification_df.select(["run_name", "pmsm_index", "ms2_area"]).to_pandas()
 
-            pivoted = (
-                raw_identification_df.select(
-                    (
-                        pl.col("run_name").cast(pl.Utf8) + pl.lit(".") + pl.col("pmsm_index").cast(pl.Utf8)
-                    ).alias("index"),
-                    pl.col("run_name").alias("filename"),
-                    pl.col("ms2_area"),
-                )
-                .pivot(on="filename", index="index", values="ms2_area")
-                .sort("index")  # pandas pivot sorts the index
-                .to_pandas()
-                .set_index("index")
-                .rename_axis(index=None)
-            )
-            return pivoted.reindex(sorted(pivoted.columns), axis=1)  # match pandas column sort
         quant_source = pd.DataFrame(
             {
                 "filename": raw_identification_df["run_name"].to_numpy(),
@@ -116,27 +105,9 @@ class DelpiReader(SearchResultReader):
         # freed). Quantification (ms2_area) is taken from the raw frame by
         # _extract_quant_from_raw. ("rt" is computed by the legacy path but dropped
         # at the used_feature_cols subset, so it is omitted here.)
-        if _is_polars(identification_df):
-            return self._identification_columns_polars(identification_df)
-        feature_df = pd.DataFrame(index=identification_df.index)
-        feature_df["proteins"] = parse_uniprot_accession(identification_df["fasta_id"])
-        feature_df["peptide"] = (
-            identification_df["peptide"].str.strip("<").str.strip(">").str.strip(".").str.strip("_")
-        )  # -> stripped_peptide
-        feature_df["modified_sequence"] = (
-            identification_df["modified_sequence"].str.strip("<").str.strip(">").str.strip(".").str.strip("_")
-        )  # -> peptide
-        feature_df["run_name"] = identification_df["run_name"]  # -> filename
-        feature_df["frame_num"] = identification_df["frame_num"]  # -> scan_num
-        feature_df["precursor_charge"] = identification_df["precursor_charge"]  # -> charge
-        feature_df["sequence_length"] = identification_df["sequence_length"]  # -> peptide_length
-        feature_df["posterior_error"] = identification_df["posterior_error"]  # -> PEP
-        feature_df["global_precursor_q_value"] = identification_df["global_precursor_q_value"]  # -> q_value
-        feature_df["score"] = identification_df["score"]
-        feature_df["is_decoy"] = identification_df["is_decoy"]  # -> decoy
-        feature_df["pmsm_index"] = identification_df["pmsm_index"]  # for _make_unique_index (dropped at subset)
-
-        return feature_df
+        if self._engine is ReaderEngine.PANDAS:
+            return _readers_pandas.delpi_identification(self, identification_df)
+        return self._identification_columns_polars(identification_df)
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values).

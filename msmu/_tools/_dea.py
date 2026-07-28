@@ -98,14 +98,9 @@ class DeaInputs:
         layer: str | None,
     ) -> "DeaInputs":
         mod_adata = get_anndata_mod(mdata, modality)
-        if layer is not None:
-            data = pd.DataFrame(
-                mod_adata.layers[layer],
-                index=mod_adata.obs_names,
-                columns=mod_adata.var_names,
-            )
-        else:
-            data = to_dense_df(mod_adata)
+        # to_dense_df restores absent cells as NaN for a sparse .X/layer (a plain DataFrame over
+        # the raw sparse matrix crashes, and a densify would poison absent cells with 0).
+        data = to_dense_df(mod_adata, layer=layer)
 
         expr_matrix = data.T  # features x samples (single transpose, reused below)
 

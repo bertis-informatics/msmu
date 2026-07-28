@@ -36,11 +36,17 @@ def test_mudata_status_has_no_quant_for_dense_all_nan_matrix():
     assert not status.psm.has_quant
 
 
-def test_mudata_status_has_quant_for_sparse_implicit_zero():
+def test_mudata_status_has_no_quant_for_sparse_only_stored_nan():
+    """A sparse matrix whose only stored value is NaN (the rest structurally absent) has no quant.
+
+    Matches _has_quant_values' contract ("at least one non-NaN value"): there is none here. The
+    previous "nnz < rows*cols -> True" shortcut reported quant purely from the sparse structure,
+    which also mis-reported an all-absent (nnz==0) matrix (§C-4).
+    """
     status = _status_for_matrix(sp.csr_matrix(([np.nan], ([0], [0])), shape=(1, 2)))
 
     assert status.psm is not None
-    assert status.psm.has_quant
+    assert not status.psm.has_quant
 
 
 def test_mudata_status_has_no_quant_for_sparse_all_nan_matrix():

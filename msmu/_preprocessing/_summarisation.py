@@ -626,7 +626,21 @@ class SummarisationPrep:
 
         return rank_mask
 
-    def _mask_quantification(self, quant_df: pd.DataFrame, mask_indices: pd.Series) -> pd.DataFrame:
+    def _mask_quantification(self, quant_df, mask_indices: pd.Series):
+        if isinstance(quant_df, SparseQuant):
+            # Drop stored entries in the masked-out feature columns so those features become
+            # all-absent (contribute nothing to the group aggregation) -- no densification. The mask
+            # is over features, whose order (id_df.index == var == matrix columns) matches the CSC.
+            keep = np.asarray(mask_indices, dtype=bool)
+            coo = quant_df.matrix.tocoo()
+            keep_entry = keep[coo.col]
+            masked = sp.coo_matrix(
+                (coo.data[keep_entry], (coo.row[keep_entry], coo.col[keep_entry])),
+                shape=quant_df.matrix.shape,
+                dtype=quant_df.matrix.dtype,
+            ).tocsc()
+            return SparseQuant(matrix=masked, sample_names=quant_df.sample_names)
+
         mask_with_nan_quant = quant_df.copy()
         mask_with_nan_quant.loc[~mask_indices, :] = np.nan
 
@@ -635,11 +649,13 @@ class SummarisationPrep:
     def prep(self):
         identification_df, quantification_df, decoy_df = self.prepare_data_to_summarise()
 
-        # The filter/rank masks operate on a dense (features x samples) frame. When the
-        # quantification is sparse and a mask is requested, densify first (masking is not yet
-        # sparse-native). Mask-free summarisation keeps the sparse path end-to-end.
-        if isinstance(quantification_df, SparseQuant) and (self._filter_dict or self.rank_tuple):
-            logger.debug("Densifying sparse quantification for masked summarisation.")
+        # Only the rank mask needs the quant densely (FeatureRanker ranks features by intensity); the
+        # column/purity filter is computed from the identification frame and applied sparse-natively
+        # (drop feature columns) below. So a sparse block-diagonal is densified only when a rank is
+        # requested -- the common TMT to_peptide (purity filter, no rank) stays sparse end-to-end,
+        # which is the whole point of the block-diagonal representation.
+        if isinstance(quantification_df, SparseQuant) and self.rank_tuple:
+            logger.debug("Densifying sparse quantification for rank-masked summarisation.")
             quantification_df = pd.DataFrame(
                 dense_block(quantification_df.matrix).T,
                 index=self.adata.var_names,
@@ -685,6 +701,15 @@ class PtmSummarisationPrep(SummarisationPrep):
 
     def prep(self):
         identification_df, quantification_df, _ = self.prepare_data_to_summarise()
+        # PTM sites are aggregated from the peptide modality, which is dense (peptides span samples,
+        # so it is not block-diagonal). Densify defensively if a sparse .X is ever passed -- the
+        # pd.merge below cannot operate on a SparseQuant.
+        if isinstance(quantification_df, SparseQuant):
+            quantification_df = pd.DataFrame(
+                dense_block(quantification_df.matrix).T,
+                index=self.adata.var_names,
+                columns=quantification_df.sample_names,
+            )
         identification_df["peptide"] = identification_df.index
         modi_df = self._extract_modi_peptide_df(data=identification_df)
 
