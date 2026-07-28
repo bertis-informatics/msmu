@@ -83,6 +83,15 @@ class DiannReader(SearchResultReader):
 
         return df
 
+    @staticmethod
+    def _tmp_index_polars(frame):
+        """polars sibling of _make_unique_index: filename + "." + Precursor.Id (already strings)."""
+        import polars as pl
+
+        return frame.with_columns(
+            (pl.col("filename").cast(pl.Utf8).fill_null("") + pl.lit(".") + pl.col("Precursor.Id").cast(pl.Utf8).fill_null("nan")).alias("tmp_index")
+        )
+
     def _split_merged_identification_quantification(
         self, identification_df: pd.DataFrame
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -183,9 +192,9 @@ class DiannReader(SearchResultReader):
         ]
         if self.search_settings.has_decoy:
             exprs.append(pl.col("Decoy"))  # -> decoy
-        feature_df = identification_df.select(exprs).to_pandas()
+        feature_df = identification_df.select(exprs)
         if not self.search_settings.has_decoy:
-            feature_df["decoy"] = 0
+            feature_df = feature_df.with_columns(pl.lit(0).alias("decoy"))
         return feature_df
 
     def _set_mbr(self, identification_df: pd.DataFrame) -> None:

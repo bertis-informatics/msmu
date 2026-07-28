@@ -139,7 +139,7 @@ class SageReader(SearchResultReader):
         ).with_columns(
             pl.col("proteins").str.contains("contam_", literal=True).cast(pl.Int64).alias("contaminant"),
         )
-        return feature_df.to_pandas()
+        return feature_df
 
 
 class TmtSageReader(SageReader):

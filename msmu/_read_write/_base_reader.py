@@ -362,6 +362,26 @@ class SearchResultReader:
         return input_df.set_index("tmp_index", drop=True).rename_axis(index=None)
 
     @staticmethod
+    def _tmp_index_polars(frame):
+        """Add the ``tmp_index`` column (filename + "." + scan_num) to a polars feature frame.
+
+        The polars sibling of :meth:`_make_unique_index`. It stays a column (polars has no row
+        index) until the AnnData boundary. Nulls are filled so a null key yields a deterministic,
+        non-null index that still joins (rather than being dropped as a null join key); the result
+        is polars-native ("raw.123"), which differs from the pandas path's float-promoted "raw.123.0"
+        only for rows whose key column contains a null.
+        """
+        import polars as pl
+
+        return frame.with_columns(
+            (
+                pl.col("filename").cast(pl.Utf8).fill_null("")
+                + pl.lit(".")
+                + pl.col("scan_num").cast(pl.Utf8).fill_null("nan")
+            ).alias("tmp_index")
+        )
+
+    @staticmethod
     def _strip_filename(filename: str) -> str:
         return Path(filename).name.rsplit(".", 1)[0]
 
@@ -435,6 +455,14 @@ class SearchResultReader:
         norm_identification_df = self._make_needed_columns_for_identification(
             identification_df
         )  # this will be method overriden in inherited class
+
+        if self._engine is ReaderEngine.POLARS:
+            # Stay polars: rename and add the tmp_index column here; the frame is converted to pandas
+            # only when the AnnData var/varm is built (after subset/decoy/intersection, all polars).
+            rename = {k: v for k, v in self._feature_rename_dict.items() if k in norm_identification_df.columns}
+            norm_identification_df = norm_identification_df.rename(rename)
+            return self._tmp_index_polars(norm_identification_df)
+
         norm_identification_df = norm_identification_df.rename(columns=self._feature_rename_dict)
         norm_identification_df = self._make_unique_index(norm_identification_df)
 
@@ -503,6 +531,14 @@ class SearchResultReader:
             self.used_feature_cols.append("decoy")
 
         used_feature_cols = list(dict.fromkeys(self.used_feature_cols))
+
+        if self._engine is ReaderEngine.POLARS:
+            # Stay polars through subset/decoy/varm alignment; the frames are converted to pandas
+            # only in _build_mudata, after the (polars) intersection selects the common features.
+            return self._make_mudata_input_polars(
+                norm_identification_df, raw_identification_df, quantification_df, used_feature_cols
+            )
+
         norm_identification_df = norm_identification_df.loc[:, used_feature_cols]
 
         target_mask = np.ones(len(norm_identification_df), dtype=bool)
@@ -543,6 +579,55 @@ class SearchResultReader:
 
         return mudata_input
 
+    def _make_mudata_input_polars(self, norm, raw, quantification_df, used_feature_cols) -> MuDataInput:
+        """Polars-native _make_mudata_input: subset, decoy split and varm alignment stay polars.
+
+        ``norm`` carries a ``tmp_index`` column (not a pandas index); ``target``/``raw`` are kept in
+        polars and positionally aligned so the intersection in :meth:`_build_mudata` (also polars)
+        can select the common features and convert to pandas once, at AnnData construction.
+        """
+        import polars as pl
+
+        keep = [column for column in used_feature_cols if column in norm.columns]
+        norm = norm.select([*keep, "tmp_index"])
+
+        if self.search_settings.has_decoy:
+            if "decoy" not in norm.columns:
+                logger.error("Decoy column is expected but not found in the identification DataFrame.")
+                raise ValueError("Decoy column is expected but not found in the identification DataFrame.")
+            is_target = (pl.col("decoy") == 0)
+            target = norm.filter(is_target)
+            decoy_rows = norm.filter(pl.col("decoy") == 1)
+            decoy_df = self._polars_to_indexed_pandas(decoy_rows)
+            target_mask = norm.select(is_target).to_series().to_numpy()
+            logger.debug("Decoy entries separated: %s", decoy_df.shape)
+        else:
+            target = norm
+            decoy_df = None
+            target_mask = np.ones(norm.height, dtype=bool)
+
+        if self._drop_search_result:
+            raw_out = None  # var index alignment is recovered from `target` in _build_mudata
+        else:
+            # raw is positionally aligned to norm (same rows, same order); keep only the target rows
+            # so it stays in step with `target` for the intersection.
+            raw_out = raw.filter(pl.Series(target_mask))
+
+        norm_quant_df = self._normalise_quantification_df(quantification_df) if quantification_df is not None else None
+
+        return MuDataInput(
+            raw_identification_df=raw_out,  # polars (or None); aligned to `target`
+            norm_identification_df=target,  # polars, carries tmp_index column
+            norm_quant_df=norm_quant_df,
+            decoy_df=decoy_df,
+        )
+
+    @staticmethod
+    def _polars_to_indexed_pandas(frame) -> pd.DataFrame:
+        """Convert a polars feature frame with a ``tmp_index`` column to a tmp_index-indexed pandas frame."""
+        pandas_frame = frame.to_pandas().set_index("tmp_index", drop=True).rename_axis(index=None)
+        return pandas_frame
+
     def _separate_decoy_df(self, norm_identification_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         if "decoy" not in norm_identification_df.columns:
             raise ValueError("Decoy column not found in identification DataFrame.")
@@ -570,8 +655,48 @@ class SearchResultReader:
         )
         return adata
 
+    def _intersect_polars_to_pandas(self, mudata_input: MuDataInput) -> MuDataInput:
+        """Do the feature intersection in polars, then hand pandas frames to the shared build.
+
+        The identification (and its raw varm) frames arrive as polars with a ``tmp_index`` column.
+        For a same-level reader the common features (present in both ident and quant) are selected
+        here with a polars ``is_in`` filter -- the expensive reduction of the full ident frame -- so
+        the pandas ``Index.intersection`` in :meth:`_build_mudata` is a cheap idempotent re-check on
+        the already-common set. ``raw`` is filtered by the same mask so it stays row-aligned.
+        """
+        import polars as pl
+
+        target = mudata_input.norm_identification_df  # polars, tmp_index column
+        raw = mudata_input.raw_identification_df  # polars or None
+
+        same_level = self.search_settings.quantification_level == self.search_settings.identification_level
+        if same_level and mudata_input.norm_quant_df is not None:
+            quant_index = list(mudata_input.norm_quant_df.index)  # works for a DataFrame and SparseQuantFrame
+            common_mask = target.select(pl.col("tmp_index").is_in(quant_index)).to_series().to_numpy()
+            target = target.filter(pl.Series(common_mask))
+            if raw is not None:
+                raw = raw.filter(pl.Series(common_mask))
+
+        norm_pandas = self._polars_to_indexed_pandas(target)
+        if raw is None:
+            raw_pandas = pd.DataFrame(index=norm_pandas.index)
+        else:
+            raw_pandas = raw.to_pandas()
+            raw_pandas.index = norm_pandas.index  # raw was filtered by the same mask -> same rows/order
+
+        return MuDataInput(
+            raw_identification_df=raw_pandas,
+            norm_identification_df=norm_pandas,
+            norm_quant_df=mudata_input.norm_quant_df,
+            decoy_df=mudata_input.decoy_df,
+        )
+
     def _build_mudata(self, mudata_input: MuDataInput) -> md.MuData:
         adata_dict = {}
+
+        if self._engine is ReaderEngine.POLARS:
+            # ident/varm are still polars here; do the intersection in polars, then build with pandas.
+            mudata_input = self._intersect_polars_to_pandas(mudata_input)
 
         # Stringify only when raw search_result is materialized in varm.
         if not self._drop_search_result:

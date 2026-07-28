@@ -170,7 +170,7 @@ class FragPipeReader(SearchResultReader):
         )
         if out.select(pl.col("decoy").sum()).item() == 0:
             self.search_settings.has_decoy = False
-        return out.to_pandas()
+        return out
 
 
 class TmtFragPipeReader(FragPipeReader):
