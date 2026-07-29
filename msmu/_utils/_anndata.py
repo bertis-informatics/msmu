@@ -2,7 +2,10 @@ from typing import Any, cast
 
 from anndata.abc import CSCDataset, CSRDataset
 from anndata.experimental.backed import Dataset2D
-from anndata.typing import XDataType
+try:
+    from anndata.typing import XDataType
+except ImportError:  # anndata >=0.13 made XDataType private; XDataArray is the public replacement
+    from anndata.typing import XDataArray as XDataType
 import numpy as np
 from pandas import DataFrame
 from scipy import sparse as sp
