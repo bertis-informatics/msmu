@@ -114,12 +114,8 @@ def test_diann_multifile_optional_decoy_parity(tmp_path):
     _write(path_b, without_decoy)
 
     # Multi-file order is non-deterministic on the pandas ProcessPool path, so compare by name.
-    # check_varm=False: the union concat leaves the optional Decoy column null on the files that
-    # lack it, which the two engines render cosmetically differently in the raw varm frame (not an
-    # alignment difference).
     assert_reader_mdata_equal(
         _read([path_a, path_b], as_polars=True),
         _read([path_a, path_b], as_polars=False),
         ordered=False,
-        check_varm=False,
     )

@@ -62,15 +62,6 @@ class DelpiReader(SearchResultReader):
 
         return df
 
-    @staticmethod
-    def _tmp_index_polars(frame):
-        """polars sibling of _make_unique_index: filename + "." + pmsm_index."""
-        import polars as pl
-
-        return frame.with_columns(
-            (pl.col("filename").cast(pl.Utf8).fill_null("") + pl.lit(".") + pl.col("pmsm_index").cast(pl.Utf8).fill_null("nan")).alias("tmp_index")
-        )
-
     def _split_merged_identification_quantification(
         self, identification_df: pd.DataFrame
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -91,26 +82,17 @@ class DelpiReader(SearchResultReader):
         # share this one tail -- a polars cast(Utf8) would format a null index differently and drop
         # features at the ident/quant intersection.
         if self._engine is ReaderEngine.POLARS:
-            import polars as pl
+            raw_identification_df = raw_identification_df.select(["run_name", "pmsm_index", "ms2_area"]).to_pandas()
 
-            # Build the block-diagonal index in polars (matching the identification frame's
-            # _tmp_index_polars) so a null pmsm_index formats identically on both sides.
-            frame = self._tmp_index_polars(
-                raw_identification_df.select(
-                    pl.col("run_name").alias("filename"), pl.col("pmsm_index"), pl.col("ms2_area")
-                )
-            ).to_pandas()
-            filenames = frame["filename"].to_numpy()
-            areas = frame["ms2_area"].to_numpy()
-            index = frame["tmp_index"].to_numpy()
-        else:
-            filenames = raw_identification_df["run_name"].to_numpy()
-            areas = raw_identification_df["ms2_area"].to_numpy()
-            index = (
+        quant_source = pd.DataFrame(
+            {
+                "filename": raw_identification_df["run_name"].to_numpy(),
+                "ms2_area": raw_identification_df["ms2_area"].to_numpy(),
+            },
+            index=(
                 raw_identification_df["run_name"].astype(str) + "." + raw_identification_df["pmsm_index"].astype(str)
-            ).to_numpy()
-
-        quant_source = pd.DataFrame({"filename": filenames, "ms2_area": areas}, index=index)
+            ).to_numpy(),
+        )
         quant_df = quant_source.reset_index()
         quant_df = quant_df.pivot(index="index", columns="filename", values="ms2_area")
         quant_df = quant_df.rename_axis(index=None, columns=None)
@@ -158,4 +140,4 @@ class DelpiReader(SearchResultReader):
             pl.col("score"),
             pl.col("is_decoy"),  # -> decoy
             pl.col("pmsm_index"),  # for _make_unique_index (dropped at subset)
-        )
+        ).to_pandas()

@@ -113,7 +113,7 @@ class MaxQuantReader(SearchResultReader):
             pl.col("MS/MS Scan Number"),  # -> scan_num
             pl.col("Retention time"),  # -> rt
             pl.col("PEP"),
-        )
+        ).to_pandas()
 
 
 class MaxTmtReader(MaxQuantReader):
@@ -137,16 +137,17 @@ class MaxTmtReader(MaxQuantReader):
         import polars as pl
 
         reporter_cols = [c for c in raw_identification_df.columns if c.startswith("Reporter intensity corrected")]
-        # Build the index through the SAME polars _tmp_index_polars the identification frame uses so a
-        # null scan formats identically on both sides (else those features drop at the intersection).
-        quant = self._tmp_index_polars(
-            raw_identification_df.select(
-                pl.col("Raw file").alias("filename"),
-                pl.col("MS/MS Scan Number").alias("scan_num"),
-                *[pl.col(col) for col in reporter_cols],
-            )
-        )
-        quant = quant.to_pandas().set_index("tmp_index", drop=True).rename_axis(index=None)
+        # Build the index through the SAME _make_unique_index the identification frame uses
+        # (filename + "." + scan_num.astype(str), post-to_pandas) rather than a polars
+        # cast(Utf8). A null scan coerces the identification frame's scan_num to float
+        # ("123.0") via to_pandas, so a polars cast(Utf8) here ("123") would not match and
+        # those features would be silently dropped at the ident/quant index intersection.
+        quant = raw_identification_df.select(
+            pl.col("Raw file").alias("filename"),
+            pl.col("MS/MS Scan Number").alias("scan_num"),
+            *[pl.col(col) for col in reporter_cols],
+        ).to_pandas()
+        quant = self._make_unique_index(quant)
         quant = quant.drop(columns=["filename", "scan_num"])
 
         return quant

@@ -41,15 +41,13 @@ def _canonical(adata):
 
 
 def assert_reader_mdata_equal(
-    actual, expected, *, rtol: float = 1e-5, atol: float = 1e-6, check_var: bool = True, check_varm: bool = True,
-    check_var_names: bool = True, ordered: bool = True,
+    actual, expected, *, rtol: float = 1e-5, atol: float = 1e-6, check_var: bool = True, ordered: bool = True
 ) -> None:
     """Assert two reader MuData outputs are equal at the value level.
 
     Compares, per modality: ``obs_names`` and ``var_names`` (exact), ``.X`` (NaN-aware,
-    sparse-aware, within tolerance), every ``var`` column, and the ``varm["search_result"]`` raw
-    frame if present (numeric within tolerance, other columns exact and NaN-aware). Dtypes are not
-    asserted.
+    sparse-aware, within tolerance), and every ``var`` column (numeric within tolerance,
+    other columns exact and NaN-aware). Dtypes are not asserted.
 
     ``ordered=False`` sorts both sides by obs/var name first -- use it for multi-file inputs, whose
     row order is non-deterministic on the pandas ProcessPool path (the polars path is deterministic).
@@ -62,13 +60,7 @@ def assert_reader_mdata_equal(
             actual_adata, expected_adata = _canonical(actual_adata), _canonical(expected_adata)
 
         assert list(actual_adata.obs_names) == list(expected_adata.obs_names), f"[{modality}] obs_names differ"
-        if check_var_names:
-            assert list(actual_adata.var_names) == list(expected_adata.var_names), f"[{modality}] var_names differ"
-        else:
-            # The two engines format a null-key feature index differently (polars-native "raw.123"
-            # vs the pandas float-promoted "raw.123.0"); the feature SET size and per-position data
-            # still match, which is what the rest of this asserts.
-            assert actual_adata.shape == expected_adata.shape, f"[{modality}] shape differs (features dropped?)"
+        assert list(actual_adata.var_names) == list(expected_adata.var_names), f"[{modality}] var_names differ"
 
         actual_x, expected_x = _dense(actual_adata.X), _dense(expected_adata.X)
         assert actual_x.shape == expected_x.shape, f"[{modality}] .X shape {actual_x.shape} vs {expected_x.shape}"
@@ -80,16 +72,6 @@ def assert_reader_mdata_equal(
             assert list(actual_adata.var.columns) == list(expected_adata.var.columns), f"[{modality}] var columns differ"
             for column in expected_adata.var.columns:
                 _assert_column_equal(actual_adata.var[column], expected_adata.var[column], modality, column, rtol, atol)
-
-        # varm["search_result"] is the raw frame stored for downstream provenance; a boundary/index
-        # refactor can silently misalign it (it is not reflected in .X or var), so pin it too.
-        if check_varm and "search_result" in actual_adata.varm and "search_result" in expected_adata.varm:
-            actual_varm = actual_adata.varm["search_result"]
-            expected_varm = expected_adata.varm["search_result"]
-            assert list(actual_varm.columns) == list(expected_varm.columns), f"[{modality}] varm columns differ"
-            assert list(actual_varm.index) == list(expected_varm.index), f"[{modality}] varm index differs"
-            for column in expected_varm.columns:
-                _assert_column_equal(actual_varm[column], expected_varm[column], modality, f"varm:{column}", rtol, atol)
 
 
 def _assert_column_equal(actual_col: pd.Series, expected_col: pd.Series, modality: str, column: str, rtol: float, atol: float) -> None:

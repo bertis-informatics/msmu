@@ -83,10 +83,7 @@ def test_maxquant_tmt_polars_matches_pandas_with_null_scan(tmp_path):
     polars_psm = polars_mdata["psm"]
     pandas_psm = pandas_mdata["psm"]
 
-    # polars builds the index natively ("raw_0.101"); pandas float-promotes the null-containing scan
-    # column ("raw_0.101.0"). The feature SET and per-position intensities still match -- what
-    # matters is that neither path drops the feature at the ident/quant intersection.
-    assert polars_psm.shape == pandas_psm.shape
+    assert list(polars_psm.var_names) == list(pandas_psm.var_names)
     assert list(polars_psm.obs_names) == list(pandas_psm.obs_names)
     np.testing.assert_allclose(
         np.asarray(polars_psm.X, dtype=float),
@@ -106,8 +103,4 @@ def test_maxquant_tmt_null_scan_index_is_shared_by_ident_and_quant(tmp_path):
     normalised_identification = reader._normalise_identification_df(identification_df)
     quantification = reader._extract_quant_from_raw(identification_df)
 
-    # The polars-native normalise carries the index as a tmp_index column (no pandas row index yet);
-    # the quantification frame is pandas indexed by the same key. They must match so the intersection
-    # keeps every feature.
-    ident_index = normalised_identification.get_column("tmp_index").to_list()
-    assert ident_index == list(quantification.index)
+    assert list(normalised_identification.index) == list(quantification.index)
