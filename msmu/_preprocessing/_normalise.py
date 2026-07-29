@@ -154,18 +154,25 @@ def normalise(
     obs_groups = adata.obs[batch_key].to_numpy() if batch_key is not None else None
     var_groups = adata.var[fraction_key].to_numpy() if fraction_key is not None else None
 
-    # Normalisation (median/quantile) needs per-sample distributions across features, so it
-    # densifies a sparse block-diagonal (NaN for absent, same dtype as the dense path). Memory-
-    # efficient sparse normalisation is a follow-up; correctness here matches the dense path.
-    if is_sparse(raw_arr):
-        raw_arr = dense_block(raw_arr).astype(raw_arr.dtype)
+    # Per-sample median centering (axis="obs", no batch/fraction grouping) is computable directly
+    # on the sparse block-diagonal -- each obs row's stored values are centered independently -- so
+    # it keeps the ``.X`` sparse instead of materialising the (samples x features) dense matrix. This
+    # is the common PSM-level TMT/DIA normalisation. Other methods (quantile) or grouped
+    # normalisation still densify (NaN for absent, dtype matching the dense path).
+    if is_sparse(raw_arr) and method in ("median", "median_center") and obs_groups is None and var_groups is None:
+        normalised_arr = _median_normalise_per_sample_sparse(
+            raw_arr, add_global_median=(method == "median")
+        )
+    else:
+        if is_sparse(raw_arr):
+            raw_arr = dense_block(raw_arr).astype(raw_arr.dtype)
 
-    normalised_arr = _normalise_by_groups(
-        raw_arr=raw_arr,
-        norm_cls=norm_cls,
-        obs_groups=obs_groups,
-        var_groups=var_groups,
-    )
+        normalised_arr = _normalise_by_groups(
+            raw_arr=raw_arr,
+            norm_cls=norm_cls,
+            obs_groups=obs_groups,
+            var_groups=var_groups,
+        )
 
     if layer is None:
         adata.X = normalised_arr
@@ -204,6 +211,29 @@ def _partition_indices(groups: np.ndarray | None, length: int) -> list[np.ndarra
         return [np.arange(length)]
     unique_groups = np.unique(groups)
     return [np.where(groups == group)[0] for group in unique_groups]
+
+
+def _median_normalise_per_sample_sparse(matrix, add_global_median: bool):
+    """Per-sample (per-obs) median centering of a sparse block-diagonal, without densifying.
+
+    Matches the dense ``axis="obs"`` median/median_center path: each obs row's stored (observed)
+    values are centered by that row's median, and for ``method="median"`` the dataset-wide median of
+    all stored values is added back. Only ``.data`` is rewritten, so structurally-absent cells stay
+    absent and the result stays sparse. The stored dtype is preserved (not upcast to float64) so the
+    median arithmetic rounds identically to the dense path -- centering subtracts a large median, so
+    even a 1-ULP dtype mismatch would shift a whole row and break value-equality with the dense path.
+    """
+    csr = matrix.tocsr(copy=True)
+    if add_global_median and csr.data.size:
+        global_median = np.median(csr.data)
+    else:
+        global_median = csr.dtype.type(0)
+    for row in range(csr.shape[0]):
+        start, end = csr.indptr[row], csr.indptr[row + 1]
+        if end > start:
+            values = csr.data[start:end]
+            csr.data[start:end] = values - np.median(values) + global_median
+    return csr
 
 
 def _normalise_by_groups(

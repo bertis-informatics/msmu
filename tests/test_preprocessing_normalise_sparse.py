@@ -100,6 +100,7 @@ def test_log2_is_nan_aware_never_zero_fills():
         (log2_transform, {}),
         (scale_data, {}),
         (normalise, {"method": "median"}),
+        (normalise, {"method": "median_center"}),
         (normalise, {"method": "quantile"}),
     ],
 )
@@ -127,3 +128,19 @@ def test_a_zero_filled_layer_would_change_the_result():
     naive = to_dense_df(scale_data(_mdata(zero_filled), modality="psm", layer="raw")["psm"], layer="raw")
     correct = to_dense_df(scale_data(_make_dense(), modality="psm", layer="raw")["psm"], layer="raw")
     assert not naive.equals(correct), "0-fill and NaN-aware scaling coincided -- fixture cannot discriminate"
+
+
+@pytest.mark.parametrize("method", ["median", "median_center"])
+def test_normalise_per_sample_median_keeps_layer_sparse(method):
+    """Per-sample median normalisation (the common PSM-level TMT/DIA step) must stay sparse: the
+    block-diagonal is centered per obs row in place, never materialised as a dense matrix."""
+    out = normalise(_make_sparse(), method=method, modality="psm", layer="raw")
+    assert sp.issparse(out["psm"].layers["raw"]), f"normalise({method}) densified the sparse block-diagonal"
+    assert np.isnan(to_dense_df(out["psm"], layer="raw").to_numpy()).sum() == _n_absent()
+
+
+def test_normalise_quantile_still_densifies():
+    """quantile is not sparse-native (per-sample rank mapping across differing blocks), so it falls
+    back to the NaN-aware densify path. Pins the intended boundary of the sparse fast-path."""
+    out = normalise(_make_sparse(), method="quantile", modality="psm", layer="raw")
+    assert not sp.issparse(out["psm"].layers["raw"])
