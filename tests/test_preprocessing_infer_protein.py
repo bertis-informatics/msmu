@@ -127,7 +127,7 @@ def test_infer_protein_uses_propagated_mapping_from_path(monkeypatch):
         }
     )
 
-    monkeypatch.setattr("msmu._preprocessing._infer_protein.read_h5mu", lambda _: propagated)
+    monkeypatch.setattr("msmu._read_write._reader_registry.read_h5mu", lambda _: propagated)
 
     out = infer_protein(mdata, propagated_from="mapping.h5mu")
 
