@@ -88,3 +88,26 @@ def test_maxquant_lfq_null_raw_file_dropped(tmp_path):
 
     peptide = _read_lfq(path)["peptide"]
     assert list(peptide.obs_names) == ["raw_0", "raw_1"], "null Raw file must not form a phantom sample"
+
+
+def test_maxquant_tmt_read_forwards_drop_search_result(tmp_path):
+    """MaxTmtReader must forward drop_search_result to its base: a dropped super() kwarg once made
+    read_maxquant(label="tmt", drop_search_result=True) a silent no-op (varm always materialised)."""
+    columns = _base_columns(3)
+    frame = pd.DataFrame(columns)
+    for channel in range(1, PLEX + 1):
+        frame[f"Reporter intensity corrected {channel}"] = np.arange(1, 4, dtype=float) * channel
+    path = tmp_path / "msms.txt"
+    _write(path, frame)
+
+    def _read(drop_search_result):
+        converter = MaxQuantDataFrameConverter()
+        identification_file, identification_df = converter.convert([path])
+        return MaxTmtReader(
+            identification_file=identification_file,
+            identification_df=identification_df,
+            drop_search_result=drop_search_result,
+        ).read()
+
+    assert "search_result" in _read(drop_search_result=False)["psm"].varm
+    assert "search_result" not in _read(drop_search_result=True)["psm"].varm

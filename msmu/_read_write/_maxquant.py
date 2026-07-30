@@ -113,7 +113,7 @@ class MaxTmtReader(MaxQuantReader):
         identification_df: pd.DataFrame,
         drop_search_result: bool = False,
     ) -> None:
-        super().__init__(identification_file, identification_df)
+        super().__init__(identification_file, identification_df, drop_search_result=drop_search_result)
         self.search_settings.label = "tmt"
         self.search_settings.acquisition = "dda"
 
