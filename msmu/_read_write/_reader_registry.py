@@ -112,7 +112,7 @@ def read_diann(
     identification_file: str | Path | list,
     drop_search_result: bool = False,
     level: Literal["precursor", "protein_group"] = "precursor",
-    sparse: bool = False,
+    sparse: bool = True,
 ) -> md.MuData:
     """
     Reads DIA-NN output and returns a MuData object.

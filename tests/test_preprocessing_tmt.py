@@ -7,7 +7,7 @@ from mudata import MuData
 
 import msmu as mm
 import msmu._utils as msmu_utils
-from msmu._core._blockdiag import dense_block, to_observed_sparse
+from msmu._core._blockdiag import dense_block, to_dense_df, to_observed_sparse
 
 
 def _make_tmt_mdata() -> MuData:
@@ -199,9 +199,12 @@ def test_split_tmt_splits_channels_by_run_set():
     assert list(out.mod["psm"].obs_names) == ["126_set1", "127_set1", "126_set2", "127_set2"]
     assert list(out.mod["psm"].var_names) == ["psm1", "psm2", "psm3", "psm4"]
     assert out.mod["psm"].uns["label"] == "tmt"
-    assert out.mod["psm"].to_df().loc["126_set1", "psm1"] == 1.0
-    assert out.mod["psm"].to_df().loc["126_set2", "psm2"] == 2.0
-    assert np.isnan(out.mod["psm"].to_df().loc["126_set1", "psm2"])
+    # split_tmt now yields a sparse block-diagonal .X by default; to_dense_df restores the
+    # structurally-absent cross-set cells as NaN (anndata's .to_df would 0-fill them).
+    dense = to_dense_df(out.mod["psm"])
+    assert dense.loc["126_set1", "psm1"] == 1.0
+    assert dense.loc["126_set2", "psm2"] == 2.0
+    assert np.isnan(dense.loc["126_set1", "psm2"])
 
 
 def _psm_values(mdata, modality):

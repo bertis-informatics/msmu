@@ -11,7 +11,7 @@ from .._utils._mudata import get_anndata_mod
 def split_tmt(
     mdata: MuData,
     map: dict[str, str] | pd.Series | pd.DataFrame,
-    sparse: bool = False,
+    sparse: bool = True,
 ) -> MuData:
     """
     Split TMT channels in a MuData object into separate modalities based on a mapping.
