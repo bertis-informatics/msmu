@@ -29,21 +29,6 @@ logger = get_logger(__name__)
 # to polars at the read boundary (see ``_read_file``), so the transforms always receive polars.
 
 
-def set_polars_reader(enabled: bool = True) -> None:
-    """Deprecated no-op: the readers are polars-only, so there is no pandas path to toggle.
-
-    Kept for backwards compatibility (it is part of the public API). Calling it emits a
-    ``DeprecationWarning`` and does nothing.
-    """
-    import warnings
-
-    warnings.warn(
-        "set_polars_reader() is deprecated and has no effect: the readers are polars-only.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-
 # pandas' default NA sentinels (pandas.io.parsers.STR_NA_VALUES), hard-coded to avoid a private
 # import. polars only treats an empty field as null by default, so without this a "NA"/"#N/A"/"null"
 # in a numeric column keeps the whole column as String (silently -> string values land in var, or a
