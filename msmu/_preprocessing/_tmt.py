@@ -16,30 +16,25 @@ def split_tmt(
     Split TMT channels in a MuData object into separate modalities based on a mapping.
 
     Splitting relabels the ``C`` reporter channels into ``C x n_set`` distinct ``channel_set``
-    samples so that each biological sample is unambiguous. Because a given PSM is measured in
-    only one set, the resulting PSM matrix is block-diagonal: every feature carries values in
-    just its set's channels and is missing (NaN) in every other set's channels. Stored densely
-    this is ``O(n_set^2)`` -- the feature count and the sample count both scale with the number
-    of sets -- which is what makes many-plex studies exhaust memory. Only the block diagonal
-    (``O(n_set)``) is stored, in a SciPy sparse ``.X``; the obs axis and every value are the
-    same as a dense split would produce.
+    samples so that each biological sample is unambiguous. Because a given PSM is measured in only
+    one set, the resulting PSM matrix is block-diagonal: every feature carries values in just its
+    set's channels and is missing (NaN) in every other set's. A dense store would be ``O(n_set^2)``
+    -- both the feature count and the sample count scale with the number of sets, which is what
+    makes many-plex studies exhaust memory -- so only the block diagonal (``O(n_set)``) is stored,
+    as a SciPy sparse ``.X``. Every obs label and stored value is identical to a fully materialised
+    split; only the structurally-absent cross-set cells are left out.
 
-    Note: the structurally-missing (cross-set) cells are not stored, so
-    ``mdata.mod["psm"].to_df()`` returns 0 (SciPy sparse convention) rather than NaN for those
-    cells. Inspect the sparse matrix with :func:`msmu._core._blockdiag.dense_block`, which
-    restores absent cells as NaN.
+    Note: because those cells are not stored, ``mdata.mod["psm"].to_df()`` returns 0 (SciPy sparse
+    convention) rather than NaN for them. Inspect the matrix with
+    :func:`msmu._core._blockdiag.dense_block`, which restores absent cells as NaN.
 
-    Parameters
-    ----------
-    mdata : MuData
-        The MuData object containing TMT data.
-    map : dict[str, str] | pd.Series | pd.DataFrame
-        A mapping of filenames to set names. If a DataFrame is provided, it should have two columns: the first for filenames and the second for set names.
+    Parameters:
+        mdata: The MuData object containing TMT data.
+        map: A mapping of filenames to set names. If a DataFrame is provided, it should have two
+            columns: the first for filenames and the second for set names.
 
-    Returns
-    -------
-    MuData
-        The modified MuData object with TMT channels split into separate modalities.
+    Returns:
+        The MuData object with TMT channels split into ``channel_set`` samples.
     """
     if isinstance(map, pd.Series):
         map = map.to_dict()
