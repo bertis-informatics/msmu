@@ -13,6 +13,8 @@ import pytest
 
 from msmu._read_write._maxquant import MaxQuantDataFrameConverter, MaxTmtReader
 
+from _parity_helpers import assert_polars_matches_golden
+
 PLEX = 6
 SCAN_COLUMN = "MS/MS Scan Number"
 
@@ -77,18 +79,7 @@ def test_maxquant_tmt_polars_matches_pandas_with_null_scan(tmp_path):
     path = tmp_path / "msms.txt"
     _write_maxquant_tmt_file(path, ["101", "", "103"])
 
-    polars_mdata = _read_maxquant_tmt(path, as_polars=True)
-    pandas_mdata = _read_maxquant_tmt(path, as_polars=False)
-
-    polars_psm = polars_mdata["psm"]
-    pandas_psm = pandas_mdata["psm"]
-
-    assert list(polars_psm.var_names) == list(pandas_psm.var_names)
-    assert list(polars_psm.obs_names) == list(pandas_psm.obs_names)
-    np.testing.assert_allclose(
-        np.asarray(polars_psm.X, dtype=float),
-        np.asarray(pandas_psm.X, dtype=float),
-    )
+    assert_polars_matches_golden(lambda as_polars: _read_maxquant_tmt(path, as_polars), "maxquant_null_scan")
 
 
 def test_maxquant_tmt_null_scan_index_is_shared_by_ident_and_quant(tmp_path):

@@ -1,8 +1,15 @@
-"""Shared assertions for reader parity tests (polars path vs pandas path).
+"""Shared assertions for reader parity tests (polars path vs a frozen pandas-derived golden).
 
 The pandas path is the de-facto specification for the readers that have no parity coverage
-(Sage, DIA-NN, FragPipe, DELPI); these helpers capture "the two paths agree" as a value-level
-comparison so the polars path stays pinned to the reference *before* the pandas path is deleted.
+(Sage, DIA-NN, FragPipe, DELPI). The goldens under ``tests/goldens/`` capture that specification
+as MuData written to ``.h5mu`` *while the pandas path still exists*, so the polars path stays
+pinned to the reference after the pandas path is deleted (the cutover). Tests compare the polars
+read against the loaded golden and never run the pandas path at test time.
+
+Regenerating the goldens (only while the pandas path exists, or later from the surviving reader)::
+
+    MSMU_REGEN_READER_GOLDENS=1 pytest tests/test_read_write_*_parity.py \\
+        tests/test_read_write_maxquant_null_scan.py
 
 Value-level, not byte-exact: ``.X`` and numeric ``var`` columns are compared with a tolerance
 (polars parses CSV floats correctly-rounded, which differs from pandas by ~1 ULP on some inputs),
@@ -14,11 +21,61 @@ to 0).
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
 from msmu._core._blockdiag import dense_block
+
+_GOLDEN_DIR = Path(__file__).parent / "goldens"
+# Set MSMU_REGEN_READER_GOLDENS=1 to (re)write goldens from the pandas path instead of comparing.
+_REGEN = os.environ.get("MSMU_REGEN_READER_GOLDENS", "").lower() not in ("", "0", "false", "no")
+
+
+def load_golden(golden_name: str):
+    """Load a frozen reader golden MuData from ``tests/goldens/<golden_name>.h5mu``."""
+    from msmu import read_h5mu
+
+    return read_h5mu(str(_GOLDEN_DIR / f"{golden_name}.h5mu"))
+
+
+def assert_polars_matches_golden(
+    read_fn, golden_name: str, *, ordered: bool = True, check_var: bool = True, rtol: float = 1e-5, atol: float = 1e-6
+) -> None:
+    """Assert the polars read equals the frozen golden for ``golden_name``.
+
+    ``read_fn(as_polars=...)`` returns the reader MuData for the engine requested. In normal runs
+    only the polars read happens and it is compared against the loaded golden. When
+    ``MSMU_REGEN_READER_GOLDENS`` is set, the golden is first (re)written from ``read_fn`` -- from
+    the pandas path (``as_polars=False``) so the reference stays the pandas specification.
+    """
+    if _REGEN:
+        import anndata
+
+        # polars->pandas gives nullable/Arrow-backed string columns; anndata 0.13 refuses to write
+        # those under infer_string=False unless this is opted in. Values are unaffected (the compare
+        # is dtype-agnostic); this only unblocks serialising the golden.
+        anndata.settings.allow_write_nullable_strings = True
+
+        _GOLDEN_DIR.mkdir(exist_ok=True)
+        golden_path = _GOLDEN_DIR / f"{golden_name}.h5mu"
+        if golden_path.exists():
+            golden_path.unlink()
+        golden = read_fn(as_polars=False)
+        # Keep only what this helper compares (.X, obs/var names, var columns). The aligned mappings
+        # are not compared, and some reader ``varm['search_result']`` columns (null-bearing object
+        # dtype, e.g. a null scan) fail h5mu serialisation on the anndata-0.13/pandas-3 stack.
+        for modality in golden.mod.values():
+            for aligned in (modality.varm, modality.obsm, modality.varp, modality.obsp, modality.layers):
+                aligned.clear()
+        golden.write_h5mu(str(golden_path))
+
+    assert_reader_mdata_equal(
+        read_fn(as_polars=True), load_golden(golden_name), ordered=ordered, check_var=check_var, rtol=rtol, atol=atol
+    )
 
 
 def _dense(matrix) -> np.ndarray:

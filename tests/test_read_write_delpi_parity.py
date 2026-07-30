@@ -15,7 +15,7 @@ import pytest
 from msmu._read_write._base_reader import SearchResultDataFrameConverter
 from msmu._read_write._delpi import DelpiReader
 
-from _parity_helpers import assert_reader_mdata_equal
+from _parity_helpers import assert_polars_matches_golden
 
 
 @pytest.fixture(autouse=True)
@@ -78,7 +78,7 @@ def test_delpi_polars_matches_pandas_clean(tmp_path):
     path = tmp_path / "delpi.tsv"
     _write(path, _frame(_clean_pmsm()))
 
-    assert_reader_mdata_equal(_read(path, as_polars=True), _read(path, as_polars=False))
+    assert_polars_matches_golden(lambda as_polars: _read(path, as_polars=as_polars), "delpi_clean")
 
 
 def test_delpi_null_pmsm_index_parity(tmp_path):
@@ -88,4 +88,4 @@ def test_delpi_null_pmsm_index_parity(tmp_path):
     path = tmp_path / "delpi.tsv"
     _write(path, _frame(pmsm))
 
-    assert_reader_mdata_equal(_read(path, as_polars=True), _read(path, as_polars=False))
+    assert_polars_matches_golden(lambda as_polars: _read(path, as_polars=as_polars), "delpi_null_pmsm")

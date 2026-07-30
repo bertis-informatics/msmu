@@ -8,14 +8,13 @@ dropping the row from both target and decoy (A-4).
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from msmu._read_write._base_reader import SearchResultDataFrameConverter
 from msmu._read_write._sage import TmtSageReader
 
-from _parity_helpers import assert_reader_mdata_equal
+from _parity_helpers import assert_polars_matches_golden
 
 PLEX = 6
 
@@ -111,8 +110,9 @@ def _write_pair(tmp_path, scan_tokens, labels):
 def test_sage_tmt_polars_matches_pandas_clean(tmp_path):
     """Clean TMT input: identical features, names, channels and intensities on both paths."""
     ident_path, quant_path = _write_pair(tmp_path, _clean_scan_tokens(), _clean_labels())
-    assert_reader_mdata_equal(_read(ident_path, quant_path, as_polars=True),
-                              _read(ident_path, quant_path, as_polars=False))
+    assert_polars_matches_golden(
+        lambda as_polars: _read(ident_path, quant_path, as_polars=as_polars), "sage_tmt_clean"
+    )
 
 
 def test_sage_tmt_malformed_scannr_raises_clearly(tmp_path):
@@ -135,8 +135,9 @@ def test_sage_tmt_leading_zero_scan_parity(tmp_path):
     tokens = _clean_scan_tokens()
     tokens[0] = "scan=001001"
     ident_path, quant_path = _write_pair(tmp_path, tokens, _clean_labels())
-    assert_reader_mdata_equal(_read(ident_path, quant_path, as_polars=True),
-                              _read(ident_path, quant_path, as_polars=False))
+    assert_polars_matches_golden(
+        lambda as_polars: _read(ident_path, quant_path, as_polars=as_polars), "sage_tmt_leading_zero"
+    )
 
 
 def test_sage_tmt_null_label_parity(tmp_path):
@@ -144,5 +145,6 @@ def test_sage_tmt_null_label_parity(tmp_path):
     labels = _clean_labels()
     labels[1] = None  # null label
     ident_path, quant_path = _write_pair(tmp_path, _clean_scan_tokens(), labels)
-    assert_reader_mdata_equal(_read(ident_path, quant_path, as_polars=True),
-                              _read(ident_path, quant_path, as_polars=False))
+    assert_polars_matches_golden(
+        lambda as_polars: _read(ident_path, quant_path, as_polars=as_polars), "sage_tmt_null_label"
+    )

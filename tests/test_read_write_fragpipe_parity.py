@@ -14,7 +14,7 @@ import pytest
 from msmu._read_write._base_reader import SearchResultDataFrameConverter
 from msmu._read_write._fragpipe import TmtFragPipeReader
 
-from _parity_helpers import assert_reader_mdata_equal
+from _parity_helpers import assert_polars_matches_golden
 
 _CHANNELS = ["126", "127N", "128C"]
 
@@ -79,7 +79,7 @@ def test_fragpipe_tmt_polars_matches_pandas_clean(tmp_path):
     path = tmp_path / "psm.tsv"
     _write(path, _frame(_clean_spectra()))
 
-    assert_reader_mdata_equal(_read(path, as_polars=True), _read(path, as_polars=False))
+    assert_polars_matches_golden(lambda as_polars: _read(path, as_polars=as_polars), "fragpipe_tmt_clean")
 
 
 def test_fragpipe_tmt_null_spectrum_raises_clearly(tmp_path):

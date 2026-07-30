@@ -13,7 +13,7 @@ import pytest
 
 from msmu._read_write._maxquant import MaxQuantDataFrameConverter, MaxTmtReader, MaxLfqReader
 
-from _parity_helpers import assert_reader_mdata_equal
+from _parity_helpers import assert_polars_matches_golden
 
 PLEX = 6
 
@@ -70,7 +70,7 @@ def test_maxquant_tmt_null_type_parity(tmp_path):
     path = tmp_path / "msms.txt"
     _write(path, frame)
 
-    assert_reader_mdata_equal(_read_tmt(path, as_polars=True), _read_tmt(path, as_polars=False))
+    assert_polars_matches_golden(lambda as_polars: _read_tmt(path, as_polars=as_polars), "maxquant_tmt_null_type")
 
 
 def test_maxquant_lfq_null_raw_file_dropped(tmp_path):

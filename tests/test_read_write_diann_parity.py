@@ -7,14 +7,13 @@ column (§B-3) and a multi-file batch mixing files with/without the optional Dec
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from msmu._read_write._base_reader import SearchResultDataFrameConverter
 from msmu._read_write._diann import DiannReader
 
-from _parity_helpers import assert_reader_mdata_equal
+from _parity_helpers import assert_polars_matches_golden
 
 
 @pytest.fixture(autouse=True)
@@ -90,7 +89,7 @@ def test_diann_polars_matches_pandas_clean(tmp_path):
     path = tmp_path / "report.tsv"
     _write(path, _clean_frame())
 
-    assert_reader_mdata_equal(_read(path, as_polars=True), _read(path, as_polars=False))
+    assert_polars_matches_golden(lambda as_polars: _read(path, as_polars=as_polars), "diann_clean")
 
 
 def test_diann_empty_libq_value_parity(tmp_path):
@@ -100,7 +99,7 @@ def test_diann_empty_libq_value_parity(tmp_path):
     path = tmp_path / "report.tsv"
     _write(path, frame)
 
-    assert_reader_mdata_equal(_read(path, as_polars=True), _read(path, as_polars=False))
+    assert_polars_matches_golden(lambda as_polars: _read(path, as_polars=as_polars), "diann_empty_libq")
 
 
 def test_diann_multifile_optional_decoy_parity(tmp_path):
@@ -114,8 +113,8 @@ def test_diann_multifile_optional_decoy_parity(tmp_path):
     _write(path_b, without_decoy)
 
     # Multi-file order is non-deterministic on the pandas ProcessPool path, so compare by name.
-    assert_reader_mdata_equal(
-        _read([path_a, path_b], as_polars=True),
-        _read([path_a, path_b], as_polars=False),
+    assert_polars_matches_golden(
+        lambda as_polars: _read([path_a, path_b], as_polars=as_polars),
+        "diann_multifile_decoy",
         ordered=False,
     )
