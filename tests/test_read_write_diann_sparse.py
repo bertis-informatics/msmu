@@ -1,8 +1,7 @@
-"""read_diann(sparse=True): the block-diagonal precursor .X, which becomes the only path.
+"""read_diann's block-diagonal precursor .X -- now the only path.
 
 This path had no coverage. The structural test is built from the reader's own output plus the input
-report (no dense path involved), so it survives the deletion of the dense pivot; the parity test
-additionally checks sparse == dense while both still exist.
+report (no dense path involved), so it survived the deletion of the dense pivot.
 """
 
 from __future__ import annotations
@@ -15,7 +14,6 @@ import pytest
 import msmu as mm
 from msmu._core._blockdiag import dense_block
 
-from _parity_helpers import assert_reader_mdata_equal
 from test_read_write_diann_parity import _clean_frame, _write
 
 
@@ -25,16 +23,8 @@ def _legacy_string_dtype():
         yield
 
 
-def _read(path, *, sparse):
-    return mm.read_diann(path, sparse=sparse)
-
-
-def test_read_diann_sparse_matches_dense(tmp_path):
-    """sparse == dense end-to-end (checked while the dense pivot still exists)."""
-    path = tmp_path / "report.tsv"
-    _write(path, _clean_frame())
-
-    assert_reader_mdata_equal(_read(path, sparse=True), _read(path, sparse=False))
+def _read(path):
+    return mm.read_diann(path)
 
 
 def test_read_diann_sparse_is_block_diagonal(tmp_path):
@@ -47,8 +37,8 @@ def test_read_diann_sparse_is_block_diagonal(tmp_path):
     path = tmp_path / "report.tsv"
     _write(path, frame)
 
-    adata = _read(path, sparse=True)["psm"]
-    assert sp.issparse(adata.X), "read_diann(sparse=True) must store a sparse .X"
+    adata = _read(path)["psm"]
+    assert sp.issparse(adata.X), "read_diann must store a sparse .X"
 
     dense = dense_block(adata.X)  # (n_runs, n_features), absent cells restored as NaN
     runs = list(adata.obs_names)
@@ -81,5 +71,5 @@ def test_read_diann_sparse_x_is_float32(tmp_path):
     path = tmp_path / "report.tsv"
     _write(path, _clean_frame())
 
-    adata = _read(path, sparse=True)["psm"]
+    adata = _read(path)["psm"]
     assert adata.X.dtype == np.float32

@@ -4,14 +4,13 @@ import scipy.sparse as sp
 from anndata import AnnData
 from mudata import MuData
 
-from .._core._blockdiag import dense_block, to_dense_df
+from .._core._blockdiag import dense_block
 from .._utils._mudata import get_anndata_mod
 
 
 def split_tmt(
     mdata: MuData,
     map: dict[str, str] | pd.Series | pd.DataFrame,
-    sparse: bool = True,
 ) -> MuData:
     """
     Split TMT channels in a MuData object into separate modalities based on a mapping.
@@ -21,11 +20,11 @@ def split_tmt(
     only one set, the resulting PSM matrix is block-diagonal: every feature carries values in
     just its set's channels and is missing (NaN) in every other set's channels. Stored densely
     this is ``O(n_set^2)`` -- the feature count and the sample count both scale with the number
-    of sets -- which is what makes many-plex studies exhaust memory. With ``sparse=True`` only
-    the block diagonal (``O(n_set)``) is stored, in a SciPy sparse ``.X``; the obs axis and
-    every value are identical to the dense result.
+    of sets -- which is what makes many-plex studies exhaust memory. Only the block diagonal
+    (``O(n_set)``) is stored, in a SciPy sparse ``.X``; the obs axis and every value are the
+    same as a dense split would produce.
 
-    Note: with ``sparse=True`` the structurally-missing (cross-set) cells are not stored, so
+    Note: the structurally-missing (cross-set) cells are not stored, so
     ``mdata.mod["psm"].to_df()`` returns 0 (SciPy sparse convention) rather than NaN for those
     cells. Inspect the sparse matrix with :func:`msmu._core._blockdiag.dense_block`, which
     restores absent cells as NaN.
@@ -36,10 +35,6 @@ def split_tmt(
         The MuData object containing TMT data.
     map : dict[str, str] | pd.Series | pd.DataFrame
         A mapping of filenames to set names. If a DataFrame is provided, it should have two columns: the first for filenames and the second for set names.
-    sparse : bool
-        Store the block-diagonal PSM matrix as a SciPy sparse ``.X`` (default False, opt-in).
-        ``True`` stores only the block diagonal (``O(n_set)`` memory) and is required for
-        many-plex studies; ``False`` keeps the legacy dense representation.
 
     Returns
     -------
@@ -57,9 +52,9 @@ def split_tmt(
 
     psm_adata = get_anndata_mod(mdata, "psm")
     set_labels = psm_adata.var["filename"].str.rsplit(".", n=1).str[0].map(map)
-    # Fail loud on a filename with no set mapping. The dense path raises a KeyError later, but the
-    # sparse path would silently scatter those PSMs into a phantom ``nan`` set; raise here so both
-    # behave the same and a bad/incomplete map cannot pass unnoticed.
+    # Fail loud on a filename with no set mapping: an unmapped filename would otherwise be
+    # silently scattered into a phantom ``nan`` set, so raise here so a bad/incomplete map
+    # cannot pass unnoticed.
     if set_labels.isna().any():
         unmapped = psm_adata.var["filename"].str.rsplit(".", n=1).str[0][set_labels.isna()].unique()
         raise ValueError(f"split_tmt: no set mapping for filename(s): {list(unmapped)[:5]}")
@@ -70,10 +65,7 @@ def split_tmt(
     n_channels = len(channels)
     new_obs_names = [f"{channel}_{set_name}" for set_name in set_names for channel in channels]
 
-    if sparse:
-        new_x = _build_block_diagonal_sparse(psm_adata.X, set_labels, set_names, n_channels)
-    else:
-        new_x = _build_block_diagonal_dense(psm_adata, set_labels, set_names)
+    new_x = _build_block_diagonal_sparse(psm_adata.X, set_labels, set_names, n_channels)
 
     new_adata = AnnData(
         X=new_x,
@@ -118,21 +110,6 @@ def _build_block_diagonal_sparse(source_x, set_labels, set_names, n_channels) ->
         dtype=np.asarray(source).dtype,
     )
     return coo.tocsc()
-
-
-def _build_block_diagonal_dense(psm_adata, set_labels, set_names) -> pd.DataFrame:
-    """Legacy dense block-diagonal (materialises the full ``channel_set x psm`` matrix)."""
-    # to_dense_df (not to_df) restores a sparse input's absent cells as NaN; to_df would 0-fill them.
-    df = to_dense_df(psm_adata).T.copy()
-    set_dfs = {}
-    for set_name in set_names:
-        set_index = psm_adata.var.index[set_labels == set_name]
-        set_df = df.loc[set_index]
-        set_df.columns = set_df.columns + f"_{set_name}"
-        set_dfs[set_name] = set_df
-    set_df = pd.concat(set_dfs.values(), axis=1)
-    set_df = set_df.loc[psm_adata.var.index]
-    return set_df.T
 
 
 __all__ = ["split_tmt"]

@@ -112,20 +112,19 @@ def read_diann(
     identification_file: str | Path | list,
     drop_search_result: bool = False,
     level: Literal["precursor", "protein_group"] = "precursor",
-    sparse: bool = True,
 ) -> md.MuData:
     """
     Reads DIA-NN output and returns a MuData object.
+
+    The block-diagonal precursor quantification is stored as a SciPy sparse ``.X``: the precursor
+    pivot is ``(n_precursor_obs x n_run)`` with ~one non-null per row, so only the observed cells
+    are built (no dense pivot). Downstream tools handle the sparse ``.X`` transparently (absent
+    cells restored as NaN).
 
     Parameters:
         identification_file: Path to the DIA-NN output file or directory.
         level: Level of the output to read ('precursor' or 'protein_group').
             Note: 'protein_group' is not yet implemented.
-        sparse: Store the block-diagonal precursor quantification as a SciPy sparse ``.X``
-            (default False, opt-in). The precursor pivot is ``(n_precursor_obs x n_run)`` with
-            ~one non-null per row, so the dense pivot dominates read time and memory on many-run
-            studies; ``True`` builds only the observed cells (no dense pivot). Downstream tools
-            handle the sparse ``.X`` transparently (absent cells restored as NaN).
 
     Returns:
         A MuData object containing the DIA-NN data.
@@ -148,7 +147,6 @@ def read_diann(
             identification_file=identification_file_,
             identification_df=identification_df_,
             drop_search_result=drop_search_result,
-            sparse=sparse,
         ).read()
     return append_cmd_log(
         mdata,
@@ -157,7 +155,6 @@ def read_diann(
             read_diann,
             identification_file,
             level=level,
-            sparse=sparse,
         ),
         stdout=stdout_buffer.getvalue().strip() or None,
     )

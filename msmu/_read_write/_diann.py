@@ -21,10 +21,8 @@ class DiannReader(SearchResultReader):
         identification_file: str | Path,
         identification_df: pd.DataFrame,
         drop_search_result: bool = False,
-        sparse: bool = False,
     ) -> None:
         super().__init__(_drop_search_result=drop_search_result)
-        self._sparse = sparse
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="diann",
             quantification="diann",
@@ -98,10 +96,10 @@ class DiannReader(SearchResultReader):
     def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame):
         # DIA-NN's precursor quant is block-diagonal: the feature id "Run.Precursor.Id" encodes
         # the run, so each precursor feature carries a value in exactly one run column and is NaN
-        # in every other -- a (n_precursor_obs x n_run) matrix with ~one non-null per row. The
-        # dense pivot below materialises all of it (0.5% filled); the sparse path builds only the
-        # observed cells as a COO/CSR, avoiding the dense pivot entirely.
-        # Pull only the three columns this needs, as pandas, then reuse the COO/pivot logic below.
+        # in every other -- a (n_precursor_obs x n_run) matrix with ~one non-null per row. Rather
+        # than materialise that as a dense pivot (~0.5% filled), build only the observed cells as
+        # a COO/CSR sparse matrix.
+        # Pull only the three columns this needs, as pandas, then build the COO below.
         raw_identification_df = raw_identification_df.select(
             ["Run", "Precursor.Id", "Precursor.Quantity"]
         ).to_pandas()
@@ -109,19 +107,8 @@ class DiannReader(SearchResultReader):
         runs = raw_identification_df["Run"].to_numpy()
         values = raw_identification_df["Precursor.Quantity"].to_numpy(dtype=float)
 
-        if not self._sparse:
-            quant_source = pd.DataFrame(
-                {"filename": runs, "Precursor.Quantity": values},
-                index=features,
-            )
-            quant_df = quant_source.reset_index()
-            quant_df = quant_df.pivot(index="index", columns="filename", values="Precursor.Quantity")
-            quant_df = quant_df.rename_axis(index=None, columns=None)
-            quant_df = quant_df.replace(0, np.nan)
-            return quant_df
-
-        # Sparse: each row is a distinct feature; place its value in its run column. 0/NaN are
-        # treated as absent (matching the dense path's replace(0, np.nan)).
+        # Each row is a distinct feature; place its value in its run column. 0/NaN are treated as
+        # absent (matching the historical dense pivot's replace(0, np.nan)).
         sample_index, run_codes = np.unique(runs, return_inverse=True)
         observed = np.isfinite(values) & (values != 0)
         row = np.arange(len(features))[observed]
