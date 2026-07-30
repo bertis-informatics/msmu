@@ -277,6 +277,46 @@ class SearchResultReader:
 
         return df
 
+    @staticmethod
+    def _make_h5_safe_varm_columns(search_result_df: pd.DataFrame) -> pd.DataFrame:
+        """Rewrite ``varm['search_result']`` column names that h5py cannot use as dataset keys.
+
+        h5py uses ``/`` as its group-path separator, so a column whose NAME contains ``/`` cannot
+        be written as an h5 dataset -- ``mdata.write_h5mu(...)`` raises "Forward slashes are not
+        allowed in keys". The raw search result kept in varm preserves the search engine's original
+        column names, several of which contain ``/`` (MaxQuant ``MS/MS Scan Number``, FragPipe
+        ``Observed M/Z``, ...), so without this every such read is unserialisable.
+
+        Replaces ``/`` with ``_`` in the offending names only. Column *values* and every ``/``-free
+        name are left untouched; a rewrite that would collide with an existing name gets a numeric
+        suffix so the frame keeps unique columns (anndata rejects duplicates).
+        """
+        column_names = [str(name) for name in search_result_df.columns]
+        if not any("/" in name for name in column_names):
+            return search_result_df
+
+        # "/"-free names are already h5-safe and are kept verbatim; only "/"-bearing names are
+        # rewritten, and a rewrite disambiguates against every name already taken.
+        used_names: set[str] = {name for name in column_names if "/" not in name}
+        renamed_columns: list[str] = []
+        for name in column_names:
+            if "/" not in name:
+                renamed_columns.append(name)
+                continue
+            safe_name = name.replace("/", "_")
+            if safe_name in used_names:
+                suffix = 1
+                while f"{safe_name}_{suffix}" in used_names:
+                    suffix += 1
+                safe_name = f"{safe_name}_{suffix}"
+            used_names.add(safe_name)
+            renamed_columns.append(safe_name)
+
+        # We own this frame (a per-read temporary), so rename in place -- assigning .columns swaps
+        # only the column index, not the (potentially multi-GB) data blocks.
+        search_result_df.columns = renamed_columns
+        return search_result_df
+
     def _validate_search_outputs(self) -> None:
         output_list: list[Path | None] = [
             self.search_settings.identification_file,
@@ -466,6 +506,12 @@ class SearchResultReader:
                 if mudata_input.raw_identification_df[col].dtype == "object" and col not in self._cols_to_stringify:
                     self._cols_to_stringify.append(col)
             mudata_input.raw_identification_df = self._stringify_cols(mudata_input.raw_identification_df)
+            # h5py forbids "/" in dataset keys, so a raw column name containing "/" (MaxQuant
+            # "MS/MS Scan Number", FragPipe "Observed M/Z", ...) makes varm['search_result']
+            # unwritable by mdata.write_h5mu(); rewrite those names to an h5-safe form.
+            mudata_input.raw_identification_df = self._make_h5_safe_varm_columns(
+                mudata_input.raw_identification_df
+            )
 
         # both feature and quantification are available in the same level
         if self.search_settings.quantification_level == self.search_settings.identification_level:
