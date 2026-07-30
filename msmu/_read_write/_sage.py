@@ -3,8 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings, ReaderEngine
-from . import _readers_pandas
+from ._base_reader import SearchResultReader, SearchResultSettings, _ensure_polars, _is_polars
 from .._utils.fasta import parse_uniprot_accession_group
 from . import label_info
 
@@ -60,24 +59,6 @@ class SageReader(SearchResultReader):
             ]
         )
 
-    @staticmethod
-    def _label_decoy(label: int) -> int:
-        if label == -1:
-            return 1
-        else:
-            return 0
-
-    @staticmethod
-    def _label_possible_contaminant(proteins: str) -> int:
-        if "contam_" in proteins:
-            return 1
-        else:
-            return 0
-
-    @staticmethod
-    def _extract_scan_number(scan_str: str) -> int:
-        return int(scan_str.split("scan=")[1])
-
     def _read_config_file(self):
         with open(self.search_settings.config_path, "r") as f:
             config = json.load(f)
@@ -86,13 +67,9 @@ class SageReader(SearchResultReader):
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
         # Build the feature frame on a FRESH DataFrame rather than mutating the input,
         # so the caller keeps the raw frame intact (to serve varm or be freed) without
-        # a defensive copy. Column operations mirror the previous in-place version.
-        # Deduplicate the per-PSM string transforms: protein groups, scan strings and peptides
-        # each have far fewer distinct values than PSM rows, so evaluate once per distinct value
-        # and map back (self._map_unique) instead of once per row. Identical result, much faster.
-        if self._engine is ReaderEngine.PANDAS:
-            return _readers_pandas.sage_identification(self, identification_df)
-        return self._identification_columns_polars(identification_df)
+        # a defensive copy. The per-PSM string transforms (protein groups, scan strings,
+        # peptides) run as polars expressions, deduplicated over distinct values.
+        return self._identification_columns_polars(_ensure_polars(identification_df))
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values/dtypes).
@@ -169,9 +146,7 @@ class TmtSageReader(SageReader):
         self.search_settings.quantification_level = "psm"
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        if self._engine is ReaderEngine.PANDAS:
-            return _readers_pandas.tmt_sage_quant(self, quantification_df)
-        return self._quantification_columns_polars(quantification_df)
+        return self._quantification_columns_polars(_ensure_polars(quantification_df))
 
     def _quantification_columns_polars(self, quantification_df) -> pd.DataFrame:
         """polars-native TMT quant: build the ``filename.scan_num`` index and keep the tmt columns.
@@ -240,10 +215,10 @@ class LfqSageReader(SageReader):
             self.search_settings.quantification = None
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        # The LFQ peptide-quant table is small (peptides x samples); on the polars-native path
-        # convert it to pandas here and reuse the pandas transform -- the identification frame is
-        # where the polars win lives, not this table.
-        if self._engine is ReaderEngine.POLARS:
+        # The LFQ peptide-quant table is small (peptides x samples); convert it to pandas here and
+        # share one tail -- the identification frame is where the polars win lives, not this table.
+        # A reader fed a pandas frame directly (unit tests) passes through unchanged.
+        if _is_polars(quantification_df):
             quantification_df = quantification_df.to_pandas()
         quantification_df = quantification_df.set_index("peptide", drop=True).rename_axis(index=None).copy()
         quantification_df = quantification_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)

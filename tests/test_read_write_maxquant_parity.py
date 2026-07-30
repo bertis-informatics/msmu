@@ -49,15 +49,15 @@ def _write(path, frame):
     frame.to_csv(path, sep="\t", index=False)
 
 
-def _read_tmt(path, *, as_polars):
+def _read_tmt(path):
     converter = MaxQuantDataFrameConverter()
-    identification_file, identification_df = converter.convert([path], as_polars=as_polars)
+    identification_file, identification_df = converter.convert([path])
     return MaxTmtReader(identification_file=identification_file, identification_df=identification_df).read()
 
 
-def _read_lfq(path, *, as_polars):
+def _read_lfq(path):
     converter = MaxQuantDataFrameConverter()
-    identification_file, identification_df = converter.convert([path], as_polars=as_polars)
+    identification_file, identification_df = converter.convert([path])
     return MaxLfqReader(identification_file=identification_file, identification_df=identification_df).read()
 
 
@@ -70,7 +70,7 @@ def test_maxquant_tmt_null_type_parity(tmp_path):
     path = tmp_path / "msms.txt"
     _write(path, frame)
 
-    assert_polars_matches_golden(lambda as_polars: _read_tmt(path, as_polars=as_polars), "maxquant_tmt_null_type")
+    assert_polars_matches_golden(lambda: _read_tmt(path), "maxquant_tmt_null_type")
 
 
 def test_maxquant_lfq_null_raw_file_dropped(tmp_path):
@@ -86,5 +86,5 @@ def test_maxquant_lfq_null_raw_file_dropped(tmp_path):
     path = tmp_path / "msms.txt"
     _write(path, frame)
 
-    peptide = _read_lfq(path, as_polars=True)["peptide"]
+    peptide = _read_lfq(path)["peptide"]
     assert list(peptide.obs_names) == ["raw_0", "raw_1"], "null Raw file must not form a phantom sample"

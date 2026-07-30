@@ -87,10 +87,10 @@ def _write(path, frame):
     frame.to_csv(path, sep="\t", index=False)
 
 
-def _read(ident_path, quant_path, *, as_polars: bool):
+def _read(ident_path, quant_path):
     converter = SearchResultDataFrameConverter()
-    ident_file, ident_df = converter.convert([ident_path], as_polars=as_polars)
-    quant_file, quant_df = converter.convert([quant_path], as_polars=as_polars)
+    ident_file, ident_df = converter.convert([ident_path])
+    quant_file, quant_df = converter.convert([quant_path])
     return TmtSageReader(
         identification_file=ident_file,
         identification_df=ident_df,
@@ -110,9 +110,7 @@ def _write_pair(tmp_path, scan_tokens, labels):
 def test_sage_tmt_polars_matches_pandas_clean(tmp_path):
     """Clean TMT input: identical features, names, channels and intensities on both paths."""
     ident_path, quant_path = _write_pair(tmp_path, _clean_scan_tokens(), _clean_labels())
-    assert_polars_matches_golden(
-        lambda as_polars: _read(ident_path, quant_path, as_polars=as_polars), "sage_tmt_clean"
-    )
+    assert_polars_matches_golden(lambda: _read(ident_path, quant_path), "sage_tmt_clean")
 
 
 def test_sage_tmt_malformed_scannr_raises_clearly(tmp_path):
@@ -127,7 +125,7 @@ def test_sage_tmt_malformed_scannr_raises_clearly(tmp_path):
     tokens[1] = "index=5"  # no scan= token
     ident_path, quant_path = _write_pair(tmp_path, tokens, _clean_labels())
     with pytest.raises(ValueError, match="scan"):
-        _read(ident_path, quant_path, as_polars=True)
+        _read(ident_path, quant_path)
 
 
 def test_sage_tmt_leading_zero_scan_parity(tmp_path):
@@ -135,9 +133,7 @@ def test_sage_tmt_leading_zero_scan_parity(tmp_path):
     tokens = _clean_scan_tokens()
     tokens[0] = "scan=001001"
     ident_path, quant_path = _write_pair(tmp_path, tokens, _clean_labels())
-    assert_polars_matches_golden(
-        lambda as_polars: _read(ident_path, quant_path, as_polars=as_polars), "sage_tmt_leading_zero"
-    )
+    assert_polars_matches_golden(lambda: _read(ident_path, quant_path), "sage_tmt_leading_zero")
 
 
 def test_sage_tmt_null_label_parity(tmp_path):
@@ -145,6 +141,4 @@ def test_sage_tmt_null_label_parity(tmp_path):
     labels = _clean_labels()
     labels[1] = None  # null label
     ident_path, quant_path = _write_pair(tmp_path, _clean_scan_tokens(), labels)
-    assert_polars_matches_golden(
-        lambda as_polars: _read(ident_path, quant_path, as_polars=as_polars), "sage_tmt_null_label"
-    )
+    assert_polars_matches_golden(lambda: _read(ident_path, quant_path), "sage_tmt_null_label")

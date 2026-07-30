@@ -5,11 +5,9 @@ from ._base_reader import (
     SearchResultReader,
     SearchResultSettings,
     SearchResultDataFrameConverter,
-    ReaderEngine,
-    _is_polars,
+    _ensure_polars,
 )
 from . import label_info
-from . import _readers_pandas
 
 
 class MaxQuantDataFrameConverter(SearchResultDataFrameConverter):
@@ -17,16 +15,14 @@ class MaxQuantDataFrameConverter(SearchResultDataFrameConverter):
         super().__init__()
 
     @staticmethod
-    def _read_file(file_path, as_polars: bool = False):
-        file_path, identification_df = SearchResultDataFrameConverter._read_file(file_path, as_polars=as_polars)
-        if _is_polars(identification_df):
-            import polars as pl
+    def _read_file(file_path):
+        import polars as pl
 
-            # fill_null(False) keeps a row whose Type is null: polars ~is_in(...) yields null for a
-            # null Type and filter would drop it, where pandas ~isin keeps NaN rows.
-            identification_df = identification_df.filter(~pl.col("Type").is_in(["MULTI-SECPEP"]).fill_null(False))
-        else:
-            identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
+        # The base reader is polars-only (files -> native polars, a DataFrame input -> from_pandas).
+        # fill_null(False) keeps a row whose Type is null: polars ~is_in(...) yields null for a null
+        # Type and filter would drop it, where pandas ~isin keeps NaN rows.
+        file_path, identification_df = SearchResultDataFrameConverter._read_file(file_path)
+        identification_df = identification_df.filter(~pl.col("Type").is_in(["MULTI-SECPEP"]).fill_null(False))
 
         return file_path, identification_df
 
@@ -86,9 +82,7 @@ class MaxQuantReader(SearchResultReader):
         # stays intact for varm or to be freed). Quantification is taken from the raw frame
         # by each subclass's _extract_quant_from_raw. Columns are carried under their raw
         # names and renamed by _normalise_identification_df via _feature_rename_dict.
-        if self._engine is ReaderEngine.PANDAS:
-            return _readers_pandas.maxquant_identification(self, identification_df)
-        return self._identification_columns_polars(identification_df)
+        return self._identification_columns_polars(_ensure_polars(identification_df))
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values).
@@ -131,11 +125,9 @@ class MaxTmtReader(MaxQuantReader):
         # Same "Reporter intensity corrected *" channels as the old split, but sourced from
         # the raw frame and re-indexed via _make_unique_index (filename.scan_num) so it
         # aligns with the fresh feature frame.
-        if self._engine is ReaderEngine.PANDAS:
-            return _readers_pandas.maxtmt_quant(self, raw_identification_df)
-
         import polars as pl
 
+        raw_identification_df = _ensure_polars(raw_identification_df)
         reporter_cols = [c for c in raw_identification_df.columns if c.startswith("Reporter intensity corrected")]
         # Build the index through the SAME _make_unique_index the identification frame uses
         # (filename + "." + scan_num.astype(str), post-to_pandas) rather than a polars
@@ -184,11 +176,9 @@ class MaxLfqReader(MaxQuantReader):
         # to peptide x filename. Sourced from the raw frame -- "Modified sequence"/"Raw file"
         # are the raw names of the feature frame's "peptide"/"filename", so the result matches
         # the old split (which pivoted the normalised frame).
-        if self._engine is ReaderEngine.PANDAS:
-            return _readers_pandas.maxlfq_quant(self, raw_identification_df)
-
         import polars as pl
 
+        raw_identification_df = _ensure_polars(raw_identification_df)
         pivoted = (
             # Drop null group keys before the pivot: pandas pivot_table silently drops rows whose
             # index/column key is NaN, where polars group_by+pivot would keep a phantom "null" sample.

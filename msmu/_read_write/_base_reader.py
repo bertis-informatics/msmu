@@ -1,5 +1,3 @@
-import os
-from enum import Enum
 from pathlib import Path
 from typing import Literal
 from dataclasses import dataclass
@@ -11,8 +9,6 @@ import numpy as np
 import pandas as pd
 
 # from pyteomics import mzid
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from tqdm.auto import tqdm
 
 from ..logging_utils import get_logger
 from .._core._blockdiag import SparseQuantFrame
@@ -26,24 +22,26 @@ from .._utils.peptide import (
 
 logger = get_logger(__name__)
 
-# polars is the default reader path: csv/tsv/parquet are parsed with polars (multi-threaded) and
-# the identification frame stays polars through the reader transforms, converting to pandas once
-# at the AnnData boundary. Every reader (Sage, DIA-NN, MaxQuant, FragPipe, DELPI) implements the
-# polars transforms; a DataFrame passed directly still takes the pandas path. Set
-# MSMU_DISABLE_POLARS=1 (or set_polars_reader(False)) to fall back to the pandas read+transform
-# path (e.g. for debugging).
-_POLARS_ENABLED: bool = os.environ.get("MSMU_DISABLE_POLARS", "0").lower() not in ("1", "true", "yes")
+# The readers are polars-only: csv/tsv/parquet are parsed with polars (multi-threaded), the
+# identification frame stays polars through the reader transforms, and it converts to pandas once at
+# the AnnData boundary. Every reader (Sage, DIA-NN, MaxQuant, FragPipe, DELPI) implements the polars
+# transforms; a reader constructed directly with a pandas frame (unit tests) has that frame coerced
+# to polars at the transform boundary (see ``_ensure_polars``).
 
 
 def set_polars_reader(enabled: bool = True) -> None:
-    """Enable (default) or disable the polars reader path at runtime."""
-    global _POLARS_ENABLED
-    _POLARS_ENABLED = enabled
+    """Deprecated no-op: the readers are polars-only, so there is no pandas path to toggle.
 
+    Kept for backwards compatibility (it is part of the public API). Calling it emits a
+    ``DeprecationWarning`` and does nothing.
+    """
+    import warnings
 
-def polars_native_enabled() -> bool:
-    """True when the polars reader path is active (the default)."""
-    return _POLARS_ENABLED
+    warnings.warn(
+        "set_polars_reader() is deprecated and has no effect: the readers are polars-only.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
 def _is_polars(obj) -> bool:
@@ -51,17 +49,19 @@ def _is_polars(obj) -> bool:
     return type(obj).__module__.split(".", 1)[0] == "polars"
 
 
-class ReaderEngine(Enum):
-    """Which transform implementation a reader dispatches to.
+def _ensure_polars(frame):
+    """Coerce ``frame`` to a polars DataFrame (the reader transforms are polars-only).
 
-    Decided once per read from the engine of the merged identification frame (polars unless the
-    kill-switch is set or the input format/DataFrame forced the pandas fallback), then consulted by
-    every transform. This replaces the per-call ``_is_polars(df)`` sniffing so the pandas path is a
-    single, explicit branch that collapses cleanly when it is deleted.
+    Production feeds the transforms a polars frame (the converter reads natively with polars); a
+    pandas frame only reaches them when a reader is constructed directly with a pandas
+    ``identification_df``/``quantification_df`` (unit tests do this). Coerce those once so the polars
+    transform runs; a polars frame is returned unchanged (no copy).
     """
+    if _is_polars(frame):
+        return frame
+    import polars as pl
 
-    POLARS = "polars"
-    PANDAS = "pandas"
+    return pl.from_pandas(frame)
 
 
 # pandas' default NA sentinels (pandas.io.parsers.STR_NA_VALUES), hard-coded to avoid a private
@@ -173,123 +173,58 @@ class SearchResultDataFrameConverter:
             raise ValueError("file_path should be a Path object, or DataFrame.")
 
     @staticmethod
-    def _read_file(file_path: str | Path, as_polars: bool = False) -> tuple[str | Path | None, pd.DataFrame]:
-        """
-        Reads a file and returns its path and content as a DataFrame.
+    def _read_file(file_path: str | Path):
+        """Read a file into a polars DataFrame (the reader path is polars-only).
 
-        Parameters:
-            file_path: The path to the file to be read.
-            as_polars: return a polars DataFrame (polars-native path) instead of pandas.
+        csv/tsv/parquet are read natively with polars (see ``_polars_read_native``). A DataFrame
+        passed directly (the ``read_*`` DataFrame-input API) is coerced to polars so the downstream
+        reader transforms -- which are polars -- receive a polars frame.
 
-        Returns:
-            A tuple containing the file path and the content as a DataFrame.
+        Returns a tuple of the file path (``None`` for a DataFrame input) and the polars frame.
         """
+        import polars as pl
 
         if isinstance(file_path, pd.DataFrame):
-            return None, file_path
+            return None, pl.from_pandas(file_path)
 
-        tmp_file_path = Path(file_path)
-
-        suffix = tmp_file_path.suffix
-        if as_polars:
-            native_df = _polars_read_native(file_path, suffix)
-            if native_df is not None:
-                return file_path, native_df
-            # polars does not read this format (e.g. .xlsx/.json): fall through to pandas.
-        if suffix in [".csv"]:
-            df = pd.read_csv(file_path)
-        elif suffix in [".tsv", ".tab", ".psm", ".txt"]:
-            df = pd.read_csv(file_path, sep="\t")
-        elif suffix in [".xlsx", ".xls"]:
-            df = pd.read_excel(file_path)
-        elif suffix in [".parquet"]:
-            df = pd.read_parquet(file_path)
-        elif suffix in [".json"]:
-            df = pd.read_json(file_path)
-        # elif suffix in [".mzid"]:
-        #     df = mzid.DataFrame(file_path)
-        else:
+        suffix = Path(file_path).suffix
+        native_df = _polars_read_native(file_path, suffix)
+        if native_df is None:
             raise ValueError(f"Unknown file type: {suffix}")
+        return file_path, native_df
 
-        return file_path, df
+    def _read_files(self, file_paths: list[Path | pd.DataFrame], max_workers: int):
+        """Read every input with polars and merge into a single polars DataFrame.
 
-    def _read_files(
-        self, file_paths: list[Path | pd.DataFrame], max_workers: int, as_polars: bool = False
-    ) -> tuple[Path | None, pd.DataFrame]:
+        polars is internally multi-threaded, so the files are read in-process (no ProcessPool) and
+        concatenated with polars -- the frame never touches pandas until the reader's AnnData
+        boundary. ``max_workers`` is accepted for API compatibility but unused (polars parallelises
+        internally).
+
+        ``diagonal_relaxed`` unions columns (missing -> null) AND relaxes dtypes, matching pandas'
+        concat: multi-file inputs with an optional column (e.g. DIA-NN with/without Decoy) merge
+        instead of raising the schema-mismatch error ``vertical_relaxed`` would.
         """
-        Reads a file and returns its path and content as a DataFrame.
+        import polars as pl
 
-        Parameters:
-            file_path: The path to the file to be read.
-            as_polars: read into a polars DataFrame (polars-native path); merged with polars.
-
-        Returns:
-            A tuple containing the file path and the content as a DataFrame.
-        """
-
-        if as_polars:
-            # polars is internally multi-threaded; read in-process (no ProcessPool) and concat
-            # with polars so the frame never touches pandas until the reader's AnnData boundary.
-            import polars as pl
-
-            results = [self.__class__._read_file(fp, as_polars=True) for fp in file_paths]
-            frames = [r[1] for r in results]
-            # diagonal_relaxed unions columns (missing -> null) AND relaxes dtypes, matching pandas'
-            # concat: multi-file inputs with an optional column (e.g. DIA-NN with/without Decoy)
-            # merge instead of raising the schema-mismatch error vertical_relaxed would.
-            merged_df = pl.concat(frames, how="diagonal_relaxed") if len(frames) > 1 else frames[0]
-            merged_file_path = [r[0] for r in results if r[0] is not None]
-            return merged_file_path, merged_df
-
-        results = []
-        if len(file_paths) == 1:
-            # Fast path: avoid ProcessPool startup/pickling overhead for single input.
-            results.append(self.__class__._read_file(file_paths[0]))
-        else:
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                future_file = {executor.submit(self.__class__._read_file, file): file for file in file_paths}
-                for future in tqdm(
-                    as_completed(future_file),
-                    total=len(file_paths),
-                    desc="Reading files",
-                ):
-                    file = future_file[future]
-                    try:
-                        result = future.result()
-                        results.append(result)
-                    except Exception as e:
-                        logger.exception("Error processing %s.", file)
-                        raise e
-
-        merged_df = pd.concat([result[1] for result in results], ignore_index=True)
-        if len(results) >= 1:
-            merged_file_path = [result[0] for result in results if result[0] is not None]
-
-        elif len(results) == 0:
-            merged_file_path = None
-
+        results = [self.__class__._read_file(fp) for fp in file_paths]
+        frames = [result[1] for result in results]
+        merged_df = pl.concat(frames, how="diagonal_relaxed") if len(frames) > 1 else frames[0]
+        merged_file_path = [result[0] for result in results if result[0] is not None]
         return merged_file_path, merged_df
 
-    def convert(
-        self, file_paths: list[str | Path | pd.DataFrame], max_workers: int = 4, as_polars: bool | None = None
-    ) -> tuple[str | Path | None, pd.DataFrame]:
-        """
-        Converts a list of file paths or DataFrames into a single DataFrame.
+    def convert(self, file_paths: list[str | Path | pd.DataFrame], max_workers: int = 4):
+        """Read a list of file paths (or DataFrames) into a single merged polars DataFrame.
 
         Parameters:
-            file_paths: A list of file paths or DataFrames to be converted.
-            max_workers: The maximum number of worker processes to use for reading files.
-            as_polars: return a merged polars DataFrame (polars-native reader path). Defaults to
-                the module setting (polars on unless disabled via set_polars_reader(False)).
+            file_paths: file paths or DataFrames to read and merge.
+            max_workers: accepted for API compatibility; unused (polars parallelises internally).
+
         Returns:
-            A tuple containing the merged file path (if applicable) and the merged DataFrame.
+            A tuple of the merged file path(s) and the merged polars DataFrame.
         """
-        if as_polars is None:
-            as_polars = _POLARS_ENABLED
         file_paths_ = [self._convert_to_path(fp) for fp in file_paths]
-        merged_file_path, merged_df = self._read_files(
-            file_paths=file_paths_, max_workers=max_workers, as_polars=as_polars
-        )
+        merged_file_path, merged_df = self._read_files(file_paths=file_paths_, max_workers=max_workers)
         merged_file_path = [self._convert_to_string(fp) for fp in merged_file_path]
 
         logger.debug("Files imported and merged into DataFrame with shape %s.", merged_df.shape)
@@ -316,9 +251,6 @@ class SearchResultReader:
         md.set_options(pull_on_update=False)
         self.search_settings: SearchResultSettings
         self._drop_search_result = _drop_search_result
-        # Resolved lazily from the identification frame on first use (search_settings is set by the
-        # subclass after this super().__init__), then cached; see the _engine property.
-        self._engine_cache: ReaderEngine | None = None
 
         self._calc_exp_mz: Callable = _calc_exp_mz
         self._count_missed_cleavages: Callable = _count_missed_cleavages
@@ -337,20 +269,6 @@ class SearchResultReader:
 
         self._cols_to_stringify: list[str] = []  # placeholder, will be defined in inherited class
 
-    @property
-    def _engine(self) -> ReaderEngine:
-        """The transform engine for this read, decided once from the identification frame.
-
-        Directly-constructed readers (unit tests) pass a pandas frame and get PANDAS; the production
-        path passes whatever ``convert()`` produced (polars unless it fell back). Cached so every
-        dispatcher consults one explicit value instead of re-sniffing each frame.
-        """
-        if self._engine_cache is None:
-            self._engine_cache = (
-                ReaderEngine.POLARS if _is_polars(self.search_settings.identification_df) else ReaderEngine.PANDAS
-            )
-        return self._engine_cache
-
     @staticmethod
     def _make_unique_index(input_df: pd.DataFrame) -> pd.DataFrame:
         # Callers pass a freshly-built frame they own, so mutate in place. The old
@@ -364,16 +282,6 @@ class SearchResultReader:
     @staticmethod
     def _strip_filename(filename: str) -> str:
         return Path(filename).name.rsplit(".", 1)[0]
-
-    @staticmethod
-    def _map_unique(series: pd.Series, scalar_func) -> pd.Series:
-        """Apply a scalar function over distinct values only, then map back.
-
-        Equivalent to ``series.apply(scalar_func)`` but evaluates ``scalar_func``
-        once per unique value -- a large win for low-cardinality columns such as
-        ``filename`` (a handful of raw files repeated across millions of PSMs).
-        """
-        return series.map({value: scalar_func(value) for value in series.unique()})
 
     def _stringify_cols(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -523,9 +431,10 @@ class SearchResultReader:
             # Keep only index alignment when raw search_result is not stored.
             raw_identification_df = pd.DataFrame(index=target_df.index)
         else:
-            # The raw frame is stored in varm, which must be pandas. On the polars-native path it
-            # is still a polars frame here (the transforms consumed it as polars) -- convert once.
-            if self._engine is ReaderEngine.POLARS:
+            # The raw frame is stored in varm, which must be pandas. On the reader path it is still
+            # a polars frame here (the transforms consumed it as polars) -- convert once. A reader
+            # constructed directly with a pandas frame (unit tests) passes through unchanged.
+            if _is_polars(raw_identification_df):
                 raw_identification_df = raw_identification_df.to_pandas()
             raw_identification_df = raw_identification_df.copy()
             raw_identification_df.index = norm_identification_df.index

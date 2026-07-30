@@ -1,8 +1,7 @@
 from pathlib import Path
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings, ReaderEngine
-from . import _readers_pandas
+from ._base_reader import SearchResultReader, SearchResultSettings, _ensure_polars, _is_polars
 from .._utils.fasta import parse_uniprot_accession_group
 
 
@@ -78,10 +77,10 @@ class DelpiReader(SearchResultReader):
         # Block-diagonal precursor quant: filename = run_name, index = "run_name.pmsm_index". The
         # index is built with the SAME astype(str) formatting as the identification frame's
         # _make_unique_index (a null pmsm_index -> "nan" after the to_pandas float-promotion), so
-        # the two indexes intersect. On the polars path pull just the three columns to pandas and
-        # share this one tail -- a polars cast(Utf8) would format a null index differently and drop
-        # features at the ident/quant intersection.
-        if self._engine is ReaderEngine.POLARS:
+        # the two indexes intersect. Pull just the three columns to pandas and share this one tail --
+        # a polars cast(Utf8) would format a null index differently and drop features at the
+        # ident/quant intersection. A reader fed a pandas frame directly (unit tests) uses it as-is.
+        if _is_polars(raw_identification_df):
             raw_identification_df = raw_identification_df.select(["run_name", "pmsm_index", "ms2_area"]).to_pandas()
 
         quant_source = pd.DataFrame(
@@ -105,9 +104,7 @@ class DelpiReader(SearchResultReader):
         # freed). Quantification (ms2_area) is taken from the raw frame by
         # _extract_quant_from_raw. ("rt" is computed by the legacy path but dropped
         # at the used_feature_cols subset, so it is omitted here.)
-        if self._engine is ReaderEngine.PANDAS:
-            return _readers_pandas.delpi_identification(self, identification_df)
-        return self._identification_columns_polars(identification_df)
+        return self._identification_columns_polars(_ensure_polars(identification_df))
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values).

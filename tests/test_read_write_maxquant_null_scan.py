@@ -51,9 +51,9 @@ def _write_maxquant_tmt_file(path, scan_numbers) -> None:
     frame.to_csv(path, sep="\t", index=False)
 
 
-def _read_maxquant_tmt(path, as_polars: bool):
+def _read_maxquant_tmt(path):
     converter = MaxQuantDataFrameConverter()
-    identification_file, identification_df = converter.convert([path], as_polars=as_polars)
+    identification_file, identification_df = converter.convert([path])
     return MaxTmtReader(identification_file=identification_file, identification_df=identification_df).read()
 
 
@@ -69,7 +69,7 @@ def test_maxquant_tmt_polars_keeps_every_feature(tmp_path, scan_numbers, case):
     path = tmp_path / "msms.txt"
     _write_maxquant_tmt_file(path, scan_numbers)
 
-    mdata = _read_maxquant_tmt(path, as_polars=True)
+    mdata = _read_maxquant_tmt(path)
 
     assert mdata["psm"].shape == (PLEX, len(scan_numbers)), f"features lost on the polars path ({case})"
 
@@ -79,7 +79,7 @@ def test_maxquant_tmt_polars_matches_pandas_with_null_scan(tmp_path):
     path = tmp_path / "msms.txt"
     _write_maxquant_tmt_file(path, ["101", "", "103"])
 
-    assert_polars_matches_golden(lambda as_polars: _read_maxquant_tmt(path, as_polars), "maxquant_null_scan")
+    assert_polars_matches_golden(lambda: _read_maxquant_tmt(path), "maxquant_null_scan")
 
 
 def test_maxquant_tmt_null_scan_index_is_shared_by_ident_and_quant(tmp_path):
@@ -88,7 +88,7 @@ def test_maxquant_tmt_null_scan_index_is_shared_by_ident_and_quant(tmp_path):
     _write_maxquant_tmt_file(path, ["101", "", "103"])
 
     converter = MaxQuantDataFrameConverter()
-    _, identification_df = converter.convert([path], as_polars=True)
+    _, identification_df = converter.convert([path])
     reader = MaxTmtReader(identification_file=None, identification_df=identification_df)
 
     normalised_identification = reader._normalise_identification_df(identification_df)

@@ -2,8 +2,7 @@ from pathlib import Path
 from typing import Literal
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings, ReaderEngine
-from . import _readers_pandas
+from ._base_reader import SearchResultReader, SearchResultSettings, _ensure_polars, _is_polars
 
 
 class FragPipeReader(SearchResultReader):
@@ -102,21 +101,12 @@ class FragPipeReader(SearchResultReader):
             ]
         )
 
-    @staticmethod
-    def _label_decoy(label: int) -> int:
-        if "rev_" in str(label):
-            return 1
-        else:
-            return 0
-
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
         # Build the feature frame on a FRESH DataFrame (read the raw frame read-only so it
         # stays intact for varm or to be freed). Quantification (TMT channels) is taken from
         # the raw frame by TmtFragPipeReader._extract_quant_from_raw. Carry-through columns
         # keep their raw names and are renamed by _normalise_identification_df.
-        if self._engine is ReaderEngine.PANDAS:
-            return _readers_pandas.fragpipe_identification(self, identification_df)
-        return self._identification_columns_polars(identification_df)
+        return self._identification_columns_polars(_ensure_polars(identification_df))
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values).
@@ -195,13 +185,11 @@ class TmtFragPipeReader(FragPipeReader):
         # still carry their descriptor names -- avoids the old split's leak of renamed
         # identification cols (rt/calcmass/expmass/score) into quant. Re-indexed via
         # _make_unique_index (filename.scan_num) to align with the fresh feature frame.
+        import polars as pl
+
+        raw_identification_df = _ensure_polars(raw_identification_df)
         non_quant_cols = set(self.desc_cols) | set(self._feature_rename_dict.keys())
         quant_cols = [c for c in raw_identification_df.columns if c not in non_quant_cols]
-
-        if self._engine is ReaderEngine.PANDAS:
-            return _readers_pandas.tmt_fragpipe_quant(self, raw_identification_df, quant_cols)
-
-        import polars as pl
 
         # index == pandas _make_unique_index output: filename + "." + str(int(scan)) -- the
         # int() strips leading zeros ("00123" -> "123"), so cast through Int64 before Utf8.
@@ -252,9 +240,10 @@ class LfqFragPipeReader(FragPipeReader):
             self.search_settings.quantification = None
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        # Small peptide x sample table; convert to pandas on the polars path and share one tail
-        # (both engines produce the same Modified-Sequence-indexed intensity columns).
-        if self._engine is ReaderEngine.POLARS:
+        # Small peptide x sample table; convert to pandas and share one tail (the
+        # Modified-Sequence-indexed intensity columns). A reader fed a pandas frame directly (unit
+        # tests) passes through unchanged.
+        if _is_polars(quantification_df):
             quantification_df = quantification_df.to_pandas()
         quantification_df = quantification_df.set_index("Modified Sequence", drop=True).rename_axis(index=None).copy()
         intensity_cols = [col for col in quantification_df.columns if col.endswith(" Intensity")]

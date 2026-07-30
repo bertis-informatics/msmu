@@ -76,11 +76,11 @@ def _write(path, frame: pd.DataFrame) -> None:
     frame.to_csv(path, sep="\t", index=False)
 
 
-def _read(paths, *, as_polars: bool):
+def _read(paths):
     if not isinstance(paths, list):
         paths = [paths]
     converter = SearchResultDataFrameConverter()
-    identification_file, identification_df = converter.convert(paths, as_polars=as_polars)
+    identification_file, identification_df = converter.convert(paths)
     return DiannReader(identification_file=identification_file, identification_df=identification_df).read()
 
 
@@ -89,7 +89,7 @@ def test_diann_polars_matches_pandas_clean(tmp_path):
     path = tmp_path / "report.tsv"
     _write(path, _clean_frame())
 
-    assert_polars_matches_golden(lambda as_polars: _read(path, as_polars=as_polars), "diann_clean")
+    assert_polars_matches_golden(lambda: _read(path), "diann_clean")
 
 
 def test_diann_empty_libq_value_parity(tmp_path):
@@ -99,7 +99,7 @@ def test_diann_empty_libq_value_parity(tmp_path):
     path = tmp_path / "report.tsv"
     _write(path, frame)
 
-    assert_polars_matches_golden(lambda as_polars: _read(path, as_polars=as_polars), "diann_empty_libq")
+    assert_polars_matches_golden(lambda: _read(path), "diann_empty_libq")
 
 
 def test_diann_multifile_optional_decoy_parity(tmp_path):
@@ -114,7 +114,7 @@ def test_diann_multifile_optional_decoy_parity(tmp_path):
 
     # Multi-file order is non-deterministic on the pandas ProcessPool path, so compare by name.
     assert_polars_matches_golden(
-        lambda as_polars: _read([path_a, path_b], as_polars=as_polars),
+        lambda: _read([path_a, path_b]),
         "diann_multifile_decoy",
         ordered=False,
     )

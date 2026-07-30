@@ -3,8 +3,7 @@ import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 
-from ._base_reader import SearchResultReader, SearchResultSettings, ReaderEngine
-from . import _readers_pandas
+from ._base_reader import SearchResultReader, SearchResultSettings, _ensure_polars, _is_polars
 from .._core._blockdiag import SparseQuantFrame
 from .._utils.fasta import parse_uniprot_accession_group
 
@@ -102,9 +101,9 @@ class DiannReader(SearchResultReader):
         # in every other -- a (n_precursor_obs x n_run) matrix with ~one non-null per row. The
         # dense pivot below materialises all of it (0.5% filled); the sparse path builds only the
         # observed cells as a COO/CSR, avoiding the dense pivot entirely.
-        if self._engine is ReaderEngine.POLARS:
-            # polars-native path: pull only the three columns this needs, as pandas, then reuse the
-            # exact same COO/pivot logic below (bit-identical to the pandas read path).
+        if _is_polars(raw_identification_df):
+            # Pull only the three columns this needs, as pandas, then reuse the COO/pivot logic below.
+            # A reader fed a pandas frame directly (unit tests) skips this and uses it as-is.
             raw_identification_df = raw_identification_df.select(
                 ["Run", "Precursor.Id", "Precursor.Quantity"]
             ).to_pandas()
@@ -140,9 +139,7 @@ class DiannReader(SearchResultReader):
         # Build the feature frame on a FRESH DataFrame (identification columns only),
         # reading the raw frame read-only so it stays intact for varm (or to be
         # freed). Quantification is taken from the raw frame by _extract_quant_from_raw.
-        if self._engine is ReaderEngine.PANDAS:
-            return _readers_pandas.diann_identification(self, identification_df)
-        return self._identification_columns_polars(identification_df)
+        return self._identification_columns_polars(_ensure_polars(identification_df))
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values/dtypes).
@@ -153,7 +150,7 @@ class DiannReader(SearchResultReader):
         """
         import polars as pl
 
-        # mbr / decoy flags (normally set by _set_mbr / _set_decoy) computed on the polars frame.
+        # mbr / decoy flags computed on the polars frame (they select the q-value column to rename).
         # Cast Lib.Q.Value before summing: a non-MBR run can leave it entirely empty, which polars
         # types as String (nothing to infer) and would crash .sum(); cast-to-float sums all-null to
         # 0 -> mbr False, matching pandas.
@@ -187,18 +184,6 @@ class DiannReader(SearchResultReader):
         if not self.search_settings.has_decoy:
             feature_df["decoy"] = 0
         return feature_df
-
-    def _set_mbr(self, identification_df: pd.DataFrame) -> None:
-        if identification_df["Lib.Q.Value"].sum() == 0:
-            self._mbr = False
-        else:
-            self._mbr = True
-
-    def _set_decoy(self, identification_df: pd.DataFrame) -> None:
-        self.search_settings.has_decoy = False
-        if "Decoy" in (identification_df.columns):
-            if identification_df["Decoy"].any():
-                self.search_settings.has_decoy = True
 
 
 class DiannProteinGroupReader(SearchResultReader):

@@ -47,10 +47,10 @@ def assert_polars_matches_golden(
 ) -> None:
     """Assert the polars read equals the frozen golden for ``golden_name``.
 
-    ``read_fn(as_polars=...)`` returns the reader MuData for the engine requested. In normal runs
-    only the polars read happens and it is compared against the loaded golden. When
-    ``MSMU_REGEN_READER_GOLDENS`` is set, the golden is first (re)written from ``read_fn`` -- from
-    the pandas path (``as_polars=False``) so the reference stays the pandas specification.
+    ``read_fn()`` returns the reader MuData (the readers are polars-only). In normal runs the read is
+    compared against the loaded golden. When ``MSMU_REGEN_READER_GOLDENS`` is set, the golden is
+    first (re)written from ``read_fn`` -- the goldens are frozen from the reader's sole path (they
+    were originally captured from the pandas path in Stage 1, before it was removed).
     """
     if _REGEN:
         import anndata
@@ -64,7 +64,7 @@ def assert_polars_matches_golden(
         golden_path = _GOLDEN_DIR / f"{golden_name}.h5mu"
         if golden_path.exists():
             golden_path.unlink()
-        golden = read_fn(as_polars=False)
+        golden = read_fn()
         # Keep only what this helper compares (.X, obs/var names, var columns). The aligned mappings
         # are not compared, and some reader ``varm['search_result']`` columns (null-bearing object
         # dtype, e.g. a null scan) fail h5mu serialisation on the anndata-0.13/pandas-3 stack.
@@ -74,7 +74,7 @@ def assert_polars_matches_golden(
         golden.write_h5mu(str(golden_path))
 
     assert_reader_mdata_equal(
-        read_fn(as_polars=True), load_golden(golden_name), ordered=ordered, check_var=check_var, rtol=rtol, atol=atol
+        read_fn(), load_golden(golden_name), ordered=ordered, check_var=check_var, rtol=rtol, atol=atol
     )
 
 

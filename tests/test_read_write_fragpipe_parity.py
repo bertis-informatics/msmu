@@ -68,9 +68,9 @@ def _write(path, frame):
     frame.to_csv(path, sep="\t", index=False)
 
 
-def _read(path, *, as_polars: bool):
+def _read(path):
     converter = SearchResultDataFrameConverter()
-    identification_file, identification_df = converter.convert([path], as_polars=as_polars)
+    identification_file, identification_df = converter.convert([path])
     return TmtFragPipeReader(identification_file=identification_file, identification_df=identification_df).read()
 
 
@@ -79,7 +79,7 @@ def test_fragpipe_tmt_polars_matches_pandas_clean(tmp_path):
     path = tmp_path / "psm.tsv"
     _write(path, _frame(_clean_spectra()))
 
-    assert_polars_matches_golden(lambda as_polars: _read(path, as_polars=as_polars), "fragpipe_tmt_clean")
+    assert_polars_matches_golden(lambda: _read(path), "fragpipe_tmt_clean")
 
 
 def test_fragpipe_tmt_null_spectrum_raises_clearly(tmp_path):
@@ -90,4 +90,4 @@ def test_fragpipe_tmt_null_spectrum_raises_clearly(tmp_path):
     _write(path, _frame(spectra))
 
     with pytest.raises((ValueError, AttributeError, TypeError)):
-        _read(path, as_polars=True)
+        _read(path)

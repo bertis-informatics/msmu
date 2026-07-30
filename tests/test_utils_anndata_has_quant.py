@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import numpy as np
 import scipy.sparse as sp
-import pytest
 
 from msmu._core._blockdiag import to_observed_sparse
 from msmu._utils._anndata import _has_quant_values
