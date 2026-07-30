@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 import scipy.sparse as sp
 from anndata import AnnData
 from mudata import MuData
@@ -109,6 +110,66 @@ def test_collapse_obs_zero_fill_would_differ():
     assert not to_dense_df(naive["psm"]).equals(to_dense_df(correct["psm"])), (
         "0-fill and NaN-aware collapse coincided -- fixture cannot discriminate"
     )
+
+
+# ------------------------------------- collapse_obs: sparse-native block-diagonal
+# The fixture above shares generic features across a group's obs (>1 value per group-cell), so it
+# exercises the densify FALLBACK. This block-diagonal fixture mirrors real DIA-NN fractionation:
+# fractions f1a,f2a -> sample A; f1b,f2b -> sample B, and each feature is prefixed by its fraction
+# so it is stored in exactly one obs row. A sample-group then holds <=1 value per feature, so
+# collapse must stay sparse (a row->group remap) instead of densifying.
+_FRACTION_OBS = ["f1a", "f2a", "f1b", "f2b"]
+_FRACTION_SAMPLE = ["A", "A", "B", "B"]
+_BLOCKDIAG_FEATURES = ["f1a.p1", "f1a.p2", "f2a.p2", "f2a.p3", "f1b.p1", "f1b.p3", "f2b.p2"]
+_BLOCKDIAG_VALUES = np.array(
+    [
+        [4.0, 6.0, np.nan, np.nan, np.nan, np.nan, np.nan],  # f1a -> A
+        [np.nan, np.nan, 5.0, 7.0, np.nan, np.nan, np.nan],  # f2a -> A
+        [np.nan, np.nan, np.nan, np.nan, 8.0, 3.0, np.nan],  # f1b -> B
+        [np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, 9.0],  # f2b -> B
+    ]
+)
+
+
+def _blockdiag_mdata(x_array) -> MuData:
+    adata = AnnData(
+        X=x_array,
+        obs=pd.DataFrame({"sample": _FRACTION_SAMPLE}, index=_FRACTION_OBS),
+        var=pd.DataFrame(index=_BLOCKDIAG_FEATURES),
+    )
+    mdata = MuData({"psm": adata})
+    mdata.obs["sample"] = np.array(_FRACTION_SAMPLE)
+    return mdata
+
+
+def _make_blockdiag_sparse() -> MuData:
+    mdata = _blockdiag_mdata(_sparse_with_absent_cells(_BLOCKDIAG_VALUES))
+    assert sp.issparse(mdata["psm"].X)
+    return mdata
+
+
+def test_fixture_blockdiag_has_one_value_per_group_feature():
+    """Guard the guard: every feature is stored in exactly one fraction, so after grouping the two
+    fractions of a sample each (sample, feature) cell still holds <=1 value (true block-diagonal)."""
+    stored_per_feature = (~np.isnan(_BLOCKDIAG_VALUES)).sum(axis=0)
+    assert (stored_per_feature == 1).all(), "a feature is stored in more than one fraction"
+
+
+@pytest.mark.parametrize("agg_method", ["sum", "median", "mean", "max"])
+def test_collapse_obs_blockdiag_stays_sparse_and_matches_dense(agg_method):
+    """A block-diagonal .X collapses without densifying (the memory win), and because each
+    group-cell has <=1 value the result equals the dense NaN-aware collapse for every agg_method."""
+    sparse_out = collapse_obs(_make_blockdiag_sparse(), sample_key="sample", agg_method=agg_method)
+    dense_out = collapse_obs(_blockdiag_mdata(_BLOCKDIAG_VALUES.copy()), sample_key="sample", agg_method=agg_method)
+    assert sp.issparse(sparse_out["psm"].X), f"collapse({agg_method}) densified a block-diagonal .X"
+    pd.testing.assert_frame_equal(to_dense_df(sparse_out["psm"]), to_dense_df(dense_out["psm"]))
+
+
+def test_collapse_obs_non_blockdiag_sparse_falls_back_to_dense():
+    """When a group holds >1 stored value for a feature (not block-diagonal), a bare remap would
+    drop values, so collapse densifies for the real aggregation. Pins the sparse fast-path boundary."""
+    out = collapse_obs(_make_sparse(), sample_key="sample", agg_method="sum")
+    assert not sp.issparse(out["psm"].X)
 
 
 # ---------------------------------------------------------- correct_batch_effect
