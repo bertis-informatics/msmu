@@ -2,10 +2,9 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 
 from ._base_reader import SearchResultReader, SearchResultSettings
-from .._utils.fasta import parse_uniprot_accession
+from .._utils.fasta import parse_uniprot_accession_group
 from . import label_info
 
 
@@ -60,53 +59,58 @@ class SageReader(SearchResultReader):
             ]
         )
 
-    @staticmethod
-    def _label_decoy(label: int) -> int:
-        if label == -1:
-            return 1
-        else:
-            return 0
-
-    @staticmethod
-    def _label_possible_contaminant(proteins: str) -> int:
-        if "contam_" in proteins:
-            return 1
-        else:
-            return 0
-
-    @staticmethod
-    def _extract_scan_number(scan_str: str) -> int:
-        return int(scan_str.split("scan=")[1])
-
     def _read_config_file(self):
         with open(self.search_settings.config_path, "r") as f:
             config = json.load(f)
         return config
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        # Build the feature frame on a FRESH DataFrame rather than mutating the input,
-        # so the caller keeps the raw frame intact (to serve varm or be freed) without
-        # a defensive copy. Column operations mirror the previous in-place version.
-        feature_df = pd.DataFrame(index=identification_df.index)
-        feature_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
-        feature_df["peptide"] = identification_df["peptide"]
-        feature_df["filename"] = self._map_unique(identification_df["filename"], self._strip_filename)
-        feature_df["scan_num"] = identification_df["scannr"].apply(self._extract_scan_number)
-        feature_df["stripped_peptide"] = identification_df["peptide"].apply(self._make_stripped_peptide)
-        feature_df["charge"] = identification_df["charge"]
-        feature_df["peptide_len"] = identification_df["peptide_len"]
-        feature_df["expmass"] = identification_df["expmass"]
-        feature_df["calcmass"] = identification_df["calcmass"]
-        feature_df["rt"] = identification_df["rt"]
-        feature_df["missed_cleavages"] = identification_df["missed_cleavages"]
-        feature_df["semi_enzymatic"] = identification_df["semi_enzymatic"]
-        feature_df["decoy"] = (identification_df["label"] == -1).astype(int)
-        feature_df["contaminant"] = feature_df["proteins"].str.contains("contam_", regex=False).astype(int)
-        feature_df["PEP"] = np.power(10, identification_df["posterior_error"])  # convert log10 PEP to PEP
-        feature_df["hyperscore"] = identification_df["hyperscore"]
-        feature_df["spectrum_q"] = identification_df["spectrum_q"]
+        """Build the feature frame on a FRESH DataFrame rather than mutating the input, so the caller
+        keeps the raw frame intact (to serve varm or be freed) without a defensive copy.
 
-        return feature_df
+        The whole identification transform runs as polars expressions and converts to pandas once
+        (the AnnData boundary). Non-obvious equivalences (polars has no lookbehind / list.eval is slow):
+          stripped peptide  re ``([A-Z]+)|(\\[\\+\\d+\\.\\d+\\])`` join == ``str.replace_all("[^A-Z]", "")``
+          accession parse   per-group fn via ``replace_strict`` over UNIQUE groups (dedup)
+          filename strip    ``Path(x).name.rsplit(".",1)[0]`` == ``split("/").list.last().replace(r"\\.[^.]*$", "")``
+        """
+        import polars as pl
+
+        # Fail loud on a scannr with no "scan=<number>" token (e.g. a non-Thermo instrument), the
+        # way the old pandas int(...) did -- otherwise the polars extract nulls the scan, the index
+        # float-promotes, and every feature is silently dropped at the ident/quant intersection.
+        invalid_scannr = identification_df.filter(
+            pl.col("scannr").is_not_null() & pl.col("scannr").str.extract(r"scan=(\d+)", 1).is_null()
+        )
+        if invalid_scannr.height > 0:
+            raise ValueError(
+                "Sage scannr has no 'scan=<number>' token (non-Thermo scan format is not supported): "
+                f"{invalid_scannr['scannr'].head(3).to_list()}"
+            )
+
+        uniq = identification_df.select("proteins").unique().to_series().to_list()
+        accession_map = {value: parse_uniprot_accession_group(value) for value in uniq}
+        feature_df = identification_df.select(
+            pl.col("proteins").replace_strict(accession_map).alias("proteins"),
+            pl.col("peptide"),
+            pl.col("filename").str.split("/").list.last().str.replace(r"\.[^.]*$", "").alias("filename"),
+            pl.col("scannr").str.extract(r"scan=(\d+)", 1).cast(pl.Int64).alias("scan_num"),
+            pl.col("peptide").str.replace_all(r"[^A-Z]", "").alias("stripped_peptide"),
+            pl.col("charge"),
+            pl.col("peptide_len"),
+            pl.col("expmass"),
+            pl.col("calcmass"),
+            pl.col("rt"),
+            pl.col("missed_cleavages"),
+            pl.col("semi_enzymatic"),
+            (pl.col("label") == -1).fill_null(False).cast(pl.Int64).alias("decoy"),  # null label -> target (0)
+            (pl.lit(10.0) ** pl.col("posterior_error")).alias("PEP"),  # convert log10 PEP to PEP
+            pl.col("hyperscore"),
+            pl.col("spectrum_q"),
+        ).with_columns(
+            pl.col("proteins").str.contains("contam_", literal=True).cast(pl.Int64).alias("contaminant"),
+        )
+        return feature_df.to_pandas()
 
 
 class TmtSageReader(SageReader):
@@ -136,12 +140,28 @@ class TmtSageReader(SageReader):
         self.search_settings.quantification_level = "psm"
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        quantification_df["filename"] = self._map_unique(quantification_df["filename"], self._strip_filename)
-        quantification_df["scan_num"] = quantification_df["scannr"].apply(self._extract_scan_number)
-        quantification_df = self._make_unique_index(quantification_df)
-        quantification_df = quantification_df.drop(["filename", "scannr", "scan_num", "ion_injection_time"], axis=1)
+        """polars TMT quant: build the ``filename.scan_num`` index (== identification's unique index,
+        so the downstream obs rename / replace(0, NaN) / build_mudata are unchanged) and keep the
+        tmt columns.
+        """
+        import polars as pl
 
-        return quantification_df
+        tmt_cols = [col for col in quantification_df.columns if col.startswith("tmt_")]
+        return (
+            quantification_df.select(
+                (
+                    pl.col("filename").str.split("/").list.last().str.replace(r"\.[^.]*$", "")
+                    + pl.lit(".")
+                    # cast through Int64 to strip leading zeros (scan=001001 -> 1001), matching the
+                    # identification side's int cast so the two indexes intersect.
+                    + pl.col("scannr").str.extract(r"scan=(\d+)", 1).cast(pl.Int64).cast(pl.Utf8)
+                ).alias("tmp_index"),
+                *[pl.col(col) for col in tmt_cols],
+            )
+            .to_pandas()
+            .set_index("tmp_index")
+            .rename_axis(index=None)
+        )
 
     def _make_rename_dict_for_obs(self, quantification_df: pd.DataFrame) -> dict:
         plex = len(quantification_df.columns)
@@ -185,6 +205,9 @@ class LfqSageReader(SageReader):
             self.search_settings.quantification = None
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
+        # The LFQ peptide-quant table is small (peptides x samples); convert it to pandas here and
+        # share one tail -- the identification frame is where the polars win lives, not this table.
+        quantification_df = quantification_df.to_pandas()
         quantification_df = quantification_df.set_index("peptide", drop=True).rename_axis(index=None).copy()
         quantification_df = quantification_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)
 

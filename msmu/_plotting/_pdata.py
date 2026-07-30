@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .._utils._mudata import get_anndata_mod
+from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
 from ._utils import BinInfo, get_bin_info, is_resolved_obs_groupby, obsm_embedding_to_frame, prepare_obs_frame
 
@@ -168,12 +169,11 @@ class PlotData:
         """
         adata = get_anndata_mod(self.mdata, self.modality).copy()
 
-        if self.layer is not None:
-            if self.layer not in adata.layers:
-                raise ValueError(f"Layer '{self.layer}' not found in modality '{self.modality}'.")
-            data = pd.DataFrame(adata.layers[self.layer], index=adata.obs_names, columns=adata.var_names)
-        else:
-            data = adata.to_df()
+        if self.layer is not None and self.layer not in adata.layers:
+            raise ValueError(f"Layer '{self.layer}' not found in modality '{self.modality}'.")
+        # to_dense_df restores absent cells as NaN for a sparse .X/layer (plain to_df would fill
+        # them with 0 and silently distort distributions, correlations, etc.).
+        data = to_dense_df(adata, self.layer)
 
         return data
 

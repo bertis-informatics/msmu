@@ -277,7 +277,9 @@ def _get_mudata_dimensions(mdata: md.MuData) -> dict[str, object]:
             "n_vars": int(mod_data.n_vars),
         }
         if isinstance(mod_data, ad.AnnData):
-            dimensions["layers"] = [str(layer) for layer in mod_data.layers.keys()]
+            # anndata >=0.13 exposes ``.X`` as a ``None``-keyed layer; drop it so the recorded
+            # provenance lists real layer names only (not a spurious "None").
+            dimensions["layers"] = [str(layer) for layer in mod_data.layers.keys() if layer is not None]
         else:
             dimensions["modalities"] = [str(mod) for mod in mod_data.mod.keys()]
         return dimensions

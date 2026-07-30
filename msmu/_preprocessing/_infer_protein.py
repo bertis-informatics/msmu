@@ -9,7 +9,6 @@ import scipy.sparse as sp
 
 from .._core._provenance import uns_logger
 from .._core._status import AnnDataFlags, MuDataStatus
-from .._read_write._reader_registry import read_h5mu
 from .._utils._anndata import _require_columns
 from ..logging_utils import get_logger
 
@@ -122,6 +121,11 @@ def _resolve_mapping_source(
         return propagated_from
 
     if isinstance(propagated_from, (str, Path)):
+        # Lazy import: _reader_registry imports this package (via _preprocessing._meta), so importing
+        # read_h5mu at module top creates a circular import that fails depending on which subpackage
+        # loads first. Importing it here, at call time, breaks the cycle.
+        from .._read_write._reader_registry import read_h5mu
+
         return read_h5mu(propagated_from)
 
     raise TypeError("propagated_from must be a MuData object, path string, Path, or None.")

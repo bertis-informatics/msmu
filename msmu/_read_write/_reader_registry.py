@@ -116,6 +116,11 @@ def read_diann(
     """
     Reads DIA-NN output and returns a MuData object.
 
+    The block-diagonal precursor quantification is stored as a SciPy sparse ``.X``: the precursor
+    pivot is ``(n_precursor_obs x n_run)`` with ~one non-null per row, so only the observed cells
+    are built (no dense pivot). Downstream tools handle the sparse ``.X`` transparently (absent
+    cells restored as NaN).
+
     Parameters:
         identification_file: Path to the DIA-NN output file or directory.
         level: Level of the output to read ('precursor' or 'protein_group').

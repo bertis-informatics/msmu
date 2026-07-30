@@ -15,8 +15,13 @@ class MaxQuantDataFrameConverter(SearchResultDataFrameConverter):
 
     @staticmethod
     def _read_file(file_path):
+        import polars as pl
+
+        # The base reader is polars-only (files -> native polars, a DataFrame input -> from_pandas).
+        # fill_null(False) keeps a row whose Type is null: polars ~is_in(...) yields null for a null
+        # Type and filter would drop it, where pandas ~isin keeps NaN rows.
         file_path, identification_df = SearchResultDataFrameConverter._read_file(file_path)
-        identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
+        identification_df = identification_df.filter(~pl.col("Type").is_in(["MULTI-SECPEP"]).fill_null(False))
 
         return file_path, identification_df
 
@@ -72,31 +77,33 @@ class MaxQuantReader(SearchResultReader):
         }
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        # Build the feature frame on a FRESH DataFrame (read the raw frame read-only so it
-        # stays intact for varm or to be freed). Quantification is taken from the raw frame
-        # by each subclass's _extract_quant_from_raw. Columns are carried under their raw
-        # names and renamed by _normalise_identification_df via _feature_rename_dict.
-        feature_df = pd.DataFrame(index=identification_df.index)
+        """Build the feature frame on a FRESH DataFrame with polars expressions (read the raw frame
+        read-only so it stays intact for varm or to be freed), converting to pandas once at the
+        AnnData boundary. Quantification is taken from the raw frame by each subclass's
+        _extract_quant_from_raw; columns are carried under their raw names and renamed by
+        _normalise_identification_df via _feature_rename_dict.
 
-        decoy = identification_df["Reverse"].apply(lambda x: 1 if x == "+" else 0)
-        feature_df["decoy"] = decoy
-        feature_df["contaminant"] = identification_df["Potential contaminant"].apply(lambda x: 1 if x == "+" else 0)
+        ``Reverse``/``Potential contaminant`` are "+" or null; null must map to 0 (``x == "+"`` is
+        False for a null), hence ``fill_null(False)``. Decoy rows take ``Leading proteins`` instead
+        of ``Proteins`` (a conditional assignment).
+        """
+        import polars as pl
 
-        proteins = identification_df["Proteins"].copy()
-        proteins.loc[decoy == 1] = identification_df.loc[decoy == 1, "Leading proteins"]
-        feature_df["proteins"] = proteins
-
-        feature_df["Sequence"] = identification_df["Sequence"]  # -> stripped_peptide
-        feature_df["Modified sequence"] = identification_df["Modified sequence"]  # -> peptide
-        feature_df["Length"] = identification_df["Length"]  # -> peptide_length
-        feature_df["Missed cleavages"] = identification_df["Missed cleavages"]  # -> missed_cleavages
-        feature_df["Charge"] = identification_df["Charge"]  # -> charge
-        feature_df["Raw file"] = identification_df["Raw file"]  # -> filename
-        feature_df["MS/MS Scan Number"] = identification_df["MS/MS Scan Number"]  # -> scan_num
-        feature_df["Retention time"] = identification_df["Retention time"]  # -> rt
-        feature_df["PEP"] = identification_df["PEP"]
-
-        return feature_df
+        is_decoy = (pl.col("Reverse") == "+").fill_null(False)
+        return identification_df.select(
+            is_decoy.cast(pl.Int64).alias("decoy"),
+            (pl.col("Potential contaminant") == "+").fill_null(False).cast(pl.Int64).alias("contaminant"),
+            pl.when(is_decoy).then(pl.col("Leading proteins")).otherwise(pl.col("Proteins")).alias("proteins"),
+            pl.col("Sequence"),  # -> stripped_peptide
+            pl.col("Modified sequence"),  # -> peptide
+            pl.col("Length"),  # -> peptide_length
+            pl.col("Missed cleavages"),  # -> missed_cleavages
+            pl.col("Charge"),  # -> charge
+            pl.col("Raw file"),  # -> filename
+            pl.col("MS/MS Scan Number"),  # -> scan_num
+            pl.col("Retention time"),  # -> rt
+            pl.col("PEP"),
+        ).to_pandas()
 
 
 class MaxTmtReader(MaxQuantReader):
@@ -106,7 +113,7 @@ class MaxTmtReader(MaxQuantReader):
         identification_df: pd.DataFrame,
         drop_search_result: bool = False,
     ) -> None:
-        super().__init__(identification_file, identification_df)
+        super().__init__(identification_file, identification_df, drop_search_result=drop_search_result)
         self.search_settings.label = "tmt"
         self.search_settings.acquisition = "dda"
 
@@ -114,12 +121,19 @@ class MaxTmtReader(MaxQuantReader):
         # Same "Reporter intensity corrected *" channels as the old split, but sourced from
         # the raw frame and re-indexed via _make_unique_index (filename.scan_num) so it
         # aligns with the fresh feature frame.
+        import polars as pl
+
         reporter_cols = [c for c in raw_identification_df.columns if c.startswith("Reporter intensity corrected")]
-        quant = pd.DataFrame(index=raw_identification_df.index)
-        quant["filename"] = raw_identification_df["Raw file"]
-        quant["scan_num"] = raw_identification_df["MS/MS Scan Number"]
-        for col in reporter_cols:
-            quant[col] = raw_identification_df[col]
+        # Build the index through the SAME _make_unique_index the identification frame uses
+        # (filename + "." + scan_num.astype(str), post-to_pandas) rather than a polars
+        # cast(Utf8). A null scan coerces the identification frame's scan_num to float
+        # ("123.0") via to_pandas, so a polars cast(Utf8) here ("123") would not match and
+        # those features would be silently dropped at the ident/quant index intersection.
+        quant = raw_identification_df.select(
+            pl.col("Raw file").alias("filename"),
+            pl.col("MS/MS Scan Number").alias("scan_num"),
+            *[pl.col(col) for col in reporter_cols],
+        ).to_pandas()
         quant = self._make_unique_index(quant)
         quant = quant.drop(columns=["filename", "scan_num"])
 
@@ -157,17 +171,23 @@ class MaxLfqReader(MaxQuantReader):
         # to peptide x filename. Sourced from the raw frame -- "Modified sequence"/"Raw file"
         # are the raw names of the feature frame's "peptide"/"filename", so the result matches
         # the old split (which pivoted the normalised frame).
-        pep_quant_df = pd.DataFrame(
-            {
-                "filename": raw_identification_df["Raw file"].to_numpy(),
-                "peptide": raw_identification_df["Modified sequence"].to_numpy(),
-                "Intensity": raw_identification_df["Intensity"].to_numpy(),
-            }
-        )
-        pep_quant_df = pep_quant_df.pivot_table(index="peptide", columns="filename", values="Intensity", aggfunc="sum")
-        pep_quant_df = pep_quant_df.rename_axis(index=None, columns=None)
+        import polars as pl
 
-        return pep_quant_df
+        pivoted = (
+            # Drop null group keys before the pivot: pandas pivot_table silently drops rows whose
+            # index/column key is NaN, where polars group_by+pivot would keep a phantom "null" sample.
+            raw_identification_df.filter(
+                pl.col("Raw file").is_not_null() & pl.col("Modified sequence").is_not_null()
+            )
+            .group_by(["Modified sequence", "Raw file"])
+            .agg(pl.col("Intensity").sum())
+            .pivot(on="Raw file", index="Modified sequence", values="Intensity")
+            .sort("Modified sequence")  # pandas pivot_table sorts the index
+            .to_pandas()
+            .set_index("Modified sequence")
+            .rename_axis(index=None)
+        )
+        return pivoted.reindex(sorted(pivoted.columns), axis=1)  # match pandas column sort
 
 
 class MaxDiaReader(MaxQuantReader):

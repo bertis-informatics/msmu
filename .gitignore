@@ -147,6 +147,8 @@ dmypy.json
 *.hdf5
 *.h5ad
 *.h5mu
+# ...except the committed reader parity goldens (frozen reference outputs for the tests)
+!tests/goldens/*.h5mu
 
 # setuptools-scm generated version file
 msmu/_version.py

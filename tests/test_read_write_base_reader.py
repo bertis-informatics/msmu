@@ -48,13 +48,21 @@ class DummyReader(SearchResultReader):
         )
 
     def _import_search_results(self) -> dict:
+        # Production feeds the reader a polars identification frame (the registry converts the input
+        # via SearchResultDataFrameConverter); mirror that so the varm seam in _make_mudata_input
+        # receives polars. The quant frame stays pandas -- DummyReader uses the base (pandas)
+        # quantification normalisation, not a polars quant hook.
+        import polars as pl
+
         return {
-            "identification": self._identification_df,
+            "identification": pl.from_pandas(self._identification_df),
             "quantification": self._quant_df,
         }
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        return identification_df
+        # The real readers' _make_needed_columns_for_identification consumes the polars frame and
+        # returns pandas (the downstream _make_unique_index is pandas-only); mirror that here.
+        return identification_df.to_pandas()
 
     def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
         if self._quant_df is None:

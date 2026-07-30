@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .._utils._anndata import _require_columns
 from .._utils._mudata import get_anndata_mod
+from .._core._blockdiag import to_dense_df
 
 
 def write_flashlfq_input(mdata: md.MuData, filename: str | Path) -> None:
@@ -178,7 +179,7 @@ def to_readable(
             exclude = [exclude]
         df = df.drop(columns=exclude)
     if quantification:
-        quant_df = adata.to_df().T
+        quant_df = to_dense_df(adata).T
         df = pd.concat([df, quant_df], axis=1)
 
     return df

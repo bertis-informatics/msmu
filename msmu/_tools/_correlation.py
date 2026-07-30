@@ -2,11 +2,11 @@
 Module for correlation plots in MuData.
 """
 
-import pandas as pd
 from typing import Literal
 from mudata import MuData
 
 from .._utils._mudata import get_anndata_mod
+from .._core._blockdiag import to_dense_df
 from .._core._provenance import uns_logger
 
 
@@ -32,12 +32,11 @@ def corr(
     mdata = mdata.copy()
     adata = get_anndata_mod(mdata, modality).copy()
 
-    if layer is not None:
-        if layer not in adata.layers:
-            raise ValueError(f"Layer '{layer}' not found in modality '{modality}'.")
-        data = pd.DataFrame(adata.layers[layer], index=adata.obs_names, columns=adata.var_names)
-    else:
-        data = adata.to_df()
+    if layer is not None and layer not in adata.layers:
+        raise ValueError(f"Layer '{layer}' not found in modality '{modality}'.")
+    # to_dense_df restores absent cells as NaN for a sparse .X/layer (a plain DataFrame over
+    # the raw sparse matrix crashes, and a densify would poison absent cells with 0).
+    data = to_dense_df(adata, layer=layer)
 
     corr_matrix = data.T.corr(method=method)
 

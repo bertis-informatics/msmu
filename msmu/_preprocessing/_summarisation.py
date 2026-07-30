@@ -1,10 +1,13 @@
 import re
 import warnings
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 
 from ..logging_utils import get_logger
+from .._core._blockdiag import aggregate_features_by_group, dense_block, is_sparse, to_dense_df
 from ._filter import _mask_boolean_filter
 
 # for type checking only
@@ -13,6 +16,27 @@ from typing import Literal
 
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class SparseQuant:
+    """Carrier for a sparse block-diagonal quantification matrix through the summarisation path.
+
+    Wraps a SciPy sparse ``(samples, features)`` matrix together with its sample names so the
+    aggregator can reduce features per group without ever densifying the full matrix (see
+    :mod:`msmu._core._blockdiag`). Exposes ``shape``/``copy`` so it can stand in for the dense
+    quantification DataFrame in the existing flow.
+    """
+
+    matrix: sp.spmatrix  # (n_samples, n_features)
+    sample_names: list[str]
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return self.matrix.shape
+
+    def copy(self) -> "SparseQuant":
+        return SparseQuant(matrix=self.matrix.copy(), sample_names=list(self.sample_names))
 
 MEDIAN_POLISH_MAX_ITERATIONS: int = 10
 # Relative convergence on the sum of absolute residuals, matching R's ``stats::medpolish``
@@ -455,6 +479,9 @@ class Aggregator:
         return agg_id_df
 
     def aggregate_quantification(self) -> pd.DataFrame:
+        if isinstance(self._quant_df, SparseQuant):
+            return self._aggregate_quantification_sparse()
+
         sample_columns = self._quant_df.columns
         agg_quant_df: pd.DataFrame = self._quant_df.copy()
         agg_quant_df[self._col_to_groupby] = self._id_df[self._col_to_groupby]
@@ -480,6 +507,32 @@ class Aggregator:
         agg_quant_df = agg_quant_df.rename_axis(index=None)
 
         return agg_quant_df
+
+    def _aggregate_quantification_sparse(self) -> pd.DataFrame:
+        """Aggregate a sparse block-diagonal quantification per group without densifying it.
+
+        Reduces feature columns within each group (median/mean/sum) directly on the sparse
+        matrix, one small group-block at a time. The group order matches
+        :meth:`aggregate_identification` (same pandas ``groupby`` order) so the returned frame
+        aligns positionally with the aggregated identifications downstream.
+        """
+        if self._agg_method not in ("median", "mean", "sum"):
+            # median_polish / directlfq are peptide->protein matrix rollups and are never applied
+            # to the sparse PSM level; they run on the (dense) peptide modality in to_protein.
+            raise NotImplementedError(
+                f"Sparse quantification supports agg_method in ('median', 'mean', 'sum'); "
+                f"got {self._agg_method!r}."
+            )
+        feature_groups = self._id_df[self._col_to_groupby].to_numpy()
+        group_order = self._id_df.groupby(self._col_to_groupby, observed=False).size().index.to_numpy()
+        groups, aggregated = aggregate_features_by_group(
+            self._quant_df.matrix,
+            feature_groups,
+            self._agg_method,
+            group_order=group_order,
+        )
+        agg_quant_df = pd.DataFrame(aggregated, index=groups, columns=self._quant_df.sample_names)
+        return agg_quant_df.rename_axis(index=None)
 
     def aggregate_decoy(self) -> pd.DataFrame:
         agg_decoy_df: pd.DataFrame = self._decoy_id_df.copy()
@@ -532,7 +585,16 @@ class SummarisationPrep:
 
     def prepare_data_to_summarise(self) -> pd.DataFrame:
         identification_df: pd.DataFrame = self.adata.var.copy()
-        quantification_df: pd.DataFrame = self.adata.to_df().transpose().copy()
+        if is_sparse(self.adata.X):
+            # Keep the block-diagonal quantification sparse; the aggregator reduces it per group
+            # without materialising the full (samples x features) matrix. Values are aligned to
+            # var order (== identification_df order) so no dense pivot is needed here.
+            quantification_df = SparseQuant(
+                matrix=self.adata.X.tocsc(),
+                sample_names=list(self.adata.obs_names),
+            )
+        else:
+            quantification_df = self.adata.to_df().transpose().copy()
         if self._has_decoy:
             decoy_df: pd.DataFrame = self.adata.uns["decoy"].copy()
 
@@ -556,7 +618,7 @@ class SummarisationPrep:
 
         ranked_id_df = FeatureRanker().__getattribute__(rank_method)(
             identification_df=self.adata.var,
-            quantification_df=self.adata.to_df().transpose(),
+            quantification_df=to_dense_df(self.adata).transpose(),
             col_to_groupby=self._col_to_groupby,
         )
 
@@ -564,7 +626,21 @@ class SummarisationPrep:
 
         return rank_mask
 
-    def _mask_quantification(self, quant_df: pd.DataFrame, mask_indices: pd.Series) -> pd.DataFrame:
+    def _mask_quantification(self, quant_df, mask_indices: pd.Series):
+        if isinstance(quant_df, SparseQuant):
+            # Drop stored entries in the masked-out feature columns so those features become
+            # all-absent (contribute nothing to the group aggregation) -- no densification. The mask
+            # is over features, whose order (id_df.index == var == matrix columns) matches the CSC.
+            keep = np.asarray(mask_indices, dtype=bool)
+            coo = quant_df.matrix.tocoo()
+            keep_entry = keep[coo.col]
+            masked = sp.coo_matrix(
+                (coo.data[keep_entry], (coo.row[keep_entry], coo.col[keep_entry])),
+                shape=quant_df.matrix.shape,
+                dtype=quant_df.matrix.dtype,
+            ).tocsc()
+            return SparseQuant(matrix=masked, sample_names=quant_df.sample_names)
+
         mask_with_nan_quant = quant_df.copy()
         mask_with_nan_quant.loc[~mask_indices, :] = np.nan
 
@@ -572,6 +648,19 @@ class SummarisationPrep:
 
     def prep(self):
         identification_df, quantification_df, decoy_df = self.prepare_data_to_summarise()
+
+        # Only the rank mask needs the quant densely (FeatureRanker ranks features by intensity); the
+        # column/purity filter is computed from the identification frame and applied sparse-natively
+        # (drop feature columns) below. So a sparse block-diagonal is densified only when a rank is
+        # requested -- the common TMT to_peptide (purity filter, no rank) stays sparse end-to-end,
+        # which is the whole point of the block-diagonal representation.
+        if isinstance(quantification_df, SparseQuant) and self.rank_tuple:
+            logger.debug("Densifying sparse quantification for rank-masked summarisation.")
+            quantification_df = pd.DataFrame(
+                dense_block(quantification_df.matrix).T,
+                index=self.adata.var_names,
+                columns=quantification_df.sample_names,
+            )
 
         # make filter mask
         if self._filter_dict:
@@ -612,6 +701,15 @@ class PtmSummarisationPrep(SummarisationPrep):
 
     def prep(self):
         identification_df, quantification_df, _ = self.prepare_data_to_summarise()
+        # PTM sites are aggregated from the peptide modality, which is dense (peptides span samples,
+        # so it is not block-diagonal). Densify defensively if a sparse .X is ever passed -- the
+        # pd.merge below cannot operate on a SparseQuant.
+        if isinstance(quantification_df, SparseQuant):
+            quantification_df = pd.DataFrame(
+                dense_block(quantification_df.matrix).T,
+                index=self.adata.var_names,
+                columns=quantification_df.sample_names,
+            )
         identification_df["peptide"] = identification_df.index
         modi_df = self._extract_modi_peptide_df(data=identification_df)
 

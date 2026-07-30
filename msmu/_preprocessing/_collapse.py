@@ -5,9 +5,11 @@ import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 
 from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
+from .._core._blockdiag import dense_block, is_sparse
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -139,6 +141,44 @@ def collapse_obs(
     return collapsed_mdata
 
 
+def _collapse_obs_sparse_blockdiag(
+    matrix: sp.spmatrix,
+    group_row_indices: list[np.ndarray],
+    n_groups: int,
+) -> sp.csr_matrix | None:
+    """Collapse obs groups on a sparse block-diagonal without densifying.
+
+    Valid only when each ``(group, feature)`` cell holds at most one stored value -- true for
+    file-specific ``var`` (e.g. DIA-NN precursors where the var index is ``filename.Precursor.Id``:
+    a feature belongs to a single obs row, so a group of rows contributes at most one value per
+    feature). Then every ``agg_method`` (sum/max/median/mean, including the log2-space sum) reduces
+    that single value to itself, so collapsing is a pure row->group remap of the stored entries. It
+    matches the NaN-aware dense aggregation exactly while keeping the layer sparse.
+
+    Returns the collapsed CSR, or ``None`` if some ``(group, feature)`` has more than one stored
+    value (not block-diagonal), signalling the caller to fall back to the dense aggregation path
+    where ``agg_function`` performs the real reduction.
+    """
+    coo = matrix.tocoo()
+    row_to_group = np.full(matrix.shape[0], -1, dtype=np.int64)
+    for group_position, row_indices in enumerate(group_row_indices):
+        row_to_group[np.asarray(row_indices, dtype=np.int64)] = group_position
+    entry_groups = row_to_group[coo.row]
+
+    # A repeated (group, column) key means the group holds >1 stored value for that feature, so a
+    # bare remap would silently drop all but one -- bail to the dense path which aggregates them.
+    flat_group_column_keys = entry_groups * np.int64(matrix.shape[1]) + coo.col
+    if np.unique(flat_group_column_keys).size != flat_group_column_keys.size:
+        return None
+
+    # Match the dense path's float64 accumulation (``np.asarray(raw_arr, dtype=float)`` below) so
+    # the sparse and dense collapses are bit-identical.
+    return sp.coo_matrix(
+        (coo.data.astype(np.float64), (entry_groups, coo.col)),
+        shape=(n_groups, matrix.shape[1]),
+    ).tocsr()
+
+
 def _collapse_anndata_obs(
     adata: ad.AnnData,
     sample_key: str,
@@ -146,23 +186,33 @@ def _collapse_anndata_obs(
     layer: str | None,
 ) -> ad.AnnData:
     raw_arr = adata.X if layer is None else adata.layers[layer]
-    if hasattr(raw_arr, "toarray"):
-        raw_arr = raw_arr.toarray()
-    raw_arr = np.asarray(raw_arr, dtype=float)
 
     group_values = adata.obs[sample_key].to_numpy()
     unique_samples, group_row_indices = _ordered_groupby_indices(group_values)
-
     n_samples = len(unique_samples)
-    n_features = raw_arr.shape[1]
-    aggregated_x = np.full((n_samples, n_features), np.nan, dtype=float)
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="All-NaN slice encountered")
-        warnings.filterwarnings("ignore", message="Mean of empty slice")
-        for sample_position, row_indices in enumerate(group_row_indices):
-            block = raw_arr[row_indices, :]
-            aggregated_x[sample_position, :] = agg_function(block, axis=0)
+    aggregated_x = None
+    if is_sparse(raw_arr):
+        # Block-diagonal (file-specific var): a group holds <=1 value per feature, so collapse is a
+        # row->group remap that stays sparse and is identical for every agg_method. None => the
+        # matrix is not block-diagonal (a group has >1 value for some feature) => densify below.
+        aggregated_x = _collapse_obs_sparse_blockdiag(raw_arr, group_row_indices, n_samples)
+
+    if aggregated_x is None:
+        if is_sparse(raw_arr):
+            # dense_block restores absent cells as NaN; a plain .toarray() would fill them with 0
+            # and silently corrupt the NaN-aware aggregations below.
+            raw_arr = dense_block(raw_arr)
+        raw_arr = np.asarray(raw_arr, dtype=float)
+        n_features = raw_arr.shape[1]
+        aggregated_x = np.full((n_samples, n_features), np.nan, dtype=float)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="All-NaN slice encountered")
+            warnings.filterwarnings("ignore", message="Mean of empty slice")
+            for sample_position, row_indices in enumerate(group_row_indices):
+                block = raw_arr[row_indices, :]
+                aggregated_x[sample_position, :] = agg_function(block, axis=0)
 
     aggregated_obs = _aggregate_obs_metadata(
         obs=adata.obs,

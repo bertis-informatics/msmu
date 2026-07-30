@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 
 from ._base_reader import SearchResultReader, SearchResultSettings
-from .._utils.fasta import parse_uniprot_accession
+from .._utils.fasta import parse_uniprot_accession_group
 
 
 class DelpiReader(SearchResultReader):
@@ -61,22 +61,15 @@ class DelpiReader(SearchResultReader):
 
         return df
 
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_indentification_df = identification_df.copy()
-        split_indentification_df = split_indentification_df.drop(columns=["ms2_area"])
-
-        split_quantification_df = identification_df[["filename", "ms2_area"]].reset_index()
-        split_quantification_df = split_quantification_df.pivot(index="index", columns="filename", values="ms2_area")
-        split_quantification_df = split_quantification_df.rename_axis(index=None, columns=None)
-
-        return split_indentification_df, split_quantification_df
-
     def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
-        # Same pivot as _split_merged_identification_quantification's quant half, but
-        # sourced from the raw frame: filename = run_name, index = "run_name.pmsm_index"
-        # (matching _make_unique_index), so it aligns with the fresh feature frame.
+        # Block-diagonal precursor quant: filename = run_name, index = "run_name.pmsm_index". The
+        # index is built with the SAME astype(str) formatting as the identification frame's
+        # _make_unique_index (a null pmsm_index -> "nan" after the to_pandas float-promotion), so
+        # the two indexes intersect. Pull just the three columns to pandas and share this one tail --
+        # a polars cast(Utf8) would format a null index differently and drop features at the
+        # ident/quant intersection.
+        raw_identification_df = raw_identification_df.select(["run_name", "pmsm_index", "ms2_area"]).to_pandas()
+
         quant_source = pd.DataFrame(
             {
                 "filename": raw_identification_df["run_name"].to_numpy(),
@@ -93,27 +86,37 @@ class DelpiReader(SearchResultReader):
         return quant_df
 
     def _make_needed_columns_for_identification(self, identification_df):
-        # Build the feature frame on a FRESH DataFrame (identification columns only),
-        # reading the raw frame read-only so it stays intact for varm (or to be
-        # freed). Quantification (ms2_area) is taken from the raw frame by
-        # _extract_quant_from_raw. ("rt" is computed by the legacy path but dropped
-        # at the used_feature_cols subset, so it is omitted here.)
-        feature_df = pd.DataFrame(index=identification_df.index)
-        feature_df["proteins"] = parse_uniprot_accession(identification_df["fasta_id"])
-        feature_df["peptide"] = (
-            identification_df["peptide"].str.strip("<").str.strip(">").str.strip(".").str.strip("_")
-        )  # -> stripped_peptide
-        feature_df["modified_sequence"] = (
-            identification_df["modified_sequence"].str.strip("<").str.strip(">").str.strip(".").str.strip("_")
-        )  # -> peptide
-        feature_df["run_name"] = identification_df["run_name"]  # -> filename
-        feature_df["frame_num"] = identification_df["frame_num"]  # -> scan_num
-        feature_df["precursor_charge"] = identification_df["precursor_charge"]  # -> charge
-        feature_df["sequence_length"] = identification_df["sequence_length"]  # -> peptide_length
-        feature_df["posterior_error"] = identification_df["posterior_error"]  # -> PEP
-        feature_df["global_precursor_q_value"] = identification_df["global_precursor_q_value"]  # -> q_value
-        feature_df["score"] = identification_df["score"]
-        feature_df["is_decoy"] = identification_df["is_decoy"]  # -> decoy
-        feature_df["pmsm_index"] = identification_df["pmsm_index"]  # for _make_unique_index (dropped at subset)
+        """Build the feature frame on a FRESH DataFrame (identification columns only), reading the
+        raw frame read-only so it stays intact for varm (or to be freed), with polars expressions
+        converted to pandas once. Quantification (ms2_area) is taken from the raw frame by
+        _extract_quant_from_raw.
 
-        return feature_df
+        The peptide cleanup ``.strip("<").strip(">").strip(".").strip("_")`` strips each character
+        *in sequence* (not as a set), so it is replicated as four single-char ``strip_chars`` calls
+        -- ``strip_chars("<>._")`` would over-strip (e.g. ``._<AB>_.`` -> ``AB`` instead of
+        ``<AB>``). Accession parsing is deduplicated via ``replace_strict``.
+        """
+        import polars as pl
+
+        uniq = identification_df.select("fasta_id").unique().to_series().to_list()
+        accession_map = {value: parse_uniprot_accession_group(value) for value in uniq}
+
+        def _strip_delim(col):
+            return (
+                pl.col(col).str.strip_chars("<").str.strip_chars(">").str.strip_chars(".").str.strip_chars("_")
+            )
+
+        return identification_df.select(
+            pl.col("fasta_id").replace_strict(accession_map).alias("proteins"),
+            _strip_delim("peptide").alias("peptide"),  # -> stripped_peptide
+            _strip_delim("modified_sequence").alias("modified_sequence"),  # -> peptide
+            pl.col("run_name"),  # -> filename
+            pl.col("frame_num"),  # -> scan_num
+            pl.col("precursor_charge"),  # -> charge
+            pl.col("sequence_length"),  # -> peptide_length
+            pl.col("posterior_error"),  # -> PEP
+            pl.col("global_precursor_q_value"),  # -> q_value
+            pl.col("score"),
+            pl.col("is_decoy"),  # -> decoy
+            pl.col("pmsm_index"),  # for _make_unique_index (dropped at subset)
+        ).to_pandas()

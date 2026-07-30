@@ -9,6 +9,7 @@ from umap import UMAP
 from typing import Any
 
 from .._utils._mudata import get_anndata_mod
+from .._core._blockdiag import to_dense_df
 from .._core._provenance import uns_logger
 
 
@@ -128,10 +129,9 @@ def umap(
 
     # Drop columns with NaN values
     adata = get_anndata_mod(mdata, modality)
-    if layer is not None:
-        data = pd.DataFrame(data=adata.layers[layer], index=adata.obs_names, columns=adata.var_names)
-    else:
-        data = adata.to_df()
+    # to_dense_df restores absent cells as NaN for a sparse .X/layer (a plain DataFrame over
+    # the raw sparse matrix crashes, and a densify would poison absent cells with 0).
+    data = to_dense_df(adata, layer=layer)
     data = data.dropna(axis=1)
 
     # Set n_neighbors
