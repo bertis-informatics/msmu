@@ -65,17 +65,11 @@ class SageReader(SearchResultReader):
         return config
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        # Build the feature frame on a FRESH DataFrame rather than mutating the input,
-        # so the caller keeps the raw frame intact (to serve varm or be freed) without
-        # a defensive copy. The per-PSM string transforms (protein groups, scan strings,
-        # peptides) run as polars expressions, deduplicated over distinct values.
-        return self._identification_columns_polars(identification_df)
+        """Build the feature frame on a FRESH DataFrame rather than mutating the input, so the caller
+        keeps the raw frame intact (to serve varm or be freed) without a defensive copy.
 
-    def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
-        """polars-native equivalent of the pandas feature build (same columns/values/dtypes).
-
-        Runs the whole identification transform as polars expressions and converts to pandas once
-        (the AnnData boundary). Verified equivalences (polars has no lookbehind / list.eval is slow):
+        The whole identification transform runs as polars expressions and converts to pandas once
+        (the AnnData boundary). Non-obvious equivalences (polars has no lookbehind / list.eval is slow):
           stripped peptide  re ``([A-Z]+)|(\\[\\+\\d+\\.\\d+\\])`` join == ``str.replace_all("[^A-Z]", "")``
           accession parse   per-group fn via ``replace_strict`` over UNIQUE groups (dedup)
           filename strip    ``Path(x).name.rsplit(".",1)[0]`` == ``split("/").list.last().replace(r"\\.[^.]*$", "")``
@@ -146,13 +140,9 @@ class TmtSageReader(SageReader):
         self.search_settings.quantification_level = "psm"
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        return self._quantification_columns_polars(quantification_df)
-
-    def _quantification_columns_polars(self, quantification_df) -> pd.DataFrame:
-        """polars-native TMT quant: build the ``filename.scan_num`` index and keep the tmt columns.
-
-        Same result as the pandas path (index == identification's unique index) so the downstream
-        obs rename / replace(0, NaN) / build_mudata are unchanged.
+        """polars TMT quant: build the ``filename.scan_num`` index (== identification's unique index,
+        so the downstream obs rename / replace(0, NaN) / build_mudata are unchanged) and keep the
+        tmt columns.
         """
         import polars as pl
 

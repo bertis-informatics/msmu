@@ -29,21 +29,6 @@ def test_diann_make_needed_columns_sets_decoy_and_lengths():
     assert out["decoy"].iloc[0] == 0
 
 
-def test_diann_split_merged_identification_quantification():
-    reader = DiannReader("dummy.tsv", pd.DataFrame())
-    df = pd.DataFrame(
-        {
-            "filename": ["a", "b"],
-            "Precursor.Quantity": [1.0, 2.0],
-        },
-        index=["a.1", "b.2"],
-    )
-    ident, quant = reader._split_merged_identification_quantification(df)
-    assert "Precursor.Quantity" not in ident.columns
-    assert quant.loc["a.1", "a"] == 1.0
-    assert quant.loc["b.2", "b"] == 2.0
-
-
 def test_sage_make_needed_columns_for_identification():
     reader = SageReader("id.tsv", None)
     df = pd.DataFrame(

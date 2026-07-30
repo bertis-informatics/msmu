@@ -102,19 +102,16 @@ class FragPipeReader(SearchResultReader):
         )
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        # Build the feature frame on a FRESH DataFrame (read the raw frame read-only so it
-        # stays intact for varm or to be freed). Quantification (TMT channels) is taken from
-        # the raw frame by TmtFragPipeReader._extract_quant_from_raw. Carry-through columns
-        # keep their raw names and are renamed by _normalise_identification_df.
-        return self._identification_columns_polars(identification_df)
-
-    def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
-        """polars-native equivalent of the pandas feature build (same columns/values).
+        """Build the feature frame on a FRESH DataFrame (read the raw frame read-only so it stays
+        intact for varm or to be freed), with polars expressions converted to pandas once.
+        Quantification (TMT channels) is taken from the raw frame by
+        TmtFragPipeReader._extract_quant_from_raw; carry-through columns keep their raw names and
+        are renamed by _normalise_identification_df.
 
         proteins = (``Protein`` + ``Mapped Proteins``) tokens, whitespace-stripped, the literal
-        ``"nan"`` (pandas ``astype(str)`` of a missing value) dropped, joined with ``;`` -- so a
-        null column must first become ``"nan"`` (``fill_null("nan")``) to match. scan_num goes
-        through int (``00123`` -> ``123``) exactly like the pandas ``int(...)``.
+        ``"nan"`` (``astype(str)`` of a missing value) dropped, joined with ``;`` -- so a null
+        column must first become ``"nan"`` (``fill_null("nan")``) to match. scan_num goes through
+        int (``00123`` -> ``123``).
         """
         import polars as pl
 

@@ -61,18 +61,6 @@ class DelpiReader(SearchResultReader):
 
         return df
 
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_indentification_df = identification_df.copy()
-        split_indentification_df = split_indentification_df.drop(columns=["ms2_area"])
-
-        split_quantification_df = identification_df[["filename", "ms2_area"]].reset_index()
-        split_quantification_df = split_quantification_df.pivot(index="index", columns="filename", values="ms2_area")
-        split_quantification_df = split_quantification_df.rename_axis(index=None, columns=None)
-
-        return split_indentification_df, split_quantification_df
-
     def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
         # Block-diagonal precursor quant: filename = run_name, index = "run_name.pmsm_index". The
         # index is built with the SAME astype(str) formatting as the identification frame's
@@ -98,20 +86,15 @@ class DelpiReader(SearchResultReader):
         return quant_df
 
     def _make_needed_columns_for_identification(self, identification_df):
-        # Build the feature frame on a FRESH DataFrame (identification columns only),
-        # reading the raw frame read-only so it stays intact for varm (or to be
-        # freed). Quantification (ms2_area) is taken from the raw frame by
-        # _extract_quant_from_raw. ("rt" is computed by the legacy path but dropped
-        # at the used_feature_cols subset, so it is omitted here.)
-        return self._identification_columns_polars(identification_df)
+        """Build the feature frame on a FRESH DataFrame (identification columns only), reading the
+        raw frame read-only so it stays intact for varm (or to be freed), with polars expressions
+        converted to pandas once. Quantification (ms2_area) is taken from the raw frame by
+        _extract_quant_from_raw.
 
-    def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
-        """polars-native equivalent of the pandas feature build (same columns/values).
-
-        The pandas peptide cleanup ``.strip("<").strip(">").strip(".").strip("_")`` strips each
-        character *in sequence* (not as a set), so it is replicated as four single-char
-        ``strip_chars`` calls -- ``strip_chars("<>._")`` would over-strip (e.g. ``._<AB>_.`` ->
-        ``AB`` instead of ``<AB>``). Accession parsing is deduplicated via ``replace_strict``.
+        The peptide cleanup ``.strip("<").strip(">").strip(".").strip("_")`` strips each character
+        *in sequence* (not as a set), so it is replicated as four single-char ``strip_chars`` calls
+        -- ``strip_chars("<>._")`` would over-strip (e.g. ``._<AB>_.`` -> ``AB`` instead of
+        ``<AB>``). Accession parsing is deduplicated via ``replace_strict``.
         """
         import polars as pl
 

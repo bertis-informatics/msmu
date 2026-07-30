@@ -55,25 +55,6 @@ _PANDAS_NA_VALUES: list[str] = [
 ]
 
 
-def _polars_read_native(file_path, suffix: str):
-    """Read csv/tsv/parquet with polars and return a polars DataFrame (no pandas conversion).
-
-    ``infer_schema_length=None`` scans every row for dtype inference (matching pandas' whole-file
-    scan) so a column that only widens past the first 100 rows -- e.g. integer scans then a float,
-    or a numeric column with a late non-numeric token -- does not hard-fail. ``null_values`` aligns
-    the missing-token set with pandas (see ``_PANDAS_NA_VALUES``).
-    """
-    import polars as pl
-
-    if suffix == ".csv":
-        return pl.read_csv(file_path, infer_schema_length=None, null_values=_PANDAS_NA_VALUES)
-    if suffix in (".tsv", ".tab", ".psm", ".txt"):
-        return pl.read_csv(file_path, separator="\t", infer_schema_length=None, null_values=_PANDAS_NA_VALUES)
-    if suffix == ".parquet":
-        return pl.read_parquet(file_path)
-    return None
-
-
 @dataclass
 class SearchResultSettings:
     """
@@ -154,11 +135,14 @@ class SearchResultDataFrameConverter:
 
     @staticmethod
     def _read_file(file_path: str | Path):
-        """Read a file into a polars DataFrame (the reader path is polars-only).
+        """Read a source into a polars DataFrame (the reader path is polars-only).
 
-        csv/tsv/parquet are read natively with polars (see ``_polars_read_native``). A DataFrame
-        passed directly (the ``read_*`` DataFrame-input API) is coerced to polars so the downstream
-        reader transforms -- which are polars -- receive a polars frame.
+        csv/tsv/parquet are read natively with polars; a DataFrame passed directly (the ``read_*``
+        DataFrame-input API) is coerced to polars so the downstream reader transforms -- which are
+        polars -- receive a polars frame. ``infer_schema_length=None`` scans every row for dtype
+        inference (matching pandas' whole-file scan) so a column that only widens past the first
+        100 rows -- e.g. integer scans then a float -- does not hard-fail; ``null_values`` aligns
+        the missing-token set with pandas (see ``_PANDAS_NA_VALUES``).
 
         Returns a tuple of the file path (``None`` for a DataFrame input) and the polars frame.
         """
@@ -168,8 +152,15 @@ class SearchResultDataFrameConverter:
             return None, pl.from_pandas(file_path)
 
         suffix = Path(file_path).suffix
-        native_df = _polars_read_native(file_path, suffix)
-        if native_df is None:
+        if suffix == ".csv":
+            native_df = pl.read_csv(file_path, infer_schema_length=None, null_values=_PANDAS_NA_VALUES)
+        elif suffix in (".tsv", ".tab", ".psm", ".txt"):
+            native_df = pl.read_csv(
+                file_path, separator="\t", infer_schema_length=None, null_values=_PANDAS_NA_VALUES
+            )
+        elif suffix == ".parquet":
+            native_df = pl.read_parquet(file_path)
+        else:
             raise ValueError(f"Unknown file type: {suffix}")
         return file_path, native_df
 
@@ -316,17 +307,6 @@ class SearchResultReader:
         # only the column index, not the (potentially multi-GB) data blocks.
         search_result_df.columns = renamed_columns
         return search_result_df
-
-    def _validate_search_outputs(self) -> None:
-        output_list: list[Path | None] = [
-            self.search_settings.identification_file,
-            self.search_settings.quantification_file,
-        ]
-        for file_path in output_list:
-            if file_path is None:
-                continue
-            if not file_path.exists():
-                raise FileNotFoundError(f"{file_path} does not exist!")
 
     def _read_config_file(self):
         raise NotImplementedError("_read_config_file method needs to be implemented in inherited class.")
@@ -601,8 +581,6 @@ class SearchResultReader:
         Returns:
             A MuData object containing the processed search results.
         """
-        # self._validate_search_outputs()
-
         mudata_input: MuDataInput = self._make_mudata_input()
         mdata: md.MuData = self._build_mudata(mudata_input=mudata_input)
 

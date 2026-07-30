@@ -60,8 +60,8 @@ class DummyReader(SearchResultReader):
         }
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        # The real readers' _identification_columns_polars consumes the polars frame and returns
-        # pandas (the downstream _make_unique_index is pandas-only); mirror that here.
+        # The real readers' _make_needed_columns_for_identification consumes the polars frame and
+        # returns pandas (the downstream _make_unique_index is pandas-only); mirror that here.
         return identification_df.to_pandas()
 
     def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:

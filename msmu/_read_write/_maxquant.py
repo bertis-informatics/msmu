@@ -77,18 +77,15 @@ class MaxQuantReader(SearchResultReader):
         }
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        # Build the feature frame on a FRESH DataFrame (read the raw frame read-only so it
-        # stays intact for varm or to be freed). Quantification is taken from the raw frame
-        # by each subclass's _extract_quant_from_raw. Columns are carried under their raw
-        # names and renamed by _normalise_identification_df via _feature_rename_dict.
-        return self._identification_columns_polars(identification_df)
+        """Build the feature frame on a FRESH DataFrame with polars expressions (read the raw frame
+        read-only so it stays intact for varm or to be freed), converting to pandas once at the
+        AnnData boundary. Quantification is taken from the raw frame by each subclass's
+        _extract_quant_from_raw; columns are carried under their raw names and renamed by
+        _normalise_identification_df via _feature_rename_dict.
 
-    def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
-        """polars-native equivalent of the pandas feature build (same columns/values).
-
-        ``Reverse``/``Potential contaminant`` are "+" or null; null must map to 0 (pandas
-        ``x == "+"`` is False for NaN), hence ``fill_null(False)``. Decoy rows take
-        ``Leading proteins`` instead of ``Proteins`` (the pandas conditional assignment).
+        ``Reverse``/``Potential contaminant`` are "+" or null; null must map to 0 (``x == "+"`` is
+        False for a null), hence ``fill_null(False)``. Decoy rows take ``Leading proteins`` instead
+        of ``Proteins`` (a conditional assignment).
         """
         import polars as pl
 

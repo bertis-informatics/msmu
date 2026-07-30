@@ -80,19 +80,6 @@ class DiannReader(SearchResultReader):
 
         return df
 
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_identification_df = identification_df.copy()
-        split_identification_df = split_identification_df.drop(columns=["Precursor.Quantity"])
-
-        split_quant_df = identification_df[["filename", "Precursor.Quantity"]].reset_index()
-        split_quant_df = split_quant_df.pivot(index="index", columns="filename", values="Precursor.Quantity")
-        split_quant_df = split_quant_df.rename_axis(index=None, columns=None)
-        split_quant_df = split_quant_df.replace(0, np.nan)
-
-        return split_identification_df, split_quant_df
-
     def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame):
         # DIA-NN's precursor quant is block-diagonal: the feature id "Run.Precursor.Id" encodes
         # the run, so each precursor feature carries a value in exactly one run column and is NaN
@@ -121,17 +108,14 @@ class DiannReader(SearchResultReader):
         return SparseQuantFrame(matrix=matrix, index=pd.Index(features), columns=pd.Index(sample_index))
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        # Build the feature frame on a FRESH DataFrame (identification columns only),
-        # reading the raw frame read-only so it stays intact for varm (or to be
-        # freed). Quantification is taken from the raw frame by _extract_quant_from_raw.
-        return self._identification_columns_polars(identification_df)
-
-    def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
-        """polars-native equivalent of the pandas feature build (same columns/values/dtypes).
+        """Build the feature frame on a FRESH DataFrame (identification columns only), reading the
+        raw frame read-only so it stays intact for varm (or to be freed), with polars expressions
+        converted to pandas once. Quantification is taken from the raw frame by
+        _extract_quant_from_raw.
 
         polars has no lookbehind, so the tryptic missed-cleavage count ``(?<=[KR])(?!P)`` is the
         equivalent ``count("[KR]") - count("[KR]P")``; accession parsing is deduplicated via
-        ``replace_strict`` over unique protein-id strings. Converts to pandas once at the end.
+        ``replace_strict`` over unique protein-id strings.
         """
         import polars as pl
 
