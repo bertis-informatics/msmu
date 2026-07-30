@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Literal
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings, _ensure_polars, _is_polars
+from ._base_reader import SearchResultReader, SearchResultSettings
 
 
 class FragPipeReader(SearchResultReader):
@@ -106,7 +106,7 @@ class FragPipeReader(SearchResultReader):
         # stays intact for varm or to be freed). Quantification (TMT channels) is taken from
         # the raw frame by TmtFragPipeReader._extract_quant_from_raw. Carry-through columns
         # keep their raw names and are renamed by _normalise_identification_df.
-        return self._identification_columns_polars(_ensure_polars(identification_df))
+        return self._identification_columns_polars(identification_df)
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values).
@@ -187,7 +187,6 @@ class TmtFragPipeReader(FragPipeReader):
         # _make_unique_index (filename.scan_num) to align with the fresh feature frame.
         import polars as pl
 
-        raw_identification_df = _ensure_polars(raw_identification_df)
         non_quant_cols = set(self.desc_cols) | set(self._feature_rename_dict.keys())
         quant_cols = [c for c in raw_identification_df.columns if c not in non_quant_cols]
 
@@ -241,10 +240,8 @@ class LfqFragPipeReader(FragPipeReader):
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
         # Small peptide x sample table; convert to pandas and share one tail (the
-        # Modified-Sequence-indexed intensity columns). A reader fed a pandas frame directly (unit
-        # tests) passes through unchanged.
-        if _is_polars(quantification_df):
-            quantification_df = quantification_df.to_pandas()
+        # Modified-Sequence-indexed intensity columns).
+        quantification_df = quantification_df.to_pandas()
         quantification_df = quantification_df.set_index("Modified Sequence", drop=True).rename_axis(index=None).copy()
         intensity_cols = [col for col in quantification_df.columns if col.endswith(" Intensity")]
         quantification_df = quantification_df[intensity_cols]

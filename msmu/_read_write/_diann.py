@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 
-from ._base_reader import SearchResultReader, SearchResultSettings, _ensure_polars, _is_polars
+from ._base_reader import SearchResultReader, SearchResultSettings
 from .._core._blockdiag import SparseQuantFrame
 from .._utils.fasta import parse_uniprot_accession_group
 
@@ -101,12 +101,10 @@ class DiannReader(SearchResultReader):
         # in every other -- a (n_precursor_obs x n_run) matrix with ~one non-null per row. The
         # dense pivot below materialises all of it (0.5% filled); the sparse path builds only the
         # observed cells as a COO/CSR, avoiding the dense pivot entirely.
-        if _is_polars(raw_identification_df):
-            # Pull only the three columns this needs, as pandas, then reuse the COO/pivot logic below.
-            # A reader fed a pandas frame directly (unit tests) skips this and uses it as-is.
-            raw_identification_df = raw_identification_df.select(
-                ["Run", "Precursor.Id", "Precursor.Quantity"]
-            ).to_pandas()
+        # Pull only the three columns this needs, as pandas, then reuse the COO/pivot logic below.
+        raw_identification_df = raw_identification_df.select(
+            ["Run", "Precursor.Id", "Precursor.Quantity"]
+        ).to_pandas()
         features = (raw_identification_df["Run"] + "." + raw_identification_df["Precursor.Id"]).to_numpy()
         runs = raw_identification_df["Run"].to_numpy()
         values = raw_identification_df["Precursor.Quantity"].to_numpy(dtype=float)
@@ -139,7 +137,7 @@ class DiannReader(SearchResultReader):
         # Build the feature frame on a FRESH DataFrame (identification columns only),
         # reading the raw frame read-only so it stays intact for varm (or to be
         # freed). Quantification is taken from the raw frame by _extract_quant_from_raw.
-        return self._identification_columns_polars(_ensure_polars(identification_df))
+        return self._identification_columns_polars(identification_df)
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values/dtypes).

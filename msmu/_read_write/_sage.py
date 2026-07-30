@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings, _ensure_polars, _is_polars
+from ._base_reader import SearchResultReader, SearchResultSettings
 from .._utils.fasta import parse_uniprot_accession_group
 from . import label_info
 
@@ -69,7 +69,7 @@ class SageReader(SearchResultReader):
         # so the caller keeps the raw frame intact (to serve varm or be freed) without
         # a defensive copy. The per-PSM string transforms (protein groups, scan strings,
         # peptides) run as polars expressions, deduplicated over distinct values.
-        return self._identification_columns_polars(_ensure_polars(identification_df))
+        return self._identification_columns_polars(identification_df)
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values/dtypes).
@@ -146,7 +146,7 @@ class TmtSageReader(SageReader):
         self.search_settings.quantification_level = "psm"
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        return self._quantification_columns_polars(_ensure_polars(quantification_df))
+        return self._quantification_columns_polars(quantification_df)
 
     def _quantification_columns_polars(self, quantification_df) -> pd.DataFrame:
         """polars-native TMT quant: build the ``filename.scan_num`` index and keep the tmt columns.
@@ -217,9 +217,7 @@ class LfqSageReader(SageReader):
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
         # The LFQ peptide-quant table is small (peptides x samples); convert it to pandas here and
         # share one tail -- the identification frame is where the polars win lives, not this table.
-        # A reader fed a pandas frame directly (unit tests) passes through unchanged.
-        if _is_polars(quantification_df):
-            quantification_df = quantification_df.to_pandas()
+        quantification_df = quantification_df.to_pandas()
         quantification_df = quantification_df.set_index("peptide", drop=True).rename_axis(index=None).copy()
         quantification_df = quantification_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)
 

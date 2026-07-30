@@ -25,8 +25,8 @@ logger = get_logger(__name__)
 # The readers are polars-only: csv/tsv/parquet are parsed with polars (multi-threaded), the
 # identification frame stays polars through the reader transforms, and it converts to pandas once at
 # the AnnData boundary. Every reader (Sage, DIA-NN, MaxQuant, FragPipe, DELPI) implements the polars
-# transforms; a reader constructed directly with a pandas frame (unit tests) has that frame coerced
-# to polars at the transform boundary (see ``_ensure_polars``).
+# transforms. The converter coerces a DataFrame passed directly (the ``read_*`` DataFrame-input API)
+# to polars at the read boundary (see ``_read_file``), so the transforms always receive polars.
 
 
 def set_polars_reader(enabled: bool = True) -> None:
@@ -42,26 +42,6 @@ def set_polars_reader(enabled: bool = True) -> None:
         DeprecationWarning,
         stacklevel=2,
     )
-
-
-def _is_polars(obj) -> bool:
-    """True if obj is a polars DataFrame, without importing polars."""
-    return type(obj).__module__.split(".", 1)[0] == "polars"
-
-
-def _ensure_polars(frame):
-    """Coerce ``frame`` to a polars DataFrame (the reader transforms are polars-only).
-
-    Production feeds the transforms a polars frame (the converter reads natively with polars); a
-    pandas frame only reaches them when a reader is constructed directly with a pandas
-    ``identification_df``/``quantification_df`` (unit tests do this). Coerce those once so the polars
-    transform runs; a polars frame is returned unchanged (no copy).
-    """
-    if _is_polars(frame):
-        return frame
-    import polars as pl
-
-    return pl.from_pandas(frame)
 
 
 # pandas' default NA sentinels (pandas.io.parsers.STR_NA_VALUES), hard-coded to avoid a private
@@ -431,11 +411,9 @@ class SearchResultReader:
             # Keep only index alignment when raw search_result is not stored.
             raw_identification_df = pd.DataFrame(index=target_df.index)
         else:
-            # The raw frame is stored in varm, which must be pandas. On the reader path it is still
-            # a polars frame here (the transforms consumed it as polars) -- convert once. A reader
-            # constructed directly with a pandas frame (unit tests) passes through unchanged.
-            if _is_polars(raw_identification_df):
-                raw_identification_df = raw_identification_df.to_pandas()
+            # The raw frame is stored in varm, which must be pandas. It is always a polars frame
+            # here (the transforms consumed it as polars) -- convert once at this seam.
+            raw_identification_df = raw_identification_df.to_pandas()
             raw_identification_df = raw_identification_df.copy()
             raw_identification_df.index = norm_identification_df.index
             # Keep raw and normalized rows in strict positional sync.

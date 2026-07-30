@@ -1,4 +1,5 @@
 import pandas as pd
+import polars as pl
 
 from msmu._read_write._diann import DiannReader
 from msmu._read_write._fragpipe import LfqFragPipeReader, TmtFragPipeReader
@@ -22,7 +23,7 @@ def test_diann_make_needed_columns_sets_decoy_and_lengths():
             "Global.Q.Value": [0.01],
         }
     )
-    out = reader._make_needed_columns_for_identification(df)
+    out = reader._make_needed_columns_for_identification(pl.from_pandas(df))
     assert out["missed_cleavages"].iloc[0] == 1
     assert out["peptide_length"].iloc[0] == 4
     assert out["decoy"].iloc[0] == 0
@@ -64,7 +65,7 @@ def test_sage_make_needed_columns_for_identification():
             "spectrum_q": [0.01],
         }
     )
-    out = reader._make_needed_columns_for_identification(df)
+    out = reader._make_needed_columns_for_identification(pl.from_pandas(df))
     assert out["scan_num"].iloc[0] == 42
     assert out["stripped_peptide"].iloc[0] == "ACDEK"
     assert out["decoy"].iloc[0] == 1
@@ -93,7 +94,7 @@ def test_lfq_sage_quantification_columns():
             "file1.raw": [1.0, 2.0],
         }
     )
-    out = reader._make_needed_columns_for_quantification(df)
+    out = reader._make_needed_columns_for_quantification(pl.from_pandas(df))
     assert out.index.tolist() == ["AA", "BB"]
     assert "file1.raw" in out.columns
 
@@ -101,7 +102,7 @@ def test_lfq_sage_quantification_columns():
 def test_lfq_sage_read_keeps_rt_calcmass_var_columns_unique():
     reader = LfqSageReader(
         identification_file="id.tsv",
-        identification_df=pd.DataFrame(
+        identification_df=pl.from_pandas(pd.DataFrame(
             {
                 "proteins": ["sp|P1|P1_HUMAN"],
                 "filename": ["sample.raw"],
@@ -119,9 +120,9 @@ def test_lfq_sage_read_keeps_rt_calcmass_var_columns_unique():
                 "spectrum_q": [0.01],
                 "rt": [10.5],
             }
-        ),
+        )),
         quantification_file="quant.tsv",
-        quantification_df=pd.DataFrame(
+        quantification_df=pl.from_pandas(pd.DataFrame(
             {
                 "peptide": ["ACDEK"],
                 "charge": [2],
@@ -131,7 +132,7 @@ def test_lfq_sage_read_keeps_rt_calcmass_var_columns_unique():
                 "spectral_angle": [0.9],
                 "sample.raw": [1000.0],
             }
-        ),
+        )),
     )
 
     mdata = reader.read()
@@ -160,7 +161,7 @@ def test_fragpipe_lfq_quantification_columns():
             "Sample2 Intensity": [0.0, 3.0],
         }
     )
-    out = reader._make_needed_columns_for_quantification(df)
+    out = reader._make_needed_columns_for_quantification(pl.from_pandas(df))
     rename = reader._make_rename_dict_for_obs(out)
     assert out.columns.tolist() == ["Sample1 Intensity", "Sample2 Intensity"]
     assert rename["Sample1 Intensity"] == "Sample1"
@@ -178,7 +179,7 @@ def test_fragpipe_tmt_extract_quant_from_raw_keeps_only_channels():
             "127N": [200.0, 210.0],
         }
     )
-    quant = reader._extract_quant_from_raw(raw)
+    quant = reader._extract_quant_from_raw(pl.from_pandas(raw))
     # only the real TMT channels survive; renamed id cols (calcmass/expmass/score) do NOT leak
     assert quant.columns.tolist() == ["126", "127N"]
     assert quant.index.tolist() == ["fileA.10", "fileA.11"]
@@ -204,7 +205,7 @@ def test_maxquant_make_needed_columns_for_identification():
             "PEP": [0.01, 0.02],
         }
     )
-    out = reader._make_needed_columns_for_identification(df)
+    out = reader._make_needed_columns_for_identification(pl.from_pandas(df))
     # fresh build: the raw frame is read read-only, not mutated
     assert "decoy" not in df.columns
     assert out["decoy"].tolist() == [1, 0]
@@ -232,7 +233,7 @@ def test_maxquant_lfq_extract_quant_from_raw():
             "Intensity": [1.0, 2.0, 5.0],
         }
     )
-    quant = reader._extract_quant_from_raw(raw)
+    quant = reader._extract_quant_from_raw(pl.from_pandas(raw))
     # peptide-level sum, pivoted to peptide x filename
     assert quant.loc["AA", "f1"] == 1.0
     assert quant.loc["AA", "f2"] == 2.0
@@ -250,7 +251,7 @@ def test_maxquant_tmt_extract_quant_from_raw():
             "Other": ["x", "y"],
         }
     )
-    quant = reader._extract_quant_from_raw(raw)
+    quant = reader._extract_quant_from_raw(pl.from_pandas(raw))
     # indexed filename.scan_num; only the reporter channels are kept
     assert quant.index.tolist() == ["f1.10", "f1.11"]
     assert quant.columns.tolist() == ["Reporter intensity corrected 1", "Reporter intensity corrected 2"]

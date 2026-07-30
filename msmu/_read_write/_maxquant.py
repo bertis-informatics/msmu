@@ -5,7 +5,6 @@ from ._base_reader import (
     SearchResultReader,
     SearchResultSettings,
     SearchResultDataFrameConverter,
-    _ensure_polars,
 )
 from . import label_info
 
@@ -82,7 +81,7 @@ class MaxQuantReader(SearchResultReader):
         # stays intact for varm or to be freed). Quantification is taken from the raw frame
         # by each subclass's _extract_quant_from_raw. Columns are carried under their raw
         # names and renamed by _normalise_identification_df via _feature_rename_dict.
-        return self._identification_columns_polars(_ensure_polars(identification_df))
+        return self._identification_columns_polars(identification_df)
 
     def _identification_columns_polars(self, identification_df) -> pd.DataFrame:
         """polars-native equivalent of the pandas feature build (same columns/values).
@@ -127,7 +126,6 @@ class MaxTmtReader(MaxQuantReader):
         # aligns with the fresh feature frame.
         import polars as pl
 
-        raw_identification_df = _ensure_polars(raw_identification_df)
         reporter_cols = [c for c in raw_identification_df.columns if c.startswith("Reporter intensity corrected")]
         # Build the index through the SAME _make_unique_index the identification frame uses
         # (filename + "." + scan_num.astype(str), post-to_pandas) rather than a polars
@@ -178,7 +176,6 @@ class MaxLfqReader(MaxQuantReader):
         # the old split (which pivoted the normalised frame).
         import polars as pl
 
-        raw_identification_df = _ensure_polars(raw_identification_df)
         pivoted = (
             # Drop null group keys before the pivot: pandas pivot_table silently drops rows whose
             # index/column key is NaN, where polars group_by+pivot would keep a phantom "null" sample.
