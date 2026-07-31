@@ -9,33 +9,68 @@ from statsmodels.stats.multitest import multipletests
 PI0_NULL_PERCENTILE = 95
 PI0_LOWER_BOUND = PI0_NULL_PERCENTILE / 100.0
 
+# R p.adjust / limma adjust.method names -> statsmodels multipletests methods. msmu exposes R
+# limma's adjust.method vocabulary; each maps 1:1 onto a statsmodels routine (verified numerically
+# against R's p.adjust, see tests/test_statistics_multiple_test_correction.py). "none" is
+# intentionally absent — the uncorrected values are always the p-value column itself, so "no
+# correction" is not offered as an adjustment method.
+_R_TO_STATSMODELS_METHOD = {
+    "bh": "fdr_bh",
+    "by": "fdr_by",
+    "bonferroni": "bonferroni",
+    "holm": "holm",
+    "hochberg": "simes-hochberg",
+    "hommel": "hommel",
+}
+
+# The R p.adjust adjustment methods msmu exposes (canonical lowercase names), for callers that
+# validate a requested method against the supported family.
+P_ADJUST_METHODS = tuple(_R_TO_STATSMODELS_METHOD)
+
 
 class PvalueCorrection:
     """
     Class for multiple testing correction methods.
 
     Methods:
-        bh : Benjamini-Hochberg FDR correction.
+        adjust : R p.adjust family (BH/BY/holm/hochberg/hommel/bonferroni) on a p-value vector.
         storey : Storey's q-value estimation with pi0 estimation.
         empirical : Permutation-based empirical FDR estimation.
     """
 
     @staticmethod
-    def bh(pvals: np.ndarray) -> np.ndarray:
+    def adjust(pvals: np.ndarray, method: str = "bh") -> np.ndarray:
         """
-        Benjamini-Hochberg FDR correction with NaN handling.
+        Multiple-testing correction from R's p.adjust family, with NaN handling.
+
+        Maps an R p.adjust / limma ``adjust.method`` name (case-insensitive) onto the matching
+        statsmodels ``multipletests`` routine and applies it to the non-NaN p-values, leaving NaN
+        entries untouched. This is the shared correction path for both DE engines: limma's moderated
+        p-values and the permutation p-values are adjusted identically here (the permutation engine's
+        alternative, empirical FDR, lives in :meth:`empirical` because it needs the null distribution,
+        not just the p-values).
 
         Parameters:
             pvals: Array of p-values (can include NaN).
+            method: R-style correction name, one of
+                "bh", "by", "holm", "hochberg", "hommel", "bonferroni" (case-insensitive).
 
         Returns:
-            qvals: Array of q-values (NaN-filled where p was NaN).
+            qvals: Array of adjusted p-values (NaN-filled where p was NaN).
         """
+        method_key = method.lower()
+        if method_key not in _R_TO_STATSMODELS_METHOD:
+            raise ValueError(
+                f"Unknown p-value adjustment method {method!r}. Choose from "
+                f"{list(P_ADJUST_METHODS)} (R p.adjust names, case-insensitive)."
+            )
+        statsmodels_method = _R_TO_STATSMODELS_METHOD[method_key]
+
         pvals = np.asarray(pvals)
         qvals = np.full_like(pvals, np.nan, dtype=float)
         mask = ~np.isnan(pvals)
         if np.any(mask):
-            _, qvals_nonan, _, _ = multipletests(pvals[mask], method="fdr_bh")
+            _, qvals_nonan, _, _ = multipletests(pvals[mask], method=statsmodels_method)
             qvals[mask] = qvals_nonan
         return qvals
 

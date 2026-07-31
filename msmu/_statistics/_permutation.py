@@ -82,7 +82,7 @@ class PermutationTest:
         expr_arr: np.ndarray,
         n_resamples: int,
         _force_resample: bool,
-        fdr: bool | str,
+        fdr: str,
     ):
         self._ctrl_arr: np.ndarray = ctrl_arr
         self._expr_arr: np.ndarray = expr_arr
@@ -91,7 +91,9 @@ class PermutationTest:
         self._n_resamples: int = n_resamples
         self._force_resample: bool = _force_resample
         self._permutation_method: str = resolve_method(len(ctrl_arr), len(expr_arr), n_resamples, _force_resample)
-        self.fdr: bool | str = fdr
+        # "empirical" (permutation-native FDR from the null) or an R p.adjust family method applied
+        # to the permutation p-values (see _perm_test).
+        self.fdr: str = fdr
 
         self._warn_if_resamples_ignored()
         self._warn_if_significance_unreachable()
@@ -203,8 +205,12 @@ class PermutationTest:
                 stat_obs=obs_stats.statistic,
                 null_dist=stat_null_dist.null_distribution,
             )
-        elif self.fdr == "bh":
-            q_vals = PvalueCorrection.bh(pvals=pval_permutation)
+        else:
+            # Any R p.adjust family method (bh/by/holm/hochberg/hommel/bonferroni) applied to the
+            # permutation p-values. "empirical" above is the permutation-native FDR (built from the
+            # null distribution); every other option is a plain p-value adjustment, shared with the
+            # limma engine through PvalueCorrection.adjust so both engines correct identically.
+            q_vals = PvalueCorrection.adjust(pvals=pval_permutation, method=self.fdr)
 
         # put results to PermutationTestResult
         perm_test_res.p_value = pval_permutation

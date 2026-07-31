@@ -32,8 +32,6 @@ from scipy.stats import t as t_distribution
 
 from ._multiple_test_correction import PvalueCorrection
 
-POSITIVE_DIRECTION_NOTE = "positive log2 fold change means higher in 'expr'"
-
 
 @dataclass
 class LimmaContrast:
@@ -251,7 +249,12 @@ def _fit_contrast(expr_matrix: pd.DataFrame, contrast: LimmaContrast) -> tuple[n
     return log2fc, moderated_t, p_value
 
 
-def fit_limma(fit_matrix: pd.DataFrame, contrast: LimmaContrast, feature_mask: np.ndarray) -> LimmaResult:
+def fit_limma(
+    fit_matrix: pd.DataFrame,
+    contrast: LimmaContrast,
+    feature_mask: np.ndarray,
+    p_adjust: str = "bh",
+) -> LimmaResult:
     """Fit a validated limma contrast and assemble per-feature moderated-t results.
 
     The test step of ``run_de(stat_method="limma")``: the contrast and the estimable-feature mask
@@ -265,10 +268,13 @@ def fit_limma(fit_matrix: pd.DataFrame, contrast: LimmaContrast, feature_mask: n
         contrast: the means-model contrast to fit.
         feature_mask: boolean mask over ``fit_matrix`` rows marking the estimable features
             (from ``DeaValidator``); assumed to have at least one True (guaranteed by validation).
+        p_adjust: R p.adjust / limma ``adjust.method`` name for the q-value (default ``"bh"``),
+            applied to the moderated p-values across the estimable features via
+            :meth:`PvalueCorrection.adjust`.
 
     Returns:
-        LimmaResult with per-feature log2fc, moderated t, p-value and BH q-value, aligned to every
-        feature (NaN where not estimable).
+        LimmaResult with per-feature log2fc, moderated t, p-value and adjusted q-value, aligned to
+        every feature (NaN where not estimable).
     """
     features = np.asarray(fit_matrix.index)
     log2fc = np.full(features.size, np.nan)
@@ -281,7 +287,7 @@ def fit_limma(fit_matrix: pd.DataFrame, contrast: LimmaContrast, feature_mask: n
     moderated_t[feature_mask] = fitted_t
     p_value[feature_mask] = fitted_p
 
-    q_value = PvalueCorrection.bh(p_value)
+    q_value = PvalueCorrection.adjust(p_value, method=p_adjust)
 
     return LimmaResult(
         features=features,
