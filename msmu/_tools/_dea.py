@@ -27,13 +27,13 @@ from .._statistics._limma import (
     cell_blocks_for_contrast,
     fit_limma,
 )
+from .._statistics._multiple_test_correction import P_ADJUST_METHODS
 
 
 logger = get_logger(__name__)
 
 _PERMUTATION_METHODS = ("welch", "student", "wilcoxon")
 _STAT_METHODS = _PERMUTATION_METHODS + ("limma",)
-_DEFAULT_STAT_METHOD = "limma"
 
 # Shuffle count for the engine-independent fold-change guidance line. Only limma reaches the
 # standalone computation (the permutation engines reuse their own shuffle byproduct), and limma
@@ -169,9 +169,10 @@ class PermutationEngine(DeEngine):
 
     Validation masks features below ``min_pct`` coverage on the two groups (no model is fitted, so
     residual degrees of freedom are not required). The test always runs the permutation test — the
-    parametric alternative is limma, not a special mode of this engine — and its p-values use the
-    empirical (permutation) FDR. The fold-change guidance line falls out of the shuffles as a
-    byproduct, so it is set here and not recomputed downstream.
+    parametric alternative is limma, not a special mode of this engine — and its p-values are
+    FDR-corrected by ``fdr`` (default ``"empirical"``, the permutation FDR built from the null; or
+    any R p.adjust method applied to the permutation p-values). The fold-change guidance line falls
+    out of the shuffles as a byproduct, so it is set here and not recomputed downstream.
 
     ``effect_measure`` follows the statistic's location so significance and effect size stay on the
     same central tendency: welch / student test the mean (mean-based fold change), wilcoxon the
@@ -190,6 +191,7 @@ class PermutationEngine(DeEngine):
         log_transformed: bool,
         min_pct: float,
         force_resample: bool,
+        p_adjust: str,
     ) -> None:
         self.stat_method = stat_method
         self.effect_measure = "mean" if stat_method in ("welch", "student") else "median"
@@ -197,6 +199,10 @@ class PermutationEngine(DeEngine):
         self.log_transformed = log_transformed
         self.min_pct = min_pct
         self.force_resample = force_resample
+        # Concrete correction for the q-value (already resolved from "auto" to "empirical"):
+        # "empirical" (FDR from the null) or an R p.adjust method applied to the permutation p-values.
+        # Named p_adjust to match the public run_de knob; passed to PermutationTest as its ``fdr``.
+        self.p_adjust = p_adjust
 
     def validate(self, inputs: DeaInputs) -> DeaValidation:
         validator = DeaValidator(
@@ -219,13 +225,13 @@ class PermutationEngine(DeEngine):
         valid_expr_arr = inputs.expr_arr.copy()
         valid_expr_arr[:, ~validation.feature_mask] = np.nan
 
-        logger.debug("Running permutation DEA with %s resamples (empirical FDR).", self.n_resamples)
+        logger.debug("Running permutation DEA with %s resamples (%s FDR).", self.n_resamples, self.p_adjust)
         perm_test = PermutationTest(
             ctrl_arr=valid_ctrl_arr,
             expr_arr=valid_expr_arr,
             n_resamples=self.n_resamples,
             _force_resample=self.force_resample,
-            fdr="empirical",
+            fdr=self.p_adjust,
         )
         test_res = perm_test.run(
             n_permutations=self.n_resamples,
@@ -257,6 +263,7 @@ class LimmaEngine(DeEngine):
         interaction_levels: list | None,
         covariates: list[str] | None,
         min_pct: float,
+        p_adjust: str,
     ) -> None:
         self.category = category
         self.ctrl = ctrl
@@ -265,6 +272,8 @@ class LimmaEngine(DeEngine):
         self.interaction_levels = interaction_levels
         self.covariates = covariates
         self.min_pct = min_pct
+        # Concrete R p.adjust method for the q-value (already resolved from "auto" to "bh").
+        self.p_adjust = p_adjust
 
     @property
     def provides_comparable_fold_change(self) -> bool:
@@ -309,7 +318,7 @@ class LimmaEngine(DeEngine):
     def test(self, inputs: DeaInputs, validation: DeaValidation) -> DeaResult:
         contrast = validation.contrast
         fit_matrix = inputs.expr_matrix.loc[:, contrast.kept_samples]
-        result = fit_limma(fit_matrix, contrast, validation.feature_mask)
+        result = fit_limma(fit_matrix, contrast, validation.feature_mask, p_adjust=self.p_adjust)
         logger.debug(
             "limma DEA contrast '%s' produced %d features.", result.contrast_label, result.features.size
         )
@@ -341,6 +350,7 @@ def run_de(
     interaction: str | None = None,
     interaction_levels: list | None = None,
     covariates: list[str] | None = None,
+    p_adjust: str = "auto",
     _force_resample: bool = False,
 ) -> DeaResult:
     """
@@ -386,6 +396,14 @@ def run_de(
             interaction (difference-in-differences) of ``expr - ctrl`` across two of its levels.
         interaction_levels: limma only — the two ``interaction`` levels to contrast.
         covariates: limma only — obs columns to adjust for.
+        p_adjust: Multiple-testing correction for the q-value. Default ``"auto"`` uses each engine's
+            native default: limma adjusts its moderated p-values with Benjamini-Hochberg ("bh"), the
+            permutation engines use ``"empirical"`` (an FDR built from the label-permutation null).
+            The R ``p.adjust`` / limma ``adjust.method`` family — ``"bh"``, ``"by"``, ``"holm"``,
+            ``"hochberg"``, ``"hommel"``, ``"bonferroni"`` (case-insensitive) — is accepted by both
+            engines and applied identically to their p-values. ``"empirical"`` is permutation-only
+            (limma has no null distribution to build it from, so limma + ``"empirical"`` raises).
+            There is no "no correction" option — the uncorrected values are the ``p_value`` column.
         _force_resample: If True, forces resampling even if the number of resamples exceeds the number of combinations.
 
     Returns:
@@ -394,7 +412,7 @@ def run_de(
     # Notify before validating so a migrating expr=None caller (old default "vs all other groups")
     # learns the default engine changed before hitting limma's "explicit expr required" error.
     _notify_default_engine_transition(stat_method)
-    _validate_run_de_args(stat_method, expr, interaction, interaction_levels, covariates, n_resamples)
+    _validate_run_de_args(stat_method, expr, interaction, interaction_levels, covariates, n_resamples, p_adjust)
 
     # 1. Data validation: read the modality once, then let the engine validate the features. The
     #    engines' feasibility checks are not interchangeable (the permutation path validates sample
@@ -415,6 +433,7 @@ def run_de(
         interaction=interaction,
         interaction_levels=interaction_levels,
         covariates=covariates,
+        p_adjust=p_adjust,
     )
     validation = engine.validate(inputs)
     logger.debug(
@@ -456,11 +475,13 @@ def _validate_run_de_args(
     interaction_levels: list | None,
     covariates: list[str] | None,
     n_resamples: int,
+    p_adjust: str,
 ) -> None:
     if stat_method not in _STAT_METHODS:
         raise ValueError(
             f"Invalid statistic: {stat_method}. Choose from 'welch', 'student', 'wilcoxon', 'limma'."
         )
+    _validate_p_adjust(stat_method, p_adjust)
     if stat_method == "limma":
         if expr is None:
             raise ValueError(
@@ -482,6 +503,52 @@ def _validate_run_de_args(
         )
 
 
+def _validate_p_adjust(stat_method: str, p_adjust: str) -> None:
+    """Validate ``p_adjust`` against the engine's supported multiple-testing corrections.
+
+    Both engines share the R p.adjust family (``P_ADJUST_METHODS``) and accept ``"auto"`` (engine
+    default). The permutation engines additionally accept ``"empirical"`` — the FDR built from the
+    label-permutation null — which limma cannot produce (it has no null), so limma + ``"empirical"``
+    is reported as a clear, engine-specific error rather than a generic "unknown method".
+    """
+    if not isinstance(p_adjust, str):
+        raise ValueError(f"p_adjust must be a string, got {type(p_adjust).__name__}.")
+    method_key = p_adjust.lower()
+    if method_key in P_ADJUST_METHODS or method_key == "auto":
+        return
+    if stat_method == "limma":
+        if method_key == "empirical":
+            raise ValueError(
+                "p_adjust='empirical' is the permutation engines' FDR, built from the "
+                "label-permutation null; stat_method='limma' has no null to build it from. Choose a "
+                f"p-value adjustment method {list(P_ADJUST_METHODS)}, or use a permutation method "
+                "(e.g. stat_method='welch') for empirical FDR."
+            )
+        raise ValueError(
+            f"Unknown p_adjust={p_adjust!r} for stat_method='limma'. "
+            f"Choose from {list(P_ADJUST_METHODS)} or 'auto' (= 'bh')."
+        )
+    # permutation family (welch / student / wilcoxon)
+    if method_key == "empirical":
+        return
+    raise ValueError(
+        f"Unknown p_adjust={p_adjust!r} for stat_method='{stat_method}'. "
+        f"Choose from {list(P_ADJUST_METHODS)}, 'empirical', or 'auto' (= 'empirical')."
+    )
+
+
+def _resolve_p_adjust(stat_method: str, p_adjust: str) -> str:
+    """Resolve ``"auto"`` to the engine's native default and lowercase the method name.
+
+    Assumes ``p_adjust`` already passed :func:`_validate_p_adjust`. ``"auto"`` becomes ``"bh"`` for
+    limma and ``"empirical"`` for the permutation engines; any explicit method is returned lowercased.
+    """
+    method_key = p_adjust.lower()
+    if method_key == "auto":
+        return "bh" if stat_method == "limma" else "empirical"
+    return method_key
+
+
 def _select_engine(
     stat_method: str,
     *,
@@ -495,8 +562,10 @@ def _select_engine(
     interaction: str | None,
     interaction_levels: list | None,
     covariates: list[str] | None,
+    p_adjust: str,
 ) -> DeEngine:
     """Pick the DE engine for ``stat_method``, passing each only the knobs it uses."""
+    correction = _resolve_p_adjust(stat_method, p_adjust)
     if stat_method == "limma":
         return LimmaEngine(
             category=category,
@@ -506,6 +575,7 @@ def _select_engine(
             interaction_levels=interaction_levels,
             covariates=covariates,
             min_pct=min_pct,
+            p_adjust=correction,
         )
     return PermutationEngine(
         stat_method=stat_method,
@@ -513,6 +583,7 @@ def _select_engine(
         log_transformed=log_transformed,
         min_pct=min_pct,
         force_resample=force_resample,
+        p_adjust=correction,
     )
 
 

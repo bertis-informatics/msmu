@@ -13,8 +13,9 @@ the search-result readers and several new importers.
 
 > **⚠️ Breaking — `mm.tl.run_de`.** limma is now the **default** DE engine, the permutation test is
 > opt-in and always shuffles, `min_pct` now defaults to `0.0` (estimability-only), and the
-> `measure` / `fdr` parameters are **removed** (the fold-change measure and the q-value method are
-> now decided by the engine). See **Changed** and **Removed** below before upgrading.
+> `measure` / `fdr` parameters are **removed** (the fold-change measure is decided by the engine; the
+> q-value's correction method defaults to the engine's but is now selectable via the new `p_adjust`
+> option). See **Changed** and **Removed** below before upgrading.
 
 ### Added
 
@@ -24,6 +25,12 @@ the search-result readers and several new importers.
   difference-in-differences designs (`interaction`, `interaction_levels`), and covariate
   adjustment (`covariates`). Built on [inmoose](https://inmoose.readthedocs.io/) and validated
   numerically against R limma. (#3)
+- **Differential expression — selectable multiple-testing correction** (`p_adjust` in
+  `mm.tl.run_de`). Exposes R limma's `adjust.method` family — `"bh"`, `"by"`, `"holm"`,
+  `"hochberg"`, `"hommel"`, `"bonferroni"` (case-insensitive) — for the q-value, shared by both DE
+  engines and applied identically to their p-values (verified numerically against R's `p.adjust`).
+  The default `"auto"` keeps each engine's native behaviour (limma → BH, permutation → empirical
+  FDR), so existing runs are unchanged; `"empirical"` remains permutation-only. (#12)
 - **Protein-level rollup methods** — `median_polish` (Tukey's median polish, as used by
   MSstats) and `directlfq` (the DirectLFQ rollup) as `agg_method` options for
   `mm.pp.to_protein` and `mm.pp.to_ptm`. Both model per-peptide response factors and operate

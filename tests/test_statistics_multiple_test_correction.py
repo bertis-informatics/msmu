@@ -1,11 +1,12 @@
 import numpy as np
+import pytest
 
-from msmu._statistics._multiple_test_correction import PvalueCorrection
+from msmu._statistics._multiple_test_correction import P_ADJUST_METHODS, PvalueCorrection
 
 
 def test_bh():
     pvals = np.array([0.1, 0.4, 0.3, 0.02])
-    qvals = PvalueCorrection.bh(pvals)
+    qvals = PvalueCorrection.adjust(pvals, "bh")
     # BH steps: sort p=[0.02,0.1,0.3,0.4], compute q_i = p_i * m / i
     # q_raw=[0.08,0.2,0.4,0.4], then apply monotonic correction and map back.
     expected = np.array([0.2, 0.4, 0.4, 0.08])
@@ -69,3 +70,99 @@ def test_empirical():
     # Monotonic correction keeps q in descending stat order.
     expected = np.array([1 / 9, 2 / 9, 5 / 18])
     assert np.allclose(qvals, expected)
+
+
+# --- BID-114: PvalueCorrection.adjust — R p.adjust family parity ---------------------------------
+# The exposed methods must match R's stats::p.adjust exactly (the driver is "if R limma offers it,
+# we do too"). R's algorithms are transcribed straight from the R source below and used as the
+# reference; every method is checked against it, so the statsmodels mapping is pinned to R, not to
+# statsmodels' own naming.
+
+
+def _r_padjust(p, method):
+    """Closed-form transcription of R stats::p.adjust for the non-hommel methods."""
+    p = np.asarray(p, dtype=float)
+    n = p.size
+    if method == "bonferroni":
+        return np.minimum(1.0, n * p)
+    if method == "holm":
+        o = np.argsort(p)  # ascending
+        ro = np.argsort(o)
+        return np.minimum(1.0, np.maximum.accumulate((n - np.arange(n)) * p[o]))[ro]
+    if method == "hochberg":
+        o = np.argsort(-p)  # descending
+        ro = np.argsort(o)
+        return np.minimum(1.0, np.minimum.accumulate(np.arange(1, n + 1) * p[o]))[ro]
+    if method in ("bh", "by"):
+        o = np.argsort(-p)  # descending
+        ro = np.argsort(o)
+        i = np.arange(n, 0, -1)
+        cm = np.sum(1.0 / np.arange(1, n + 1)) if method == "by" else 1.0
+        return np.minimum(1.0, np.minimum.accumulate(cm * n / i * p[o]))[ro]
+    raise ValueError(method)
+
+
+def _r_hommel(p):
+    """Faithful transcription of R stats::p.adjust(p, 'hommel')."""
+    p = np.asarray(p, dtype=float)
+    n = p.size
+    if n <= 1:
+        return p.copy()
+    o = np.argsort(p, kind="stable")  # ascending
+    ps = p[o]
+    ro = np.argsort(o, kind="stable")
+    q = np.full(n, np.min(n * ps / np.arange(1, n + 1)))
+    pa = q.copy()
+    for m in range(n - 1, 1, -1):
+        n_i1 = n - m + 1
+        i2 = np.arange(n_i1, n)
+        q1 = np.min(m * ps[i2] / np.arange(2, m + 1))
+        q[:n_i1] = np.minimum(m * ps[:n_i1], q1)
+        q[i2] = q[n_i1 - 1]
+        pa = np.maximum(pa, q)
+    return np.maximum(pa, ps)[ro]
+
+
+def _r_reference(p, method):
+    return _r_hommel(p) if method == "hommel" else _r_padjust(p, method)
+
+
+@pytest.mark.parametrize("method", P_ADJUST_METHODS)
+@pytest.mark.parametrize(
+    "pvals",
+    [
+        np.array([0.001, 0.008, 0.039, 0.041, 0.2, 0.6, 0.75, 0.9]),
+        np.array([0.04, 0.04, 0.04, 0.5]),  # ties
+        np.array([0.2]),  # single value
+        np.random.default_rng(0).random(50) ** 2,  # skewed toward small p
+    ],
+)
+def test_adjust_matches_r_padjust(method, pvals):
+    """adjust() reproduces R's p.adjust for every exposed method."""
+    got = PvalueCorrection.adjust(pvals, method)
+    want = _r_reference(pvals, method)
+    np.testing.assert_allclose(got, want, atol=1e-12)
+
+
+def test_adjust_is_case_insensitive():
+    pvals = np.array([0.01, 0.2, 0.5, 0.9])
+    for lower, upper in [("bh", "BH"), ("by", "BY"), ("holm", "Holm"), ("bonferroni", "BONFERRONI")]:
+        np.testing.assert_array_equal(
+            PvalueCorrection.adjust(pvals, lower), PvalueCorrection.adjust(pvals, upper)
+        )
+
+
+def test_adjust_preserves_nan_positions():
+    pvals = np.array([0.01, np.nan, 0.5, np.nan, 0.9])
+    q = PvalueCorrection.adjust(pvals, "bonferroni")
+    assert np.isnan(q[[1, 3]]).all()
+    assert not np.isnan(q[[0, 2, 4]]).any()
+    # correction uses only the 3 non-NaN p-values: bonferroni multiplies by 3
+    np.testing.assert_allclose(q[[0, 2, 4]], np.minimum(1.0, 3 * pvals[[0, 2, 4]]))
+
+
+def test_adjust_rejects_unknown_method_and_none():
+    # "none" is deliberately not an adjustment method (the uncorrected values are the p-values).
+    for bad in ["none", "None", "fdr", "storey", "sidak", ""]:
+        with pytest.raises(ValueError, match="Unknown p-value adjustment method"):
+            PvalueCorrection.adjust(np.array([0.1, 0.2]), bad)
