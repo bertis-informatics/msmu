@@ -96,6 +96,29 @@ def test_plot_missingness_builds_step_plot(mdata):
     assert fig.data[0].name == "Missingness"
 
 
+def test_plot_functions_apply_msmu_template_without_set_templates(mdata):
+    """Regression (BID-115): pl.plot_* output carries the msmu house style even when the
+    global Plotly default was never switched to msmu via set_templates()."""
+    import plotly.io as pio
+
+    original_default = pio.templates.default
+    pio.templates.default = "plotly"  # a session that never opted into set_templates()
+    try:
+        # obs_only path — no template threaded through the context
+        step = plot_missingness(mdata, modality="psm", obs_column="sample")
+        # grouped path — template threaded through the context
+        hist = plot_intensity(
+            mdata, modality="psm", groupby="group", ptype="hist", obs_column="sample", bins=2
+        )
+
+        for fig in (step, hist):
+            # per-figure template application, not the global default
+            assert fig.layout.template.layout.plot_bgcolor == "white"
+            assert fig.layout.template.layout.plot_bgcolor != "#E5ECF6"
+    finally:
+        pio.templates.default = original_default
+
+
 def test_plot_pca_and_umap(mdata):
     pca_fig = plot_pca(mdata, modality="protein", groupby="group", obs_column="sample")
     assert len(pca_fig.data) == 2
