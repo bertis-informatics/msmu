@@ -508,6 +508,20 @@ def ensure_msmu_templates_registered() -> None:
         add_msmu_pastel_template()
 
 
+def apply_msmu_template(fig: go.Figure, template: str | None = None) -> go.Figure:
+    """Register the msmu templates if needed and apply one to ``fig`` (msmu by default).
+
+    Every public plot function routes its output through this helper so figures carry the
+    msmu house style per-figure, without relying on the global ``pio.templates.default``
+    (i.e. without any import-time side effect). Functions that build a figure outside the
+    :func:`finalize_figure` path — e.g. :func:`plot_volcano`, which takes a results frame
+    rather than a MuData and therefore has no :class:`PlotContext` — call this directly.
+    """
+    ensure_msmu_templates_registered()
+    fig.update_layout(template=resolve_template_key(template or DEFAULT_TEMPLATE))
+    return fig
+
+
 def finalize_figure(
     fig: go.Figure,
     *,
@@ -516,13 +530,13 @@ def finalize_figure(
     apply_color: bool = False,
 ) -> go.Figure:
     """Apply the msmu template, shared layout overrides, and optional categorical coloring."""
-    ensure_msmu_templates_registered()
-
     # msmu styles every figure it produces. The template is applied per-figure (not via the
     # global default) so import stays side-effect-free; an explicit template in layout_kwargs
     # still wins.
-    if "template" not in layout_kwargs:
-        fig.update_layout(template=resolve_template_key(context.template or DEFAULT_TEMPLATE))
+    if "template" in layout_kwargs:
+        ensure_msmu_templates_registered()  # so an explicit "msmu"/"msmu_pastel" still resolves
+    else:
+        fig = apply_msmu_template(fig, context.template)
 
     fig = apply_layout_overrides(fig, layout_kwargs)
 
