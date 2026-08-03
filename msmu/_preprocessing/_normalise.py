@@ -9,7 +9,7 @@ from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
 from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise
 from ..logging_utils import get_logger
-from ._normalisation import Normalisation, PTMProteinAdjuster
+from ._normalisation import Normalisation, NormalisationMethod, PTMProteinAdjuster
 
 logger = get_logger(__name__)
 
@@ -95,7 +95,7 @@ def scale_data(
 @uns_logger
 def normalise(
     mdata: md.MuData,
-    method: str,
+    method: NormalisationMethod,
     modality: str,
     layer: str | None = None,
     batch_key: str | None = None,
@@ -107,7 +107,7 @@ def normalise(
 
     Parameters:
         mdata: MuData object to normalise.
-        method: Normalisation method to use. Options are 'quantile', 'median', 'total_sum (not implemented)'.
+        method: Normalisation method to use. Options are 'quantile', 'median', 'total_sum'.
         modality: Modality to normalise.
         layer: Layer to normalise. If None, the default layer (.X) will be used.
         batch_key: Column name in ``adata.obs`` defining batches. If provided, normalisation
@@ -154,15 +154,19 @@ def normalise(
     obs_groups = adata.obs[batch_key].to_numpy() if batch_key is not None else None
     var_groups = adata.var[fraction_key].to_numpy() if fraction_key is not None else None
 
-    # Per-sample median centering (axis="obs", no batch/fraction grouping) is computable directly
-    # on the sparse block-diagonal -- each obs row's stored values are centered independently -- so
-    # it keeps the ``.X`` sparse instead of materialising the (samples x features) dense matrix. This
-    # is the common PSM-level TMT/DIA normalisation. Other methods (quantile) or grouped
-    # normalisation still densify (NaN for absent, dtype matching the dense path).
-    if is_sparse(raw_arr) and method in ("median", "median_center") and obs_groups is None and var_groups is None:
+    # Per-sample normalisation (axis="obs", no batch/fraction grouping) is computable directly on the
+    # sparse block-diagonal -- each obs row's stored values are rescaled independently -- so it keeps
+    # the ``.X`` sparse instead of materialising the (samples x features) dense matrix. This covers the
+    # common PSM-level TMT/DIA normalisations: median / median_center centre each row, and total_sum
+    # rescales each row to a common total intensity. Other methods (quantile) or grouped normalisation
+    # still densify (NaN for absent, dtype matching the dense path).
+    is_ungrouped_sparse = is_sparse(raw_arr) and obs_groups is None and var_groups is None
+    if is_ungrouped_sparse and method in ("median", "median_center"):
         normalised_arr = _median_normalise_per_sample_sparse(
             raw_arr, add_global_median=(method == "median")
         )
+    elif is_ungrouped_sparse and method == "total_sum":
+        normalised_arr = _total_sum_normalise_per_sample_sparse(raw_arr)
     else:
         if is_sparse(raw_arr):
             raw_arr = dense_block(raw_arr).astype(raw_arr.dtype)
@@ -184,7 +188,7 @@ def normalise(
 
 def normalize(
     mdata: md.MuData,
-    method: str,
+    method: NormalisationMethod,
     modality: str,
     layer: str | None = None,
     batch_key: str | None = None,
@@ -233,6 +237,33 @@ def _median_normalise_per_sample_sparse(matrix, add_global_median: bool):
         if end > start:
             values = csr.data[start:end]
             csr.data[start:end] = values - np.median(values) + global_median
+    return csr
+
+
+def _total_sum_normalise_per_sample_sparse(matrix):
+    """Per-sample total-intensity normalisation of a sparse block-diagonal, without densifying.
+
+    Mirrors the dense ``total_sum`` path: each obs row is rescaled so its summed intensity equals the
+    median of the per-sample totals. The input is assumed log2-transformed, so each row's total is
+    taken on the linear scale (``2 ** data``) and the rescale is applied as an additive shift on the
+    stored log2 values -- only ``.data`` is rewritten, so structurally-absent cells stay absent and the
+    result stays sparse. The stored dtype is preserved (the shift is cast to it) so values round
+    identically to the dense path. All-absent rows (no stored data) are left untouched and excluded
+    from the median, matching the dense path's all-NaN-row filter.
+    """
+    csr = matrix.tocsr(copy=True)
+    sample_totals = np.full(csr.shape[0], np.nan, dtype=np.float64)
+    for row in range(csr.shape[0]):
+        start, end = csr.indptr[row], csr.indptr[row + 1]
+        if end > start:
+            sample_totals[row] = np.exp2(csr.data[start:end].astype(np.float64)).sum()
+
+    log2_target_total = np.log2(np.nanmedian(sample_totals))
+    for row in range(csr.shape[0]):
+        start, end = csr.indptr[row], csr.indptr[row + 1]
+        if end > start:
+            per_sample_shift = log2_target_total - np.log2(sample_totals[row])
+            csr.data[start:end] = csr.data[start:end] + csr.dtype.type(per_sample_shift)
     return csr
 
 

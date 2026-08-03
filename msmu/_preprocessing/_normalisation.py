@@ -5,7 +5,7 @@ from scipy.interpolate import interp1d
 from scipy.stats import rankdata
 from sklearn.linear_model import Ridge
 
-from typing import Callable
+from typing import Callable, Literal, get_args
 
 from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
 from .._core._blockdiag import to_dense_df
@@ -13,9 +13,15 @@ from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
 
+NormalisationMethod = Literal["median", "median_center", "quantile", "total_sum"]
+# Runtime tuple derived from the Literal so the accepted methods have a single source of truth.
+_NORMALISATION_METHODS: tuple[str, ...] = get_args(NormalisationMethod)
+
 
 class Normalisation:
-    def __init__(self, method: str, axis: str) -> None:
+    def __init__(self, method: NormalisationMethod, axis: str) -> None:
+        if method not in _NORMALISATION_METHODS:
+            raise ValueError(f"Unknown normalisation method '{method}'. Choose from {_NORMALISATION_METHODS}.")
         self._method_call: Callable = getattr(self, f"_{method}")
         self._axis = axis
 
@@ -33,7 +39,7 @@ class Normalisation:
         return normalise_median_center(arr=arr)
 
     def _total_sum(self, arr) -> np.ndarray:
-        return normalise_total_sum()
+        return normalise_total_sum(arr)
 
     def normalise(self, arr) -> np.ndarray:
         na_idx = np.isnan(arr)
@@ -127,9 +133,27 @@ def normalise_median_center(arr: np.ndarray) -> np.ndarray:
     return median_centered_data
 
 
-def normalise_total_sum():
-    """Total sum normalisation of data"""
-    raise NotImplementedError("Total sum normalisation is not implemented yet.")
+def normalise_total_sum(arr: np.ndarray) -> np.ndarray:
+    """Total-intensity (constant-sum) normalisation.
+
+    Rescales every sample so its summed intensity equals ``T`` -- the median of the per-sample totals
+    -- correcting sample-to-sample loading / injection differences while leaving within-sample feature
+    ratios unchanged. ``arr`` is oriented (features x samples) here (``Normalisation`` transposes the
+    obs axis before calling), so the totals are taken per column.
+
+    The input is assumed log2-transformed, matching the msmu convention that ``normalise`` runs after
+    ``log2_transform``. Summing log values is meaningless (it yields the log of the product, not the
+    total), so each sample total is computed on the linear scale (``2 ** arr``) and the rescale is
+    returned to log2. On the log2 scale this reduces to a per-sample additive shift
+    ``log2(T) - log2(S_i)``. Structurally-absent cells (NaN) contribute nothing to the total and stay
+    NaN in the result.
+    """
+    linear_values: np.ndarray = np.exp2(arr.astype(np.float64))
+    sample_totals: np.ndarray = np.nansum(linear_values, axis=0)
+    target_total: float = np.median(sample_totals)
+    per_sample_shift: np.ndarray = np.log2(target_total) - np.log2(sample_totals)
+
+    return arr + per_sample_shift
 
 
 class PTMProteinAdjuster:

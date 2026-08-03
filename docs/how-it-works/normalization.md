@@ -17,13 +17,15 @@ mdata = mm.pp.log2_transform(
 
 ## `normalize()` (or `normalise()`)
 
-The `normalize()` function offers multiple normalization methods, including median (`median`) and quantile (`quantile`) normalization. Users can select the method that best suits their data and experimental design. For fractionated TMT data, setting the `fraction` argument to `True` ensures that normalization is performed within each fraction separately.
+The `normalize()` function offers multiple normalization methods, including median (`median`), quantile (`quantile`), and total-intensity / constant-sum (`total_sum`) normalization. Users can select the method that best suits their data and experimental design. For fractionated TMT data, setting the `fraction` argument to `True` ensures that normalization is performed within each fraction separately.
+
+`total_sum` rescales each sample so that its summed intensity equals the median of the per-sample totals, correcting sample-to-sample loading differences while leaving within-sample feature ratios unchanged. Because summing log values is meaningless, it computes each sample's total on the linear scale internally; like the other methods it assumes log2-transformed input.
 
 ```python
 mdata = mm.pp.normalize(
     mdata,
     modality="psm",           # or "peptide", "protein"
-    method="median",          # options: "median", "quantile", default "median"
+    method="median",          # options: "median", "quantile", "total_sum"; default "median"
     fraction=False            # whether data is fractionated
 )
 ```
