@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 from ..logging_utils import get_logger
+from ._template import DEFAULT_TEMPLATE, add_msmu_template, add_msmu_pastel_template
 
 _FALLBACK_COLUMN = "__obs_idx__"
 _DEFAULT_OBS_PRIORITY = (
@@ -494,6 +495,33 @@ def get_bin_info(data: pd.DataFrame | pd.Series | np.ndarray, bins: int) -> BinI
     )
 
 
+def ensure_msmu_templates_registered() -> None:
+    """Register the msmu Plotly templates on first use, without changing the global default.
+
+    Registering (rather than activating via ``pio.templates.default``) lets a per-figure
+    ``template="msmu"`` resolve to the house style while keeping ``import msmu`` free of any
+    global Plotly side effect. Users who want msmu as the session-wide default can still opt
+    in explicitly with :func:`msmu.pl.set_templates`.
+    """
+    if DEFAULT_TEMPLATE not in pio.templates:
+        add_msmu_template()
+        add_msmu_pastel_template()
+
+
+def apply_msmu_template(fig: go.Figure, template: str | None = None) -> go.Figure:
+    """Register the msmu templates if needed and apply one to ``fig`` (msmu by default).
+
+    Every public plot function routes its output through this helper so figures carry the
+    msmu house style per-figure, without relying on the global ``pio.templates.default``
+    (i.e. without any import-time side effect). Functions that build a figure outside the
+    :func:`finalize_figure` path — e.g. :func:`plot_volcano`, which takes a results frame
+    rather than a MuData and therefore has no :class:`PlotContext` — call this directly.
+    """
+    ensure_msmu_templates_registered()
+    fig.update_layout(template=resolve_template_key(template or DEFAULT_TEMPLATE))
+    return fig
+
+
 def finalize_figure(
     fig: go.Figure,
     *,
@@ -501,7 +529,15 @@ def finalize_figure(
     layout_kwargs: dict,
     apply_color: bool = False,
 ) -> go.Figure:
-    """Apply shared layout overrides and optional categorical coloring."""
+    """Apply the msmu template, shared layout overrides, and optional categorical coloring."""
+    # msmu styles every figure it produces. The template is applied per-figure (not via the
+    # global default) so import stays side-effect-free; an explicit template in layout_kwargs
+    # still wins.
+    if "template" in layout_kwargs:
+        ensure_msmu_templates_registered()  # so an explicit "msmu"/"msmu_pastel" still resolves
+    else:
+        fig = apply_msmu_template(fig, context.template)
+
     fig = apply_layout_overrides(fig, layout_kwargs)
 
     if apply_color and context.groupby is not None and context.template is not None:

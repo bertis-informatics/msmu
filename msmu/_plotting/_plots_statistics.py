@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from ._ptypes import PlotScatter
+from ._utils import apply_msmu_template
 
 
 def plot_volcano(
@@ -98,4 +99,6 @@ def plot_volcano(
                 arrowwidth=1,
             )
 
-    return fig
+    # plot_volcano takes a results frame (no PlotContext), so it does not pass through
+    # finalize_figure; apply the msmu house style explicitly.
+    return apply_msmu_template(fig)

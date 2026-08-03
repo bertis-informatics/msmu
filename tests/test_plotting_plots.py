@@ -11,6 +11,7 @@ from msmu._plotting._plots import (
     plot_umap,
     plot_upset,
     plot_var,
+    plot_volcano,
 )
 
 
@@ -94,6 +95,53 @@ def test_plot_missingness_builds_step_plot(mdata):
     fig = plot_missingness(mdata, modality="psm", obs_column="sample")
     assert len(fig.data) == 1
     assert fig.data[0].name == "Missingness"
+
+
+def test_plot_functions_apply_msmu_template_without_set_templates(mdata):
+    """Regression (BID-115): EVERY public pl.plot_* output carries the msmu house style even
+    when the global Plotly default was never switched to msmu via set_templates().
+
+    Covers all public plot functions — including plot_volcano, which takes a results frame
+    (no PlotContext) and does not route through finalize_figure — so a future function that
+    forgets the msmu template is caught here.
+    """
+    import plotly.io as pio
+
+    de_results = pd.DataFrame(
+        {
+            "features": ["p1", "p2", "p3", "p4", "p5", "p6"],
+            "log2fc": [2.0, -2.2, 0.1, 1.6, -1.9, 0.0],
+            "p_value": [0.001, 0.002, 0.5, 0.01, 0.02, 0.9],
+        }
+    )
+    builders = {
+        "plot_id": lambda: plot_id(mdata, modality="protein", groupby="group", obs_column="sample"),
+        "plot_intensity": lambda: plot_intensity(
+            mdata, modality="psm", groupby="group", ptype="box", obs_column="sample"
+        ),
+        "plot_missingness": lambda: plot_missingness(mdata, modality="psm", obs_column="sample"),
+        "plot_correlation": lambda: plot_correlation(
+            mdata, modality="protein", groupby="group", obs_column="sample"
+        ),
+        "plot_var": lambda: plot_var(
+            mdata, modality="psm", groupby="group", var_column="class", obs_column="sample"
+        ),
+        "plot_pca": lambda: plot_pca(mdata, modality="protein", groupby="group", obs_column="sample"),
+        "plot_umap": lambda: plot_umap(mdata, modality="protein", groupby="group", obs_column="sample"),
+        "plot_upset": lambda: plot_upset(mdata, modality="protein", groupby="group", obs_column="sample"),
+        "plot_volcano": lambda: plot_volcano(de_results, ctrl="A", expr="B", log2fc_threshold=1.0),
+    }
+
+    original_default = pio.templates.default
+    pio.templates.default = "plotly"  # a session that never opted into set_templates()
+    try:
+        for name, build in builders.items():
+            fig = build()
+            # per-figure template application, not the global default
+            bg = fig.layout.template.layout.plot_bgcolor
+            assert bg == "white", f"{name}: expected msmu template (white bg), got {bg!r}"
+    finally:
+        pio.templates.default = original_default
 
 
 def test_plot_pca_and_umap(mdata):
