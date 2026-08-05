@@ -115,9 +115,11 @@ def test_sparse_layer_matches_dense(func, kwargs):
     )
 
 
-def test_scale_keeps_absent_cells_nan():
-    """scale densifies, but absent cells must stay NaN (not scaled from an imputed 0)."""
+def test_scale_re_sparsifies_and_keeps_absent_cells_nan():
+    """scale_data densifies for per-feature mean/std, then re-sparsifies a sparse input back to sparse;
+    absent cells stay NaN (never scaled from an imputed 0)."""
     out = scale_data(_make_sparse(), modality="psm", layer="raw")
+    assert sp.issparse(out["psm"].layers["raw"]), "scale_data should re-sparsify a sparse input"
     dense = to_dense_df(out["psm"], layer="raw").to_numpy()
     assert np.isnan(dense).sum() == _n_absent()
 
@@ -140,11 +142,12 @@ def test_normalise_per_sample_median_keeps_layer_sparse(method):
     assert np.isnan(to_dense_df(out["psm"], layer="raw").to_numpy()).sum() == _n_absent()
 
 
-def test_normalise_quantile_still_densifies():
-    """quantile is not sparse-native (per-sample rank mapping across differing blocks), so it falls
-    back to the NaN-aware densify path. Pins the intended boundary of the sparse fast-path."""
+def test_normalise_quantile_re_sparsifies():
+    """quantile densifies to compute (its per-sample rank mapping couples all samples), but a sparse
+    input is re-sparsified back to a sparse output -- absent cells dropped again."""
     out = normalise(_make_sparse(), method="quantile", modality="psm", layer="raw")
-    assert not sp.issparse(out["psm"].layers["raw"])
+    assert sp.issparse(out["psm"].layers["raw"]), "quantile should re-sparsify a sparse input"
+    assert np.isnan(to_dense_df(out["psm"], layer="raw").to_numpy()).sum() == _n_absent()
 
 
 def test_normalise_total_sum_keeps_layer_sparse():

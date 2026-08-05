@@ -7,7 +7,7 @@ from typing import Literal
 
 from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
-from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise
+from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise, to_observed_sparse
 from ..logging_utils import get_logger
 from ._normalisation import Normalisation, NormalisationMethod, PTMProteinAdjuster
 
@@ -77,12 +77,19 @@ def scale_data(
         raw_arr: np.ndarray = adata.layers[layer]
 
     # Scaling needs per-feature mean/std across all samples, so it densifies (NaN for absent).
-    if is_sparse(raw_arr):
-        raw_arr = dense_block(raw_arr).astype(raw_arr.dtype)
+    input_was_sparse = is_sparse(raw_arr)
+    if input_was_sparse:
+        input_dtype = raw_arr.dtype
+        raw_arr = dense_block(raw_arr).astype(input_dtype)
 
     mean_arr: np.ndarray = np.nanmean(raw_arr, axis=0)
     std_arr: np.ndarray = np.nanstd(raw_arr, axis=0)
-    scaled_arr: np.ndarray = (raw_arr - mean_arr) / std_arr
+    scaled_arr = (raw_arr - mean_arr) / std_arr
+
+    # Standardising leaves the observed pattern unchanged, so re-sparsify a sparse input back to a
+    # sparse output -- recovering the memory the densify spent on the absent cells.
+    if input_was_sparse:
+        scaled_arr = to_observed_sparse(scaled_arr, dtype=input_dtype)
 
     if layer is None:
         adata.X = scaled_arr
@@ -162,8 +169,10 @@ def normalise(
     if is_sparse(raw_arr) and method in ("median", "median_center", "total_sum"):
         normalised_arr = _normalise_per_group_sparse(raw_arr, obs_groups, var_groups, method)
     else:
-        if is_sparse(raw_arr):
-            raw_arr = dense_block(raw_arr).astype(raw_arr.dtype)
+        input_was_sparse = is_sparse(raw_arr)
+        if input_was_sparse:
+            input_dtype = raw_arr.dtype
+            raw_arr = dense_block(raw_arr).astype(input_dtype)
 
         normalised_arr = _normalise_by_groups(
             raw_arr=raw_arr,
@@ -171,6 +180,10 @@ def normalise(
             obs_groups=obs_groups,
             var_groups=var_groups,
         )
+        # quantile densifies to compute (its per-sample rank mapping couples all samples); re-sparsify so
+        # a sparse input yields a sparse output, recovering the memory freed by dropping absent cells.
+        if input_was_sparse:
+            normalised_arr = to_observed_sparse(normalised_arr, dtype=input_dtype)
 
     if layer is None:
         adata.X = normalised_arr
