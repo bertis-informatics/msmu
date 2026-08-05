@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 import numpy as np
 import pandas as pd
@@ -255,3 +257,49 @@ def test_correct_batch_effect_continuous(simple_mdata):
         log_transformed=True,
     )
     assert out["psm"].X.shape == (6, 2)
+
+
+def test_correct_batch_effect_gis_no_reference_feature_dropped(caplog):
+    # v2 has NO GIS reference in any batch (gis1/gis2 are NaN for it) though s1/s2 carry values, so
+    # the correction subtracts a missing reference and v2 becomes NaN -- reported at the correction
+    # as a warning, not as a restore "reference-relative" scale choice. v1 (reference in both) is
+    # restored normally.
+    x = np.array(
+        [
+            [1.0, 5.0],  # s1   (b1)
+            [4.0, np.nan],  # gis1 (b1 reference; v2 unobserved)
+            [5.0, 6.0],  # s2   (b2)
+            [12.0, np.nan],  # gis2 (b2 reference; v2 unobserved)
+        ]
+    )
+    mdata = _mdata_with_batch(x, ["s1", "gis1", "s2", "gis2"], ["v1", "v2"], ["b1", "b1", "b2", "b2"])
+
+    # The package logger does not propagate, so attach caplog's handler directly to capture the warning.
+    batch_logger = logging.getLogger("msmu._preprocessing._batch_correction")
+    batch_logger.addHandler(caplog.handler)
+    previous_level = batch_logger.level
+    batch_logger.setLevel(logging.WARNING)
+    try:
+        out = correct_batch_effect(
+            mdata,
+            modality="psm",
+            method="gis",
+            category="batch",
+            gis_samples=["gis1", "gis2"],
+            drop_gis=False,
+        )
+    finally:
+        batch_logger.removeHandler(caplog.handler)
+        batch_logger.setLevel(previous_level)
+
+    # v1 restored to target 8 (mean of 4, 12); v2 has no reference in any batch -> all NaN.
+    expected = np.array(
+        [
+            [5.0, np.nan],
+            [8.0, np.nan],
+            [1.0, np.nan],
+            [8.0, np.nan],
+        ]
+    )
+    np.testing.assert_allclose(out["psm"].X, expected, equal_nan=True)
+    assert "no GIS reference" in caplog.text
