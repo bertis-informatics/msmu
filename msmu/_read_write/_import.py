@@ -5,7 +5,7 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
-from .._utils._mudata import add_modality
+from .._utils._mudata import add_modality, get_anndata_mod
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -69,14 +69,29 @@ def add_quant(
 
     input_arr = input_arr.loc[:, col_order]
     input_arr = input_arr.dropna(how="all")
+    # msmu stores .X as float32 (the readers do the same); casting on ingest keeps the peptide
+    # quantification float32 whether add_quant creates the modality or fills an existing one.
+    input_arr = input_arr.astype(np.float32)
 
-    peptide_adata = ad.AnnData(X=input_arr.T)
-    peptide_adata.uns["level"] = "peptide"
-
-    mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide")
-
-    logger.info("Added quantification modality 'peptide' using %s data.", quant_tool)
-    logger.debug("Added peptide quantification matrix with shape %s.", input_arr.shape)
+    if "peptide" in mdata.mod:
+        # A peptide identification layer already exists (e.g. to_peptide was run before
+        # add_quant). Preserve its var/uns -- protein mapping, q-values, decoy -- and only
+        # fill the quantification matrix, aligning FlashLFQ intensities onto the existing
+        # peptide (var) and sample (obs) axes. Peptides identified but not quantified by
+        # FlashLFQ stay NaN; peptides quantified by FlashLFQ but absent from the
+        # identification set are dropped. This is the same left-join to_peptide performs
+        # when quantification is attached first, so both call orders converge on one result.
+        peptide_adata = get_anndata_mod(mdata, "peptide")
+        aligned = input_arr.reindex(index=peptide_adata.var_names, columns=peptide_adata.obs_names)
+        peptide_adata.X = aligned.T.to_numpy()
+        logger.info("Filled existing peptide modality with %s quantification.", quant_tool)
+        logger.debug("Filled peptide quantification matrix with shape %s.", aligned.T.shape)
+    else:
+        peptide_adata = ad.AnnData(X=input_arr.T)
+        peptide_adata.uns["level"] = "peptide"
+        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide")
+        logger.info("Added quantification modality 'peptide' using %s data.", quant_tool)
+        logger.debug("Added peptide quantification matrix with shape %s.", input_arr.shape)
 
     mdata.update_obs()
 
