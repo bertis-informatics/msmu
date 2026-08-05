@@ -3,9 +3,11 @@ import logging
 import pytest
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 from anndata import AnnData
 from mudata import MuData
 
+from msmu._core._blockdiag import to_dense_df, to_observed_sparse
 from msmu._preprocessing._batch_correction import correct_batch_effect
 
 
@@ -303,3 +305,49 @@ def test_correct_batch_effect_gis_no_reference_feature_dropped(caplog):
     )
     np.testing.assert_allclose(out["psm"].X, expected, equal_nan=True)
     assert "no GIS reference" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "method, extra_kwargs",
+    [
+        ("gis", {"gis_samples": ["gis1", "gis2"], "drop_gis": False}),
+        ("median_center", {}),
+    ],
+)
+def test_correct_batch_effect_sparse_matches_dense_and_stays_sparse(method, extra_kwargs):
+    """gis / median_center apply the correction subtractively, so a sparse input must yield a sparse
+    output equal to the dense result (absent cells preserved, never densified out)."""
+    x = np.array(
+        [
+            [1.0, 10.0],  # s1   (b1)
+            [4.0, 8.0],  # gis1 (b1 reference)
+            [5.0, 20.0],  # s2   (b2)
+            [12.0, np.nan],  # gis2 (b2 reference; v2 unobserved)
+        ]
+    )
+    obs_names, var_names, batch = ["s1", "gis1", "s2", "gis2"], ["v1", "v2"], ["b1", "b1", "b2", "b2"]
+
+    dense_out = correct_batch_effect(
+        _mdata_with_batch(x, obs_names, var_names, batch), modality="psm", method=method, category="batch", **extra_kwargs
+    )
+    sparse_out = correct_batch_effect(
+        _mdata_with_batch(to_observed_sparse(x, dtype=np.float64), obs_names, var_names, batch),
+        modality="psm",
+        method=method,
+        category="batch",
+        **extra_kwargs,
+    )
+
+    assert sp.issparse(sparse_out["psm"].X), f"{method} should re-sparsify a sparse input"
+    np.testing.assert_allclose(
+        to_dense_df(sparse_out["psm"]).to_numpy(), to_dense_df(dense_out["psm"]).to_numpy(), equal_nan=True
+    )
+
+
+def test_correct_batch_effect_combat_densifies_sparse_input(simple_mdata):
+    """ComBat replaces the whole array (may fill NaN), so it is excluded from re-sparsify: a sparse
+    input yields a dense output. Pins the intended boundary."""
+    mdata = simple_mdata.copy()
+    mdata.mod["psm"].X = to_observed_sparse(np.asarray(mdata.mod["psm"].X, dtype=np.float64))
+    out = correct_batch_effect(mdata, modality="psm", method="combat", category="batch", log_transformed=True)
+    assert not sp.issparse(out["psm"].X)

@@ -8,10 +8,15 @@ from inmoose.pycombat import pycombat_norm
 
 from .._utils._mudata import get_anndata_mod, get_mudata
 from .._core._provenance import uns_logger
-from .._core._blockdiag import dense_block, is_sparse
+from .._core._blockdiag import dense_block, is_sparse, to_observed_sparse
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
+
+# Methods that apply their correction subtractively/multiplicatively (via ``_correct``), so a sparse
+# input keeps its absent-cell (NaN) pattern and can be re-sparsified on the way out. ComBat replaces
+# the whole array (pycombat may fill NaN), so it is excluded and stays dense.
+_NAN_PRESERVING_METHODS: tuple[str, ...] = ("gis", "median_center", "continuous")
 
 # A matrix has cross-batch structure once at least one feature is observed in this many batches (a
 # cross-batch reference then exists). If NO feature reaches it the matrix is fully block-diagonal
@@ -60,6 +65,10 @@ def correct_batch_effect(
         Batch corrected MuData object.
     """
     mdata = mdata.copy()
+    adata = get_anndata_mod(mdata, modality)
+    input_arr = adata.X if layer is None else adata.layers[layer]
+    input_was_sparse = is_sparse(input_arr)
+    input_dtype = input_arr.dtype if input_was_sparse else None
 
     batch_corrector: BatchCorrector = BatchCorrector(
         mdata=mdata,
@@ -93,7 +102,12 @@ def correct_batch_effect(
         corrected_arr.shape,
     )
 
-    adata = get_anndata_mod(mdata, modality)
+    # gis / median_center / continuous apply their correction subtractively (``_correct``), so a sparse
+    # input keeps its absent-cell pattern -- re-sparsify to recover the memory the densify spent. ComBat
+    # replaces the whole array (may fill NaN), so it stays dense.
+    if input_was_sparse and method in _NAN_PRESERVING_METHODS:
+        corrected_arr = to_observed_sparse(corrected_arr, dtype=input_dtype)
+
     if layer is None:
         adata.X = corrected_arr
     else:
