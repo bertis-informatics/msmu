@@ -154,7 +154,18 @@ class BatchCorrector:
                 reference_target = np.nanmean(gis_avg_arr, axis=0)
             else:
                 reference_target = np.exp(np.nanmean(np.log(gis_avg_arr), axis=0))
-        restore_mask = self._restore_mask(np.sum(~np.isnan(gis_avg_arr), axis=0))
+        reference_batch_count = np.sum(~np.isnan(gis_avg_arr), axis=0)
+        n_missing_reference = int((reference_batch_count == 0).sum())
+        if n_missing_reference:
+            # A feature with no GIS channel in any batch has no reference to normalise against; the
+            # correction below subtracts NaN and it becomes NaN (dropped). Reported here (at the
+            # correction) rather than at the restore, where it would look like a scale choice.
+            logger.warning(
+                "%d/%d features have no GIS reference in any batch; they become NaN after correction.",
+                n_missing_reference,
+                reference_batch_count.size,
+            )
+        restore_mask = self._restore_mask(reference_batch_count)
 
         correction_factor = gis_avg_arr[batch_idx, :]
         self.corrected_arr = self._correct(correction_factor=correction_factor)
@@ -303,14 +314,14 @@ class BatchCorrector:
         are restored is decided by :meth:`_restore_mask`.
         """
         n_restored = int(restore_mask.sum())
-        logger.info(
-            "Restoring per-feature scale for %d/%d features (%d left reference-relative).",
-            n_restored,
-            restore_mask.size,
-            restore_mask.size - n_restored,
-        )
         if n_restored == 0:
+            logger.info(
+                "Fully block-diagonal (no feature spans >=%d batches): abundance scale not restored, "
+                "output stays reference-relative -- roll up before restoring the scale.",
+                MIN_BATCHES_FOR_SCALE_RESTORE,
+            )
             return
+        logger.info("Restored the abundance scale for %d/%d features.", n_restored, restore_mask.size)
         if self.log_transformed:
             self.corrected_arr[:, restore_mask] += reference_target[restore_mask]
         else:
