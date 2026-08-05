@@ -22,6 +22,7 @@ class Normalisation:
     def __init__(self, method: NormalisationMethod, axis: str) -> None:
         if method not in _NORMALISATION_METHODS:
             raise ValueError(f"Unknown normalisation method '{method}'. Choose from {_NORMALISATION_METHODS}.")
+        self._method = method
         self._method_call: Callable = getattr(self, f"_{method}")
         self._axis = axis
 
@@ -40,6 +41,44 @@ class Normalisation:
 
     def _total_sum(self, arr) -> np.ndarray:
         return normalise_total_sum(arr)
+
+    # Sparse per-block rescalers, mirroring the dense ``_{method}`` above. The obs/var partitioning and
+    # cell gathering live in ``_normalise._normalise_per_group_sparse``; these just rewrite the given
+    # block's stored ``.data`` in place, nan-aware to match the dense path. A method is sparse-native iff
+    # it defines ``_{method}_sparse`` -- quantile does not (its per-sample rank mapping couples all
+    # samples), so it densifies instead.
+    def _total_sum_sparse(self, csr, cell_indices) -> None:
+        data = csr.data
+        row_totals = np.array([np.nansum(np.exp2(data[idx].astype(np.float64))) for idx in cell_indices])
+        block_log2_target = np.log2(np.median(row_totals))
+        for idx, row_total in zip(cell_indices, row_totals):
+            data[idx] = data[idx] + csr.dtype.type(block_log2_target - np.log2(row_total))
+
+    def _median_sparse(self, csr, cell_indices) -> None:
+        self._centre_on_median_sparse(csr, cell_indices, add_block_median=True)
+
+    def _median_center_sparse(self, csr, cell_indices) -> None:
+        self._centre_on_median_sparse(csr, cell_indices, add_block_median=False)
+
+    @staticmethod
+    def _centre_on_median_sparse(csr, cell_indices, add_block_median: bool) -> None:
+        data = csr.data
+        if add_block_median:
+            block_median = np.nanmedian(np.concatenate([data[idx] for idx in cell_indices]))
+        else:
+            block_median = csr.dtype.type(0)
+        for idx in cell_indices:
+            values = data[idx]
+            data[idx] = values - np.nanmedian(values) + block_median
+
+    @property
+    def is_sparse_native(self) -> bool:
+        """Whether this method can be computed on the sparse block-diagonal without densifying."""
+        return hasattr(self, f"_{self._method}_sparse")
+
+    def rescale_sparse_block(self, csr, cell_indices) -> None:
+        """Rescale one block's stored cells in place, dispatching to this method's sparse rescaler."""
+        getattr(self, f"_{self._method}_sparse")(csr, cell_indices)
 
     def normalise(self, arr) -> np.ndarray:
         na_idx = np.isnan(arr)

@@ -179,9 +179,9 @@ def _mdata_grouped(layer_array) -> MuData:
 @pytest.mark.parametrize(
     "group_kwargs",
     [
-        {"batch_key": "batch"},
-        {"fraction_key": "fraction"},
-        {"batch_key": "batch", "fraction_key": "fraction"},
+        {"group_obs": "batch"},
+        {"group_var": "fraction"},
+        {"group_obs": "batch", "group_var": "fraction"},
     ],
 )
 def test_grouped_sparse_matches_dense(method, group_kwargs):
@@ -207,7 +207,7 @@ def test_grouped_normalise_actually_groups():
             method="median",
             modality="psm",
             layer="raw",
-            fraction_key="fraction",
+            group_var="fraction",
         )["psm"],
         layer="raw",
     ).to_numpy()

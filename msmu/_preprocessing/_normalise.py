@@ -105,6 +105,8 @@ def normalise(
     method: NormalisationMethod,
     modality: str,
     layer: str | None = None,
+    group_obs: str | None = None,
+    group_var: str | None = None,
     batch_key: str | None = None,
     fraction_key: str | None = None,
     fraction: bool = False,
@@ -117,30 +119,38 @@ def normalise(
         method: Normalisation method to use. Options are 'quantile', 'median', 'total_sum'.
         modality: Modality to normalise.
         layer: Layer to normalise. If None, the default layer (.X) will be used.
-        batch_key: Column name in ``adata.obs`` defining batches. If provided, normalisation
-            is performed independently within each batch. If None, no batch grouping is applied.
-        fraction_key: Column name in ``adata.var`` defining fractions (e.g. ``"filename"`` for
-            fractionated TMT or fractionated label-free workflows). If provided, normalisation
-            is performed independently within each fraction. If None, no fraction grouping
-            is applied.
-        fraction: Deprecated. If True, equivalent to ``fraction_key="filename"``. Use
-            ``fraction_key`` instead.
+        group_obs: Column name in ``adata.obs`` defining sample groups. If provided, normalisation is
+            performed independently within each group. If None, no obs grouping is applied.
+        group_var: Column name in ``adata.var`` defining feature groups (e.g. ``"filename"`` for
+            fractionated TMT or label-free workflows). If provided, normalisation is performed
+            independently within each group. If None, no var grouping is applied.
+        batch_key: Deprecated alias for ``group_obs``.
+        fraction_key: Deprecated alias for ``group_var``.
+        fraction: Deprecated. If True, equivalent to ``group_var="filename"``.
 
     Returns:
         Normalised MuData object.
 
     Notes:
-        When both ``batch_key`` and ``fraction_key`` are provided, normalisation is performed
-        independently within each (batch × fraction) block.
+        When both ``group_obs`` and ``group_var`` are provided, normalisation is performed
+        independently within each (obs-group × var-group) block.
     """
+    if batch_key is not None:
+        warnings.warn("`batch_key` is deprecated; use `group_obs` instead.", DeprecationWarning, stacklevel=2)
+        if group_obs is None:
+            group_obs = batch_key
+    if fraction_key is not None:
+        warnings.warn("`fraction_key` is deprecated; use `group_var` instead.", DeprecationWarning, stacklevel=2)
+        if group_var is None:
+            group_var = fraction_key
     if fraction:
         warnings.warn(
-            "`fraction=True` is deprecated; pass `fraction_key='filename'` instead.",
+            "`fraction=True` is deprecated; use `group_var='filename'` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        if fraction_key is None:
-            fraction_key = "filename"
+        if group_var is None:
+            group_var = "filename"
 
     axis: str = "obs"
 
@@ -153,21 +163,21 @@ def normalise(
     else:
         raw_arr: np.ndarray = adata.layers[layer]
 
-    if batch_key is not None and batch_key not in adata.obs.columns:
-        raise KeyError(f"batch_key '{batch_key}' not found in adata.obs of modality '{modality}'.")
-    if fraction_key is not None and fraction_key not in adata.var.columns:
-        raise KeyError(f"fraction_key '{fraction_key}' not found in adata.var of modality '{modality}'.")
+    if group_obs is not None and group_obs not in adata.obs.columns:
+        raise KeyError(f"group_obs '{group_obs}' not found in adata.obs of modality '{modality}'.")
+    if group_var is not None and group_var not in adata.var.columns:
+        raise KeyError(f"group_var '{group_var}' not found in adata.var of modality '{modality}'.")
 
-    obs_groups = adata.obs[batch_key].to_numpy() if batch_key is not None else None
-    var_groups = adata.var[fraction_key].to_numpy() if fraction_key is not None else None
+    obs_groups = adata.obs[group_obs].to_numpy() if group_obs is not None else None
+    var_groups = adata.var[group_var].to_numpy() if group_var is not None else None
 
-    # Per-sample normalisation (median / median_center / total_sum) is computable directly on the sparse
-    # block-diagonal -- each obs row is rescaled from its own stored values -- so it stays sparse instead
-    # of materialising the (samples x features) dense matrix, for the common ungrouped case as well as
-    # batch/fraction grouping (each block normalised independently). Quantile is not sparse-native (its
-    # per-sample rank mapping couples all samples), so it falls back to the NaN-aware densify path.
-    if is_sparse(raw_arr) and method in ("median", "median_center", "total_sum"):
-        normalised_arr = _normalise_per_group_sparse(raw_arr, obs_groups, var_groups, method)
+    # Sparse-native methods (those the ``Normalisation`` object defines a ``_{method}_sparse`` rescaler
+    # for) are computed directly on the sparse block-diagonal -- each obs row is rescaled from its own
+    # stored values -- so the layer stays sparse instead of materialising the dense matrix, for the
+    # common ungrouped case as well as grouped normalisation (each block normalised independently).
+    # Quantile is not sparse-native (its per-sample rank mapping couples all samples), so it densifies.
+    if is_sparse(raw_arr) and norm_cls.is_sparse_native:
+        normalised_arr = _normalise_per_group_sparse(raw_arr, obs_groups, var_groups, norm_cls)
     else:
         input_was_sparse = is_sparse(raw_arr)
         if input_was_sparse:
@@ -198,6 +208,8 @@ def normalize(
     method: NormalisationMethod,
     modality: str,
     layer: str | None = None,
+    group_obs: str | None = None,
+    group_var: str | None = None,
     batch_key: str | None = None,
     fraction_key: str | None = None,
     fraction: bool = False,
@@ -210,6 +222,8 @@ def normalize(
         method=method,
         modality=modality,
         layer=layer,
+        group_obs=group_obs,
+        group_var=group_var,
         batch_key=batch_key,
         fraction_key=fraction_key,
         fraction=fraction,
@@ -224,36 +238,34 @@ def _partition_indices(groups: np.ndarray | None, length: int) -> list[np.ndarra
     return [np.where(groups == group)[0] for group in unique_groups]
 
 
-def _normalise_per_group_sparse(matrix, obs_groups, var_groups, method):
+def _normalise_per_group_sparse(matrix, obs_groups, var_groups, norm_cls):
     """Per-sample normalisation of a sparse block-diagonal within each (obs_group x var_group) block,
     without densifying.
 
     Generalises the ungrouped per-sample path: with ``obs_groups`` and ``var_groups`` both None the
     whole matrix is a single block (the common PSM-level TMT/DIA case, taken via a whole-row fast
-    path). ``obs_groups`` (batch) partitions rows and ``var_groups`` (fraction) partitions columns;
-    each block is normalised independently, matching the dense ``_normalise_by_groups`` path. Only
-    ``.data`` is rewritten so structurally-absent cells stay absent and the layer stays sparse; the
-    stored dtype is preserved so values round identically to the dense path.
-
-    ``method`` is one of "median" / "median_center" / "total_sum" (quantile is not sparse-native).
+    path). ``obs_groups`` (obs grouping) partitions rows and ``var_groups`` (var grouping) partitions
+    columns; each block is normalised independently, matching the dense ``_normalise_by_groups`` path.
+    ``norm_cls`` supplies the per-block rescaler (``rescale_sparse_block``). Only ``.data`` is rewritten
+    so structurally-absent cells stay absent and the layer stays sparse; the stored dtype is preserved.
     """
     csr = matrix.tocsr(copy=True)
     row_partitions = _partition_indices(obs_groups, csr.shape[0])
     # A single ``None`` column-partition keeps the whole-row fast path (no per-row column split) when
-    # no fraction grouping is requested -- covers the hot ungrouped case and batch-only grouping.
+    # no var grouping is requested -- covers the hot ungrouped case and obs-only grouping.
     col_partitions = _partition_indices(var_groups, csr.shape[1]) if var_groups is not None else [None]
     for row_indices in row_partitions:
         for col_indices in col_partitions:
-            _normalise_sparse_block(csr, row_indices, col_indices, method)
+            _normalise_sparse_block(csr, row_indices, col_indices, norm_cls)
     return csr
 
 
-def _normalise_sparse_block(csr, row_indices, col_indices, method):
-    """Collect the stored-cell indices of one (row_indices x col_indices) block, then dispatch to the
-    method's in-place rescaler. ``col_indices=None`` means all columns (whole-row slices -- the hot path,
-    no per-row column split). Rows with no stored cell in the block are skipped and excluded from the
-    block scalar, matching the dense path's all-NaN-row filter. Only stored cells are touched, so absent
-    cells stay absent and the stored dtype is preserved.
+def _normalise_sparse_block(csr, row_indices, col_indices, norm_cls):
+    """Collect the stored-cell indices of one (row_indices x col_indices) block, then hand them to
+    ``norm_cls.rescale_sparse_block`` to rewrite in place. ``col_indices=None`` means all columns
+    (whole-row slices -- the hot path, no per-row column split). Rows with no stored cell in the block
+    are skipped and excluded from the block scalar, matching the dense path's all-NaN-row filter. Only
+    stored cells are touched, so absent cells stay absent and the stored dtype is preserved.
     """
     indptr, indices = csr.indptr, csr.indices
     column_mask = None
@@ -262,7 +274,7 @@ def _normalise_sparse_block(csr, row_indices, col_indices, method):
         column_mask[col_indices] = True
 
     # Per-row index into ``csr.data`` for this block's cells: a contiguous slice for the whole-row path,
-    # or an explicit position array when a fraction column mask restricts the row.
+    # or an explicit position array when a var-group column mask restricts the row.
     block_cell_indices: list = []
     for row in row_indices:
         start, end = indptr[row], indptr[row + 1]
@@ -274,41 +286,8 @@ def _normalise_sparse_block(csr, row_indices, col_indices, method):
             selected = np.nonzero(column_mask[indices[start:end]])[0]
             if selected.size:
                 block_cell_indices.append(start + selected)
-    if not block_cell_indices:
-        return
-
-    if method == "total_sum":
-        _rescale_block_total_sum(csr, block_cell_indices)
-    elif method == "median":
-        _centre_block_on_median(csr, block_cell_indices, add_block_median=True)
-    elif method == "median_center":
-        _centre_block_on_median(csr, block_cell_indices, add_block_median=False)
-
-
-def _rescale_block_total_sum(csr, block_cell_indices):
-    """total_sum: shift each row (a per-row additive shift on the log2 scale) so its linear total matches
-    the block's median row-total. nan-aware (``nansum``) to mirror the dense path; casting the shift to
-    the stored dtype keeps value-parity with it.
-    """
-    data = csr.data
-    row_totals = np.array([np.nansum(np.exp2(data[idx].astype(np.float64))) for idx in block_cell_indices])
-    block_log2_target = np.log2(np.median(row_totals))
-    for idx, row_total in zip(block_cell_indices, row_totals):
-        data[idx] = data[idx] + csr.dtype.type(block_log2_target - np.log2(row_total))
-
-
-def _centre_block_on_median(csr, block_cell_indices, add_block_median):
-    """median / median_center: subtract each row's median, then add the block-wide median of stored
-    values for "median" (0 for "median_center"). nan-aware (``nanmedian``) to mirror the dense path.
-    """
-    data = csr.data
-    if add_block_median:
-        block_median = np.nanmedian(np.concatenate([data[idx] for idx in block_cell_indices]))
-    else:
-        block_median = csr.dtype.type(0)
-    for idx in block_cell_indices:
-        values = data[idx]
-        data[idx] = values - np.nanmedian(values) + block_median
+    if block_cell_indices:
+        norm_cls.rescale_sparse_block(csr, block_cell_indices)
 
 
 def _normalise_by_groups(
