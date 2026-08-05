@@ -102,6 +102,7 @@ def test_log2_is_nan_aware_never_zero_fills():
         (normalise, {"method": "median"}),
         (normalise, {"method": "median_center"}),
         (normalise, {"method": "quantile"}),
+        (normalise, {"method": "total_sum"}),
     ],
 )
 def test_sparse_layer_matches_dense(func, kwargs):
@@ -144,3 +145,11 @@ def test_normalise_quantile_still_densifies():
     back to the NaN-aware densify path. Pins the intended boundary of the sparse fast-path."""
     out = normalise(_make_sparse(), method="quantile", modality="psm", layer="raw")
     assert not sp.issparse(out["psm"].layers["raw"])
+
+
+def test_normalise_total_sum_keeps_layer_sparse():
+    """Per-sample total-intensity normalisation rescales each obs row's stored values in place, so it
+    must stay sparse rather than materialise the dense matrix."""
+    out = normalise(_make_sparse(), method="total_sum", modality="psm", layer="raw")
+    assert sp.issparse(out["psm"].layers["raw"]), "normalise(total_sum) densified the sparse block-diagonal"
+    assert np.isnan(to_dense_df(out["psm"], layer="raw").to_numpy()).sum() == _n_absent()
