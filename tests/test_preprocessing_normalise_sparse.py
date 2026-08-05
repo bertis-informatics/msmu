@@ -115,9 +115,11 @@ def test_sparse_layer_matches_dense(func, kwargs):
     )
 
 
-def test_scale_keeps_absent_cells_nan():
-    """scale densifies, but absent cells must stay NaN (not scaled from an imputed 0)."""
+def test_scale_re_sparsifies_and_keeps_absent_cells_nan():
+    """scale_data densifies for per-feature mean/std, then re-sparsifies a sparse input back to sparse;
+    absent cells stay NaN (never scaled from an imputed 0)."""
     out = scale_data(_make_sparse(), modality="psm", layer="raw")
+    assert sp.issparse(out["psm"].layers["raw"]), "scale_data should re-sparsify a sparse input"
     dense = to_dense_df(out["psm"], layer="raw").to_numpy()
     assert np.isnan(dense).sum() == _n_absent()
 
@@ -140,11 +142,12 @@ def test_normalise_per_sample_median_keeps_layer_sparse(method):
     assert np.isnan(to_dense_df(out["psm"], layer="raw").to_numpy()).sum() == _n_absent()
 
 
-def test_normalise_quantile_still_densifies():
-    """quantile is not sparse-native (per-sample rank mapping across differing blocks), so it falls
-    back to the NaN-aware densify path. Pins the intended boundary of the sparse fast-path."""
+def test_normalise_quantile_re_sparsifies():
+    """quantile densifies to compute (its per-sample rank mapping couples all samples), but a sparse
+    input is re-sparsified back to a sparse output -- absent cells dropped again."""
     out = normalise(_make_sparse(), method="quantile", modality="psm", layer="raw")
-    assert not sp.issparse(out["psm"].layers["raw"])
+    assert sp.issparse(out["psm"].layers["raw"]), "quantile should re-sparsify a sparse input"
+    assert np.isnan(to_dense_df(out["psm"], layer="raw").to_numpy()).sum() == _n_absent()
 
 
 def test_normalise_total_sum_keeps_layer_sparse():
@@ -153,3 +156,65 @@ def test_normalise_total_sum_keeps_layer_sparse():
     out = normalise(_make_sparse(), method="total_sum", modality="psm", layer="raw")
     assert sp.issparse(out["psm"].layers["raw"]), "normalise(total_sum) densified the sparse block-diagonal"
     assert np.isnan(to_dense_df(out["psm"], layer="raw").to_numpy()).sum() == _n_absent()
+
+
+# obs "batch" and var "fraction" columns for grouped-normalisation tests. batch splits the 6 samples
+# into two groups; fraction puts v5 (mostly absent) in its own group so some (row, fraction) blocks are
+# all-absent and must be skipped -- exercising the block-skip path within a fraction.
+_BATCH = ["b1", "b1", "b2", "b2", "b1", "b2"]
+_FRACTION = ["f1", "f1", "f1", "f1", "f2"]
+
+
+def _mdata_grouped(layer_array) -> MuData:
+    adata = AnnData(
+        X=_DECOY_X.copy(),
+        obs=pd.DataFrame({"batch": _BATCH}, index=SAMPLES),
+        var=pd.DataFrame({"fraction": _FRACTION}, index=FEATURES),
+    )
+    adata.layers["raw"] = layer_array
+    return MuData({"psm": adata})
+
+
+@pytest.mark.parametrize("method", ["median", "median_center", "total_sum"])
+@pytest.mark.parametrize(
+    "group_kwargs",
+    [
+        {"batch_key": "batch"},
+        {"fraction_key": "fraction"},
+        {"batch_key": "batch", "fraction_key": "fraction"},
+    ],
+)
+def test_grouped_sparse_matches_dense(method, group_kwargs):
+    """Grouped (batch / fraction / both) per-sample normalisation on a sparse layer must equal the dense
+    result and stay sparse -- each (obs_group x var_group) block is rescaled in place, never densified."""
+    sparse_out = normalise(
+        _mdata_grouped(_sparse_with_absent_cells(_VALUES)), method=method, modality="psm", layer="raw", **group_kwargs
+    )
+    dense_out = normalise(_mdata_grouped(_VALUES.copy()), method=method, modality="psm", layer="raw", **group_kwargs)
+    assert sp.issparse(sparse_out["psm"].layers["raw"]), f"grouped normalise({method}) densified the sparse layer"
+    pd.testing.assert_frame_equal(
+        to_dense_df(sparse_out["psm"], layer="raw"),
+        to_dense_df(dense_out["psm"], layer="raw"),
+    )
+
+
+def test_grouped_normalise_actually_groups():
+    """Non-vacuity guard: fraction grouping must change the result vs ungrouped, so the parity test
+    cannot pass by both paths silently ignoring the grouping."""
+    grouped = to_dense_df(
+        normalise(
+            _mdata_grouped(_sparse_with_absent_cells(_VALUES)),
+            method="median",
+            modality="psm",
+            layer="raw",
+            fraction_key="fraction",
+        )["psm"],
+        layer="raw",
+    ).to_numpy()
+    ungrouped = to_dense_df(
+        normalise(_mdata_grouped(_sparse_with_absent_cells(_VALUES)), method="median", modality="psm", layer="raw")[
+            "psm"
+        ],
+        layer="raw",
+    ).to_numpy()
+    assert not np.allclose(grouped, ungrouped, equal_nan=True)
