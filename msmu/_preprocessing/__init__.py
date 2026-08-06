@@ -10,13 +10,14 @@ from ._normalise import (
 )
 from ._batch_correction import correct_batch_effect
 from ._collapse import collapse_obs
-from ._meta import add_meta
+from ._meta import add_meta, attach_sdrf
 from ._tmt import split_tmt
 
 __all__ = [
     "add_filter",
     "apply_filter",
     "add_meta",
+    "attach_sdrf",
     "log2_transform",
     "normalise",
     "normalize",

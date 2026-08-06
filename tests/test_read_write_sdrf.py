@@ -321,3 +321,80 @@ def test_tools_validate_sdrf_dataframe_raises_for_pipeline_errors(monkeypatch):
             source="sample.sdrf.tsv",
             skip_ontology=False,
         )
+
+
+_SDRF_MIN = (
+    "source name\tcharacteristics[organism]\tcomment[data file]\tcomment[label]\n"
+    "t0h\tHomo sapiens\trun1.mzML\tTMT126\n"
+    "t1h\tHomo sapiens\trun1.mzML\tTMT127\n"
+)
+
+
+def test_attach_sdrf_stores_dataframe_in_uns_without_touching_obs():
+    sdrf = pd.DataFrame({"source name": ["t0h", "t1h"], "comment[label]": ["TMT126", "TMT127"]})
+    mdata = _make_mdata(["TMT126", "TMT127"])
+
+    out = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    stored = out.uns["sdrf"]
+    assert isinstance(stored, pd.DataFrame)
+    assert list(stored.columns) == ["source name", "comment[label]"]
+    assert stored.shape == (2, 2)
+    # obs is left untouched -- the SDRF lives only in uns
+    assert list(out.mod["psm"].obs.columns) == []
+    # the input mdata is not mutated (attach copies)
+    assert "sdrf" not in mdata.uns
+
+
+def test_attach_sdrf_reads_path_and_stores_whole_table(tmp_path):
+    path = _write_sdrf(tmp_path, _SDRF_MIN)
+
+    out = mm.pp.attach_sdrf(_make_mdata(["TMT126", "TMT127"]), path, validate=False)
+
+    stored = out.uns["sdrf"]
+    assert stored.shape == (2, 4)
+    assert list(stored.columns)[0] == "source name"
+    assert stored.loc[0, "comment[label]"] == "TMT126"
+
+
+def test_attach_sdrf_survives_h5mu_roundtrip(tmp_path):
+    import mudata
+
+    path = _write_sdrf(tmp_path, _SDRF_MIN)
+    out = mm.pp.attach_sdrf(_make_mdata(["TMT126", "TMT127"]), path, validate=False)
+
+    h5 = tmp_path / "attached.h5mu"
+    out.write_h5mu(str(h5))
+    restored = mudata.read_h5mu(str(h5)).uns["sdrf"]
+
+    assert isinstance(restored, pd.DataFrame)
+    assert restored.shape == (2, 4)
+    assert list(restored.columns) == [
+        "source name",
+        "characteristics[organism]",
+        "comment[data file]",
+        "comment[label]",
+    ]
+    assert restored.loc[1, "comment[label]"] == "TMT127"
+
+
+def test_attach_sdrf_validates_when_requested(monkeypatch):
+    seen = {}
+
+    def fake_validate(dataframe, **kwargs):
+        seen["called"] = True
+
+    monkeypatch.setattr(meta_module, "validate_sdrf_file", fake_validate)
+
+    mm.pp.attach_sdrf(
+        _make_mdata(["TMT126"]),
+        pd.DataFrame({"source name": ["t0h"], "comment[label]": ["TMT126"]}),
+        validate=True,
+    )
+
+    assert seen.get("called")
+
+
+def test_attach_sdrf_rejects_non_mudata():
+    with pytest.raises(TypeError, match="MuData"):
+        mm.pp.attach_sdrf(pd.DataFrame({"a": [1]}), pd.DataFrame({"source name": ["t0h"]}), validate=False)

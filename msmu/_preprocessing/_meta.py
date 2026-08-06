@@ -120,22 +120,50 @@ def validate_sdrf_file(
     logger.info("SDRF validation succeeded for %s.", subject)
 
 
-def attach_sdrf_metadata(
+@uns_logger
+def attach_sdrf(
     mdata: MuData,
-    sdrf_file: str | Path | None,
+    sdrf: pd.DataFrame | str | PathLike[str],
     *,
     validate: bool = True,
     skip_ontology: bool = True,
 ) -> MuData:
-    if sdrf_file is None:
-        return mdata
-    return add_meta(
-        mdata,
-        sdrf_file,
-        format="sdrf",
-        validate_sdrf=validate,
-        skip_ontology=skip_ontology,
-    )
+    """
+    Attach an SDRF table to ``mdata.uns["sdrf"]`` as the immutable source of truth.
+
+    The SDRF is stored whole because its rows span both axes -- ``comment[label]`` maps
+    to the obs axis (channels) and ``comment[data file]`` to the var axis (runs/fractions) --
+    so it is not reducible to obs alone. ``uns`` is copied through ``split_tmt`` and
+    ``collapse_obs``, making it the durable home for the original table; obs is left
+    untouched here. Use :func:`apply_sdrf_to_obs` to project selected columns onto obs.
+
+    Parameters:
+        mdata: MuData to annotate.
+        sdrf: An SDRF as a pandas DataFrame, or a path/URL read via :func:`read_sdrf`.
+        validate: Validate the SDRF with ``sdrf-pipelines`` (if installed). Default True.
+        skip_ontology: Skip ontology term checks during validation. Default True.
+
+    Returns:
+        A copy of ``mdata`` with the SDRF DataFrame stored at ``uns["sdrf"]``.
+    """
+    if not isinstance(mdata, md.MuData):
+        raise TypeError("mdata must be a MuData object.")
+
+    if isinstance(sdrf, pd.DataFrame):
+        sdrf_frame = sdrf.copy()
+        if validate:
+            source = sdrf_frame.attrs.get("sdrf_file")
+            validate_sdrf_file(
+                sdrf_frame,
+                skip_ontology=skip_ontology,
+                source_name=str(source) if source is not None else "DataFrame",
+            )
+    else:
+        sdrf_frame = read_sdrf(sdrf, validate=validate, skip_ontology=skip_ontology)
+
+    out = mdata.copy()
+    out.uns["sdrf"] = sdrf_frame
+    return out
 
 
 def merge_sdrf_metadata(
