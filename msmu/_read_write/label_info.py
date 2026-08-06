@@ -90,3 +90,13 @@ class Tmt18(TmtLabelInfo):
         "134C",
         "135N",
     ]
+
+
+def to_sdrf_channel_label(reporter: str) -> str:
+    """Reporter-ion label (e.g. ``"126"``, ``"127N"``) -> SDRF ``comment[label]`` channel (``"TMT126"``).
+
+    SDRF-Proteomics spells every isobaric channel with the ``TMT`` prefix, plex-independently
+    (TMTpro 16/18-plex reporters are ``TMT130N`` etc.), so readers emit obs names in this form to
+    line up with SDRF ``comment[label]`` directly.
+    """
+    return f"TMT{reporter}"

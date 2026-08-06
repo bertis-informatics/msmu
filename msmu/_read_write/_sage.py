@@ -165,7 +165,7 @@ class TmtSageReader(SageReader):
 
     def _make_rename_dict_for_obs(self, quantification_df: pd.DataFrame) -> dict:
         plex = len(quantification_df.columns)
-        tmt_labels = getattr(label_info, f"Tmt{plex}").label
+        tmt_labels = [label_info.to_sdrf_channel_label(reporter) for reporter in getattr(label_info, f"Tmt{plex}").label]
         sage_labels = [f"tmt_{x}" for x in range(1, plex + 1)]
 
         channel_dict = {sage_col: tmt for sage_col, tmt in zip(sage_labels, tmt_labels)}
