@@ -488,3 +488,46 @@ def test_apply_sdrf_warns_on_unmatched_obs_keys(monkeypatch):
     assert any("absent from SDRF" in message for message in seen)
     assert out.mod["psm"].obs["source name"].iloc[0] == "t0h"
     assert pd.isna(out.mod["psm"].obs["source name"].iloc[1])
+
+
+def test_apply_sdrf_composite_key_matches_channel_set():
+    # obs are 'channel_set' (as produced by split_tmt); match on the (label, batch) composite key
+    sdrf = pd.DataFrame(
+        {
+            "comment[label]": ["TMT126", "TMT127", "TMT126", "TMT127"],
+            "comment[sample preparation batch]": ["set1", "set1", "set2", "set2"],
+            "source name": ["a", "b", "c", "d"],
+        }
+    )
+    mdata = _make_mdata(["TMT126_set1", "TMT127_set1", "TMT126_set2", "TMT127_set2"])
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata, on=["comment[label]", "comment[sample preparation batch]"])
+
+    assert list(out.mod["psm"].obs["source name"]) == ["a", "b", "c", "d"]
+
+
+def test_apply_sdrf_warns_split_needed_when_nothing_projects(monkeypatch):
+    # multi-set TMT before split: obs are channels, SDRF spans channel x set -> nothing projectable
+    seen: list[str] = []
+    monkeypatch.setattr(
+        meta_module.logger,
+        "warning",
+        lambda message, *args, **kwargs: seen.append(message % args if args else message),
+    )
+    sdrf = pd.DataFrame(
+        {
+            "comment[label]": ["TMT126", "TMT126", "TMT127", "TMT127"],
+            "comment[sample preparation batch]": ["set1", "set2", "set1", "set2"],
+            "source name": ["a", "b", "c", "d"],
+        }
+    )
+    mdata = _make_mdata(["TMT126", "TMT127"])  # channels only, not yet split
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)  # on=None -> comment[label]; each channel spans 2 sets -> all skip
+
+    assert list(out.mod["psm"].obs.columns) == []  # nothing projected
+    assert any("split_tmt" in message for message in seen)

@@ -170,7 +170,7 @@ def attach_sdrf(
 def apply_sdrf_to_obs(
     mdata: MuData,
     *,
-    on: str | None = None,
+    on: str | Sequence[str] | None = None,
     columns: str | Sequence[str] | None = None,
     set_index: str | None = None,
 ) -> MuData:
@@ -186,8 +186,11 @@ def apply_sdrf_to_obs(
 
     Parameters:
         mdata: MuData with an SDRF attached via :func:`attach_sdrf`.
-        on: SDRF column matched against ``obs.index``. Default None auto-picks per modality:
-            ``comment[label]`` for TMT (obs are channels), ``comment[data file]`` otherwise.
+        on: SDRF column (or list of columns) matched against ``obs.index``. Default None auto-picks:
+            after ``split_tmt`` (which records its ``set_key`` in ``uns``) it builds the composite
+            ``[comment[label], set_key]`` matching the ``channel_set`` obs automatically; otherwise
+            ``comment[label]`` for TMT and ``comment[data file]`` elsewhere. Pass a str or list to
+            override (a list forces a "_"-joined composite key).
         columns: SDRF column(s) to project. Default None projects every projectable column;
             naming a non-projectable column raises instead of skipping it.
         set_index: After projection, replace ``obs.index`` with this SDRF column's values.
@@ -206,34 +209,74 @@ def apply_sdrf_to_obs(
     if not isinstance(sdrf, pd.DataFrame):
         raise TypeError("mdata.uns['sdrf'] must be a pandas DataFrame (attach via attach_sdrf).")
 
+    if on is None:
+        split_set_key = mdata.uns.get("tmt_split_set_key")
+        if split_set_key is not None:
+            # obs are channel_set after split_tmt; match on the (label, set) composite automatically
+            on = ["comment[label]", split_set_key]
+    on, sdrf, composite_parts = _resolve_match_on(on, sdrf)
     requested_columns = _normalise_sdrf_columns(columns)
 
     out = mdata.copy()
-    projected_columns: set[str] = set()
+    projected_columns: list[str] = []  # preserve SDRF column order, deduped across modalities
     for mod_name in out.mod.keys():
         adata = out.mod[mod_name]
         match_key = on if on is not None else _default_sdrf_match_key(adata)
-        projected_columns.update(
-            _project_sdrf_onto_obs(
-                adata.obs,
-                sdrf,
-                match_key=match_key,
-                requested_columns=requested_columns,
-                set_index=set_index,
-                modality=str(mod_name),
-            )
-        )
+        for column in _project_sdrf_onto_obs(
+            adata.obs,
+            sdrf,
+            match_key=match_key,
+            requested_columns=requested_columns,
+            set_index=set_index,
+            modality=str(mod_name),
+            exclude=composite_parts,
+        ):
+            if column not in projected_columns:
+                projected_columns.append(column)
     out.update()
     # update() syncs obs *names* across modalities but not obs *columns*, so merge the projected
     # columns onto the MuData-level obs too (consumers like correct_batch_effect read mdata.obs).
     if projected_columns:
-        out.obs = _merge_obs_metadata(out.obs, _collect_mudata_obs_metadata(out, sorted(projected_columns)))
+        out.obs = _merge_obs_metadata(out.obs, _collect_mudata_obs_metadata(out, projected_columns))
+    else:
+        # Report the fact, not a verdict: an empty projection can be multi-set TMT (needs split_tmt),
+        # a mismatched `on`/SDRF, or simply that obs and SDRF don't share a granularity. Some obs
+        # staying unmatched is normal too (blank/reference TMT channels absent from the SDRF), so this
+        # is a hint to inspect -- not an instruction.
+        logger.warning(
+            "apply_sdrf_to_obs: nothing was projected onto obs. Possible causes: multi-set TMT "
+            "(obs are channels but the SDRF spans channel x set -> split_tmt first), or the `on` key "
+            "/ SDRF columns not lining up. Inspect obs vs uns['sdrf'] and decide."
+        )
     return out
 
 
 def _default_sdrf_match_key(adata) -> str:
     """TMT obs are channels (``comment[label]``); label-free/DIA obs are files (``comment[data file]``)."""
     return "comment[label]" if adata.uns.get("label") == "tmt" else "comment[data file]"
+
+
+def _resolve_match_on(
+    on: str | Sequence[str] | None, sdrf: pd.DataFrame
+) -> tuple[str | None, pd.DataFrame, list[str]]:
+    """Resolve the match spec. A list becomes a synthetic "_"-joined key column so a post-split
+    ``channel_set`` obs index (e.g. "TMT126_set1") lines up with SDRF ``(comment[label], batch)``.
+
+    Returns ``(resolved_key, sdrf, composite_parts)``; the composite parts are excluded from
+    projection since ``obs.index`` already encodes them.
+    """
+    if on is None or isinstance(on, str):
+        return on, sdrf, []
+    keys = [str(key) for key in on]
+    if not keys:
+        raise ValueError("on must name at least one SDRF column when given as a list.")
+    missing = [key for key in keys if key not in sdrf.columns]
+    if missing:
+        raise ValueError(f"SDRF lacks composite match column(s): {missing}.")
+    composite_name = "+".join(keys)
+    sdrf = sdrf.copy()
+    sdrf[composite_name] = sdrf[keys].astype(str).agg("_".join, axis=1)
+    return composite_name, sdrf, keys
 
 
 def _normalise_sdrf_columns(columns: str | Sequence[str] | None) -> list[str] | None:
@@ -255,15 +298,16 @@ def _project_sdrf_onto_obs(
     requested_columns: list[str] | None,
     set_index: str | None,
     modality: str,
+    exclude: Sequence[str] = (),
 ) -> list[str]:
     if match_key not in sdrf.columns:
         raise ValueError(f"SDRF match key '{match_key}' not found in SDRF columns (modality '{modality}').")
 
-    candidate_columns = (
-        [column for column in sdrf.columns if column != match_key]
-        if requested_columns is None
-        else requested_columns
-    )
+    if requested_columns is None:
+        skip = {match_key, *exclude}
+        candidate_columns = [column for column in sdrf.columns if column not in skip]
+    else:
+        candidate_columns = requested_columns
     projectable, skipped = _resolve_projectable_columns(sdrf, match_key, candidate_columns)
 
     if skipped:
