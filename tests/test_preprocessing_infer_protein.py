@@ -46,8 +46,15 @@ def test_select_representative_prefers_swissprot_canonical():
 
 def test_select_representative_uses_contaminant_behavior():
     protein_group = "C1"
-    protein_info = {"C1": "contam_sp_contam_C1"}
-    assert select_representative(protein_group, protein_info) == "contam_C1"
+    protein_info = {"C1": "contam_sp_Cont_C1"}
+    assert select_representative(protein_group, protein_info) == "Cont_C1"
+
+
+def test_select_representative_ranks_contaminant_below_swissprot():
+    """A Hao-style contaminant carries the ``sp`` database tag, so it must not outrank a target."""
+    protein_group = "C1,P1"
+    protein_info = {"C1": "sp_Cont_C1", "P1": "sp_P1"}
+    assert select_representative(protein_group, protein_info) == "P1"
 
 
 def test_make_peptide_map_groups():

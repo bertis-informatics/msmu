@@ -49,7 +49,7 @@ class DelpiReader(SearchResultReader):
             "sequence_length": "peptide_length",
         }
 
-        self.used_feature_cols.extend(["PEP", "q_value", "score"])
+        self.used_feature_cols.extend(["PEP", "q_value", "score", "contaminant"])
 
         # self.used_feature_cols.remove("scan_num")
 
@@ -99,7 +99,9 @@ class DelpiReader(SearchResultReader):
         import polars as pl
 
         uniq = identification_df.select("fasta_id").unique().to_series().to_list()
-        accession_map = {value: parse_uniprot_accession_group(value) for value in uniq}
+        parsed_by_group = {value: parse_uniprot_accession_group(value) for value in uniq}
+        accession_map = {group: accession for group, (accession, _) in parsed_by_group.items()}
+        contaminant_map = {group: int(is_contaminant) for group, (_, is_contaminant) in parsed_by_group.items()}
 
         def _strip_delim(col):
             return (
@@ -108,6 +110,7 @@ class DelpiReader(SearchResultReader):
 
         return identification_df.select(
             pl.col("fasta_id").replace_strict(accession_map).alias("proteins"),
+            pl.col("fasta_id").replace_strict(contaminant_map).cast(pl.Int64).alias("contaminant"),
             _strip_delim("peptide").alias("peptide"),  # -> stripped_peptide
             _strip_delim("modified_sequence").alias("modified_sequence"),  # -> peptide
             pl.col("run_name"),  # -> filename
