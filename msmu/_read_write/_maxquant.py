@@ -6,6 +6,7 @@ from ._base_reader import (
     SearchResultSettings,
     SearchResultDataFrameConverter,
 )
+from .._utils.fasta import parse_uniprot_accession_group
 from . import label_info
 
 
@@ -86,14 +87,23 @@ class MaxQuantReader(SearchResultReader):
         ``Reverse``/``Potential contaminant`` are "+" or null; null must map to 0 (``x == "+"`` is
         False for a null), hence ``fill_null(False)``. Decoy rows take ``Leading proteins`` instead
         of ``Proteins`` (a conditional assignment).
+
+        The contaminant flag stays MaxQuant's own ``Potential contaminant`` column -- an explicit
+        engine annotation outranks re-deriving one from the accession string -- so the parser is
+        used here only to bring accessions onto the canonical form the other readers emit.
         """
         import polars as pl
 
         is_decoy = (pl.col("Reverse") == "+").fill_null(False)
+        # Accessions are parsed off the resolved column (decoy rows take a different source), so
+        # the dedup that every other reader does over distinct groups needs it materialised first.
+        proteins_expr = pl.when(is_decoy).then(pl.col("Leading proteins")).otherwise(pl.col("Proteins"))
+        uniq = identification_df.select(proteins_expr.alias("proteins")).to_series().unique().to_list()
+        accession_map = {group: parse_uniprot_accession_group(group)[0] for group in uniq if group is not None}
         return identification_df.select(
             is_decoy.cast(pl.Int64).alias("decoy"),
             (pl.col("Potential contaminant") == "+").fill_null(False).cast(pl.Int64).alias("contaminant"),
-            pl.when(is_decoy).then(pl.col("Leading proteins")).otherwise(pl.col("Proteins")).alias("proteins"),
+            proteins_expr.replace_strict(accession_map, default=None).alias("proteins"),
             pl.col("Sequence"),  # -> stripped_peptide
             pl.col("Modified sequence"),  # -> peptide
             pl.col("Length"),  # -> peptide_length
