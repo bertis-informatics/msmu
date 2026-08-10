@@ -13,6 +13,7 @@ from mudata import MuData
 
 from .._core._provenance import uns_logger
 from .._tools import _sdrf_pipelines as sdrf_tools
+from .._utils._filenames import strip_ms_extensions
 from ..logging_utils import get_logger
 
 _DATAFRAME_FORMATS = {"dataframe", "df", "generic"}
@@ -214,7 +215,7 @@ def apply_sdrf_to_obs(
     # projection (uns['sdrf'] keeps the originals), mirroring split_tmt's filename handling.
     if "comment[data file]" in sdrf.columns:
         sdrf = sdrf.copy()
-        sdrf["comment[data file]"] = sdrf["comment[data file]"].astype(str).str.rsplit(".", n=1).str[0]
+        sdrf["comment[data file]"] = sdrf["comment[data file]"].astype(str).map(strip_ms_extensions)
 
     if on is None:
         split_set_key = mdata.uns.get("tmt_split_set_key")

@@ -5,6 +5,7 @@ from anndata import AnnData
 from mudata import MuData
 
 from .._core._blockdiag import dense_block
+from .._utils._filenames import strip_ms_extensions
 from .._utils._mudata import get_anndata_mod
 
 
@@ -56,12 +57,12 @@ def split_tmt(
         raise ValueError("Map must be a dictionary, pandas Series, or DataFrame.")
 
     psm_adata = get_anndata_mod(mdata, "psm")
-    set_labels = psm_adata.var["filename"].str.rsplit(".", n=1).str[0].map(map)
+    set_labels = psm_adata.var["filename"].map(strip_ms_extensions).map(map)
     # Fail loud on a filename with no set mapping: an unmapped filename would otherwise be
     # silently scattered into a phantom ``nan`` set, so raise here so a bad/incomplete map
     # cannot pass unnoticed.
     if set_labels.isna().any():
-        unmapped = psm_adata.var["filename"].str.rsplit(".", n=1).str[0][set_labels.isna()].unique()
+        unmapped = psm_adata.var["filename"].map(strip_ms_extensions)[set_labels.isna()].unique()
         raise ValueError(f"split_tmt: no set mapping for filename(s): {list(unmapped)[:5]}")
     psm_adata.var["set"] = set_labels
 
@@ -153,7 +154,7 @@ def _map_from_sdrf(mdata: MuData, set_key: str) -> dict[str, str]:
         raise ValueError(
             f"SDRF maps a data file to multiple '{set_key}' values (need one set per file): {bad[:5]}."
         )
-    return {str(data_file).rsplit(".", 1)[0]: set_name for data_file, set_name in pairs.itertuples(index=False)}
+    return {strip_ms_extensions(str(data_file)): set_name for data_file, set_name in pairs.itertuples(index=False)}
 
 
 __all__ = ["split_tmt"]
