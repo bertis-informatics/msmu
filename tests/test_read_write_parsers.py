@@ -203,8 +203,10 @@ def test_maxquant_make_needed_columns_for_identification():
     assert "decoy" not in df.columns
     assert out["decoy"].tolist() == [1, 0]
     assert out["contaminant"].tolist() == [0, 1]
-    # decoy row takes Leading proteins; target row keeps Proteins
-    assert out["proteins"].tolist() == ["REV__P3", "CON__P2"]
+    # decoy row takes Leading proteins; target row keeps Proteins. Accessions come out canonical
+    # ("CON__" -> "Cont_"); a pipe-less decoy keeps its tag verbatim, since decoy tags vary per
+    # engine and are never enumerated -- decoy status itself comes from the Reverse column.
+    assert out["proteins"].tolist() == ["REV__P3", "Cont_P2"]
     # pre-rename columns are carried for _normalise_identification_df to rename
     assert out["Modified sequence"].tolist() == ["_AA_", "_BB_"]
 

@@ -4,6 +4,7 @@ import pandas as pd
 
 from . import label_info
 from ._base_reader import SearchResultReader, SearchResultSettings
+from .._utils.fasta import parse_uniprot_accession_group
 
 
 class FragPipeReader(SearchResultReader):
@@ -98,6 +99,7 @@ class FragPipeReader(SearchResultReader):
                 "expmass",
                 "missed_cleavages",
                 "decoy",
+                "contaminant",
                 "score",
             ]
         )
@@ -140,10 +142,17 @@ class FragPipeReader(SearchResultReader):
             .list.eval(pl.element().filter(pl.element() != "nan"))
             .list.join(";")
         )
+        # Accessions are parsed off the joined column, so the dedup that every other reader does
+        # over distinct groups needs it materialised first.
+        uniq = identification_df.select(proteins_expr.alias("proteins")).to_series().unique().to_list()
+        parsed_by_group = {group: parse_uniprot_accession_group(group) for group in uniq if group is not None}
+        accession_map = {group: accession for group, (accession, _) in parsed_by_group.items()}
+        contaminant_map = {group: int(is_contaminant) for group, (_, is_contaminant) in parsed_by_group.items()}
         out = identification_df.select(
             pl.col("Spectrum").str.split(".").list.get(0).alias("filename"),
             pl.col("Spectrum").str.split(".").list.get(1).cast(pl.Int64).alias("scan_num"),
-            proteins_expr.alias("proteins"),
+            proteins_expr.replace_strict(accession_map, default=None).alias("proteins"),
+            proteins_expr.replace_strict(contaminant_map, default=0).cast(pl.Int64).alias("contaminant"),
             pl.col("Modified Peptide").fill_null(pl.col("Peptide")).alias("peptide"),
             (pl.col("Retention") / 60.0).alias("rt"),  # convert to minutes
             pl.col("Peptide"),  # -> stripped_peptide
