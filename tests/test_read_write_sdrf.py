@@ -321,3 +321,228 @@ def test_tools_validate_sdrf_dataframe_raises_for_pipeline_errors(monkeypatch):
             source="sample.sdrf.tsv",
             skip_ontology=False,
         )
+
+
+_SDRF_MIN = (
+    "source name\tcharacteristics[organism]\tcomment[data file]\tcomment[label]\n"
+    "t0h\tHomo sapiens\trun1.mzML\tTMT126\n"
+    "t1h\tHomo sapiens\trun1.mzML\tTMT127\n"
+)
+
+
+def test_attach_sdrf_stores_dataframe_in_uns_without_touching_obs():
+    sdrf = pd.DataFrame({"source name": ["t0h", "t1h"], "comment[label]": ["TMT126", "TMT127"]})
+    mdata = _make_mdata(["TMT126", "TMT127"])
+
+    out = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    stored = out.uns["sdrf"]
+    assert isinstance(stored, pd.DataFrame)
+    assert list(stored.columns) == ["source name", "comment[label]"]
+    assert stored.shape == (2, 2)
+    # obs is left untouched -- the SDRF lives only in uns
+    assert list(out.mod["psm"].obs.columns) == []
+    # the input mdata is not mutated (attach copies)
+    assert "sdrf" not in mdata.uns
+
+
+def test_attach_sdrf_reads_path_and_stores_whole_table(tmp_path):
+    path = _write_sdrf(tmp_path, _SDRF_MIN)
+
+    out = mm.pp.attach_sdrf(_make_mdata(["TMT126", "TMT127"]), path, validate=False)
+
+    stored = out.uns["sdrf"]
+    assert stored.shape == (2, 4)
+    assert list(stored.columns)[0] == "source name"
+    assert stored.loc[0, "comment[label]"] == "TMT126"
+
+
+def test_attach_sdrf_survives_h5mu_roundtrip(tmp_path):
+    import mudata
+
+    path = _write_sdrf(tmp_path, _SDRF_MIN)
+    out = mm.pp.attach_sdrf(_make_mdata(["TMT126", "TMT127"]), path, validate=False)
+
+    h5 = tmp_path / "attached.h5mu"
+    out.write_h5mu(str(h5))
+    restored = mudata.read_h5mu(str(h5)).uns["sdrf"]
+
+    assert isinstance(restored, pd.DataFrame)
+    assert restored.shape == (2, 4)
+    assert list(restored.columns) == [
+        "source name",
+        "characteristics[organism]",
+        "comment[data file]",
+        "comment[label]",
+    ]
+    assert restored.loc[1, "comment[label]"] == "TMT127"
+
+
+def test_attach_sdrf_validates_when_requested(monkeypatch):
+    seen = {}
+
+    def fake_validate(dataframe, **kwargs):
+        seen["called"] = True
+
+    monkeypatch.setattr(meta_module, "validate_sdrf_file", fake_validate)
+
+    mm.pp.attach_sdrf(
+        _make_mdata(["TMT126"]),
+        pd.DataFrame({"source name": ["t0h"], "comment[label]": ["TMT126"]}),
+        validate=True,
+    )
+
+    assert seen.get("called")
+
+
+def test_attach_sdrf_rejects_non_mudata():
+    with pytest.raises(TypeError, match="MuData"):
+        mm.pp.attach_sdrf(pd.DataFrame({"a": [1]}), pd.DataFrame({"source name": ["t0h"]}), validate=False)
+
+
+_SDRF_TMT_FRAC = pd.DataFrame(
+    {
+        "comment[label]": ["TMT126", "TMT127", "TMT126", "TMT127"],
+        "source name": ["t0h", "t1h", "t0h", "t1h"],
+        "comment[fraction identifier]": ["1", "1", "2", "2"],  # varies within a channel
+    }
+)
+
+
+def _tmt_mdata_with_sdrf(sdrf: pd.DataFrame | None = None) -> MuData:
+    mdata = _make_mdata(["TMT126", "TMT127"])
+    mdata.mod["psm"].uns["label"] = "tmt"
+    return mm.pp.attach_sdrf(mdata, _SDRF_TMT_FRAC if sdrf is None else sdrf, validate=False)
+
+
+def test_apply_sdrf_projects_functional_columns_and_skips_varying():
+    obs = mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf()).mod["psm"].obs
+    # one source name per channel -> projected
+    assert list(obs["source name"]) == ["t0h", "t1h"]
+    # fraction varies within a channel -> not projectable, stays only in uns
+    assert "comment[fraction identifier]" not in obs.columns
+
+
+def test_apply_sdrf_auto_key_tmt_vs_label_free():
+    tmt = mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf())
+    assert list(tmt.mod["psm"].obs["source name"]) == ["t0h", "t1h"]
+
+    # SDRF keeps file extensions; readers store bare stems -> apply strips the SDRF extension to match
+    sdrf_lf = pd.DataFrame(
+        {"comment[data file]": ["runA.mzML", "runB.mzML"], "source name": ["ctrl", "case"]}
+    )
+    m = mm.pp.attach_sdrf(_make_mdata(["runA", "runB"]), sdrf_lf, validate=False)
+    lf = mm.pp.apply_sdrf_to_obs(m)  # no uns label -> defaults to comment[data file], extension-insensitive
+    assert list(lf.mod["psm"].obs["source name"]) == ["ctrl", "case"]
+
+
+def test_apply_sdrf_set_index_replaces_obs_index():
+    out = mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf(), set_index="source name")
+    assert list(out.mod["psm"].obs.index) == ["t0h", "t1h"]
+
+
+def test_apply_sdrf_named_nonfunctional_column_raises():
+    with pytest.raises(ValueError, match="not a function"):
+        mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf(), columns="comment[fraction identifier]")
+
+
+def test_apply_sdrf_set_index_nonunique_raises():
+    sdrf = pd.DataFrame({"comment[label]": ["TMT126", "TMT127"], "source name": ["dup", "dup"]})
+    with pytest.raises(ValueError, match="not unique"):
+        mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf(sdrf), set_index="source name")
+
+
+def test_apply_sdrf_requires_attached_sdrf():
+    with pytest.raises(ValueError, match="No SDRF attached"):
+        mm.pp.apply_sdrf_to_obs(_make_mdata(["TMT126"]))
+
+
+def test_apply_sdrf_leaves_uns_sdrf_unchanged():
+    mdata = _tmt_mdata_with_sdrf()
+    out = mm.pp.apply_sdrf_to_obs(mdata)
+    assert out.uns["sdrf"].shape == (4, 3)
+    assert "comment[fraction identifier]" in out.uns["sdrf"].columns
+
+
+def test_apply_sdrf_populates_mdata_level_obs():
+    # projected columns must reach the MuData-level obs, not only the modality obs
+    # (consumers such as correct_batch_effect read mdata.obs)
+    out = mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf())
+    assert "source name" in out.obs.columns
+    assert list(out.obs["source name"]) == ["t0h", "t1h"]
+
+
+def test_apply_sdrf_warns_on_unmatched_obs_keys(monkeypatch):
+    seen: list[str] = []
+    monkeypatch.setattr(
+        meta_module.logger,
+        "warning",
+        lambda message, *args, **kwargs: seen.append(message % args if args else message),
+    )
+    sdrf = pd.DataFrame({"comment[label]": ["TMT126", "TMT127"], "source name": ["t0h", "t1h"]})
+    mdata = _make_mdata(["TMT126", "TMT999"])  # TMT999 is absent from the SDRF
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)
+
+    assert any("absent from SDRF" in message for message in seen)
+    assert out.mod["psm"].obs["source name"].iloc[0] == "t0h"
+    assert pd.isna(out.mod["psm"].obs["source name"].iloc[1])
+
+
+def test_apply_sdrf_composite_key_matches_channel_set():
+    # obs are 'channel_set' (as produced by split_tmt); match on the (label, batch) composite key
+    sdrf = pd.DataFrame(
+        {
+            "comment[label]": ["TMT126", "TMT127", "TMT126", "TMT127"],
+            "comment[sample preparation batch]": ["set1", "set1", "set2", "set2"],
+            "source name": ["a", "b", "c", "d"],
+        }
+    )
+    mdata = _make_mdata(["TMT126_set1", "TMT127_set1", "TMT126_set2", "TMT127_set2"])
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata, on=["comment[label]", "comment[sample preparation batch]"])
+
+    assert list(out.mod["psm"].obs["source name"]) == ["a", "b", "c", "d"]
+
+
+def test_apply_sdrf_warns_split_needed_when_nothing_projects(monkeypatch):
+    # multi-set TMT before split: obs are channels, SDRF spans channel x set -> nothing projectable
+    seen: list[str] = []
+    monkeypatch.setattr(
+        meta_module.logger,
+        "warning",
+        lambda message, *args, **kwargs: seen.append(message % args if args else message),
+    )
+    sdrf = pd.DataFrame(
+        {
+            "comment[label]": ["TMT126", "TMT126", "TMT127", "TMT127"],
+            "comment[sample preparation batch]": ["set1", "set2", "set1", "set2"],
+            "source name": ["a", "b", "c", "d"],
+        }
+    )
+    mdata = _make_mdata(["TMT126", "TMT127"])  # channels only, not yet split
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)  # on=None -> comment[label]; each channel spans 2 sets -> all skip
+
+    assert list(out.mod["psm"].obs.columns) == []  # nothing projected
+    assert any("split_tmt" in message for message in seen)
+
+
+def test_apply_sdrf_matches_filename_ignoring_extension():
+    # readers store bare stems (e.g. DIA-NN "QExHF03751"); SDRF comment[data file] keeps ".mzML"
+    sdrf = pd.DataFrame(
+        {"comment[data file]": ["QExHF03751.mzML", "QExHF03753.mzML"], "source name": ["a", "b"]}
+    )
+    mdata = mm.pp.attach_sdrf(_make_mdata(["QExHF03751", "QExHF03753"]), sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)  # defaults to comment[data file], extension-insensitive
+
+    assert list(out.mod["psm"].obs["source name"]) == ["a", "b"]
+    # uns keeps the original filenames (with extension) -- only matching is normalised
+    assert list(out.uns["sdrf"]["comment[data file]"]) == ["QExHF03751.mzML", "QExHF03753.mzML"]

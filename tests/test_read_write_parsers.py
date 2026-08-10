@@ -62,8 +62,8 @@ def test_tmt_sage_rename_dict_for_obs():
     reader = TmtSageReader("id.tsv", "quant.tsv")
     quant_df = pd.DataFrame(columns=["tmt_1", "tmt_2"])
     rename = reader._make_rename_dict_for_obs(quant_df)
-    assert rename["tmt_1"] == "126"
-    assert rename["tmt_2"] == "127"
+    assert rename["tmt_1"] == "TMT126"
+    assert rename["tmt_2"] == "TMT127"
 
 
 def test_lfq_sage_quantification_columns():
@@ -171,6 +171,14 @@ def test_fragpipe_tmt_extract_quant_from_raw_keeps_only_channels():
     assert quant.loc["fileA.10", "126"] == 100.0
 
 
+def test_fragpipe_tmt_rename_dict_for_obs():
+    reader = TmtFragPipeReader("id.tsv", pd.DataFrame(), drop_search_result=False)
+    quant_df = pd.DataFrame(columns=["126", "127N"])
+    rename = reader._make_rename_dict_for_obs(quant_df)
+    assert rename["126"] == "TMT126"
+    assert rename["127N"] == "TMT127N"
+
+
 def test_maxquant_make_needed_columns_for_identification():
     reader = MaxQuantReader("id.tsv", pd.DataFrame())
     df = pd.DataFrame(
@@ -205,8 +213,8 @@ def test_maxquant_tmt_rename_dict_for_obs():
     reader = MaxTmtReader("id.tsv", pd.DataFrame())
     quant_df = pd.DataFrame(columns=["Reporter intensity corrected 1", "Reporter intensity corrected 2"])
     rename = reader._make_rename_dict_for_obs(quant_df)
-    assert rename["Reporter intensity corrected 1"] == "126"
-    assert rename["Reporter intensity corrected 2"] == "127"
+    assert rename["Reporter intensity corrected 1"] == "TMT126"
+    assert rename["Reporter intensity corrected 2"] == "TMT127"
 
 
 def test_maxquant_lfq_extract_quant_from_raw():

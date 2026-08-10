@@ -5,6 +5,7 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
+from .._utils._filenames import strip_ms_extensions
 from .._utils._mudata import add_modality, get_anndata_mod
 from ..logging_utils import get_logger
 
@@ -29,7 +30,7 @@ def _sample_names_from_obs(mdata: md.MuData, index_name: str | None) -> dict[str
     else:
         filenames = obs_df.index
 
-    return {str(filename).split(".mzML")[0]: str(obs_name) for filename, obs_name in zip(filenames, obs_df.index)}
+    return {strip_ms_extensions(str(filename)): str(obs_name) for filename, obs_name in zip(filenames, obs_df.index)}
 
 
 def add_quant(

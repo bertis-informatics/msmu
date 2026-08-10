@@ -206,6 +206,73 @@ def test_split_tmt_splits_channels_by_run_set():
     assert np.isnan(dense.loc["126_set1", "psm2"])
 
 
+def test_split_tmt_derives_map_from_sdrf():
+    mdata = _make_tmt_mdata()  # var filenames runA.raw / runB.raw
+    sdrf = pd.DataFrame(
+        {
+            "comment[data file]": ["runA.mzML", "runB.mzML"],
+            "comment[sample preparation batch]": ["setX", "setY"],
+        }
+    )
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.split_tmt(mdata)  # map=None -> derive from SDRF
+
+    assert list(out.mod["psm"].var["set"]) == ["setX", "setY", "setX", "setY"]
+    assert list(out.mod["psm"].obs_names) == ["126_setX", "127_setX", "126_setY", "127_setY"]
+
+
+def test_split_tmt_map_none_without_sdrf_raises():
+    with pytest.raises(ValueError, match="attach_sdrf"):
+        mm.pp.split_tmt(_make_tmt_mdata())  # no SDRF attached
+
+
+def test_split_tmt_map_none_conflicting_batch_raises():
+    mdata = _make_tmt_mdata()
+    sdrf = pd.DataFrame(
+        {
+            "comment[data file]": ["runA.mzML", "runA.mzML"],  # same file -> two batches
+            "comment[sample preparation batch]": ["setX", "setY"],
+        }
+    )
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+    with pytest.raises(ValueError, match="multiple"):
+        mm.pp.split_tmt(mdata)
+
+
+def test_split_tmt_map_from_sdrf_custom_set_key():
+    # SDRF encodes the set in a non-default column (no sample preparation batch present)
+    mdata = _make_tmt_mdata()
+    sdrf = pd.DataFrame(
+        {"comment[data file]": ["runA.mzML", "runB.mzML"], "factor value[batch]": ["b1", "b2"]}
+    )
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+    out = mm.pp.split_tmt(mdata, set_key="factor value[batch]")
+    assert list(out.mod["psm"].var["set"]) == ["b1", "b2", "b1", "b2"]
+
+
+def test_apply_sdrf_after_split_uses_auto_composite_key():
+    # split_tmt records set_key in uns; apply(on=None) then auto-builds the (label, set) composite
+    mdata = _make_tmt_mdata()  # obs 126/127, var filenames runA/runB
+    sdrf = pd.DataFrame(
+        {
+            "comment[data file]": ["runA.mzML", "runA.mzML", "runB.mzML", "runB.mzML"],
+            "comment[label]": ["126", "127", "126", "127"],
+            "comment[sample preparation batch]": ["setX", "setX", "setY", "setY"],
+            "source name": ["s1", "s2", "s3", "s4"],
+        }
+    )
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+    split = mm.pp.split_tmt(mdata)  # map=None -> records tmt_split_set_key
+    assert split.uns["tmt_split_set_key"] == "comment[sample preparation batch]"
+
+    out = mm.pp.apply_sdrf_to_obs(split)  # on=None -> auto composite, no manual on needed
+
+    obs = out.mod["psm"].obs
+    assert list(obs.index) == ["126_setX", "127_setX", "126_setY", "127_setY"]
+    assert list(obs["source name"]) == ["s1", "s2", "s3", "s4"]
+
+
 def _psm_values(mdata, modality):
     x = mdata.mod[modality].X
     return dense_block(x).astype(np.float32) if sp.issparse(x) else np.asarray(x, dtype=np.float32)

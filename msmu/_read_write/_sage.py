@@ -5,6 +5,7 @@ import pandas as pd
 
 from ._base_reader import SearchResultReader, SearchResultSettings
 from .._utils.fasta import parse_uniprot_accession_group
+from .._utils._filenames import MS_EXTENSION_REGEX, strip_ms_extensions
 from . import label_info
 
 
@@ -93,7 +94,7 @@ class SageReader(SearchResultReader):
         feature_df = identification_df.select(
             pl.col("proteins").replace_strict(accession_map).alias("proteins"),
             pl.col("peptide"),
-            pl.col("filename").str.split("/").list.last().str.replace(r"\.[^.]*$", "").alias("filename"),
+            pl.col("filename").str.split("/").list.last().str.replace(MS_EXTENSION_REGEX, "").alias("filename"),
             pl.col("scannr").str.extract(r"scan=(\d+)", 1).cast(pl.Int64).alias("scan_num"),
             pl.col("peptide").str.replace_all(r"[^A-Z]", "").alias("stripped_peptide"),
             pl.col("charge"),
@@ -150,7 +151,7 @@ class TmtSageReader(SageReader):
         return (
             quantification_df.select(
                 (
-                    pl.col("filename").str.split("/").list.last().str.replace(r"\.[^.]*$", "")
+                    pl.col("filename").str.split("/").list.last().str.replace(MS_EXTENSION_REGEX, "")
                     + pl.lit(".")
                     # cast through Int64 to strip leading zeros (scan=001001 -> 1001), matching the
                     # identification side's int cast so the two indexes intersect.
@@ -165,7 +166,7 @@ class TmtSageReader(SageReader):
 
     def _make_rename_dict_for_obs(self, quantification_df: pd.DataFrame) -> dict:
         plex = len(quantification_df.columns)
-        tmt_labels = getattr(label_info, f"Tmt{plex}").label
+        tmt_labels = [label_info.to_sdrf_channel_label(reporter) for reporter in getattr(label_info, f"Tmt{plex}").label]
         sage_labels = [f"tmt_{x}" for x in range(1, plex + 1)]
 
         channel_dict = {sage_col: tmt for sage_col, tmt in zip(sage_labels, tmt_labels)}
@@ -216,4 +217,4 @@ class LfqSageReader(SageReader):
     def _make_rename_dict_for_obs(self, quantification_df) -> dict:
         original_cols = quantification_df.columns.tolist()
 
-        return {col: self._strip_filename(col) for col in original_cols}
+        return {col: strip_ms_extensions(col) for col in original_cols}

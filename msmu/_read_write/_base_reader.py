@@ -235,10 +235,6 @@ class SearchResultReader:
         input_df["tmp_index"] = input_df["filename"] + "." + input_df["scan_num"].astype(str)
         return input_df.set_index("tmp_index", drop=True).rename_axis(index=None)
 
-    @staticmethod
-    def _strip_filename(filename: str) -> str:
-        return Path(filename).name.rsplit(".", 1)[0]
-
     def _stringify_cols(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Convert mixed type of pd.Series to sting to store as h5mu.

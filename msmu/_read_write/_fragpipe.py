@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Literal
 import pandas as pd
 
+from . import label_info
 from ._base_reader import SearchResultReader, SearchResultSettings
 
 
@@ -202,6 +203,10 @@ class TmtFragPipeReader(FragPipeReader):
             .set_index("tmp_index")
             .rename_axis(index=None)
         )
+
+    def _make_rename_dict_for_obs(self, quantification_df: pd.DataFrame) -> dict:
+        # FragPipe TMT channels arrive as bare reporter labels ("126", "127N"); prefix to SDRF form.
+        return {col: label_info.to_sdrf_channel_label(col) for col in quantification_df.columns}
 
 
 class LfqFragPipeReader(FragPipeReader):

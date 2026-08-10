@@ -13,6 +13,7 @@ from mudata import MuData
 
 from .._core._provenance import uns_logger
 from .._tools import _sdrf_pipelines as sdrf_tools
+from .._utils._filenames import strip_ms_extensions
 from ..logging_utils import get_logger
 
 _DATAFRAME_FORMATS = {"dataframe", "df", "generic"}
@@ -120,45 +121,274 @@ def validate_sdrf_file(
     logger.info("SDRF validation succeeded for %s.", subject)
 
 
-def attach_sdrf_metadata(
+@uns_logger
+def attach_sdrf(
     mdata: MuData,
-    sdrf_file: str | Path | None,
+    sdrf: pd.DataFrame | str | PathLike[str],
     *,
     validate: bool = True,
     skip_ontology: bool = True,
 ) -> MuData:
-    if sdrf_file is None:
-        return mdata
-    return add_meta(
-        mdata,
-        sdrf_file,
-        format="sdrf",
-        validate_sdrf=validate,
-        skip_ontology=skip_ontology,
-    )
+    """
+    Attach an SDRF table to ``mdata.uns["sdrf"]`` as the immutable source of truth.
+
+    The SDRF is stored whole because its rows span both axes -- ``comment[label]`` maps
+    to the obs axis (channels) and ``comment[data file]`` to the var axis (runs/fractions) --
+    so it is not reducible to obs alone. ``uns`` is copied through ``split_tmt`` and
+    ``collapse_obs``, making it the durable home for the original table; obs is left
+    untouched here. Use :func:`apply_sdrf_to_obs` to project selected columns onto obs.
+
+    Parameters:
+        mdata: MuData to annotate.
+        sdrf: An SDRF as a pandas DataFrame, or a path/URL read via :func:`read_sdrf`.
+        validate: Validate the SDRF with ``sdrf-pipelines`` (if installed). Default True.
+        skip_ontology: Skip ontology term checks during validation. Default True.
+
+    Returns:
+        A copy of ``mdata`` with the SDRF DataFrame stored at ``uns["sdrf"]``.
+    """
+    if not isinstance(mdata, md.MuData):
+        raise TypeError("mdata must be a MuData object.")
+
+    if isinstance(sdrf, pd.DataFrame):
+        sdrf_frame = sdrf.copy()
+        if validate:
+            source = sdrf_frame.attrs.get("sdrf_file")
+            validate_sdrf_file(
+                sdrf_frame,
+                skip_ontology=skip_ontology,
+                source_name=str(source) if source is not None else "DataFrame",
+            )
+    else:
+        sdrf_frame = read_sdrf(sdrf, validate=validate, skip_ontology=skip_ontology)
+
+    out = mdata.copy()
+    out.uns["sdrf"] = sdrf_frame
+    return out
 
 
-def merge_sdrf_metadata(
+@uns_logger
+def apply_sdrf_to_obs(
     mdata: MuData,
-    sdrf_metadata: pd.DataFrame,
     *,
-    sdrf_file: str | Path | None = None,
-    metadata_on: str | Sequence[str] | None = None,
-    match_columns: str | Sequence[str] | None = None,
-    obs_columns: str | Sequence[str] | None = None,
+    on: str | Sequence[str] | None = None,
+    columns: str | Sequence[str] | None = None,
+    set_index: str | None = None,
 ) -> MuData:
-    metadata = sdrf_metadata.copy()
-    if sdrf_file is not None:
-        metadata.attrs["sdrf_file"] = str(sdrf_file)
-    return add_meta(
-        mdata,
-        metadata,
-        format="sdrf",
-        metadata_on=metadata_on,
-        match_columns=match_columns,
-        obs_columns=obs_columns,
-        validate_sdrf=False,
-    )
+    """
+    Project columns of the attached SDRF (``uns["sdrf"]``) onto each modality's obs.
+
+    The SDRF spans both axes, so it is reduced to the obs axis by the match key ``on`` and
+    only columns that are a *function* of that key (one value per key group) are projected.
+    Columns that vary within a key (e.g. ``comment[fraction identifier]`` under a channel key)
+    cannot be represented on the obs axis; they are left untouched in ``uns["sdrf"]`` and
+    skipped with a warning -- or, if named explicitly in ``columns``, raise. obs never
+    silently collapses SDRF data.
+
+    Parameters:
+        mdata: MuData with an SDRF attached via :func:`attach_sdrf`.
+        on: SDRF column (or list of columns) matched against ``obs.index``. Default None auto-picks:
+            after ``split_tmt`` (which records its ``set_key`` in ``uns``) it builds the composite
+            ``[comment[label], set_key]`` matching the ``channel_set`` obs automatically; otherwise
+            ``comment[label]`` for TMT and ``comment[data file]`` elsewhere. Pass a str or list to
+            override (a list forces a "_"-joined composite key).
+        columns: SDRF column(s) to project. Default None projects every projectable column;
+            naming a non-projectable column raises instead of skipping it.
+        set_index: After projection, replace ``obs.index`` with this SDRF column's values.
+            Must be projectable and unique across obs. Default None keeps the index.
+
+    Returns:
+        A copy of ``mdata`` with projected SDRF columns merged into each modality's obs;
+        ``uns["sdrf"]`` is left unchanged as the source of truth.
+    """
+    if not isinstance(mdata, md.MuData):
+        raise TypeError("mdata must be a MuData object.")
+    if "sdrf" not in mdata.uns:
+        raise ValueError("No SDRF attached to mdata.uns['sdrf']; call attach_sdrf first.")
+
+    sdrf = mdata.uns["sdrf"]
+    if not isinstance(sdrf, pd.DataFrame):
+        raise TypeError("mdata.uns['sdrf'] must be a pandas DataFrame (attach via attach_sdrf).")
+
+    # File-name matching must ignore extensions: readers store bare stems (e.g. "QExHF03751")
+    # while SDRF comment[data file] carries ".mzML"/".raw"/".d". Normalise to stems for matching and
+    # projection (uns['sdrf'] keeps the originals), mirroring split_tmt's filename handling.
+    if "comment[data file]" in sdrf.columns:
+        sdrf = sdrf.copy()
+        sdrf["comment[data file]"] = sdrf["comment[data file]"].astype(str).map(strip_ms_extensions)
+
+    if on is None:
+        split_set_key = mdata.uns.get("tmt_split_set_key")
+        if split_set_key is not None:
+            # obs are channel_set after split_tmt; match on the (label, set) composite automatically
+            on = ["comment[label]", split_set_key]
+    on, sdrf, composite_parts = _resolve_match_on(on, sdrf)
+    requested_columns = _normalise_sdrf_columns(columns)
+
+    out = mdata.copy()
+    projected_columns: list[str] = []  # preserve SDRF column order, deduped across modalities
+    for mod_name in out.mod.keys():
+        adata = out.mod[mod_name]
+        match_key = on if on is not None else _default_sdrf_match_key(adata)
+        for column in _project_sdrf_onto_obs(
+            adata.obs,
+            sdrf,
+            match_key=match_key,
+            requested_columns=requested_columns,
+            set_index=set_index,
+            modality=str(mod_name),
+            exclude=composite_parts,
+        ):
+            if column not in projected_columns:
+                projected_columns.append(column)
+    out.update()
+    # update() syncs obs *names* across modalities but not obs *columns*, so merge the projected
+    # columns onto the MuData-level obs too (consumers like correct_batch_effect read mdata.obs).
+    if projected_columns:
+        out.obs = _merge_obs_metadata(out.obs, _collect_mudata_obs_metadata(out, projected_columns))
+    else:
+        # Report the fact, not a verdict: an empty projection can be multi-set TMT (needs split_tmt),
+        # a mismatched `on`/SDRF, or simply that obs and SDRF don't share a granularity. Some obs
+        # staying unmatched is normal too (blank/reference TMT channels absent from the SDRF), so this
+        # is a hint to inspect -- not an instruction.
+        logger.warning(
+            "apply_sdrf_to_obs: nothing was projected onto obs. Possible causes: multi-set TMT "
+            "(obs are channels but the SDRF spans channel x set -> split_tmt first), or the `on` key "
+            "/ SDRF columns not lining up. Inspect obs vs uns['sdrf'] and decide."
+        )
+    return out
+
+
+def _default_sdrf_match_key(adata) -> str:
+    """TMT obs are channels (``comment[label]``); label-free/DIA obs are files (``comment[data file]``)."""
+    return "comment[label]" if adata.uns.get("label") == "tmt" else "comment[data file]"
+
+
+def _resolve_match_on(
+    on: str | Sequence[str] | None, sdrf: pd.DataFrame
+) -> tuple[str | None, pd.DataFrame, list[str]]:
+    """Resolve the match spec. A list becomes a synthetic "_"-joined key column so a post-split
+    ``channel_set`` obs index (e.g. "TMT126_set1") lines up with SDRF ``(comment[label], batch)``.
+
+    Returns ``(resolved_key, sdrf, composite_parts)``; the composite parts are excluded from
+    projection since ``obs.index`` already encodes them.
+    """
+    if on is None or isinstance(on, str):
+        return on, sdrf, []
+    keys = [str(key) for key in on]
+    if not keys:
+        raise ValueError("on must name at least one SDRF column when given as a list.")
+    missing = [key for key in keys if key not in sdrf.columns]
+    if missing:
+        raise ValueError(f"SDRF lacks composite match column(s): {missing}.")
+    composite_name = "+".join(keys)
+    sdrf = sdrf.copy()
+    sdrf[composite_name] = sdrf[keys].astype(str).agg("_".join, axis=1)
+    return composite_name, sdrf, keys
+
+
+def _normalise_sdrf_columns(columns: str | Sequence[str] | None) -> list[str] | None:
+    if columns is None:
+        return None
+    if isinstance(columns, str):
+        return [columns]
+    resolved = [str(column) for column in columns]
+    if not resolved:
+        raise ValueError("columns must name at least one SDRF column when provided.")
+    return resolved
+
+
+def _project_sdrf_onto_obs(
+    obs: pd.DataFrame,
+    sdrf: pd.DataFrame,
+    *,
+    match_key: str,
+    requested_columns: list[str] | None,
+    set_index: str | None,
+    modality: str,
+    exclude: Sequence[str] = (),
+) -> list[str]:
+    if match_key not in sdrf.columns:
+        raise ValueError(f"SDRF match key '{match_key}' not found in SDRF columns (modality '{modality}').")
+
+    if requested_columns is None:
+        skip = {match_key, *exclude}
+        candidate_columns = [column for column in sdrf.columns if column not in skip]
+    else:
+        candidate_columns = requested_columns
+    projectable, skipped = _resolve_projectable_columns(sdrf, match_key, candidate_columns)
+
+    if skipped:
+        if requested_columns is not None:
+            raise ValueError(
+                f"SDRF columns are not a function of '{match_key}' (they vary within a key): {skipped}."
+            )
+        logger.warning(
+            "apply_sdrf_to_obs: %s columns not projectable under '%s'; kept only in uns['sdrf']: %s",
+            modality,
+            match_key,
+            skipped,
+        )
+
+    obs_keys = pd.Index(obs.index)
+    sdrf_keys = set(sdrf[match_key])
+    unmatched = [key for key in obs_keys if key not in sdrf_keys]
+    if unmatched:
+        logger.warning(
+            "apply_sdrf_to_obs: %s has %d obs key(s) absent from SDRF['%s']; left unmatched (NaN): %s",
+            modality,
+            len(unmatched),
+            match_key,
+            unmatched[:5],
+        )
+    for column, key_to_value in projectable.items():
+        obs[column] = obs_keys.map(key_to_value)
+
+    if set_index is not None:
+        _apply_sdrf_set_index(obs, projectable, set_index, modality=modality)
+
+    return list(projectable.keys())
+
+
+def _resolve_projectable_columns(
+    sdrf: pd.DataFrame, match_key: str, candidate_columns: list[str]
+) -> tuple[dict[str, pd.Series], list[str]]:
+    """Split candidate columns into {column: key->value map} for key-functional ones, and a skipped list."""
+    grouped = sdrf.groupby(match_key, sort=False)
+    key_representative = sdrf.drop_duplicates(match_key).set_index(match_key)
+
+    projectable: dict[str, pd.Series] = {}
+    skipped: list[str] = []
+    for column in candidate_columns:
+        if column == match_key:
+            continue
+        if column not in sdrf.columns:
+            raise ValueError(f"SDRF column not found: {column}.")
+        if bool((grouped[column].nunique(dropna=False) <= 1).all()):
+            projectable[column] = key_representative[column]
+        else:
+            skipped.append(column)
+    return projectable, skipped
+
+
+def _apply_sdrf_set_index(
+    obs: pd.DataFrame, projectable: dict[str, pd.Series], set_index: str, *, modality: str
+) -> None:
+    if set_index in projectable:
+        new_index = pd.Index(obs.index).map(projectable[set_index])
+    elif set_index in obs.columns:
+        new_index = pd.Index(obs[set_index])
+    else:
+        raise ValueError(
+            f"set_index '{set_index}' is neither a projectable SDRF column nor an obs column (modality '{modality}')."
+        )
+
+    new_index = pd.Index(new_index)
+    if new_index.isna().any():
+        raise ValueError(f"set_index '{set_index}' has unmatched (NaN) values in {modality}.obs; cannot index.")
+    if new_index.has_duplicates:
+        raise ValueError(f"set_index '{set_index}' is not unique across {modality}.obs; cannot index.")
+    obs.index = new_index.rename(None)
 
 
 def _resolve_meta_format(
