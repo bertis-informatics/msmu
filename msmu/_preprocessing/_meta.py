@@ -209,6 +209,13 @@ def apply_sdrf_to_obs(
     if not isinstance(sdrf, pd.DataFrame):
         raise TypeError("mdata.uns['sdrf'] must be a pandas DataFrame (attach via attach_sdrf).")
 
+    # File-name matching must ignore extensions: readers store bare stems (e.g. "QExHF03751")
+    # while SDRF comment[data file] carries ".mzML"/".raw"/".d". Normalise to stems for matching and
+    # projection (uns['sdrf'] keeps the originals), mirroring split_tmt's filename handling.
+    if "comment[data file]" in sdrf.columns:
+        sdrf = sdrf.copy()
+        sdrf["comment[data file]"] = sdrf["comment[data file]"].astype(str).str.rsplit(".", n=1).str[0]
+
     if on is None:
         split_set_key = mdata.uns.get("tmt_split_set_key")
         if split_set_key is not None:

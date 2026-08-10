@@ -427,11 +427,12 @@ def test_apply_sdrf_auto_key_tmt_vs_label_free():
     tmt = mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf())
     assert list(tmt.mod["psm"].obs["source name"]) == ["t0h", "t1h"]
 
+    # SDRF keeps file extensions; readers store bare stems -> apply strips the SDRF extension to match
     sdrf_lf = pd.DataFrame(
         {"comment[data file]": ["runA.mzML", "runB.mzML"], "source name": ["ctrl", "case"]}
     )
-    m = mm.pp.attach_sdrf(_make_mdata(["runA.mzML", "runB.mzML"]), sdrf_lf, validate=False)
-    lf = mm.pp.apply_sdrf_to_obs(m)  # no uns label -> defaults to comment[data file]
+    m = mm.pp.attach_sdrf(_make_mdata(["runA", "runB"]), sdrf_lf, validate=False)
+    lf = mm.pp.apply_sdrf_to_obs(m)  # no uns label -> defaults to comment[data file], extension-insensitive
     assert list(lf.mod["psm"].obs["source name"]) == ["ctrl", "case"]
 
 
@@ -531,3 +532,17 @@ def test_apply_sdrf_warns_split_needed_when_nothing_projects(monkeypatch):
 
     assert list(out.mod["psm"].obs.columns) == []  # nothing projected
     assert any("split_tmt" in message for message in seen)
+
+
+def test_apply_sdrf_matches_filename_ignoring_extension():
+    # readers store bare stems (e.g. DIA-NN "QExHF03751"); SDRF comment[data file] keeps ".mzML"
+    sdrf = pd.DataFrame(
+        {"comment[data file]": ["QExHF03751.mzML", "QExHF03753.mzML"], "source name": ["a", "b"]}
+    )
+    mdata = mm.pp.attach_sdrf(_make_mdata(["QExHF03751", "QExHF03753"]), sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)  # defaults to comment[data file], extension-insensitive
+
+    assert list(out.mod["psm"].obs["source name"]) == ["a", "b"]
+    # uns keeps the original filenames (with extension) -- only matching is normalised
+    assert list(out.uns["sdrf"]["comment[data file]"]) == ["QExHF03751.mzML", "QExHF03753.mzML"]
