@@ -90,9 +90,14 @@ class SageReader(SearchResultReader):
             )
 
         uniq = identification_df.select("proteins").unique().to_series().to_list()
-        accession_map = {value: parse_uniprot_accession_group(value) for value in uniq}
+        parsed_by_group = {value: parse_uniprot_accession_group(value) for value in uniq}
+        accession_map = {group: accession for group, (accession, _) in parsed_by_group.items()}
+        contaminant_map = {group: int(is_contaminant) for group, (_, is_contaminant) in parsed_by_group.items()}
         feature_df = identification_df.select(
             pl.col("proteins").replace_strict(accession_map).alias("proteins"),
+            # Both expressions read the original (unparsed) column: the flag comes from the parser
+            # rather than from re-matching a marker on the parsed accession string.
+            pl.col("proteins").replace_strict(contaminant_map).cast(pl.Int64).alias("contaminant"),
             pl.col("peptide"),
             pl.col("filename").str.split("/").list.last().str.replace(MS_EXTENSION_REGEX, "").alias("filename"),
             pl.col("scannr").str.extract(r"scan=(\d+)", 1).cast(pl.Int64).alias("scan_num"),
@@ -108,8 +113,6 @@ class SageReader(SearchResultReader):
             (pl.lit(10.0) ** pl.col("posterior_error")).alias("PEP"),  # convert log10 PEP to PEP
             pl.col("hyperscore"),
             pl.col("spectrum_q"),
-        ).with_columns(
-            pl.col("proteins").str.contains("contam_", literal=True).cast(pl.Int64).alias("contaminant"),
         )
         return feature_df.to_pandas()
 

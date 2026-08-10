@@ -42,6 +42,7 @@ class DiannReader(SearchResultReader):
             [
                 "rt",
                 "decoy",
+                "contaminant",
                 "PEP",
                 "q_value",
             ]
@@ -130,9 +131,12 @@ class DiannReader(SearchResultReader):
         q_value_source = "Lib.Q.Value" if self._mbr else "Global.Q.Value"
 
         uniq = identification_df.select("Protein.Ids").unique().to_series().to_list()
-        accession_map = {value: parse_uniprot_accession_group(value) for value in uniq}
+        parsed_by_group = {value: parse_uniprot_accession_group(value) for value in uniq}
+        accession_map = {group: accession for group, (accession, _) in parsed_by_group.items()}
+        contaminant_map = {group: int(is_contaminant) for group, (_, is_contaminant) in parsed_by_group.items()}
         exprs = [
             pl.col("Protein.Ids").replace_strict(accession_map).alias("proteins"),
+            pl.col("Protein.Ids").replace_strict(contaminant_map).cast(pl.Int64).alias("contaminant"),
             (
                 pl.col("Stripped.Sequence").str.count_matches("[KR]")
                 - pl.col("Stripped.Sequence").str.count_matches("[KR]P")
