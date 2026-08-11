@@ -4,122 +4,138 @@ All notable changes to `msmu` are documented in this file. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Release versions are derived
 from git tags via setuptools-scm.
 
-## [Unreleased]
+## [0.3.0] - 2026-08-11
 
-Changes staged on `dev` for the next merge to `main`. The headline additions are limma
-moderated-t differential expression, two protein-level rollup methods, and a guard against
-under-powered permutation designs; the merge also brings a large memory-usage reduction in
-the search-result readers and several new importers.
-
-> **⚠️ Breaking — `mm.tl.run_de`.** limma is now the **default** DE engine, the permutation test is
-> opt-in and always shuffles, `min_pct` now defaults to `0.0` (estimability-only), and the
-> `measure` / `fdr` parameters are **removed** (the fold-change measure is decided by the engine; the
-> q-value's correction method defaults to the engine's but is now selectable via the new `p_adjust`
-> option). See **Changed** and **Removed** below before upgrading.
+The headline changes are limma moderated-t differential expression (now the default), model-based
+protein rollups, polars-native readers with sparse block-diagonal storage, SDRF-driven sample
+metadata, one canonical accession form across readers, and sparse-in / sparse-out preprocessing.
 
 ### Added
 
-- **Differential expression — limma moderated-t** (`stat_method="limma"` in `mm.tl.run_de`).
-  An empirical-Bayes moderated-t engine that recovers power at small sample sizes where the
-  permutation null is degenerate. Supports the two-group main effect, interaction /
-  difference-in-differences designs (`interaction`, `interaction_levels`), and covariate
-  adjustment (`covariates`). Built on [inmoose](https://inmoose.readthedocs.io/) and validated
-  numerically against R limma. (#3)
-- **Differential expression — selectable multiple-testing correction** (`p_adjust` in
-  `mm.tl.run_de`). Exposes R limma's `adjust.method` family — `"bh"`, `"by"`, `"holm"`,
-  `"hochberg"`, `"hommel"`, `"bonferroni"` (case-insensitive) — for the q-value, shared by both DE
-  engines and applied identically to their p-values (verified numerically against R's `p.adjust`).
-  The default `"auto"` keeps each engine's native behaviour (limma → BH, permutation → empirical
-  FDR), so existing runs are unchanged; `"empirical"` remains permutation-only. (#12)
-- **Protein-level rollup methods** — `median_polish` (Tukey's median polish, as used by
-  MSstats) and `directlfq` (the DirectLFQ rollup) as `agg_method` options for
-  `mm.pp.to_protein` and `mm.pp.to_ptm`. Both model per-peptide response factors and operate
-  in log2 space. (#2)
-- **Permutation floor warning** — `mm.tl.run_de` now warns when a design is too small for the
-  permutation FDR to reach significance (e.g. a 3-vs-3 design floors q at ~0.068 regardless of
-  effect size) and points to `stat_method="limma"`. (#4)
-- **New readers** — `read_cptac` (CPTAC) and `read_delpi` (DELPI) search outputs.
-- **`write_pin`** — export a PSM-level MuData to Percolator input (PIN) format.
-- **SDRF support** — an SDRF reader and sample-metadata attachment through `mm.pp.add_meta`.
-- **`collapse_obs`** — aggregate observations (e.g. technical replicates) within a MuData.
-- **io-level quant importer** and direct `DataFrame` inputs for identification/quantification
-  files, with stronger export validation.
-- **`drop_search_result`** reader parameter for tighter memory control.
-- **Normalisation** gains `batch` and `fraction` key support.
-- Support for `ndarray` `obsm` embeddings.
+- **limma moderated-t DE** (`stat_method="limma"`) — an empirical-Bayes engine with power at the
+  three-to-four replicates typical of proteomics, where the permutation null is degenerate. Covers
+  interaction / difference-in-differences and covariate designs; validated against R limma.
+- **`p_adjust`** — selectable multiple-testing correction (R's `p.adjust` family), shared by both DE
+  engines; the default `"auto"` keeps each engine's native behaviour.
+- **Rollup methods `median_polish` and `directlfq`** for `to_protein` / `to_ptm` — both model
+  per-peptide response factors, so every observed peptide contributes instead of a top-N subset.
+  Both work in log2 space and drop fully-missing rows first.
+- **Sparse block-diagonal `.X`** — DIA-NN precursors and `split_tmt` output keep only observed cells,
+  where a dense pivot spends most of its memory on cells that can never be filled.
+  `_core/_blockdiag.py` gives every consumer a sparse-aware path so absent cells stay NaN rather than
+  reading as measured zeros: `log2_transform`, `normalise`, `scale_data`, `adjust_ptm_by_protein`,
+  `correct_batch_effect`, `collapse_obs`, `split_tmt`, the `to_peptide` / `to_protein` / `to_ptm`
+  rollups, `run_de`, `corr`, `pca`, `umap`, every `mm.pl.*` plot, and the exporters.
+- **SDRF sample metadata** — `attach_sdrf` keeps the validated SDRF immutable in `uns`, where it
+  survives `split_tmt` / `collapse_obs`; `apply_sdrf_to_obs` projects key-functional columns onto
+  `obs` on demand, matching TMT channels or data files automatically.
+- **`contaminant` column from every reader** (previously Sage and MaxQuant only).
+- **`collapse_obs`** — aggregate observations such as technical replicates into one sample.
+- **`normalise(method="total_sum")`** — constant-sum normalisation for per-sample loading
+  differences, previously an unimplemented stub.
+- **Grouped normalisation (`group_obs` / `group_var`)** — level plexes, batches or fractions among
+  themselves before comparing them.
+- **Automatic abundance-scale restore after batch correction** — correction subtracts, so the result
+  no longer reads as an abundance; the per-feature scale is restored automatically (IRS for `gis`).
+  A fully block-diagonal matrix is deliberately left reference-relative, ready to roll up.
+- **`read_delpi`, `read_sdrf`, `write_pin`, io-level `add_quant`**, plus direct `DataFrame` inputs
+  and `drop_search_result` for memory control.
+- **`ndarray` support for `obsm` embeddings.**
 
 ### Changed
 
-- **Memory usage** — readers were unified to a fresh-frame build with in-place mutation and
-  early release of unused identification frames, substantially lowering peak memory during
-  import across `SearchResultReader` and all subclasses. (#1)
-- **SDRF parsing** moved into the preprocessing `add_meta` flow.
-- **Plotting** split into thematic modules; volcano plotting routed through a plotting facade.
-- **Precursor purity** backend moved to a dedicated `_pyopenms` module.
-- Centralized MuData access helpers and extracted shared core helpers.
-- Standardized module logging; added ruff linting and pyright to the dev toolchain.
-- Removed deprecated anndata/mudata key APIs.
-- **Differential expression pipeline** — `mm.tl.run_de` was restructured into four explicit stages
-  (data validation → test → fold change → fold-change guidance line), with limma and the
-  permutation/simple tests behind a shared engine interface. Each engine expresses its fold change
-  in its own central tendency: the permutation/simple tests follow `measure` (default median),
-  while limma's is its mean-based model contrast. As a result, for `stat_method="limma"` the
-  fold-change guidance line (`fc_pct_*`) and representative values (`repr_ctrl`/`repr_expr`) are now
-  mean-based — matching limma's log2FC scale — where they previously followed `measure`. limma's
-  per-feature log2FC, moderated-t and p-values are unchanged (still bit-exact to R limma). The
-  automatic guidance line is drawn only for plain two-group main effects; it is skipped for limma
-  interaction and covariate-adjusted contrasts, whose reported log2FC (a difference-in-differences
-  or adjusted coefficient) is not on the scale of the raw label-permutation null. (BID-70)
-- **BREAKING — limma is the default DE engine.** `mm.tl.run_de(stat_method=...)` now defaults to
-  `"limma"` instead of `"welch"`, because at the small sample sizes typical of proteomics the
-  permutation null is degenerate (a 3-vs-3 design floors the q-value near 0.068). `run_de` emits a
-  one-time notice when limma runs; pass `stat_method` explicitly to state your choice. limma
-  requires an explicit `expr` — for a "vs all other groups" comparison use a permutation method.
-  (BID-71)
-- **BREAKING — the permutation engines always permute.** `welch` / `student` / `wilcoxon` now always
-  run a label-permutation test. `n_resamples` is the number of label shuffles — a **positive
-  integer** (default `1000`), no longer accepting `None` — and is not an on/off switch; passing a
-  value below 1 raises an error pointing to `stat_method="limma"`. limma ignores it. (BID-71)
-- **BREAKING — the fold-change measure follows the test.** The central tendency behind `log2fc`
-  (and `repr_ctrl` / `repr_expr`) is now fixed by the statistic so that significance and effect size
-  describe the same quantity: `welch`, `student` and `limma` are mean-based, `wilcoxon` is
-  median-based. Previously `welch` defaulted to a **median** fold change while testing the **mean**,
-  which could disagree in sign. `welch`/`student` fold changes therefore change from median- to
-  mean-based. (BID-71)
-- **BREAKING — `min_pct` defaults to `0.0` (estimability-only).** `mm.tl.run_de(min_pct=...)`
-  previously defaulted to `0.5`. Above the estimability floor (every group needs a non-missing
-  value; limma additionally needs residual df >= 1), `min_pct` is a pure extra coverage filter
-  whose reach grows with the missing rate — a no-op on complete data, but on sparse data it drops a
-  large fraction of features, disproportionately the significant ones. The default now imposes only
-  the estimability floor, so every feature whose contrast can be estimated is tested, and `min_pct`
-  becomes an opt-in stringency knob to raise from the coverage you observe (`pct_ctrl` / `pct_expr`).
-  Callers that relied on the old default now see more features tested — their low-coverage rows gain
-  `p_value` / `q_value` instead of NaN; pass `min_pct=0.5` explicitly to restore the previous
-  behaviour. (BID-78)
+- **BREAKING — limma is the default DE engine**, so the default path can return significance at
+  proteomics sample sizes. It requires an explicit `expr`; use a permutation method for "vs all
+  other groups".
+- **BREAKING — the permutation engines always permute.** `n_resamples` is a positive shuffle count
+  (default `1000`), not an on/off switch.
+- **BREAKING — the fold-change measure follows the test** (`welch` / `student` / `limma` mean-based,
+  `wilcoxon` median-based), so effect size and significance describe the same quantity; previously
+  `welch` tested the mean but reported a median fold change.
+- **BREAKING — `min_pct` defaults to `0.0`** (estimability only). The old `0.5` silently dropped
+  low-coverage features, disproportionately the significant ones; raise it from the coverage you
+  observe (`pct_ctrl` / `pct_expr`), or pass `0.5` to restore the old default.
+- **`run_de` restructured into explicit stages** (validation → test → fold change → fold-change
+  guidance line) behind a shared engine interface, so the permutation-null guidance line
+  (`fc_pct_*`) is computed independently of the engine and now applies to limma as well. It is drawn
+  only for plain two-group main effects, not for interaction or covariate-adjusted contrasts.
+- **BREAKING — one canonical accession form, `[rev_][Cont_]<accession>`.** Contaminant detection
+  assumed a single spelling of the marker, so recognition depended on which contaminant FASTA the
+  search used. Markers (`contam_`, `Cont_`, `CON__`) are now matched position-independently: the
+  database field anywhere (decoy tags vary per engine and are a Sage config value, so they are never
+  enumerated), the accession field from the start only, and the protein-name field never — so a real
+  CONA_CANLI is not misread. A self-duplicated accession stays distinguishable
+  (`Cont_P07339;P07339`). `parse_uniprot_accession_group` returns the flag with the accession, so
+  readers no longer re-match markers on parsed strings. Removal behaviour is unchanged: the flag is
+  recorded, dropping is left to protein-level evidence.
+- **BREAKING — MaxQuant and FragPipe emit bare accessions** (`P10000`, not `sp|P10000|X0_HUMAN`),
+  matching every other reader so accessions are comparable across engines. MaxQuant still takes its
+  contaminant flag from its own "Potential contaminant" column — an explicit engine annotation
+  outranks re-deriving one from a string.
+- **BREAKING — `normalise(fraction=True)` is now `group_var="filename"`.** The parameters are named
+  for what they do (normalise within an obs / var column group) rather than for one instance of it.
+  `fraction` and the interim `batch_key` / `fraction_key` remain as warning aliases. `method` is
+  also validated at runtime and typed as a `Literal`.
+- **Normalisation, scaling and batch correction are sparse-in → sparse-out**, so a sparse container
+  no longer reverts to dense at the first preprocessing step. Per-sample methods rescale blocks in
+  place; `quantile`, `scale_data` and the NaN-preserving batch methods (`gis`, `median_center`,
+  `continuous`) densify to compute but re-sparsify, since they leave the observed-cell pattern
+  intact. ComBat stays dense — it replaces the whole array and may fill NaN. Each method's dense and
+  sparse behaviour now lives together on the `Normalisation` object.
+- **BREAKING — TMT channel labels in `obs` are `TMT126`-style**, so `obs` lines up with SDRF
+  `comment[label]` without a translation table. LFQ is unchanged.
+- **SDRF-driven `split_tmt`.** `split_tmt(map=None)`, the default, derives the filename → set map
+  from the attached SDRF (`comment[data file]` → `set_key`, default
+  `comment[sample preparation batch]`; any per-file-constant column may be named, since SDRF has no
+  dedicated set column) and records the key in `uns`. `apply_sdrf_to_obs` reads it back and builds
+  the `[comment[label], set_key]` composite automatically, so attach → split_tmt → apply needs no
+  manual `on`.
+- **Readers are polars-native and much lighter** — import peak memory, not analysis, was the limit on
+  study size. `.X` is float32 throughout; passing a `DataFrame` still works.
+- **BREAKING — public API relocations**, so each function sits where it belongs: `split_tmt` moves to
+  `mm.pp` (now on the `psm` modality, emitting a sparse matrix), `add_quant` to `mm.io`. A `_core/`
+  package holds shared helpers and plotting is split behind a facade.
+- **BREAKING — Python >= 3.12, anndata >= 0.13.0, mudata >= 0.3.10** (the combination that writes
+  `.h5mu` correctly on the pandas 3 stack), with new required dependencies polars, directlfq and
+  sdrf-pipelines.
+- **The plot style is applied per figure** instead of mutating Plotly's global default at import;
+  `set_templates()` remains an explicit opt-in.
+- **Batch-correction logging is per step** — `gis()` warns which features have no reference and
+  become NaN, the restore step reports only what it restored.
 
 ### Removed
 
-- **BREAKING — `measure` parameter of `mm.tl.run_de`.** The fold-change central tendency is now
-  derived from `stat_method` (see Changed). (BID-71)
-- **BREAKING — `fdr` parameter of `mm.tl.run_de`.** The q-value method is decided by the engine —
-  permutation reports an empirical FDR, limma reports Benjamini-Hochberg. Both `p_value` and
-  `q_value` are always returned, so uncorrected significance is available from the `p_value` column.
-  (BID-71)
-- **BREAKING — the parametric two-sample path** (`simple_test`, previously reached with
-  `n_resamples=None`). Parametric significance is now `stat_method="limma"`, which additionally
-  moderates the per-feature variance. (BID-71)
+- **BREAKING — `measure` and `fdr` parameters of `run_de`.** The central tendency follows
+  `stat_method` and the q-value method follows the engine; the correction family is now `p_adjust`.
+- **BREAKING — the parametric two-sample path** (`n_resamples=None`), superseded by
+  `stat_method="limma"`, which moderates the per-feature variance as well.
+- **BREAKING — `rescale` parameter of `correct_batch_effect`**, replaced by automatic per-feature
+  restore. There is deliberately no replacement knob — restoring against a feature's own level on a
+  block-diagonal matrix would undo the correction.
+- **BREAKING — `get_modality_dict` and `get_label` exports from `mm.utils`** (internal helpers).
 
 ### Fixed
 
-- **Empirical FDR `pi0` estimation** summed the permutation null over the wrong axis, which
-  collapsed the estimate onto a constant; it now counts per-feature exceedances correctly. (#4)
-- Numerous reader correctness fixes: decoy-column handling, required `score`/`PEP`/`purity`
-  columns, and file-type / path handling across Sage, DIA-NN, MaxQuant, CPTAC, and DELPI.
-- `add_filter` now enforces unique filter names.
-- `split_tmt` operates on the `psm` modality.
-- **Under-powered DE result** — a design with fewer than two samples per group returned a result
-  whose statistic/p/q-values were empty while its fold changes spanned every feature, so `to_df()`
-  and `plot_volcano()` raised a length-mismatch error. The statistic/p/q are now NaN at full
-  feature length, so the fold-change-only result renders correctly. (BID-70)
+- **Contaminants from the Hao Lab universal FASTA were never flagged** — the Sage reader matched the
+  literal `contam_`, missing `sp|Cont_P00722|BGAL_ECOLI`-style entries entirely.
+- **Decoys of contaminants lost their marker** (`rev_contam_…` → `rev_P02769`), so targets and their
+  decoys could not be removed together — an asymmetric removal biases target-decoy competition.
+- **FASTA annotation returned blank on MaxQuant and FragPipe data** — `protein_info` is keyed by
+  accession, so unparsed identifiers missed every lookup and Gene / Description / Organism came back
+  empty.
+- **Filename extension stripping handled only one extension**, leaving `x.mzML.gz` / `x.wiff.scan`
+  with a dangling suffix that failed to match SDRF or sample metadata; `add_quant` hard-coded
+  `.mzML` and no-op'd on `.raw` / `.d` / `.wiff`. One shared extension list now drives all stripping.
+- **`add_quant` destroyed an existing peptide modality** — running `to_peptide` first left it
+  discarding `var` and `uns`, so downstream `to_protein` / DE had no identifications. It now fills
+  quantification onto the existing axes (and casts to float32, so either ordering converges).
+- **Reader correctness** — decoy columns, required `score` / `PEP` / `purity` columns, file-type and
+  path handling, Sage `scannr` parsing (a non-`scan=` token now raises instead of yielding a wrong
+  scan number), and FragPipe null `Spectrum` values.
+- **`.h5mu` writing of reader output** — `varm` names containing `/` (forbidden in an HDF5 key) are
+  sanitised and nullable / Arrow-backed string columns are now writable, so saving a freshly read
+  container no longer fails.
+- **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
+- **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
-[Unreleased]: https://github.com/bertis-informatics/msmu/compare/main...dev
+[0.3.0]: https://github.com/bertis-informatics/msmu/compare/0.2.10...v0.3.0

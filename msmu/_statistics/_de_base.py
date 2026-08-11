@@ -109,8 +109,9 @@ class PermTestResult(StatTestResult):
     """
     Data class to store results from permutation tests in DEA.
 
+    Inherits all attributes from :class:`StatTestResult`, and adds:
+
     Attributes:
-        Inherits all attributes from StatTestResult.
         permutation_method: The permutation method used ("exact" or "randomised").
         n_permutations: Number of permutations performed.
         fc_pct_1: Fold change at the 1st percentile.

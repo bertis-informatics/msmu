@@ -14,6 +14,7 @@
         * [03 Handle Multi-omics Data](tutorials/2024_Fulcher/03_handle_multi-omics_data.ipynb)
 * HOW IT WORKS
     * [Data](how-it-works/data.md)
+    * [Sample Metadata (SDRF)](how-it-works/sdrf.md)
     * [Filter](how-it-works/filter.md)
     * [Normalization](how-it-works/normalization.md)
     * [Batch Correction](how-it-works/batch_correction.md)

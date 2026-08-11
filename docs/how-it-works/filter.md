@@ -70,6 +70,24 @@ mdata = mm.pp.apply_filter(
     mdata,
     modality="psm",
     on="var",
-    columns=["q_value_lt_0.01", "proteins_not_contains_contam_"],
+    columns=["q_value_lt_0.01"],
 )
 ```
+
+## Contaminants and decoys
+
+Readers record identification status rather than acting on it:
+
+- **Decoys** are separated out of `.var` at read time and kept in `.uns["decoy"]`, where the
+  q-value machinery needs them. Filters you add are applied to them in parallel, through
+  `.uns["decoy_filter"]`, so target and decoy features stay matched.
+- **Contaminants** stay in `.var` with a `contaminant` flag (`1` / `0`). msmu records the flag and
+  leaves the decision to you: a contaminant accession can also be a genuine protein of the sample
+  (the parsed group keeps both, e.g. `Cont_P07339;P07339`), so whether such a feature should go is
+  a protein-level judgement rather than something to drop at the PSM level.
+
+Contaminant markers differ per FASTA (`contam_`, `Cont_`, `CON__`, and each engine's decoy tag in
+front of them), so the reader normalises every accession to one canonical form
+`[rev_][Cont_]<accession>` and sets the flag from the parse. If you do filter on contaminant
+status, filter on the flag rather than matching a marker on the protein string — a string match
+silently stops matching when the search uses a different contaminant FASTA.

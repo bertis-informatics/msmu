@@ -11,15 +11,14 @@ The `log2_transform()` function applies a log2 transformation to the quantificat
 ```python
 mdata = mm.pp.log2_transform(
     mdata,
-    modality="psm"  # or "peptide", "protein"
+    modality="psm",  # or "peptide", "protein"
+    layer=None,      # optional; default None transforms .X
 )
 ```
 
 ## `normalize()` (or `normalise()`)
 
-The `normalize()` function offers multiple normalization methods, including median (`median`), quantile (`quantile`), and total-intensity / constant-sum (`total_sum`) normalization. Users can select the method that best suits their data and experimental design. Normalization can also be performed independently within groups: pass `group_obs` (an `adata.obs` column, e.g. sample batch or type) and/or `group_var` (an `adata.var` column, e.g. `"filename"` for fractionated runs) to normalize within each group.
-
-`total_sum` rescales each sample so that its summed intensity equals the median of the per-sample totals, correcting sample-to-sample loading differences while leaving within-sample feature ratios unchanged. Because summing log values is meaningless, it computes each sample's total on the linear scale internally; like the other methods it assumes log2-transformed input.
+The `normalize()` function offers multiple normalization methods: median (`median`), quantile (`quantile`), and total-intensity / constant-sum (`total_sum`, which rescales each sample so its summed intensity equals the median of the per-sample totals). Users can select the method that best suits their data and experimental design. All methods assume log2-transformed input. Normalization can also be performed independently within groups: pass `group_obs` (an `adata.obs` column, e.g. sample batch or type) and/or `group_var` (an `adata.var` column, e.g. `"filename"` for fractionated runs) to normalize within each group.
 
 ```python
 mdata = mm.pp.normalize(
@@ -28,6 +27,7 @@ mdata = mm.pp.normalize(
     method="median",          # options: "median", "quantile", "total_sum"; default "median"
     group_obs=None,           # optional adata.obs column: normalize within each sample group
     group_var=None,           # optional adata.var column (e.g. "filename"): normalize within each feature group
+    layer=None,               # optional; default None normalizes .X
 )
 ```
 
@@ -43,8 +43,9 @@ And for `ratio` method, PTM site intensities are normalized by calculating the r
 mdata = mm.pp.adjust_ptm_by_protein(
     mdata,
     global_mdata=global_mdata,   # MuData object for global proteome
-    ptm_mod="phospho_site",      # ptm modality
+    modality="phospho_site",     # ptm modality
     method="ridge",              # options: "ridge", "ratio". default "ridge"
-    rescale=True                 # whether to rescale adjusted values. default True
+    rescale=True,                # whether to rescale adjusted values. default True
+    layer=None,                  # optional; default None adjusts .X
 )
 ```

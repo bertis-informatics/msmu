@@ -9,7 +9,7 @@ Batch effects are unwanted variations in the data that arise from differences in
 The `correct_batch_effect()` function either:
 
 - Median centering, which removes each batch's per-feature median.
-- GIS/IRS normalization, which corrects batch effect in TMT data using Global Internal Standard (GIS) channels.
+- GIS/IRS normalization, which corrects batch effect in TMT data using Global Internal Standard (GIS) channels ([Plubell et al., Mol Cell Proteomics, 2017](https://doi.org/10.1074/mcp.M116.065524)).
 - Combat batch effect correction ([pycombat](https://github.com/epigenelabs/pyComBat)).
 - Continuous batch effect correction using lowess regression (referred from [Diagnostics and correction of batch effects in large‐scale proteomic studies: a tutorial](https://pmc.ncbi.nlm.nih.gov/articles/PMC8447595/)).
 
@@ -19,7 +19,7 @@ For `gis`, `median_center`, and `continuous`, the per-feature abundance scale is
 ```python
 mdata = mm.pp.correct_batch_effect(
     mdata,
-    modality="feature",                      # or "peptide", "protein"
+    modality="peptide",                      # or "protein"
     layer=None,                              # layer to correct, default is .X
     category="batch",                        # batch information column in .obs
     method="gis",                            # options: "median_center", "gis", "combat", "continuous"
@@ -31,7 +31,7 @@ mdata = mm.pp.correct_batch_effect(
 # or
 mdata = mm.pp.correct_batch_effect(
     mdata,
-    modality="feature",            
+    modality="peptide",
     category="batch",
     method="median_center",
 )

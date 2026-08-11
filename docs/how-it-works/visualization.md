@@ -5,12 +5,21 @@
 ## Common parameters and behaviors
 
 - `mdata`: required `MuData` containing the modality to plot.
-- `modality`: defaults vary by plot (`feature`, `peptide`, `protein`)
+- `modality`: required for `plot_id`, `plot_intensity` and `plot_missingness`; elsewhere it defaults to the level the plot is normally read at (`psm` for `plot_var`, `protein` for `plot_pca`, `plot_umap`, `plot_correlation` and `plot_upset`).
 - `groupby`: observation column used to split traces/groups (e.g., `filename`, `condition`). If omitted, falls back to `obs_column`.
 - `obs_column`: observation column used for labeling/group resolution; all elements should be unique. If omitted or no column exists, creates `__obs_idx__` column from the index of `obs`
 - `colorby`: optional obs column for coloring; only applied when `groupby` equals `obs_column`.
 - `ptype`: plot style selector (`hist`, `box`, `vln`, etc.).
+- `layer`: optional; plot a layer instead of `.X` (`plot_id`, `plot_intensity`, `plot_missingness`, `plot_upset`).
+- `template`: optional Plotly template, `"msmu"` by default (`plot_id`, `plot_intensity`, `plot_pca`, `plot_umap`).
 - `**kwargs`: forwarded to `go.Figure.update_layout` for per-plot overrides.
+
+Per-plot optional arguments:
+
+- `bins`: histogram bin count for `plot_intensity` and `plot_var`.
+- `pcs`: which principal components to draw in `plot_pca`, default `(1, 2)`.
+- `key`: `.obsm` key holding the embedding, default `X_pca` / `X_umap`.
+- `subset`, `subset_column`: restrict `plot_upset` to one group of samples — it keeps the observations whose `subset_column` value in `.obs` equals `subset`.
 
 ## Example
 
@@ -69,13 +78,13 @@ mm.pl.plot_missingness(mdata, "protein")
 ### `plot_var`
 
 ```python
-mm.pl.plot_var(mdata, "feature", groupby="sample_name", var_column="charge", ptype="stacked_bar")
+mm.pl.plot_var(mdata, "psm", groupby="sample_name", var_column="charge", ptype="stacked_bar")
 ```
 
 ![](../assets/images/visualization_var_1.png)
 
 ```python
-mm.pl.plot_var(mdata, "feature", groupby="sample_name", var_column="peptide_length", ptype="vln")
+mm.pl.plot_var(mdata, "psm", groupby="sample_name", var_column="peptide_length", ptype="vln")
 ```
 
 ![](../assets/images/visualization_var_2.png)
