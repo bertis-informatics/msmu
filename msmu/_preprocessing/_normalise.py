@@ -331,10 +331,10 @@ def adjust_ptm_by_protein(
 
     Parameters:
         mdata: MuData object to normalise.
-        global_mdata: MuData object which contains global protein expression.
+        global_mdata: MuData object which contains global protein expression, read from its
+            'protein' modality.
         modality: PTM modality to normalise (e.g. phospho_site, {ptm}_site).
         layer: Layer to normalise. If None, the default layer (.X) will be used.
-        global_mod: Modality in global_mdata to normalise PTM site. Default is 'protein'.
         method: A method for normalisation. Options: ridge, ratio. Default is 'ridge'.
         rescale: If True, rescale the data after normalisation with median value across dataset. Default is True.
 

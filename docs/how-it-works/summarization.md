@@ -56,6 +56,8 @@ mdata = mm.pp.to_peptide(
     purity_threshold=0.7,           # for tmt data
     top_n=None,                     # default
     rank_method="median_intensity",  # default
+    layer=None,                     # default; read from .X, or name a layer to summarise instead
+    calculate_q=True,               # default; set False to skip peptide-level PEP/q-value
     )
 ```
 
@@ -93,6 +95,8 @@ mdata = mm.pp.to_protein(
     agg_method="median",            # "median" (default), "mean", "sum", "median_polish", "directlfq"
     top_n=3,                        # default; use None with the matrix rollups
     rank_method="median_intensity",  # default
+    layer=None,                     # default; read from .X, or name a layer to summarise instead
+    calculate_q=True,               # default; set False to skip protein-level PEP/q-value
     )
 ```
 
