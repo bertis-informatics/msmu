@@ -1,19 +1,23 @@
 """Preprocessing must behave identically on a MuData read back from .h5mu.
 
 ``write_h5mu`` stores var string columns as categorical, so every column of a MuData loaded from
-disk is categorical rather than ``str``. Two independent failure modes followed from that:
+disk is categorical rather than ``str``. Two behaviours are pinned here.
 
-1. Value destruction. On pandas 3, ``.str.split`` applied to a categorical returns the *repr* of
-   the split list (``"['P0C7N9', 'D3Z016']"``) instead of the list, so the following ``explode``
-   is a no-op and the accessions are silently fused into one bogus protein. (pandas 2 returned an
-   object column of real lists, so this only surfaced on the pandas 3 stack.) The PTM path explodes
-   twice, on ``;`` then ``,``, which shredded the repr string into fragments like ``"['A"``.
-2. Ghost rows. Filtering features out of ``var`` leaves unused categories behind, and
-   ``groupby(observed=False)`` turns each of those into its own group -- an empty entry in
-   ``uns['peptide_map']`` and a phantom feature row whose quantification reads 0 rather than
-   missing.
+1. Value destruction (a real failure). On pandas 3, ``.str.split`` applied to a categorical returns
+   the *repr* of the split list (``"['P0C7N9', 'D3Z016']"``) instead of the list, so the following
+   ``explode`` is a no-op and the accessions are silently fused into one bogus protein. (pandas 2
+   returned an object column of real lists, so this only surfaced on the pandas 3 stack.) The PTM
+   path explodes twice, on ``;`` then ``,``, which shredded the repr string into fragments like
+   ``"['A"``.
+2. Ghost rows (hardening). A group-by key whose categories include values absent from the rows used
+   to emit a group per unused category -- an empty entry in ``uns['peptide_map']`` and a phantom
+   feature row quantified as 0 rather than missing. No route to that state via the public API was
+   found: anndata drops unused categories when features are subset, and the frames kept in ``uns``
+   come back from disk as ``str``, never categorical. These tests construct the state directly, so
+   they guard the invariant rather than reproduce a reported failure.
 
-These tests pin both behaviours with categorical inputs.
+Note that pandas 3 already defaults ``groupby(observed=True)``; the explicit ``observed=False`` this
+replaced was an opt-in to the older behaviour.
 """
 
 import numpy as np

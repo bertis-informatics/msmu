@@ -15,10 +15,14 @@ from git tags via setuptools-scm.
   explodes twice, shredded it further into fragments like `"['A"`. An uninterrupted
   read-to-analysis run was unaffected, but any path through disk was — including
   `infer_protein(propagated_from=...)` and the PTM workflow's global reference container.
-- **Filtered-out features reappeared as ghost rows** — removing features leaves their categories
-  behind, and grouping over unobserved categories added an empty `protein_group` entry to
-  `uns['peptide_map']` and a phantom feature row whose quantification read `0` rather than missing.
-  Summarisation now returns only groups the data actually contains.
+
+### Changed
+
+- **Protein mapping and summarisation group only over values the data contains.** They previously
+  opted into `groupby(observed=False)`, which emits a group for every unused category of a
+  categorical key — an empty `uns['peptide_map']` entry and a phantom feature row quantified as `0`
+  rather than missing. No route to that state through the public API is known, so this is hardening;
+  it also matches pandas 3's own default.
 
 ## [0.3.0] - 2026-08-11
 
