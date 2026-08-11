@@ -4,6 +4,22 @@ All notable changes to `msmu` are documented in this file. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Release versions are derived
 from git tags via setuptools-scm.
 
+## [0.3.1] - 2026-08-11
+
+### Fixed
+
+- **Protein groups were destroyed when preprocessing a container read back from `.h5mu`** — saving
+  stores `var` string columns as categorical, and on pandas 3 `.str.split` over a categorical
+  returns the *repr* of the split list, so the following `explode` did nothing:
+  `infer_protein` reported `protein_group` as `"['P0C7N9', 'D3Z016']"`, and the PTM path, which
+  explodes twice, shredded it further into fragments like `"['A"`. An uninterrupted
+  read-to-analysis run was unaffected, but any path through disk was — including
+  `infer_protein(propagated_from=...)` and the PTM workflow's global reference container.
+- **Filtered-out features reappeared as ghost rows** — removing features leaves their categories
+  behind, and grouping over unobserved categories added an empty `protein_group` entry to
+  `uns['peptide_map']` and a phantom feature row whose quantification read `0` rather than missing.
+  Summarisation now returns only groups the data actually contains.
+
 ## [0.3.0] - 2026-08-11
 
 The headline changes are limma moderated-t differential expression (now the default), model-based
@@ -138,4 +154,5 @@ metadata, one canonical accession form across readers, and sparse-in / sparse-ou
 - **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
 - **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
+[0.3.1]: https://github.com/bertis-informatics/msmu/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/bertis-informatics/msmu/compare/0.2.10...v0.3.0
