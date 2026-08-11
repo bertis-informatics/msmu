@@ -190,6 +190,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # The release body is the CHANGELOG section for this version -- what the maintainers actually
+      # wrote -- with GitHub's generated pull-request list kept underneath, collapsed.
+      - name: Build release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+          python3 - "$VERSION" <<'PY' > changelog-section.md
+          import re, sys
+          from pathlib import Path
+
+          version = sys.argv[1]
+          changelog = Path("CHANGELOG.md").read_text()
+          section = re.search(
+              rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|^\[{re.escape(version)}\]:)",
+              changelog,
+              re.S | re.M,
+          )
+          if section is None:
+              sys.exit(f"CHANGELOG.md has no section for version {version}")
+          print(section.group(1).strip())
+          PY
+
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="$TAG_NAME" --jq .body > generated-notes.md
+
+          {
+            cat changelog-section.md
+            printf '\n\n<details>\n<summary>Merged pull requests</summary>\n\n'
+            cat generated-notes.md
+            printf '\n\n</details>\n'
+          } > release-notes.md
+
       - name: Create release from tag
         env:
           GH_TOKEN: ${{ github.token }}
@@ -198,5 +232,5 @@ jobs:
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             echo "GitHub Release $TAG_NAME already exists"
           else
-            gh release create "$TAG_NAME" --verify-tag --generate-notes --title "$TAG_NAME"
+            gh release create "$TAG_NAME" --verify-tag --title "$TAG_NAME" --notes-file release-notes.md
           fi
