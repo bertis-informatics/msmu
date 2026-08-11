@@ -8,6 +8,7 @@ import scipy.sparse as sp
 
 from ..logging_utils import get_logger
 from .._core._blockdiag import aggregate_features_by_group, dense_block, is_sparse, to_dense_df
+from .._utils._pandas import split_delimited_strings
 from ._filter import _mask_boolean_filter
 
 # for type checking only
@@ -472,7 +473,7 @@ class Aggregator:
         agg_id_df: pd.DataFrame = self._id_df.copy()
         col_to_groupby = self._col_to_groupby
 
-        agg_id_df = agg_id_df.groupby(col_to_groupby, observed=False).agg(**self._id_agg_dict)
+        agg_id_df = agg_id_df.groupby(col_to_groupby, observed=True).agg(**self._id_agg_dict)
 
         agg_id_df = agg_id_df.rename_axis(index=None)
 
@@ -485,7 +486,7 @@ class Aggregator:
         sample_columns = self._quant_df.columns
         agg_quant_df: pd.DataFrame = self._quant_df.copy()
         agg_quant_df[self._col_to_groupby] = self._id_df[self._col_to_groupby]
-        grouped_quant = agg_quant_df.groupby(self._col_to_groupby, observed=False)
+        grouped_quant = agg_quant_df.groupby(self._col_to_groupby, observed=True)
 
         # Matrix rollups operate on each group's full feature-by-sample submatrix, so they cannot
         # be expressed as a column-wise pandas aggregation and are applied per group instead.
@@ -524,7 +525,7 @@ class Aggregator:
                 f"got {self._agg_method!r}."
             )
         feature_groups = self._id_df[self._col_to_groupby].to_numpy()
-        group_order = self._id_df.groupby(self._col_to_groupby, observed=False).size().index.to_numpy()
+        group_order = self._id_df.groupby(self._col_to_groupby, observed=True).size().index.to_numpy()
         groups, aggregated = aggregate_features_by_group(
             self._quant_df.matrix,
             feature_groups,
@@ -536,7 +537,7 @@ class Aggregator:
 
     def aggregate_decoy(self) -> pd.DataFrame:
         agg_decoy_df: pd.DataFrame = self._decoy_id_df.copy()
-        agg_decoy_df = agg_decoy_df.groupby(self._col_to_groupby, observed=False).agg(**self._decoy_agg_dict)
+        agg_decoy_df = agg_decoy_df.groupby(self._col_to_groupby, observed=True).agg(**self._decoy_agg_dict)
 
         agg_decoy_df = agg_decoy_df.rename_axis(index=None)
 
@@ -829,15 +830,13 @@ class PtmSummarisationPrep(SummarisationPrep):
         return pep_labed_data
 
     def _explode_protein_groups(self, pep_labed_data: pd.DataFrame) -> pd.DataFrame:
-        pep_labed_data["_prot_gr"] = pep_labed_data["protein_group"]
-        pep_labed_data["_prot_gr"] = pep_labed_data["_prot_gr"].str.split(";")
+        pep_labed_data["_prot_gr"] = split_delimited_strings(pep_labed_data["protein_group"], ";")
         exploded_data = pep_labed_data.explode("_prot_gr", ignore_index=True)
 
         return exploded_data
 
     def _explode_protein_group(self, data) -> pd.DataFrame:
-        data["_prots"] = data["_prot_gr"]
-        data["_prots"] = data["_prots"].str.split(",")
+        data["_prots"] = split_delimited_strings(data["_prot_gr"], ",")
         exploded_data = data.explode("_prots", ignore_index=True)
 
         return exploded_data
