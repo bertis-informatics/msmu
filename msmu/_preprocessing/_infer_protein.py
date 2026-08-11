@@ -10,6 +10,7 @@ import scipy.sparse as sp
 from .._core._provenance import uns_logger
 from .._core._status import AnnDataFlags, MuDataStatus
 from .._utils._anndata import _require_columns
+from .._utils._pandas import split_delimited_strings
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -299,7 +300,7 @@ def _get_map_df(
     """
     # Split proteins and explode the DataFrame
     map_df = pd.DataFrame({"protein": proteins, "peptide": peptides})
-    map_df["protein"] = map_df["protein"].str.split(";")
+    map_df["protein"] = split_delimited_strings(map_df["protein"], ";")
     map_df = map_df.explode("protein").drop_duplicates().reset_index(drop=True)
 
     return map_df.sort_values("protein").reset_index(drop=True)
@@ -317,7 +318,7 @@ def _get_peptide_df(map_df: pd.DataFrame) -> pd.DataFrame:
     """
     # Group by peptide and count the number of proteins
     peptide_df = map_df[["protein", "peptide"]]
-    peptide_df = peptide_df.groupby("peptide", as_index=False, observed=False).count()
+    peptide_df = peptide_df.groupby("peptide", as_index=False, observed=True).count()
     peptide_df["is_unique"] = peptide_df["protein"] == 1
 
     return peptide_df
@@ -341,7 +342,7 @@ def _get_protein_df(map_df: pd.DataFrame, peptide_df: pd.DataFrame) -> pd.DataFr
 
     # Count shared & unique peptides for each protein
     protein_df = (
-        data.groupby(GROUP_COLS, observed=False)
+        data.groupby(GROUP_COLS, observed=True)
         .agg(
             shared_peptides=("is_unique", lambda x: (~x).sum()),
             unique_peptides=("is_unique", "sum"),
@@ -750,7 +751,7 @@ def _make_peptide_map(map_df: pd.DataFrame) -> pd.DataFrame:
     peptide_map = (
         map_df[["peptide", "protein"]]
         .drop_duplicates()
-        .groupby("peptide", as_index=False, observed=False)
+        .groupby("peptide", as_index=False, observed=True)
         .agg({"protein": lambda x: ";".join(x)})
         .rename(columns={"protein": "protein_group"})
     )
