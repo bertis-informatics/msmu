@@ -11,8 +11,16 @@ from msmu._preprocessing._filter import _mask_boolean_filter, add_filter, apply_
 def test_mask_boolean_filter_ops():
     series = pd.Series(["a", "b", "aa"])
     assert _mask_boolean_filter(series, "contains", "a").tolist() == [True, False, True]
-    assert _mask_boolean_filter(series, "not_contains", "b").tolist() == [True, False, True]
-    assert _mask_boolean_filter(pd.Series([1, 2, 3]), "gt", 1).tolist() == [False, True, True]
+    assert _mask_boolean_filter(series, "not_contains", "b").tolist() == [
+        True,
+        False,
+        True,
+    ]
+    assert _mask_boolean_filter(pd.Series([1, 2, 3]), "gt", 1).tolist() == [
+        False,
+        True,
+        True,
+    ]
 
 
 def test_mask_boolean_filter_invalid():
@@ -49,7 +57,14 @@ def test_add_filter_on_obsm_with_key_stores_in_obsm(filter_mdata):
 
 def test_add_filter_requires_key_for_obsm(filter_mdata):
     with pytest.raises(ValueError, match="key must be provided"):
-        add_filter(filter_mdata, modality="psm", column="score", keep="gt", value=0.5, on="obsm")
+        add_filter(
+            filter_mdata,
+            modality="psm",
+            column="score",
+            keep="gt",
+            value=0.5,
+            on="obsm",
+        )
 
 
 def test_add_filter_requires_unique_source_column(filter_mdata):
@@ -141,7 +156,9 @@ def test_apply_filter_all_with_var_filters_does_not_warn_for_missing_obs(filter_
     assert "obsm['filter']" not in entry["stdout"]
 
 
-def test_apply_filter_all_with_obs_filter_and_decoy_does_not_require_var_decoy_filter(filter_mdata):
+def test_apply_filter_all_with_obs_filter_and_decoy_does_not_require_var_decoy_filter(
+    filter_mdata,
+):
     mdata = filter_mdata.copy()
     mdata.mod["psm"].obs["group"] = ["A", "B"]
     filtered = add_filter(mdata, modality="psm", column="group", keep="eq", value="A", on="obs")

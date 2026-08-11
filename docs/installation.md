@@ -2,8 +2,13 @@
 
 ## Requirements
 
-- Python 3.11 or newer
+- Python 3.12 or newer
 - (Recommended) A virtual environment such as `venv`, `pipenv`, or `uv`
+
+Runtime dependencies are installed automatically. They include `anndata` / `mudata` for the data
+container, `polars` for reading search-engine output, `scipy` / `scikit-learn` / `statsmodels` /
+`inmoose` for the statistics, `directlfq` for protein rollup, `sdrf-pipelines` for SDRF parsing,
+`pyopenms` for precursor isolation purity, and `plotly` for plotting.
 
 ## Install with pip
 

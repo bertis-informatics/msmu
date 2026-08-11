@@ -9,10 +9,9 @@ import numpy as np
 import pandas as pd
 
 # from pyteomics import mzid
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from tqdm.auto import tqdm
 
 from ..logging_utils import get_logger
+from .._core._blockdiag import SparseQuantFrame
 from .._utils.peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -22,6 +21,23 @@ from .._utils.peptide import (
 
 
 logger = get_logger(__name__)
+
+# The readers are polars-only: csv/tsv/parquet are parsed with polars (multi-threaded), the
+# identification frame stays polars through the reader transforms, and it converts to pandas once at
+# the AnnData boundary. Every reader (Sage, DIA-NN, MaxQuant, FragPipe, DELPI) implements the polars
+# transforms. The converter coerces a DataFrame passed directly (the ``read_*`` DataFrame-input API)
+# to polars at the read boundary (see ``_read_file``), so the transforms always receive polars.
+
+
+# pandas' default NA sentinels (pandas.io.parsers.STR_NA_VALUES), hard-coded to avoid a private
+# import. polars only treats an empty field as null by default, so without this a "NA"/"#N/A"/"null"
+# in a numeric column keeps the whole column as String (silently -> string values land in var, or a
+# later numeric op crashes) instead of pandas' float-with-NaN. Passed to pl.read_csv so the two
+# engines agree on which tokens are missing.
+_PANDAS_NA_VALUES: list[str] = [
+    "", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan",
+    "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA", "NULL", "NaN", "None", "n/a", "nan", "null",
+]
 
 
 @dataclass
@@ -103,87 +119,65 @@ class SearchResultDataFrameConverter:
             raise ValueError("file_path should be a Path object, or DataFrame.")
 
     @staticmethod
-    def _read_file(file_path: str | Path) -> tuple[str | Path | None, pd.DataFrame]:
-        """
-        Reads a file and returns its path and content as a DataFrame.
+    def _read_file(file_path: str | Path):
+        """Read a source into a polars DataFrame (the reader path is polars-only).
 
-        Parameters:
-            file_path: The path to the file to be read.
+        csv/tsv/parquet are read natively with polars; a DataFrame passed directly (the ``read_*``
+        DataFrame-input API) is coerced to polars so the downstream reader transforms -- which are
+        polars -- receive a polars frame. ``infer_schema_length=None`` scans every row for dtype
+        inference (matching pandas' whole-file scan) so a column that only widens past the first
+        100 rows -- e.g. integer scans then a float -- does not hard-fail; ``null_values`` aligns
+        the missing-token set with pandas (see ``_PANDAS_NA_VALUES``).
 
-        Returns:
-            A tuple containing the file path and the content as a DataFrame.
+        Returns a tuple of the file path (``None`` for a DataFrame input) and the polars frame.
         """
+        import polars as pl
 
         if isinstance(file_path, pd.DataFrame):
-            return None, file_path
+            return None, pl.from_pandas(file_path)
 
-        tmp_file_path = Path(file_path)
-
-        suffix = tmp_file_path.suffix
-        if suffix in [".csv"]:
-            df = pd.read_csv(file_path)
-        elif suffix in [".tsv", ".tab", ".psm", ".txt"]:
-            df = pd.read_csv(file_path, sep="\t")
-        elif suffix in [".xlsx", ".xls"]:
-            df = pd.read_excel(file_path)
-        elif suffix in [".parquet"]:
-            df = pd.read_parquet(file_path)
-        elif suffix in [".json"]:
-            df = pd.read_json(file_path)
-        # elif suffix in [".mzid"]:
-        #     df = mzid.DataFrame(file_path)
+        suffix = Path(file_path).suffix
+        if suffix == ".csv":
+            native_df = pl.read_csv(file_path, infer_schema_length=None, null_values=_PANDAS_NA_VALUES)
+        elif suffix in (".tsv", ".tab", ".psm", ".txt"):
+            native_df = pl.read_csv(
+                file_path, separator="\t", infer_schema_length=None, null_values=_PANDAS_NA_VALUES
+            )
+        elif suffix == ".parquet":
+            native_df = pl.read_parquet(file_path)
         else:
             raise ValueError(f"Unknown file type: {suffix}")
+        return file_path, native_df
 
-        return file_path, df
+    def _read_files(self, file_paths: list[Path | pd.DataFrame], max_workers: int):
+        """Read every input with polars and merge into a single polars DataFrame.
 
-    def _read_files(self, file_paths: list[Path | pd.DataFrame], max_workers: int) -> tuple[Path | None, pd.DataFrame]:
+        polars is internally multi-threaded, so the files are read in-process (no ProcessPool) and
+        concatenated with polars -- the frame never touches pandas until the reader's AnnData
+        boundary. ``max_workers`` is accepted for API compatibility but unused (polars parallelises
+        internally).
+
+        ``diagonal_relaxed`` unions columns (missing -> null) AND relaxes dtypes, matching pandas'
+        concat: multi-file inputs with an optional column (e.g. DIA-NN with/without Decoy) merge
+        instead of raising the schema-mismatch error ``vertical_relaxed`` would.
         """
-        Reads a file and returns its path and content as a DataFrame.
+        import polars as pl
 
-        Parameters:
-            file_path: The path to the file to be read.
-
-        Returns:
-            A tuple containing the file path and the content as a DataFrame.
-        """
-
-        results = []
-        if len(file_paths) == 1:
-            # Fast path: avoid ProcessPool startup/pickling overhead for single input.
-            results.append(self.__class__._read_file(file_paths[0]))
-        else:
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                future_file = {executor.submit(self.__class__._read_file, file): file for file in file_paths}
-                for future in tqdm(as_completed(future_file), total=len(file_paths), desc="Reading files"):
-                    file = future_file[future]
-                    try:
-                        result = future.result()
-                        results.append(result)
-                    except Exception as e:
-                        logger.exception("Error processing %s.", file)
-                        raise e
-
-        merged_df = pd.concat([result[1] for result in results], ignore_index=True)
-        if len(results) >= 1:
-            merged_file_path = [result[0] for result in results if result[0] is not None]
-
-        elif len(results) == 0:
-            merged_file_path = None
-
+        results = [self.__class__._read_file(fp) for fp in file_paths]
+        frames = [result[1] for result in results]
+        merged_df = pl.concat(frames, how="diagonal_relaxed") if len(frames) > 1 else frames[0]
+        merged_file_path = [result[0] for result in results if result[0] is not None]
         return merged_file_path, merged_df
 
-    def convert(
-        self, file_paths: list[str | Path | pd.DataFrame], max_workers: int = 4
-    ) -> tuple[str | Path | None, pd.DataFrame]:
-        """
-        Converts a list of file paths or DataFrames into a single DataFrame.
+    def convert(self, file_paths: list[str | Path | pd.DataFrame], max_workers: int = 4):
+        """Read a list of file paths (or DataFrames) into a single merged polars DataFrame.
 
         Parameters:
-            file_paths: A list of file paths or DataFrames to be converted.
-            max_workers: The maximum number of worker processes to use for reading files.
+            file_paths: file paths or DataFrames to read and merge.
+            max_workers: accepted for API compatibility; unused (polars parallelises internally).
+
         Returns:
-            A tuple containing the merged file path (if applicable) and the merged DataFrame.
+            A tuple of the merged file path(s) and the merged polars DataFrame.
         """
         file_paths_ = [self._convert_to_path(fp) for fp in file_paths]
         merged_file_path, merged_df = self._read_files(file_paths=file_paths_, max_workers=max_workers)
@@ -233,15 +227,13 @@ class SearchResultReader:
 
     @staticmethod
     def _make_unique_index(input_df: pd.DataFrame) -> pd.DataFrame:
-        df = input_df.copy()
-        df["tmp_index"] = df["filename"] + "." + df["scan_num"].astype(str)
-        df = df.set_index("tmp_index", drop=True).rename_axis(index=None)
-
-        return df
-
-    @staticmethod
-    def _strip_filename(filename: str) -> str:
-        return Path(filename).name.rsplit(".", 1)[0]
+        # Callers pass a freshly-built frame they own, so mutate in place. The old
+        # defensive `input_df.copy()` materialized a third full copy of the multi-GB
+        # identification frame at the read peak (measured: it owns ~13 GB of the
+        # normalise spike). set_index returns a new frame that shares column blocks,
+        # so the only added allocation here is the single tmp_index column.
+        input_df["tmp_index"] = input_df["filename"] + "." + input_df["scan_num"].astype(str)
+        return input_df.set_index("tmp_index", drop=True).rename_axis(index=None)
 
     def _stringify_cols(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -257,16 +249,45 @@ class SearchResultReader:
 
         return df
 
-    def _validate_search_outputs(self) -> None:
-        output_list: list[Path | None] = [
-            self.search_settings.identification_file,
-            self.search_settings.quantification_file,
-        ]
-        for file_path in output_list:
-            if file_path is None:
+    @staticmethod
+    def _make_h5_safe_varm_columns(search_result_df: pd.DataFrame) -> pd.DataFrame:
+        """Rewrite ``varm['search_result']`` column names that h5py cannot use as dataset keys.
+
+        h5py uses ``/`` as its group-path separator, so a column whose NAME contains ``/`` cannot
+        be written as an h5 dataset -- ``mdata.write_h5mu(...)`` raises "Forward slashes are not
+        allowed in keys". The raw search result kept in varm preserves the search engine's original
+        column names, several of which contain ``/`` (MaxQuant ``MS/MS Scan Number``, FragPipe
+        ``Observed M/Z``, ...), so without this every such read is unserialisable.
+
+        Replaces ``/`` with ``_`` in the offending names only. Column *values* and every ``/``-free
+        name are left untouched; a rewrite that would collide with an existing name gets a numeric
+        suffix so the frame keeps unique columns (anndata rejects duplicates).
+        """
+        column_names = [str(name) for name in search_result_df.columns]
+        if not any("/" in name for name in column_names):
+            return search_result_df
+
+        # "/"-free names are already h5-safe and are kept verbatim; only "/"-bearing names are
+        # rewritten, and a rewrite disambiguates against every name already taken.
+        used_names: set[str] = {name for name in column_names if "/" not in name}
+        renamed_columns: list[str] = []
+        for name in column_names:
+            if "/" not in name:
+                renamed_columns.append(name)
                 continue
-            if not file_path.exists():
-                raise FileNotFoundError(f"{file_path} does not exist!")
+            safe_name = name.replace("/", "_")
+            if safe_name in used_names:
+                suffix = 1
+                while f"{safe_name}_{suffix}" in used_names:
+                    suffix += 1
+                safe_name = f"{safe_name}_{suffix}"
+            used_names.add(safe_name)
+            renamed_columns.append(safe_name)
+
+        # We own this frame (a per-read temporary), so rename in place -- assigning .columns swaps
+        # only the column index, not the (potentially multi-GB) data blocks.
+        search_result_df.columns = renamed_columns
+        return search_result_df
 
     def _read_config_file(self):
         raise NotImplementedError("_read_config_file method needs to be implemented in inherited class.")
@@ -279,11 +300,16 @@ class SearchResultReader:
 
         return output_dict
 
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
+        """Build the quantification frame directly from the raw merged frame.
+
+        Used by merged readers that build the feature frame fresh: the feature
+        frame carries identification columns only, so quantification is extracted
+        from the raw frame (indexed to match the feature frame) instead of being
+        split back out of the normalised frame.
+        """
         raise NotImplementedError(
-            "_split_merged_identification_quantification method needs to be implemented in inherited class."
+            "_extract_quant_from_raw must be implemented by merged readers that build the feature frame fresh."
         )
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
@@ -292,8 +318,11 @@ class SearchResultReader:
         )
 
     def _normalise_identification_df(self, identification_df: pd.DataFrame) -> pd.DataFrame:
+        # All readers build the feature frame on a fresh DataFrame, reading the raw frame
+        # read-only, so it is passed directly without a defensive copy -- the raw frame
+        # stays intact to serve varm or be freed.
         norm_identification_df = self._make_needed_columns_for_identification(
-            identification_df.copy()
+            identification_df
         )  # this will be method overriden in inherited class
         norm_identification_df = norm_identification_df.rename(columns=self._feature_rename_dict)
         norm_identification_df = self._make_unique_index(norm_identification_df)
@@ -309,8 +338,28 @@ class SearchResultReader:
         return dict()
 
     def _normalise_quantification_df(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
+        # A sparse block-diagonal quant carrier already stores observed cells only (0/NaN are
+        # absent), so the column rename / replace(0, NaN) below do not apply -- pass it through.
+        if isinstance(quantification_df, SparseQuantFrame):
+            # Correct only when this reader does not customise the quantification hooks (DIA-NN, the
+            # sole sparse producer today, overrides neither). Guard so a reader that DOES override
+            # them cannot later emit a sparse carrier and have its rename/select silently skipped.
+            overrides_quant_hooks = (
+                type(self)._make_needed_columns_for_quantification
+                is not SearchResultReader._make_needed_columns_for_quantification
+                or type(self)._make_rename_dict_for_obs is not SearchResultReader._make_rename_dict_for_obs
+            )
+            if overrides_quant_hooks:
+                raise NotImplementedError(
+                    f"{type(self).__name__} customises a quantification hook but emitted a "
+                    "SparseQuantFrame; the sparse path does not apply those hooks yet."
+                )
+            return quantification_df
+        # The quantification frame is never stored (varm holds the identification raw,
+        # not this), so it can be mutated directly -- no defensive copy. Readers whose
+        # _make_needed_columns_for_quantification needs its own copy still make one.
         norm_quant_df = self._make_needed_columns_for_quantification(
-            quantification_df.copy()
+            quantification_df
         )  # this will be method overriden in inherited classs
         quant_rename_dict = self._make_rename_dict_for_obs(
             norm_quant_df
@@ -333,16 +382,10 @@ class SearchResultReader:
 
         norm_identification_df: pd.DataFrame = self._normalise_identification_df(raw_identification_df)
         if self.search_settings.ident_quant_merged:
-            identification_df, quantification_df = self._split_merged_identification_quantification(
-                norm_identification_df
-            )
-            logger.debug(
-                "Identification and quantification data split: %s, %s",
-                identification_df.shape,
-                quantification_df.shape,
-            )
+            # Feature frame is built fresh (identification columns only); extract
+            # quantification straight from the raw frame.
+            quantification_df = self._extract_quant_from_raw(raw_identification_df)
         else:
-            identification_df = norm_identification_df.copy()
             quantification_df = raw_dict["quantification"] if self.search_settings.quantification is not None else None
 
         if self.search_settings.has_decoy and "decoy" not in self.used_feature_cols:
@@ -369,6 +412,9 @@ class SearchResultReader:
             # Keep only index alignment when raw search_result is not stored.
             raw_identification_df = pd.DataFrame(index=target_df.index)
         else:
+            # The raw frame is stored in varm, which must be pandas. It is always a polars frame
+            # here (the transforms consumed it as polars) -- convert once at this seam.
+            raw_identification_df = raw_identification_df.to_pandas()
             raw_identification_df = raw_identification_df.copy()
             raw_identification_df.index = norm_identification_df.index
             # Keep raw and normalized rows in strict positional sync.
@@ -421,12 +467,32 @@ class SearchResultReader:
                 if mudata_input.raw_identification_df[col].dtype == "object" and col not in self._cols_to_stringify:
                     self._cols_to_stringify.append(col)
             mudata_input.raw_identification_df = self._stringify_cols(mudata_input.raw_identification_df)
+            # h5py forbids "/" in dataset keys, so a raw column name containing "/" (MaxQuant
+            # "MS/MS Scan Number", FragPipe "Observed M/Z", ...) makes varm['search_result']
+            # unwritable by mdata.write_h5mu(); rewrite those names to an h5-safe form.
+            mudata_input.raw_identification_df = self._make_h5_safe_varm_columns(
+                mudata_input.raw_identification_df
+            )
 
         # both feature and quantification are available in the same level
         if self.search_settings.quantification_level == self.search_settings.identification_level:
-            common_index = mudata_input.norm_identification_df.index.intersection(mudata_input.norm_quant_df.index)
-            mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T)
-            mod_adata.var = mudata_input.norm_identification_df.loc[common_index, :]
+            if isinstance(mudata_input.norm_quant_df, SparseQuantFrame):
+                sparse_quant = mudata_input.norm_quant_df
+                common_index = mudata_input.norm_identification_df.index.intersection(sparse_quant.index)
+                mod_adata = ad.AnnData(
+                    X=sparse_quant.anndata_x(common_index),  # (samples x features) sparse, no dense pivot
+                    obs=pd.DataFrame(index=sparse_quant.columns),
+                    var=mudata_input.norm_identification_df.loc[common_index, :],
+                )
+            else:
+                common_index = mudata_input.norm_identification_df.index.intersection(
+                    mudata_input.norm_quant_df.index
+                )
+                # float32 to match msmu's .X convention (the other three .X builders below, the
+                # sparse branch above, and read_diann's sparse output are all float32); without this
+                # the dense same-level path was the lone float64 producer.
+                mod_adata = ad.AnnData(mudata_input.norm_quant_df.loc[common_index, :].T.astype(np.float32))
+                mod_adata.var = mudata_input.norm_identification_df.loc[common_index, :]
             if not self._drop_search_result:
                 mod_adata.varm["search_result"] = mudata_input.raw_identification_df.loc[common_index, :]
 
@@ -459,7 +525,8 @@ class SearchResultReader:
         # (e.g., feature: psm, quantification: peptide)
         else:
             dummy_quantification_df = pd.DataFrame(
-                index=mudata_input.norm_identification_df.index, columns=mudata_input.norm_quant_df.columns
+                index=mudata_input.norm_identification_df.index,
+                columns=mudata_input.norm_quant_df.columns,
             )
             feat_adata = ad.AnnData(dummy_quantification_df.T.astype(np.float32))
             feat_adata.var = mudata_input.norm_identification_df
@@ -495,8 +562,6 @@ class SearchResultReader:
         Returns:
             A MuData object containing the processed search results.
         """
-        # self._validate_search_outputs()
-
         mudata_input: MuDataInput = self._make_mudata_input()
         mdata: md.MuData = self._build_mudata(mudata_input=mudata_input)
 

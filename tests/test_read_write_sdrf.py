@@ -1,6 +1,5 @@
 import io
-import types
-from pathlib import Path
+import logging
 
 import numpy as np
 import pandas as pd
@@ -8,57 +7,13 @@ import pytest
 from anndata import AnnData
 from mudata import MuData
 
-from msmu._read_write import _sdrf as sdrf_module
-from msmu._read_write._sdrf import attach_sdrf_metadata, read_sdrf
+import msmu as mm
+from msmu._preprocessing import _meta as meta_module
+from msmu._preprocessing import add_meta
 from msmu._read_write import _reader_registry as rr
+from msmu._tools import _sdrf_pipelines as sdrf_tools
 
-
-def _write_sdrf(tmp_path, content: str):
-    path = tmp_path / "sample.sdrf.tsv"
-    path.write_text(content)
-    return path
-
-
-def _fractionated_sdrf_content() -> tuple[list[str], list[list[str]]]:
-    headers = [
-        "source name",
-        "sample name",
-        "assay name",
-        "technology type",
-        "comment[data file]",
-        "comment[fraction identifier]",
-        "factor value[condition]",
-    ]
-    rows = [
-        ["source_1", "sample_1", "assay_1", "mass spectrometry", "sample_1_fraction_1.raw", "1", "treated"],
-        ["source_1", "sample_1", "assay_1", "mass spectrometry", "sample_1_fraction_2.raw", "2", "treated"],
-        ["source_2", "sample_2", "assay_2", "mass spectrometry", "sample_2_fraction_1.raw", "1", "control"],
-        ["source_2", "sample_2", "assay_2", "mass spectrometry", "sample_2_fraction_2.raw", "2", "control"],
-    ]
-    return headers, rows
-
-
-def _write_fractionated_sdrf(tmp_path):
-    headers, rows = _fractionated_sdrf_content()
-    content = "\t".join(headers) + "\n" + "\n".join("\t".join(row) for row in rows) + "\n"
-    return _write_sdrf(tmp_path, content)
-
-
-def _collapsed_values(value: object) -> list[str]:
-    if isinstance(value, (pd.Index, pd.Series, np.ndarray)):
-        return [str(item) for item in value.tolist()]
-    if isinstance(value, (list, tuple)):
-        return [str(item) for item in value]
-
-    text = str(value)
-    for separator in (";", "|", ","):
-        if separator in text:
-            return [part.strip() for part in text.split(separator) if part.strip()]
-    return [text]
-
-
-def _assert_collapsed_values(value: object, expected: list[str]) -> None:
-    assert _collapsed_values(value) == expected
+_PANDAS_READ_CSV = pd.read_csv
 
 
 def _make_mdata(obs_index: list[str]) -> MuData:
@@ -68,49 +23,24 @@ def _make_mdata(obs_index: list[str]) -> MuData:
     return MuData({"psm": AnnData(X=x, obs=obs, var=var)})
 
 
-def _write_diann_report(tmp_path):
-    path = tmp_path / "report.tsv"
-    report = pd.DataFrame(
-        {
-            "Protein.Ids": ["sp|P1|P1_HUMAN", "sp|P2|P2_HUMAN"],
-            "Protein.Group": ["P1", "P2"],
-            "Modified.Sequence": ["PEPTIDEK", "ACDMK"],
-            "Stripped.Sequence": ["PEPTIDEK", "ACDMK"],
-            "Run": ["fileA.raw", "fileB.raw"],
-            "Precursor.Charge": [2, 3],
-            "Lib.Q.Value": [0.0, 0.0],
-            "Global.Q.Value": [0.01, 0.02],
-            "RT": [12.3, 18.4],
-            "PEP": [0.001, 0.002],
-            "Precursor.Id": ["PEPTIDEK2", "ACDMK3"],
-            "Precursor.Quantity": [1000.0, 2000.0],
-        }
-    )
-    report.to_csv(path, sep="\t", index=False)
+def _write_sdrf(tmp_path, content: str):
+    path = tmp_path / "sample.sdrf.tsv"
+    path.write_text(content)
     return path
 
 
-class _FakeUrlResponse:
-    def __init__(self, content: bytes, *, status: int = 200, headers: dict[str, str] | None = None):
-        self._content = io.BytesIO(content)
-        self.status = status
-        self.headers = headers or {}
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, traceback):
-        self._content.close()
-
-    def read(self, size=-1):
-        return self._content.read(size)
+def _last_cmd_entry(mdata: MuData) -> dict[str, object]:
+    key = max(mdata.uns["_cmd"], key=lambda value: int(value))
+    return mdata.uns["_cmd"][key]
 
 
-def _dispatching_parse_sdrf_entrypoint():
-    globals()["cli"]()
+class _FakeValidationError:
+    def __init__(self, message: str, error_type: int | None):
+        self.message = message
+        self.error_type = error_type
 
 
-def test_read_sdrf_preserves_duplicate_supported_headers(tmp_path):
+def test_read_sdrf_preserves_pandas_headers_and_duplicate_suffixes(tmp_path):
     path = _write_sdrf(
         tmp_path,
         "\t".join(
@@ -121,31 +51,120 @@ def test_read_sdrf_preserves_duplicate_supported_headers(tmp_path):
                 "characteristics[organism]",
                 "characteristics[organism]",
                 "comment[data file]",
-                "factor value[condition]",
             ]
         )
         + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry", "Homo sapiens", "human", "run_1.raw", "treated"])
+        + "\t".join(
+            [
+                "sample_1",
+                "assay_1",
+                "mass spectrometry",
+                "Homo sapiens",
+                "human",
+                "run_1.raw",
+            ]
+        )
         + "\n",
     )
 
-    metadata = read_sdrf(path, validate=False)
+    metadata = mm.read_sdrf(path, validate_sdrf=False)
 
     assert metadata.columns.tolist() == [
-        "source_name",
-        "assay_name",
-        "technology_type",
-        "characteristics_organism",
-        "characteristics_organism_2",
-        "comment_data_file",
-        "factor_value_condition",
+        "source name",
+        "assay name",
+        "technology type",
+        "characteristics[organism]",
+        "characteristics[organism].1",
+        "comment[data file]",
     ]
-    assert metadata.loc[0, "characteristics_organism"] == "Homo sapiens"
-    assert metadata.loc[0, "characteristics_organism_2"] == "human"
-    assert metadata.attrs["sdrf_columns"][4]["occurrence"] == 2
+    assert metadata.loc[0, "characteristics[organism]"] == "Homo sapiens"
+    assert metadata.loc[0, "characteristics[organism].1"] == "human"
 
 
-def test_attach_sdrf_metadata_matches_obs_by_data_file_stem(tmp_path):
+def test_registry_read_sdrf_exposes_public_parser(tmp_path):
+    path = _write_sdrf(
+        tmp_path,
+        "\t".join(["source name", "assay name", "technology type"])
+        + "\n"
+        + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
+        + "\n",
+    )
+
+    metadata = rr.read_sdrf(path, validate_sdrf=False)
+
+    assert metadata.loc[0, "source name"] == "sample_1"
+    assert metadata.loc[0, "assay name"] == "assay_1"
+
+
+def test_read_sdrf_reads_url_like_sources_via_tabular_ingestion(monkeypatch):
+    url = "https://example.test/sample.sdrf.tsv"
+    content = (
+        "\t".join(["source name", "assay name", "technology type"])
+        + "\n"
+        + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
+        + "\n"
+    )
+    opened: list[dict[str, object]] = []
+
+    def fake_read_csv(source, *args, **kwargs):
+        opened.append({"source": source, "kwargs": kwargs})
+        if source == url:
+            return _PANDAS_READ_CSV(io.StringIO(content), *args, **kwargs)
+        return _PANDAS_READ_CSV(source, *args, **kwargs)
+
+    monkeypatch.setattr(meta_module.pd, "read_csv", fake_read_csv)
+
+    metadata = mm.read_sdrf(url, validate_sdrf=False)
+
+    assert metadata.loc[0, "source name"] == "sample_1"
+    assert metadata.attrs["sdrf_file"] == url
+    assert opened[0]["source"] == url
+    assert opened[0]["kwargs"]["sep"] == "\t"
+    assert "header" not in opened[0]["kwargs"]
+
+
+def test_add_meta_sdrf_validates_through_pipeline_and_only_logs_validation_result(monkeypatch, tmp_path):
+    path = _write_sdrf(
+        tmp_path,
+        "\t".join(["source name", "assay name", "technology type", "comment[data file]"])
+        + "\n"
+        + "\t".join(["sample_1", "assay_1", "mass spectrometry", "run_1.raw"])
+        + "\n",
+    )
+    mdata = _make_mdata(["run_1.raw"])
+    validated: list[dict[str, object]] = []
+
+    def fake_validate(sdrf, *, source=None, template="ms-proteomics", skip_ontology=True):
+        validated.append(
+            {
+                "sdrf": sdrf,
+                "source": source,
+                "template": template,
+                "skip_ontology": skip_ontology,
+            }
+        )
+
+    monkeypatch.setattr(sdrf_tools, "validate_sdrf_dataframe", fake_validate)
+
+    out = add_meta(mdata, path, format="sdrf", metadata_on="comment[data file]")
+
+    assert out.obs["source name"].tolist() == ["sample_1"]
+    assert len(validated) == 1
+    assert isinstance(validated[0]["sdrf"], pd.DataFrame)
+    assert validated[0]["sdrf"].columns.tolist() == [
+        "source name",
+        "assay name",
+        "technology type",
+        "comment[data file]",
+    ]
+    assert validated[0]["source"] == str(path)
+    assert "meta" not in out.uns
+    stdout = _last_cmd_entry(out)["stdout"]
+    assert "Validating SDRF metadata for" in stdout
+    assert "SDRF validation succeeded for" in stdout
+
+
+def test_add_meta_sdrf_raw_dataframe_keeps_headers_before_matching(monkeypatch, tmp_path):
     path = _write_sdrf(
         tmp_path,
         "\t".join(
@@ -159,325 +178,58 @@ def test_attach_sdrf_metadata_matches_obs_by_data_file_stem(tmp_path):
         )
         + "\n"
         + "\t".join(["sample_1", "assay_1", "mass spectrometry", "run_1.raw", "treated"])
-        + "\n"
-        + "\t".join(["sample_2", "assay_2", "mass spectrometry", "run_2.raw", "control"])
         + "\n",
     )
-    mdata = _make_mdata(["run_1", "run_2"])
+    metadata = pd.read_csv(path, sep="\t")
+    mdata = _make_mdata(["run_1.raw"])
+    validated: list[dict[str, object]] = []
 
-    out = attach_sdrf_metadata(mdata, path, validate=False)
-
-    assert out.mod["psm"].obs["source_name"].tolist() == ["sample_1", "sample_2"]
-    assert out.mod["psm"].obs["factor_value_condition"].tolist() == ["treated", "control"]
-    assert out.obs["factor_value_condition"].tolist() == ["treated", "control"]
-    assert out.uns["sdrf"]["matched_modalities"]["psm"]["matched_column"] == "comment_data_file"
-
-
-def test_attach_sdrf_metadata_collapses_fractionated_rows_by_sample(tmp_path):
-    path = _write_fractionated_sdrf(tmp_path)
-    mdata = _make_mdata(["sample_1", "sample_2"])
-
-    out = attach_sdrf_metadata(mdata, path, validate=False)
-
-    assert out.mod["psm"].obs.index.tolist() == ["sample_1", "sample_2"]
-    assert out.obs.index.tolist() == ["sample_1", "sample_2"]
-    assert out.mod["psm"].obs["source_name"].tolist() == ["source_1", "source_2"]
-    assert out.mod["psm"].obs["sample_name"].tolist() == ["sample_1", "sample_2"]
-    assert out.obs["factor_value_condition"].tolist() == ["treated", "control"]
-    _assert_collapsed_values(
-        out.mod["psm"].obs.loc["sample_1", "comment_data_file"],
-        ["sample_1_fraction_1.raw", "sample_1_fraction_2.raw"],
-    )
-    _assert_collapsed_values(out.mod["psm"].obs.loc["sample_1", "comment_fraction_identifier"], ["1", "2"])
-    _assert_collapsed_values(
-        out.obs.loc["sample_2", "comment_data_file"],
-        ["sample_2_fraction_1.raw", "sample_2_fraction_2.raw"],
-    )
-    _assert_collapsed_values(out.obs.loc["sample_2", "comment_fraction_identifier"], ["1", "2"])
-    assert out.uns["sdrf"]["matched_modalities"]["psm"]["matched_obs"] == 2
-
-
-def test_attach_sdrf_metadata_stores_original_sdrf_table(tmp_path):
-    path = _write_fractionated_sdrf(tmp_path)
-    headers, rows = _fractionated_sdrf_content()
-    mdata = _make_mdata(["sample_1_fraction_1", "sample_1_fraction_2", "sample_2_fraction_1", "sample_2_fraction_2"])
-
-    out = attach_sdrf_metadata(mdata, path, validate=False)
-
-    stored = out.uns["sdrf"]["table"]
-    assert isinstance(stored, pd.DataFrame)
-    assert stored.shape == (len(rows), len(headers))
-    assert stored.columns.tolist() == headers
-    assert stored["comment[data file]"].tolist() == [row[4] for row in rows]
-    assert stored["sample name"].tolist() == [row[1] for row in rows]
-
-
-def test_attach_sdrf_metadata_matches_tmt_obs_by_label(tmp_path):
-    path = _write_sdrf(
-        tmp_path,
-        "\t".join(
-            [
-                "source name",
-                "assay name",
-                "technology type",
-                "comment[label]",
-                "factor value[condition]",
-            ]
-        )
-        + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry", "TMT126", "treated"])
-        + "\n"
-        + "\t".join(["sample_2", "assay_2", "mass spectrometry", "TMT127N", "control"])
-        + "\n",
-    )
-    mdata = _make_mdata(["126", "127N"])
-
-    out = attach_sdrf_metadata(mdata, path, validate=False)
-
-    assert out.mod["psm"].obs["source_name"].tolist() == ["sample_1", "sample_2"]
-    assert out.mod["psm"].obs["factor_value_condition"].tolist() == ["treated", "control"]
-    assert out.uns["sdrf"]["matched_modalities"]["psm"]["matched_column"] == "comment_label"
-
-
-def test_attach_sdrf_metadata_raises_when_no_obs_match(tmp_path):
-    path = _write_sdrf(
-        tmp_path,
-        "\t".join(["source name", "assay name", "technology type", "comment[data file]"])
-        + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry", "run_1.raw"])
-        + "\n",
-    )
-    mdata = _make_mdata(["missing_run"])
-
-    with pytest.raises(ValueError, match="could not be matched"):
-        attach_sdrf_metadata(mdata, path, validate=False)
-
-
-def test_registry_read_sdrf_exposes_parser(tmp_path):
-    path = _write_sdrf(
-        tmp_path,
-        "\t".join(["source name", "assay name", "technology type"])
-        + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
-        + "\n",
-    )
-
-    metadata = rr.read_sdrf(path, validate_sdrf=False)
-
-    assert metadata.loc[0, "source_name"] == "sample_1"
-
-
-def test_registry_read_sdrf_accepts_sdrf_file_keyword(tmp_path):
-    path = _write_sdrf(
-        tmp_path,
-        "\t".join(["source name", "assay name", "technology type"])
-        + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
-        + "\n",
-    )
-
-    metadata = rr.read_sdrf(sdrf_file=path, validate_sdrf=False)
-
-    assert metadata.loc[0, "assay_name"] == "assay_1"
-
-
-def test_registry_read_sdrf_rejects_removed_sdrf_path_alias(tmp_path):
-    with pytest.raises(TypeError, match="sdrf_path"):
-        rr.read_sdrf(sdrf_path=tmp_path / "sample.sdrf.tsv")
-
-
-def test_registry_read_sdrf_validates_by_default_with_click_group(tmp_path, monkeypatch):
-    click = pytest.importorskip("click")
-    path = _write_sdrf(
-        tmp_path,
-        "\t".join(["source name", "assay name", "technology type"])
-        + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
-        + "\n",
-    )
-    calls = []
-
-    @click.group()
-    def cli():
-        pass
-
-    @cli.command("validate-sdrf")
-    @click.option("--sdrf_file")
-    @click.option("--skip-ontology", is_flag=True)
-    def validate_sdrf(sdrf_file, skip_ontology):
-        calls.append((sdrf_file, skip_ontology))
-
-    entrypoint = types.FunctionType(_dispatching_parse_sdrf_entrypoint.__code__, {"cli": cli})
-    monkeypatch.setattr(sdrf_module.metadata, "version", lambda package: "0.0")
-    monkeypatch.setattr(sdrf_module, "_load_parse_sdrf_entrypoint", lambda: entrypoint)
-
-    metadata = rr.read_sdrf(path)
-
-    assert metadata.loc[0, "source_name"] == "sample_1"
-    assert calls == [(str(path), True)]
-
-
-def test_read_sdrf_url_materializes_local_file_for_validation(monkeypatch):
-    click = pytest.importorskip("click")
-    url = "https://example.test/sample.sdrf.tsv"
-    content = (
-        "\t".join(["source name", "assay name", "technology type"])
-        + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
-        + "\n"
-    ).encode()
-    opened = []
-    calls = []
-
-    def urlopen(opened_url, *, timeout):
-        opened.append((opened_url, timeout))
-        return _FakeUrlResponse(content, headers={"Content-Length": str(len(content))})
-
-    @click.group()
-    def cli():
-        pass
-
-    @cli.command("validate-sdrf")
-    @click.option("--sdrf_file")
-    @click.option("--skip-ontology", is_flag=True)
-    def validate_sdrf(sdrf_file, skip_ontology):
-        path = Path(sdrf_file)
-        calls.append(
+    def fake_validate_sdrf_file(sdrf_file, *, skip_ontology, source_name=None):
+        validated.append(
             {
                 "sdrf_file": sdrf_file,
                 "skip_ontology": skip_ontology,
-                "exists": path.exists(),
-                "name": path.name,
+                "source_name": source_name,
             }
         )
 
-    entrypoint = types.FunctionType(_dispatching_parse_sdrf_entrypoint.__code__, {"cli": cli})
-    monkeypatch.setattr(sdrf_module.urllib.request, "urlopen", urlopen)
-    monkeypatch.setattr(sdrf_module.metadata, "version", lambda package: "0.0")
-    monkeypatch.setattr(sdrf_module, "_load_parse_sdrf_entrypoint", lambda: entrypoint)
+    monkeypatch.setattr(meta_module, "validate_sdrf_file", fake_validate_sdrf_file)
 
-    metadata = read_sdrf(url)
+    out = add_meta(mdata, metadata, format="sdrf", metadata_on="comment[data file]")
 
-    assert metadata.loc[0, "source_name"] == "sample_1"
-    assert metadata.attrs["sdrf_file"] == url
-    assert opened == [(url, sdrf_module._SDRF_URL_TIMEOUT_SECONDS)]
-    assert len(calls) == 1
-    assert calls[0]["skip_ontology"] is True
-    assert calls[0]["exists"] is True
-    assert calls[0]["name"] == "remote.sdrf.tsv"
-    assert not calls[0]["sdrf_file"].startswith("http")
+    assert out.obs["source name"].tolist() == ["sample_1"]
+    assert out.obs["factor value[condition]"].tolist() == ["treated"]
+    assert len(validated) == 1
+    assert isinstance(validated[0]["sdrf_file"], pd.DataFrame)
+    assert validated[0]["sdrf_file"].columns.tolist() == [
+        "source name",
+        "assay name",
+        "technology type",
+        "comment[data file]",
+        "factor value[condition]",
+    ]
+    assert validated[0]["source_name"] == "DataFrame"
 
 
-def test_attach_sdrf_metadata_url_keeps_original_url_in_uns(monkeypatch):
-    url = "https://example.test/sample.sdrf.tsv"
-    content = (
+def test_add_meta_sdrf_defaults_to_metadata_index_when_metadata_on_is_omitted(tmp_path):
+    path = _write_sdrf(
+        tmp_path,
         "\t".join(["source name", "assay name", "technology type", "comment[data file]"])
         + "\n"
         + "\t".join(["sample_1", "assay_1", "mass spectrometry", "run_1.raw"])
-        + "\n"
-    ).encode()
-
-    def urlopen(opened_url, *, timeout):
-        assert opened_url == url
-        assert timeout == sdrf_module._SDRF_URL_TIMEOUT_SECONDS
-        return _FakeUrlResponse(content, headers={"Content-Length": str(len(content))})
-
-    monkeypatch.setattr(sdrf_module.urllib.request, "urlopen", urlopen)
+        + "\n",
+    )
     mdata = _make_mdata(["run_1"])
 
-    out = attach_sdrf_metadata(mdata, url, validate=False)
-
-    assert out.uns["sdrf"]["path"] == url
-    assert out.mod["psm"].uns["sdrf"]["path"] == url
-    assert out.mod["psm"].obs["source_name"].tolist() == ["sample_1"]
-
-
-def test_read_sdrf_rejects_unsupported_url_scheme():
-    with pytest.raises(ValueError, match="Unsupported SDRF URL scheme 'ftp'"):
-        read_sdrf("ftp://example.test/sample.sdrf.tsv", validate=False)
+    with pytest.raises(
+        ValueError,
+        match="metadata could not be matched to psm\\.obs using metadata key 'index' and obs key 'index'",
+    ):
+        add_meta(mdata, path, format="sdrf", validate_sdrf=False)
 
 
-def test_read_sdrf_url_rejects_download_larger_than_limit(monkeypatch):
-    url = "https://example.test/large.sdrf.tsv"
-
-    def urlopen(opened_url, *, timeout):
-        assert opened_url == url
-        return _FakeUrlResponse(b"", headers={"Content-Length": "11"})
-
-    monkeypatch.setattr(sdrf_module.urllib.request, "urlopen", urlopen)
-    monkeypatch.setattr(sdrf_module, "_MAX_SDRF_DOWNLOAD_BYTES", 10)
-
-    with pytest.raises(ValueError, match="exceeds maximum download size"):
-        read_sdrf(url, validate=False)
-
-
-def test_validate_sdrf_file_accepts_function_entrypoint_returning_click_command(tmp_path, monkeypatch):
-    click = pytest.importorskip("click")
+def test_add_meta_sdrf_can_target_named_obs_column(tmp_path):
     path = _write_sdrf(
-        tmp_path,
-        "\t".join(["source name", "assay name", "technology type"])
-        + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
-        + "\n",
-    )
-    calls = []
-
-    @click.group()
-    def cli():
-        pass
-
-    @cli.command("validate-sdrf")
-    @click.option("--sdrf_file")
-    @click.option("--skip-ontology", is_flag=True)
-    def validate_sdrf(sdrf_file, skip_ontology):
-        calls.append((sdrf_file, skip_ontology))
-
-    monkeypatch.setattr(sdrf_module.metadata, "version", lambda package: "0.0")
-    monkeypatch.setattr(sdrf_module, "_load_parse_sdrf_entrypoint", lambda: lambda: cli)
-
-    sdrf_module.validate_sdrf_file(path)
-
-    assert calls == [(str(path), True)]
-
-
-def test_validate_sdrf_file_falls_back_to_parse_sdrf_executable(tmp_path, monkeypatch):
-    path = _write_sdrf(
-        tmp_path,
-        "\t".join(["source name", "assay name", "technology type"])
-        + "\n"
-        + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
-        + "\n",
-    )
-    calls = []
-
-    class CompletedProcess:
-        returncode = 0
-        stdout = ""
-        stderr = ""
-
-    def run(command, *, capture_output, check, text):
-        calls.append((command, capture_output, check, text))
-        return CompletedProcess()
-
-    monkeypatch.setattr(sdrf_module.metadata, "version", lambda package: "0.0")
-    monkeypatch.setattr(sdrf_module, "_load_parse_sdrf_entrypoint", lambda: lambda: "not a click command")
-    monkeypatch.setattr(sdrf_module.shutil, "which", lambda executable: "/usr/bin/parse_sdrf")
-    monkeypatch.setattr(sdrf_module.subprocess, "run", run)
-
-    sdrf_module.validate_sdrf_file(path)
-
-    assert calls == [
-        (
-            ["/usr/bin/parse_sdrf", "validate-sdrf", "--sdrf_file", str(path), "--skip-ontology"],
-            True,
-            False,
-            True,
-        )
-    ]
-
-
-def test_read_diann_merges_sdrf_file_by_data_file(tmp_path):
-    sdrf_file = _write_sdrf(
         tmp_path,
         "\t".join(
             [
@@ -485,17 +237,312 @@ def test_read_diann_merges_sdrf_file_by_data_file(tmp_path):
                 "assay name",
                 "technology type",
                 "comment[data file]",
-                "factor value[treatment]",
+                "factor value[condition]",
             ]
         )
         + "\n"
-        + "\t".join(["S1", "run1", "mass spectrometry", "fileA.raw", "control"])
+        + "\t".join(["sample_1", "assay_1", "mass spectrometry", "fileA.raw", "treated"])
         + "\n"
-        + "\t".join(["S2", "run2", "mass spectrometry", "fileB.raw", "case"])
+        + "\t".join(["sample_2", "assay_2", "mass spectrometry", "fileB.raw", "control"])
         + "\n",
     )
+    mdata = _make_mdata(["sample_a", "sample_b"])
+    mdata.mod["psm"].obs["run"] = ["fileA.raw", "fileB.raw"]
 
-    mdata = rr.read_diann(_write_diann_report(tmp_path), sdrf_file=sdrf_file, validate_sdrf=False)
+    out = add_meta(
+        mdata,
+        path,
+        format="sdrf",
+        metadata_on="comment[data file]",
+        obs_columns="run",
+        validate_sdrf=False,
+    )
 
-    assert mdata.obs["source_name"].astype(str).tolist() == ["S1", "S2"]
-    assert mdata.obs["factor_value_treatment"].astype(str).tolist() == ["control", "case"]
+    assert out.obs["source name"].tolist() == ["sample_1", "sample_2"]
+    assert out.obs["factor value[condition]"].tolist() == ["treated", "control"]
+
+
+def test_tools_validate_sdrf_dataframe_uses_schema_validator(monkeypatch):
+    schemas = pytest.importorskip("sdrf_pipelines.sdrf.schemas")
+    sdrf_pkg = pytest.importorskip("sdrf_pipelines.sdrf.sdrf")
+    calls: dict[str, object] = {}
+
+    class FakeValidator:
+        def __init__(self, registry):
+            calls["registry"] = registry
+
+        def validate(self, sdrf, template, use_ols_cache_only=False, skip_ontology=False):
+            calls["sdrf"] = sdrf
+            calls["template"] = template
+            calls["use_ols_cache_only"] = use_ols_cache_only
+            calls["skip_ontology"] = skip_ontology
+            return []
+
+    monkeypatch.setattr(sdrf_tools.metadata, "version", lambda package: "0.0")
+    monkeypatch.setattr(schemas, "SchemaRegistry", lambda: "registry")
+    monkeypatch.setattr(schemas, "SchemaValidator", FakeValidator)
+
+    sdrf_tools.validate_sdrf_dataframe(
+        pd.DataFrame({"source name": ["sample_1"], "assay name": ["assay_1"]}),
+        source="inline",
+    )
+
+    assert isinstance(calls["sdrf"], sdrf_pkg.SDRFDataFrame)
+    assert calls["sdrf"].columns == ["source name", "assay name"]
+    assert calls["template"] == "ms-proteomics"
+    assert calls["use_ols_cache_only"] is False
+    assert calls["skip_ontology"] is True
+
+
+def test_tools_validate_sdrf_dataframe_raises_for_pipeline_errors(monkeypatch):
+    schemas = pytest.importorskip("sdrf_pipelines.sdrf.schemas")
+
+    class FakeValidator:
+        def __init__(self, registry):
+            self.registry = registry
+
+        def validate(self, sdrf, template, use_ols_cache_only=False, skip_ontology=False):
+            return [
+                _FakeValidationError("missing source name", logging.ERROR),
+                _FakeValidationError("missing source name", logging.ERROR),
+                _FakeValidationError("warning only", logging.WARNING),
+            ]
+
+    monkeypatch.setattr(sdrf_tools.metadata, "version", lambda package: "0.0")
+    monkeypatch.setattr(schemas, "SchemaRegistry", lambda: object())
+    monkeypatch.setattr(schemas, "SchemaValidator", FakeValidator)
+
+    with pytest.raises(
+        ValueError,
+        match="SDRF validation failed for sample.sdrf.tsv: missing source name",
+    ):
+        sdrf_tools.validate_sdrf_dataframe(
+            pd.DataFrame({"source name": ["sample_1"], "assay name": ["assay_1"]}),
+            source="sample.sdrf.tsv",
+            skip_ontology=False,
+        )
+
+
+_SDRF_MIN = (
+    "source name\tcharacteristics[organism]\tcomment[data file]\tcomment[label]\n"
+    "t0h\tHomo sapiens\trun1.mzML\tTMT126\n"
+    "t1h\tHomo sapiens\trun1.mzML\tTMT127\n"
+)
+
+
+def test_attach_sdrf_stores_dataframe_in_uns_without_touching_obs():
+    sdrf = pd.DataFrame({"source name": ["t0h", "t1h"], "comment[label]": ["TMT126", "TMT127"]})
+    mdata = _make_mdata(["TMT126", "TMT127"])
+
+    out = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    stored = out.uns["sdrf"]
+    assert isinstance(stored, pd.DataFrame)
+    assert list(stored.columns) == ["source name", "comment[label]"]
+    assert stored.shape == (2, 2)
+    # obs is left untouched -- the SDRF lives only in uns
+    assert list(out.mod["psm"].obs.columns) == []
+    # the input mdata is not mutated (attach copies)
+    assert "sdrf" not in mdata.uns
+
+
+def test_attach_sdrf_reads_path_and_stores_whole_table(tmp_path):
+    path = _write_sdrf(tmp_path, _SDRF_MIN)
+
+    out = mm.pp.attach_sdrf(_make_mdata(["TMT126", "TMT127"]), path, validate=False)
+
+    stored = out.uns["sdrf"]
+    assert stored.shape == (2, 4)
+    assert list(stored.columns)[0] == "source name"
+    assert stored.loc[0, "comment[label]"] == "TMT126"
+
+
+def test_attach_sdrf_survives_h5mu_roundtrip(tmp_path):
+    import mudata
+
+    path = _write_sdrf(tmp_path, _SDRF_MIN)
+    out = mm.pp.attach_sdrf(_make_mdata(["TMT126", "TMT127"]), path, validate=False)
+
+    h5 = tmp_path / "attached.h5mu"
+    out.write_h5mu(str(h5))
+    restored = mudata.read_h5mu(str(h5)).uns["sdrf"]
+
+    assert isinstance(restored, pd.DataFrame)
+    assert restored.shape == (2, 4)
+    assert list(restored.columns) == [
+        "source name",
+        "characteristics[organism]",
+        "comment[data file]",
+        "comment[label]",
+    ]
+    assert restored.loc[1, "comment[label]"] == "TMT127"
+
+
+def test_attach_sdrf_validates_when_requested(monkeypatch):
+    seen = {}
+
+    def fake_validate(dataframe, **kwargs):
+        seen["called"] = True
+
+    monkeypatch.setattr(meta_module, "validate_sdrf_file", fake_validate)
+
+    mm.pp.attach_sdrf(
+        _make_mdata(["TMT126"]),
+        pd.DataFrame({"source name": ["t0h"], "comment[label]": ["TMT126"]}),
+        validate=True,
+    )
+
+    assert seen.get("called")
+
+
+def test_attach_sdrf_rejects_non_mudata():
+    with pytest.raises(TypeError, match="MuData"):
+        mm.pp.attach_sdrf(pd.DataFrame({"a": [1]}), pd.DataFrame({"source name": ["t0h"]}), validate=False)
+
+
+_SDRF_TMT_FRAC = pd.DataFrame(
+    {
+        "comment[label]": ["TMT126", "TMT127", "TMT126", "TMT127"],
+        "source name": ["t0h", "t1h", "t0h", "t1h"],
+        "comment[fraction identifier]": ["1", "1", "2", "2"],  # varies within a channel
+    }
+)
+
+
+def _tmt_mdata_with_sdrf(sdrf: pd.DataFrame | None = None) -> MuData:
+    mdata = _make_mdata(["TMT126", "TMT127"])
+    mdata.mod["psm"].uns["label"] = "tmt"
+    return mm.pp.attach_sdrf(mdata, _SDRF_TMT_FRAC if sdrf is None else sdrf, validate=False)
+
+
+def test_apply_sdrf_projects_functional_columns_and_skips_varying():
+    obs = mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf()).mod["psm"].obs
+    # one source name per channel -> projected
+    assert list(obs["source name"]) == ["t0h", "t1h"]
+    # fraction varies within a channel -> not projectable, stays only in uns
+    assert "comment[fraction identifier]" not in obs.columns
+
+
+def test_apply_sdrf_auto_key_tmt_vs_label_free():
+    tmt = mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf())
+    assert list(tmt.mod["psm"].obs["source name"]) == ["t0h", "t1h"]
+
+    # SDRF keeps file extensions; readers store bare stems -> apply strips the SDRF extension to match
+    sdrf_lf = pd.DataFrame(
+        {"comment[data file]": ["runA.mzML", "runB.mzML"], "source name": ["ctrl", "case"]}
+    )
+    m = mm.pp.attach_sdrf(_make_mdata(["runA", "runB"]), sdrf_lf, validate=False)
+    lf = mm.pp.apply_sdrf_to_obs(m)  # no uns label -> defaults to comment[data file], extension-insensitive
+    assert list(lf.mod["psm"].obs["source name"]) == ["ctrl", "case"]
+
+
+def test_apply_sdrf_set_index_replaces_obs_index():
+    out = mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf(), set_index="source name")
+    assert list(out.mod["psm"].obs.index) == ["t0h", "t1h"]
+
+
+def test_apply_sdrf_named_nonfunctional_column_raises():
+    with pytest.raises(ValueError, match="not a function"):
+        mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf(), columns="comment[fraction identifier]")
+
+
+def test_apply_sdrf_set_index_nonunique_raises():
+    sdrf = pd.DataFrame({"comment[label]": ["TMT126", "TMT127"], "source name": ["dup", "dup"]})
+    with pytest.raises(ValueError, match="not unique"):
+        mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf(sdrf), set_index="source name")
+
+
+def test_apply_sdrf_requires_attached_sdrf():
+    with pytest.raises(ValueError, match="No SDRF attached"):
+        mm.pp.apply_sdrf_to_obs(_make_mdata(["TMT126"]))
+
+
+def test_apply_sdrf_leaves_uns_sdrf_unchanged():
+    mdata = _tmt_mdata_with_sdrf()
+    out = mm.pp.apply_sdrf_to_obs(mdata)
+    assert out.uns["sdrf"].shape == (4, 3)
+    assert "comment[fraction identifier]" in out.uns["sdrf"].columns
+
+
+def test_apply_sdrf_populates_mdata_level_obs():
+    # projected columns must reach the MuData-level obs, not only the modality obs
+    # (consumers such as correct_batch_effect read mdata.obs)
+    out = mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf())
+    assert "source name" in out.obs.columns
+    assert list(out.obs["source name"]) == ["t0h", "t1h"]
+
+
+def test_apply_sdrf_warns_on_unmatched_obs_keys(monkeypatch):
+    seen: list[str] = []
+    monkeypatch.setattr(
+        meta_module.logger,
+        "warning",
+        lambda message, *args, **kwargs: seen.append(message % args if args else message),
+    )
+    sdrf = pd.DataFrame({"comment[label]": ["TMT126", "TMT127"], "source name": ["t0h", "t1h"]})
+    mdata = _make_mdata(["TMT126", "TMT999"])  # TMT999 is absent from the SDRF
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)
+
+    assert any("absent from SDRF" in message for message in seen)
+    assert out.mod["psm"].obs["source name"].iloc[0] == "t0h"
+    assert pd.isna(out.mod["psm"].obs["source name"].iloc[1])
+
+
+def test_apply_sdrf_composite_key_matches_channel_set():
+    # obs are 'channel_set' (as produced by split_tmt); match on the (label, batch) composite key
+    sdrf = pd.DataFrame(
+        {
+            "comment[label]": ["TMT126", "TMT127", "TMT126", "TMT127"],
+            "comment[sample preparation batch]": ["set1", "set1", "set2", "set2"],
+            "source name": ["a", "b", "c", "d"],
+        }
+    )
+    mdata = _make_mdata(["TMT126_set1", "TMT127_set1", "TMT126_set2", "TMT127_set2"])
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata, on=["comment[label]", "comment[sample preparation batch]"])
+
+    assert list(out.mod["psm"].obs["source name"]) == ["a", "b", "c", "d"]
+
+
+def test_apply_sdrf_warns_split_needed_when_nothing_projects(monkeypatch):
+    # multi-set TMT before split: obs are channels, SDRF spans channel x set -> nothing projectable
+    seen: list[str] = []
+    monkeypatch.setattr(
+        meta_module.logger,
+        "warning",
+        lambda message, *args, **kwargs: seen.append(message % args if args else message),
+    )
+    sdrf = pd.DataFrame(
+        {
+            "comment[label]": ["TMT126", "TMT126", "TMT127", "TMT127"],
+            "comment[sample preparation batch]": ["set1", "set2", "set1", "set2"],
+            "source name": ["a", "b", "c", "d"],
+        }
+    )
+    mdata = _make_mdata(["TMT126", "TMT127"])  # channels only, not yet split
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)  # on=None -> comment[label]; each channel spans 2 sets -> all skip
+
+    assert list(out.mod["psm"].obs.columns) == []  # nothing projected
+    assert any("split_tmt" in message for message in seen)
+
+
+def test_apply_sdrf_matches_filename_ignoring_extension():
+    # readers store bare stems (e.g. DIA-NN "QExHF03751"); SDRF comment[data file] keeps ".mzML"
+    sdrf = pd.DataFrame(
+        {"comment[data file]": ["QExHF03751.mzML", "QExHF03753.mzML"], "source name": ["a", "b"]}
+    )
+    mdata = mm.pp.attach_sdrf(_make_mdata(["QExHF03751", "QExHF03753"]), sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)  # defaults to comment[data file], extension-insensitive
+
+    assert list(out.mod["psm"].obs["source name"]) == ["a", "b"]
+    # uns keeps the original filenames (with extension) -- only matching is normalised
+    assert list(out.uns["sdrf"]["comment[data file]"]) == ["QExHF03751.mzML", "QExHF03753.mzML"]

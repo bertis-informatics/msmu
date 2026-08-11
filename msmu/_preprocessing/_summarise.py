@@ -3,7 +3,7 @@ import warnings
 import anndata as ad
 import pandas as pd
 
-from .._core._mudata import add_modality
+from .._utils._mudata import add_modality, get_anndata_mod, get_mudata, get_mudata_mod_as_mutable
 from .._core._provenance import uns_logger
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
@@ -21,6 +21,12 @@ warnings.filterwarnings(action="ignore", message="Mean of empty slice")
 
 
 logger = get_logger(__name__)
+
+# median_polish and directlfq model per-feature response factors, which is meaningful when
+# combining distinct peptides into a protein but not when combining PSMs of the same peptide
+# (replicate measurements, typically 1-3 per peptide). PSM->peptide is restricted to the
+# column-wise reductions; the matrix rollups belong to the peptide->protein step (to_protein).
+PEPTIDE_AGG_METHODS: tuple[str, ...] = ("median", "mean", "sum")
 
 
 @uns_logger
@@ -46,7 +52,7 @@ def to_peptide(
     Parameters:
         mdata: MuData object containing PSM-level data.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method for quantification to use. Defaults to "median".
+        agg_method: Aggregation method for quantification to use. One of "median", "mean", or "sum". Defaults to "median". The matrix rollups "median_polish" and "directlfq" are not offered here; they model per-peptide response factors and belong to the peptide-to-protein step (to_protein).
         purity_threshold: Purity threshold for TMT data quantification aggregation (does not filter out features). If None, no filtering is applied. Defaults to 0.7.
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
@@ -55,8 +61,15 @@ def to_peptide(
     Returns:
         MuData object containing peptide-level data.
     """
+    if agg_method not in PEPTIDE_AGG_METHODS:
+        raise ValueError(
+            f"to_peptide supports agg_method in {PEPTIDE_AGG_METHODS}, got {agg_method!r}. "
+            "The matrix rollups 'median_polish' and 'directlfq' model per-peptide response "
+            "factors and are intended for the peptide-to-protein step (to_protein)."
+        )
+
     mdata = mdata.copy()
-    adata_to_summarise: ad.AnnData = mdata.mod["psm"]
+    adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "psm")
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for peptide summarisation.", layer)
@@ -72,7 +85,7 @@ def to_peptide(
 
     # Filtering for TMT purity in peptide quantification
     if mstatus.psm.label == "tmt":
-        if mstatus.psm.has_purity == False:
+        if not mstatus.psm.has_purity:
             logger.warning("Purity column not found in psm modality for TMT data. Skipping purity filtering.")
         elif purity_threshold is None:
             logger.debug("No purity threshold provided for TMT data. Skipping purity filtering.")
@@ -81,7 +94,10 @@ def to_peptide(
 
     # Ranking for top_n features
     if top_n is not None:
-        summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
+        summarisation_prep.rank_tuple = (
+            rank_method,
+            top_n,
+        )  # e.g. ("total_intensity", 3)
 
     identification_df, quantification_df, decoy_df = summarisation_prep.prep()
     logger.debug(
@@ -138,19 +154,26 @@ def to_peptide(
     logger.debug("Aggregated peptide quantification shape: %s", quant_df_agg.shape)
 
     # build peptide-level anndata
-    if (mstatus.psm.has_quant == False) & (
-        "peptide" in mstatus.mod_names
+    if (
+        not mstatus.psm.has_quant and "peptide" in mstatus.mod_names
     ):  # for lfq (dda) data with peptide quantification already existing
         logger.info("Using existing peptide quantification data.")
-        quant_df_agg = mdata.mod["peptide"].to_df().T
-        quant_df_agg = pd.merge(ident_df_agg[[]], quant_df_agg, left_index=True, right_index=True, how="left")
+        existing_peptide_adata = get_anndata_mod(mdata, "peptide")
+        quant_df_agg = existing_peptide_adata.to_df().T
+        quant_df_agg = pd.merge(
+            ident_df_agg[[]],
+            quant_df_agg,
+            left_index=True,
+            right_index=True,
+            how="left",
+        )
         logger.debug("Merged existing peptide quantification shape: %s", quant_df_agg.shape)
         peptide_adata = ad.AnnData(
             X=quant_df_agg.T,
             var=ident_df_agg,
         )
-        mdata = mdata[:, [v not in mdata.mod["peptide"].var_names for v in mdata.var_names]].copy()
-        mdata.mod["peptide"] = peptide_adata
+        mdata = get_mudata(mdata[:, [v not in existing_peptide_adata.var_names for v in mdata.var_names]].copy())
+        get_mudata_mod_as_mutable(mdata)["peptide"] = peptide_adata
         # mdata["peptide"].var = ident_df_agg
 
     else:  # all other cases
@@ -161,11 +184,12 @@ def to_peptide(
         )
 
         # add modality
-        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide", parent_mods=["psm"])
-    mdata.mod["peptide"].uns["level"] = "peptide"
+        mdata = add_modality(mdata=mdata, adata=peptide_adata, mod_name="peptide")
+    peptide_mod = get_anndata_mod(mdata, "peptide")
+    peptide_mod.uns["level"] = "peptide"
 
     if mstatus.psm.has_decoy:
-        mdata.mod["peptide"].uns["decoy"] = decoy_df_agg
+        peptide_mod.uns["decoy"] = decoy_df_agg
 
     return mdata
 
@@ -174,7 +198,7 @@ def to_peptide(
 def to_protein(
     mdata: md.MuData,
     layer: str | None = None,
-    agg_method: Literal["median", "mean", "sum"] = "median",
+    agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median",
     top_n: int | None = 3,
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
     calculate_q: bool = True,
@@ -185,7 +209,7 @@ def to_protein(
     Parameters:
         mdata: MuData object containing Peptide-level data.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. Defaults to "median".
+        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median". "median_polish" applies Tukey's median polish per protein group and "directlfq" applies the DirectLFQ rollup per protein group; both assume the quantification is in log2 space (apply log2_transform first).
         top_n: Number of top peptides to consider for summarisation. If None, all peptides are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
         calculate_q: Whether to calculate q-values. Defaults to True.
@@ -219,19 +243,24 @@ def to_protein(
     else:
         mdata = original_mdata
 
-    adata_to_summarise: ad.AnnData = mdata.mod["peptide"]
+    adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "peptide")
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for protein summarisation.", layer)
 
     # Preparation
     summarisation_prep = SummarisationPrep(
-        adata=adata_to_summarise, col_to_groupby=_protein_col, has_decoy=mstatus.peptide.has_decoy
+        adata=adata_to_summarise,
+        col_to_groupby=_protein_col,
+        has_decoy=mstatus.peptide.has_decoy,
     )
 
     # Ranking for top_n features
     if top_n is not None:
-        summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g ("total_intensity", 3)
+        summarisation_prep.rank_tuple = (
+            rank_method,
+            top_n,
+        )  # e.g ("total_intensity", 3)
 
     identification_df, quantification_df, decoy_df = summarisation_prep.prep()
     logger.debug(
@@ -286,11 +315,12 @@ def to_protein(
     )
 
     # add modality
-    mdata = add_modality(mdata=original_mdata, adata=protein_adata, mod_name="protein", parent_mods=["peptide"])
-    mdata.mod["protein"].uns["level"] = "protein"
+    mdata = add_modality(mdata=original_mdata, adata=protein_adata, mod_name="protein")
+    protein_mod = get_anndata_mod(mdata, "protein")
+    protein_mod.uns["level"] = "protein"
 
     if mstatus.peptide.has_decoy:
-        mdata.mod["protein"].uns["decoy"] = agg_decoy_df
+        protein_mod.uns["decoy"] = agg_decoy_df
 
     return mdata
 
@@ -301,7 +331,7 @@ def to_ptm(
     modi_name: str,
     modification: str,
     layer: str | None = None,
-    agg_method: Literal["median", "mean", "sum"] = "median",
+    agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median",
     top_n: int | None = None,
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
 ) -> md.MuData:
@@ -312,14 +342,14 @@ def to_ptm(
         modi_name: Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
         modification: Modification string (e.g., "[+79.96633]", "(unimod:21)").
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. Defaults to "median".
+        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply log2_transform first).
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
 
     Returns:
         MuData: MuData object containing PTM-level data.
     """
-    adata_to_summarise: ad.AnnData = mdata.mod["peptide"].copy()
+    adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "peptide").copy()
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for PTM summarisation.", layer)
@@ -340,7 +370,10 @@ def to_ptm(
 
     # Ranking for top_n features
     if top_n is not None:
-        summarisation_prep.rank_tuple = (rank_method, top_n)  # e.g. ("total_intensity", 3)
+        summarisation_prep.rank_tuple = (
+            rank_method,
+            top_n,
+        )  # e.g. ("total_intensity", 3)
 
     identification_df, quantification_df = summarisation_prep.prep()
     logger.debug(
@@ -376,7 +409,7 @@ def to_ptm(
     )
 
     # add modality
-    mdata = add_modality(mdata=mdata, adata=ptm_adata, mod_name=modality_name, parent_mods=["peptide"])
-    mdata.mod[modality_name].uns["level"] = "ptm_site"
+    mdata = add_modality(mdata=mdata, adata=ptm_adata, mod_name=modality_name)
+    get_anndata_mod(mdata, modality_name).uns["level"] = "ptm_site"
 
     return mdata

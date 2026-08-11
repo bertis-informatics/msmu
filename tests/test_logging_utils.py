@@ -2,7 +2,13 @@ import io
 import logging
 import sys
 
-from msmu.logging_utils import PACKAGE_LOGGER_NAME, LogLevel, ensure_null_handler, get_logger, setup_logger
+from msmu.logging_utils import (
+    PACKAGE_LOGGER_NAME,
+    LogLevel,
+    ensure_null_handler,
+    get_logger,
+    setup_logger,
+)
 
 
 def test_get_logger_returns_package_logger_by_default() -> None:

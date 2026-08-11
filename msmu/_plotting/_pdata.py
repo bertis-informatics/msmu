@@ -2,13 +2,16 @@
 Module for preparing plotting data from MuData objects.
 """
 
+from typing import cast
+
 from mudata import MuData
 import numpy as np
 import pandas as pd
 
-from .._core._access import get_adata
+from .._utils._mudata import get_anndata_mod
+from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
-from ._utils import BinInfo, get_bin_info, is_resolved_obs_groupby, prepare_obs_frame
+from ._utils import BinInfo, get_bin_info, is_resolved_obs_groupby, obsm_embedding_to_frame, prepare_obs_frame
 
 logger = get_logger(__name__)
 
@@ -148,7 +151,7 @@ class PlotData:
             key = "obs"
         elif groupby == obs_column and is_resolved_obs_groupby(self.mdata, groupby, obs_column):
             key = "obs"
-        elif groupby in self.mdata.mod[self.modality].var.columns:
+        elif groupby in get_anndata_mod(self.mdata, self.modality).var.columns:
             key = "var"
         elif is_resolved_obs_groupby(self.mdata, groupby, obs_column):
             key = "obs"
@@ -164,14 +167,13 @@ class PlotData:
         Returns:
             Copy of the modality's data matrix as a DataFrame.
         """
-        adata = get_adata(self.mdata, self.modality).copy()
+        adata = get_anndata_mod(self.mdata, self.modality).copy()
 
-        if self.layer is not None:
-            if self.layer not in adata.layers:
-                raise ValueError(f"Layer '{self.layer}' not found in modality '{self.modality}'.")
-            data = pd.DataFrame(adata.layers[self.layer], index=adata.obs_names, columns=adata.var_names)
-        else:
-            data = adata.to_df()
+        if self.layer is not None and self.layer not in adata.layers:
+            raise ValueError(f"Layer '{self.layer}' not found in modality '{self.modality}'.")
+        # to_dense_df restores absent cells as NaN for a sparse .X/layer (plain to_df would fill
+        # them with 0 and silently distort distributions, correlations, etc.).
+        data = to_dense_df(adata, self.layer)
 
         return data
 
@@ -182,7 +184,7 @@ class PlotData:
         Returns:
             Copy of the modality's `var` table.
         """
-        var_df = self.mdata.mod[self.modality].var.copy()
+        var_df = cast(pd.DataFrame, get_anndata_mod(self.mdata, self.modality).var.copy())
 
         if groupby and groupby in var_df.columns:
             if not isinstance(var_df[groupby].dtype, pd.CategoricalDtype):
@@ -203,7 +205,7 @@ class PlotData:
             Concatenated `var` and selected varm DataFrame.
         """
         var_df: pd.DataFrame = self._get_var()
-        varm_df: pd.DataFrame = pd.DataFrame(self.mdata.mod[self.modality].varm[column].copy())
+        varm_df: pd.DataFrame = pd.DataFrame(get_anndata_mod(self.mdata, self.modality).varm[column].copy())
 
         return pd.concat([var_df, varm_df], axis=1)
 
@@ -604,7 +606,7 @@ class PlotData:
         """Join embedding coordinates with resolved observation metadata."""
         obs = self._get_obs(obs_column, groupby=groupby)
 
-        orig_df = pd.DataFrame(self.mdata.mod[modality].obsm[key][columns])
+        orig_df = obsm_embedding_to_frame(self.mdata, modality, key, columns)
         join_df = orig_df.join(obs, how="left")
         join_df[groupby] = pd.Categorical(join_df[groupby], categories=obs[groupby].unique())
 

@@ -2,6 +2,10 @@ import pandas as pd
 import mudata as md
 from pathlib import Path
 
+from .._utils._anndata import _require_columns
+from .._utils._mudata import get_anndata_mod
+from .._core._blockdiag import to_dense_df
+
 
 def write_flashlfq_input(mdata: md.MuData, filename: str | Path) -> None:
     """
@@ -21,8 +25,10 @@ def write_flashlfq_input(mdata: md.MuData, filename: str | Path) -> None:
         "proteins": "Protein Accession",
     }
 
-    source_df: pd.DataFrame = mdata.mod["psm"].var.copy()
+    psm_adata = get_anndata_mod(mdata, "psm")
+    source_df: pd.DataFrame = psm_adata.var.copy()
 
+    _require_columns(source_df, columns=list(required_column_dict), context="psm.var")
     source_df = source_df[required_column_dict.keys()]
     source_df = source_df.rename(columns=required_column_dict)
 
@@ -74,13 +80,29 @@ def write_pin(
     Returns:
         A pandas DataFrame in Percolator input format if filename is None, otherwise None.
     """
-    var_columns = ["filename", "scan_num", "charge", "peptide", "proteins", "calcmass", "expmass"]
+    pin_source_columns = [
+        "filename",
+        "scan_num",
+        "charge",
+        "peptide",
+        "proteins",
+        "calcmass",
+        "expmass",
+        "score",
+        "peptide_length",
+    ]
 
-    target_df: pd.DataFrame = mdata.mod["psm"].var[var_columns].copy()
+    psm_adata = get_anndata_mod(mdata, "psm")
+    _require_columns(psm_adata.var, columns=pin_source_columns, context="psm.var")
+    if not isinstance(psm_adata.var, pd.DataFrame):
+        raise TypeError("psm_adata.var should be pandas DataFrame")
+
+    target_df = psm_adata.var[pin_source_columns]
     target_df["decoy"] = 0
 
-    if "decoy" in mdata.mod["psm"].uns:
-        decoy_df = mdata.mod["psm"].uns["decoy"].copy()
+    if "decoy" in psm_adata.uns:
+        decoy_df = psm_adata.uns["decoy"].copy()
+        _require_columns(decoy_df, columns=[*pin_source_columns, "decoy"], context="psm.uns['decoy']")
 
         pin_df = pd.concat([target_df, decoy_df], axis=0)
     else:
@@ -142,7 +164,8 @@ def to_readable(
     Returns:
         A pandas DataFrame in a human-readable format.
     """
-    df = mdata.mod[modality].var.copy()
+    adata = get_anndata_mod(mdata, modality)
+    df = adata.var.copy()
 
     if include is None and exclude is None and not quantification:
         return df
@@ -156,7 +179,7 @@ def to_readable(
             exclude = [exclude]
         df = df.drop(columns=exclude)
     if quantification:
-        quant_df = mdata.mod[modality].to_df().T
+        quant_df = to_dense_df(adata).T
         df = pd.concat([df, quant_df], axis=1)
 
     return df

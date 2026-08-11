@@ -1,9 +1,11 @@
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import scipy.sparse as sp
 
 from ._base_reader import SearchResultReader, SearchResultSettings
-from .._utils.fasta import parse_uniprot_accession
+from .._core._blockdiag import SparseQuantFrame
+from .._utils.fasta import parse_uniprot_accession_group
 
 
 class DiannReader(SearchResultReader):
@@ -18,8 +20,9 @@ class DiannReader(SearchResultReader):
         self,
         identification_file: str | Path,
         identification_df: pd.DataFrame,
+        drop_search_result: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="diann",
             quantification="diann",
@@ -39,6 +42,7 @@ class DiannReader(SearchResultReader):
             [
                 "rt",
                 "decoy",
+                "contaminant",
                 "PEP",
                 "q_value",
             ]
@@ -77,50 +81,82 @@ class DiannReader(SearchResultReader):
 
         return df
 
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_identification_df = identification_df.copy()
-        split_identification_df = split_identification_df.drop(columns=["Precursor.Quantity"])
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame):
+        # DIA-NN's precursor quant is block-diagonal: the feature id "Run.Precursor.Id" encodes
+        # the run, so each precursor feature carries a value in exactly one run column and is NaN
+        # in every other -- a (n_precursor_obs x n_run) matrix with ~one non-null per row. Rather
+        # than materialise that as a dense pivot (~0.5% filled), build only the observed cells as
+        # a COO/CSR sparse matrix.
+        # Pull only the three columns this needs, as pandas, then build the COO below.
+        raw_identification_df = raw_identification_df.select(
+            ["Run", "Precursor.Id", "Precursor.Quantity"]
+        ).to_pandas()
+        features = (raw_identification_df["Run"] + "." + raw_identification_df["Precursor.Id"]).to_numpy()
+        runs = raw_identification_df["Run"].to_numpy()
+        values = raw_identification_df["Precursor.Quantity"].to_numpy(dtype=float)
 
-        split_quant_df = identification_df[["filename", "Precursor.Quantity"]].reset_index()
-        split_quant_df = split_quant_df.pivot(index="index", columns="filename", values="Precursor.Quantity")
-        split_quant_df = split_quant_df.rename_axis(index=None, columns=None)
-        split_quant_df = split_quant_df.replace(0, np.nan)
-
-        return split_identification_df, split_quant_df
+        # Each row is a distinct feature; place its value in its run column. 0/NaN are treated as
+        # absent (matching the historical dense pivot's replace(0, np.nan)).
+        sample_index, run_codes = np.unique(runs, return_inverse=True)
+        observed = np.isfinite(values) & (values != 0)
+        row = np.arange(len(features))[observed]
+        col = run_codes[observed]
+        matrix = sp.coo_matrix(
+            (values[observed], (row, col)),
+            shape=(len(features), len(sample_index)),
+            dtype=np.float32,
+        ).tocsr()
+        return SparseQuantFrame(matrix=matrix, index=pd.Index(features), columns=pd.Index(sample_index))
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        identification_df = identification_df.copy()
-        self._set_mbr(identification_df)  # set self._mbr for _feature_rename_dict
-        self._set_decoy(identification_df)
+        """Build the feature frame on a FRESH DataFrame (identification columns only), reading the
+        raw frame read-only so it stays intact for varm (or to be freed), with polars expressions
+        converted to pandas once. Quantification is taken from the raw frame by
+        _extract_quant_from_raw.
 
-        identification_df["proteins"] = identification_df["Protein.Ids"]
-        identification_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
-        identification_df["missed_cleavages"] = identification_df["Stripped.Sequence"].apply(
-            self._count_missed_cleavages
+        polars has no lookbehind, so the tryptic missed-cleavage count ``(?<=[KR])(?!P)`` is the
+        equivalent ``count("[KR]") - count("[KR]P")``; accession parsing is deduplicated via
+        ``replace_strict`` over unique protein-id strings.
+        """
+        import polars as pl
+
+        # mbr / decoy flags computed on the polars frame (they select the q-value column to rename).
+        # Cast Lib.Q.Value before summing: a non-MBR run can leave it entirely empty, which polars
+        # types as String (nothing to infer) and would crash .sum(); cast-to-float sums all-null to
+        # 0 -> mbr False, matching pandas.
+        self._mbr = identification_df.select(pl.col("Lib.Q.Value").cast(pl.Float64, strict=False).sum()).item() != 0
+        self.search_settings.has_decoy = ("Decoy" in identification_df.columns) and bool(
+            identification_df.select(pl.col("Decoy").cast(pl.Boolean).any()).item()
         )
-        identification_df["peptide_length"] = identification_df["Stripped.Sequence"].apply(self._get_peptide_length)
+        q_value_source = "Lib.Q.Value" if self._mbr else "Global.Q.Value"
+
+        uniq = identification_df.select("Protein.Ids").unique().to_series().to_list()
+        parsed_by_group = {value: parse_uniprot_accession_group(value) for value in uniq}
+        accession_map = {group: accession for group, (accession, _) in parsed_by_group.items()}
+        contaminant_map = {group: int(is_contaminant) for group, (_, is_contaminant) in parsed_by_group.items()}
+        exprs = [
+            pl.col("Protein.Ids").replace_strict(accession_map).alias("proteins"),
+            pl.col("Protein.Ids").replace_strict(contaminant_map).cast(pl.Int64).alias("contaminant"),
+            (
+                pl.col("Stripped.Sequence").str.count_matches("[KR]")
+                - pl.col("Stripped.Sequence").str.count_matches("[KR]P")
+            ).cast(pl.Int64).alias("missed_cleavages"),
+            pl.col("Stripped.Sequence").str.len_chars().cast(pl.Int64).alias("peptide_length"),
+            pl.col("PEP"),
+            pl.col("Modified.Sequence"),  # -> peptide
+            pl.col("Stripped.Sequence"),  # -> stripped_peptide
+            pl.col("Run"),  # -> filename
+            pl.col("Precursor.Charge"),  # -> charge
+            pl.col("RT"),  # -> rt
+            pl.col("Precursor.Id"),  # for _make_unique_index (dropped at subset)
+            pl.col(q_value_source),  # -> q_value
+        ]
+        if self.search_settings.has_decoy:
+            exprs.append(pl.col("Decoy"))  # -> decoy
+        feature_df = identification_df.select(exprs).to_pandas()
         if not self.search_settings.has_decoy:
-            identification_df["decoy"] = 0
-
-        for col in identification_df.columns:
-            if identification_df[col].dtype == "object":
-                self._cols_to_stringify.append(col)
-
-        return identification_df
-
-    def _set_mbr(self, identification_df: pd.DataFrame) -> None:
-        if identification_df["Lib.Q.Value"].sum() == 0:
-            self._mbr = False
-        else:
-            self._mbr = True
-
-    def _set_decoy(self, identification_df: pd.DataFrame) -> None:
-        self.search_settings.has_decoy = False
-        if "Decoy" in (identification_df.columns):
-            if identification_df["Decoy"].any():
-                self.search_settings.has_decoy = True
+            feature_df["decoy"] = 0
+        return feature_df
 
 
 class DiannProteinGroupReader(SearchResultReader):

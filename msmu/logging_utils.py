@@ -105,7 +105,9 @@ def prune_closed_msmu_handlers(logger: logging.Logger | None = None) -> logging.
     return prune_closed_stream_handlers(logger, only_msmu_handlers=True)
 
 
-def prune_closed_package_stream_handlers(package_name: str = PACKAGE_LOGGER_NAME) -> None:
+def prune_closed_package_stream_handlers(
+    package_name: str = PACKAGE_LOGGER_NAME,
+) -> None:
     package_logger = logging.getLogger(package_name)
     prune_closed_stream_handlers(package_logger, only_msmu_handlers=False)
 

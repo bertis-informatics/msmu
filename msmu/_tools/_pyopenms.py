@@ -1,18 +1,22 @@
 import os
-from tqdm import tqdm
 from pathlib import Path
 from threading import Lock
-import pandas as pd
+from typing import TYPE_CHECKING
+
 import numpy as np
+import pandas as pd
+from tqdm import tqdm
 
 # import concurrent.futures
 
 import anndata as ad
 import mudata as md
 
-
-from .._plotting._plots import plot_var
+from .._utils._anndata import _require_columns
 import plotly.graph_objects as go
+
+if TYPE_CHECKING:
+    import pyopenms as oms
 
 
 class PurityResult:
@@ -31,7 +35,13 @@ class PurityResult:
         Returns:
             pd.DataFrame: DataFrame containing purity, scan_num, and filename.
         """
-        return pd.DataFrame({"purity": self.purity, "scan_num": self.scan_num, "filename": self.filename})
+        return pd.DataFrame(
+            {
+                "purity": self.purity,
+                "scan_num": self.scan_num,
+                "filename": self.filename,
+            }
+        )
 
     @property
     def _dummy_mdata(self) -> md.MuData:
@@ -46,7 +56,9 @@ class PurityResult:
         return purity_mdata
 
     def hist(self) -> go.Figure:
-        return plot_var(
+        from .. import pl
+
+        return pl.plot_var(
             mdata=self._dummy_mdata,
             groupby="filename",
             ptype="hist",
@@ -56,7 +68,9 @@ class PurityResult:
         )
 
     def box(self) -> go.Figure:
-        return plot_var(
+        from .. import pl
+
+        return pl.plot_var(
             mdata=self._dummy_mdata,
             groupby="filename",
             ptype="box",
@@ -110,10 +124,7 @@ class PrecursorPurityCalculator:
         if "psm" not in mdata.mod:
             raise ValueError("MuData object must contain 'psm' layer with PSM data.")
 
-        if "filename" not in mdata.mod["psm"].var.columns:
-            raise ValueError("MuData object must contain 'filename' in the psm variable data.")
-        if "scan_num" not in mdata.mod["psm"].var.columns:
-            raise ValueError("MuData object must contain 'scan_num' in the psm variable data.")
+        _require_columns(mdata.mod["psm"].var, columns=["filename", "scan_num"], context="psm.var")
 
         instance._var_df = mdata.mod["psm"].var.copy()
 
@@ -227,7 +238,11 @@ class PrecursorPurityCalculator:
 
     def calculate_precursor_isolation_purities(self) -> pd.DataFrame:
         purities: pd.DataFrame = pd.DataFrame(
-            {"scan_num": self.ms2_scan_num, "scan_index": self.ms2_indices, "filename": self.mzml.name}
+            {
+                "scan_num": self.ms2_scan_num,
+                "scan_index": self.ms2_indices,
+                "filename": self.mzml.name,
+            }
         )
         purities["purity"] = purities["scan_index"].apply(self._calculate_precursor_isolation_purity)
 
@@ -278,7 +293,10 @@ def compute_precursor_isolation_purity_from_mzml(
 
 
 def compute_precursor_isolation_purity(
-    mdata: md.MuData, mzml_paths: str | Path | list, tolerance: float = 20.0, unit_ppm: bool = True
+    mdata: md.MuData,
+    mzml_paths: str | Path | list,
+    tolerance: float = 20.0,
+    unit_ppm: bool = True,
 ) -> md.MuData:
     """
     Calculate precursor isolation purity for PSMs in the given MuData object and mzML file.

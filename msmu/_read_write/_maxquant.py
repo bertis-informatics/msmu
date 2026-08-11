@@ -1,7 +1,12 @@
 from pathlib import Path
 import pandas as pd
 
-from ._base_reader import SearchResultReader, SearchResultSettings, SearchResultDataFrameConverter
+from ._base_reader import (
+    SearchResultReader,
+    SearchResultSettings,
+    SearchResultDataFrameConverter,
+)
+from .._utils.fasta import parse_uniprot_accession_group
 from . import label_info
 
 
@@ -11,8 +16,13 @@ class MaxQuantDataFrameConverter(SearchResultDataFrameConverter):
 
     @staticmethod
     def _read_file(file_path):
+        import polars as pl
+
+        # The base reader is polars-only (files -> native polars, a DataFrame input -> from_pandas).
+        # fill_null(False) keeps a row whose Type is null: polars ~is_in(...) yields null for a null
+        # Type and filter would drop it, where pandas ~isin keeps NaN rows.
         file_path, identification_df = SearchResultDataFrameConverter._read_file(file_path)
-        identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
+        identification_df = identification_df.filter(~pl.col("Type").is_in(["MULTI-SECPEP"]).fill_null(False))
 
         return file_path, identification_df
 
@@ -26,7 +36,10 @@ class MaxQuantReader(SearchResultReader):
     """
 
     def __init__(
-        self, identification_file: str | Path, identification_df: pd.DataFrame, drop_search_result: bool = False
+        self,
+        identification_file: str | Path,
+        identification_df: pd.DataFrame,
+        drop_search_result: bool = False,
     ) -> None:
         super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
@@ -65,21 +78,42 @@ class MaxQuantReader(SearchResultReader):
         }
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        identification_df["decoy"] = identification_df["Reverse"].apply(lambda x: 1 if x == "+" else 0)
-        identification_df["contaminant"] = identification_df["Potential contaminant"].apply(
-            lambda x: 1 if x == "+" else 0
-        )
+        """Build the feature frame on a FRESH DataFrame with polars expressions (read the raw frame
+        read-only so it stays intact for varm or to be freed), converting to pandas once at the
+        AnnData boundary. Quantification is taken from the raw frame by each subclass's
+        _extract_quant_from_raw; columns are carried under their raw names and renamed by
+        _normalise_identification_df via _feature_rename_dict.
 
-        identification_df["proteins"] = identification_df["Proteins"]
-        identification_df.loc[identification_df["decoy"] == 1, "proteins"] = identification_df.loc[
-            identification_df["decoy"] == 1, "Leading proteins"
-        ]
-        # identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("REV__", "rev_"))
-        # identification_df["proteins"] = identification_df["proteins"].apply(lambda x: x.replace("CON__", "contam_"))
+        ``Reverse``/``Potential contaminant`` are "+" or null; null must map to 0 (``x == "+"`` is
+        False for a null), hence ``fill_null(False)``. Decoy rows take ``Leading proteins`` instead
+        of ``Proteins`` (a conditional assignment).
 
-        # identification_df = identification_df.loc[~identification_df["Type"].isin(["MULTI-SECPEP"])]
+        The contaminant flag stays MaxQuant's own ``Potential contaminant`` column -- an explicit
+        engine annotation outranks re-deriving one from the accession string -- so the parser is
+        used here only to bring accessions onto the canonical form the other readers emit.
+        """
+        import polars as pl
 
-        return identification_df
+        is_decoy = (pl.col("Reverse") == "+").fill_null(False)
+        # Accessions are parsed off the resolved column (decoy rows take a different source), so
+        # the dedup that every other reader does over distinct groups needs it materialised first.
+        proteins_expr = pl.when(is_decoy).then(pl.col("Leading proteins")).otherwise(pl.col("Proteins"))
+        uniq = identification_df.select(proteins_expr.alias("proteins")).to_series().unique().to_list()
+        accession_map = {group: parse_uniprot_accession_group(group)[0] for group in uniq if group is not None}
+        return identification_df.select(
+            is_decoy.cast(pl.Int64).alias("decoy"),
+            (pl.col("Potential contaminant") == "+").fill_null(False).cast(pl.Int64).alias("contaminant"),
+            proteins_expr.replace_strict(accession_map, default=None).alias("proteins"),
+            pl.col("Sequence"),  # -> stripped_peptide
+            pl.col("Modified sequence"),  # -> peptide
+            pl.col("Length"),  # -> peptide_length
+            pl.col("Missed cleavages"),  # -> missed_cleavages
+            pl.col("Charge"),  # -> charge
+            pl.col("Raw file"),  # -> filename
+            pl.col("MS/MS Scan Number"),  # -> scan_num
+            pl.col("Retention time"),  # -> rt
+            pl.col("PEP"),
+        ).to_pandas()
 
 
 class MaxTmtReader(MaxQuantReader):
@@ -89,25 +123,35 @@ class MaxTmtReader(MaxQuantReader):
         identification_df: pd.DataFrame,
         drop_search_result: bool = False,
     ) -> None:
-        super().__init__(identification_file, identification_df)
+        super().__init__(identification_file, identification_df, drop_search_result=drop_search_result)
         self.search_settings.label = "tmt"
         self.search_settings.acquisition = "dda"
 
-    def _split_merged_identification_quantification(
-        self, feature_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_identification_df = feature_df.copy()
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
+        # Same "Reporter intensity corrected *" channels as the old split, but sourced from
+        # the raw frame and re-indexed via _make_unique_index (filename.scan_num) so it
+        # aligns with the fresh feature frame.
+        import polars as pl
 
-        quant_cols = [x for x in feature_df.columns if x.startswith("Reporter intensity corrected")]
-        split_quant_df = split_identification_df[quant_cols]
+        reporter_cols = [c for c in raw_identification_df.columns if c.startswith("Reporter intensity corrected")]
+        # Build the index through the SAME _make_unique_index the identification frame uses
+        # (filename + "." + scan_num.astype(str), post-to_pandas) rather than a polars
+        # cast(Utf8). A null scan coerces the identification frame's scan_num to float
+        # ("123.0") via to_pandas, so a polars cast(Utf8) here ("123") would not match and
+        # those features would be silently dropped at the ident/quant index intersection.
+        quant = raw_identification_df.select(
+            pl.col("Raw file").alias("filename"),
+            pl.col("MS/MS Scan Number").alias("scan_num"),
+            *[pl.col(col) for col in reporter_cols],
+        ).to_pandas()
+        quant = self._make_unique_index(quant)
+        quant = quant.drop(columns=["filename", "scan_num"])
 
-        split_identification_df = split_identification_df.drop(columns=quant_cols)
-
-        return split_identification_df, split_quant_df
+        return quant
 
     def _make_rename_dict_for_obs(self, quantification_df: pd.DataFrame) -> dict:
         plex = len(quantification_df.columns)
-        tmt_labels = getattr(label_info, f"Tmt{plex}").label
+        tmt_labels = [label_info.to_sdrf_channel_label(reporter) for reporter in getattr(label_info, f"Tmt{plex}").label]
         mq_labels = [f"Reporter intensity corrected {x}" for x in range(1, plex + 1)]
 
         channel_dict = {mq_col: tmt for mq_col, tmt in zip(mq_labels, tmt_labels)}
@@ -132,31 +176,41 @@ class MaxLfqReader(MaxQuantReader):
         self.search_settings.quantification_level = "peptide" if _quantification else None
         self.search_settings.acquisition = "dda"
 
-    def _make_peptide_quantification(self, split_identification_df: pd.DataFrame) -> pd.DataFrame:
-        # make quantification dataframe from identification dataframe by grouping by peptide
-        # (summing intensities of PSMs with the same peptide sequence)
-        pep_quant_df = split_identification_df[["filename", "peptide", "Intensity"]].copy()
-        pep_quant_df = pep_quant_df.pivot_table(index="peptide", columns="filename", values="Intensity", aggfunc="sum")
-        pep_quant_df = pep_quant_df.rename_axis(index=None, columns=None)
+    def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
+        # Peptide-level quantification: sum PSM "Intensity" per (peptide, filename) and pivot
+        # to peptide x filename. Sourced from the raw frame -- "Modified sequence"/"Raw file"
+        # are the raw names of the feature frame's "peptide"/"filename", so the result matches
+        # the old split (which pivoted the normalised frame).
+        import polars as pl
 
-        return pep_quant_df
-
-    def _split_merged_identification_quantification(
-        self, identification_df: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        split_identification_df = identification_df.copy()
-        split_identification_df = split_identification_df.drop(columns=["Intensity"])
-
-        split_quant_df = identification_df[["filename", "peptide", "Intensity"]].reset_index()
-        split_quant_df = self._make_peptide_quantification(split_quant_df)
-
-        return split_identification_df, split_quant_df
+        pivoted = (
+            # Drop null group keys before the pivot: pandas pivot_table silently drops rows whose
+            # index/column key is NaN, where polars group_by+pivot would keep a phantom "null" sample.
+            raw_identification_df.filter(
+                pl.col("Raw file").is_not_null() & pl.col("Modified sequence").is_not_null()
+            )
+            .group_by(["Modified sequence", "Raw file"])
+            .agg(pl.col("Intensity").sum())
+            .pivot(on="Raw file", index="Modified sequence", values="Intensity")
+            .sort("Modified sequence")  # pandas pivot_table sorts the index
+            .to_pandas()
+            .set_index("Modified sequence")
+            .rename_axis(index=None)
+        )
+        return pivoted.reindex(sorted(pivoted.columns), axis=1)  # match pandas column sort
 
 
 class MaxDiaReader(MaxQuantReader):
     def __init__(
-        self, identification_file: str | Path, identification_df: pd.DataFrame, drop_search_result: bool = False
+        self,
+        identification_file: str | Path,
+        identification_df: pd.DataFrame,
+        drop_search_result: bool = False,
     ):
-        super().__init__(identification_file, identification_df, drop_search_result=drop_search_result)
+        super().__init__(
+            identification_file,
+            identification_df,
+            drop_search_result=drop_search_result,
+        )
         self.search_settings.label = "label_free"
         self.search_settings.acquisition = "dia"

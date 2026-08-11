@@ -1,5 +1,3 @@
-import re
-import warnings
 from collections import deque
 from pathlib import Path
 from typing import TypedDict
@@ -11,8 +9,8 @@ import scipy.sparse as sp
 
 from .._core._provenance import uns_logger
 from .._core._status import AnnDataFlags, MuDataStatus
+from .._utils._anndata import _require_columns
 from ..logging_utils import get_logger
-from .._read_write._reader_registry import read_h5mu
 
 logger = get_logger(__name__)
 
@@ -112,7 +110,9 @@ def _resolve_protein_mappings(
     )
 
 
-def _resolve_mapping_source(propagated_from: md.MuData | str | Path | None) -> md.MuData | None:
+def _resolve_mapping_source(
+    propagated_from: md.MuData | str | Path | None,
+) -> md.MuData | None:
     """Normalize propagated mapping inputs into a MuData source."""
     if propagated_from is None:
         return None
@@ -121,12 +121,19 @@ def _resolve_mapping_source(propagated_from: md.MuData | str | Path | None) -> m
         return propagated_from
 
     if isinstance(propagated_from, (str, Path)):
+        # Lazy import: _reader_registry imports this package (via _preprocessing._meta), so importing
+        # read_h5mu at module top creates a circular import that fails depending on which subpackage
+        # loads first. Importing it here, at call time, breaks the cycle.
+        from .._read_write._reader_registry import read_h5mu
+
         return read_h5mu(propagated_from)
 
     raise TypeError("propagated_from must be a MuData object, path string, Path, or None.")
 
 
-def _get_required_mapping_tables(source_mdata: md.MuData) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _get_required_mapping_tables(
+    source_mdata: md.MuData,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Read propagated mapping tables with explicit validation."""
     missing_keys = [key for key in ("peptide_map", "protein_map") if key not in source_mdata.uns]
     if missing_keys:
@@ -135,7 +142,11 @@ def _get_required_mapping_tables(source_mdata: md.MuData) -> tuple[pd.DataFrame,
     peptide_map = source_mdata.uns["peptide_map"]
     protein_map = source_mdata.uns["protein_map"]
     _require_columns(peptide_map, columns=["peptide", "protein_group"], context="uns['peptide_map']")
-    _require_columns(protein_map, columns=["initial_protein", "protein_group"], context="uns['protein_map']")
+    _require_columns(
+        protein_map,
+        columns=["initial_protein", "protein_group"],
+        context="uns['protein_map']",
+    )
 
     return peptide_map, protein_map
 
@@ -177,13 +188,6 @@ def _get_decoy_frame(
     _require_columns(decoy_df, columns=required_columns, context=f"{modality}.uns['decoy']")
 
     return decoy_df
-
-
-def _require_columns(frame: pd.DataFrame, columns: list[str], context: str) -> None:
-    """Raise a single, readable error when required columns are missing."""
-    missing_columns = [column for column in columns if column not in frame.columns]
-    if missing_columns:
-        raise ValueError(f"Required columns missing from {context}: {missing_columns}")
 
 
 def _annotate_modality_with_mapping(
@@ -730,65 +734,6 @@ def _build_connection(protein_mat: np.ndarray, indices: list[int]) -> list[list[
     connections = [comp for comp in components if (len(comp) > 1) & (any([i in indices for i in comp]))]
 
     return connections
-
-
-def select_canon_prot(protein_group: str, protein_info: dict[str, str]) -> str:
-    """
-    > DEPRECATED: Use `select_representative` instead.
-
-    Choose a representative protein accession from a group using priority:
-
-    `canonical > swissprot > trembl > contam`.
-
-    Parameters:
-        protein_group: semicolon or comma-separated proteins (uniprot entries)
-        protein_info: mapping from accession to annotated identifier (e.g., sp_*, tr_*, contam_*)
-
-    Returns:
-        canonical protein group
-    """
-    warnings.warn(
-        "select_canon_prot is deprecated. Use select_representative instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    return select_representative(protein_group=protein_group, protein_info=protein_info)
-
-
-def select_representative(protein_group: str, protein_info: dict[str, str]) -> str:
-    """
-    Choose a representative protein accession from a group using priority:
-
-    `canonical > swissprot > trembl > contam`.
-
-    Parameters:
-        protein_group: semicolon or comma-separated proteins (uniprot entries)
-        protein_info: mapping from accession to annotated identifier (e.g., sp_*, tr_*, contam_*)
-
-    Returns:
-        canonical protein group
-    """
-    protein_list = re.split(";|,", protein_group)
-    annotated_protein_list: list[str] = [protein_info[k] for k in protein_list]
-
-    swissprot_canon_ls = [prot for prot in annotated_protein_list if prot.startswith("sp") and "-" not in prot]
-    if swissprot_canon_ls:
-        return ",".join(swissprot_canon_ls).replace("sp_", "")
-
-    swissprot_ls = [prot for prot in annotated_protein_list if prot.startswith("sp")]
-    if swissprot_ls:
-        return ",".join(swissprot_ls).replace("sp_", "")
-
-    trembl_ls = [prot for prot in annotated_protein_list if prot.startswith("tr")]
-    if trembl_ls:
-        return ",".join(trembl_ls).replace("tr_", "")
-
-    contam_ls = [prot for prot in annotated_protein_list if prot.startswith("contam")]
-    if contam_ls:
-        return ",".join(contam_ls)
-
-    return ""
 
 
 def _make_peptide_map(map_df: pd.DataFrame) -> pd.DataFrame:

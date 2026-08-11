@@ -24,7 +24,10 @@ def test_get_groupby_column_accepts_fallback_obs_column(mdata):
     mdata_local.obs = pd.DataFrame(index=mdata_local.obs.index)
     pdata = PlotData(mdata_local, "protein", obs_column="__obs_idx__")
 
-    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == ("obs", "__obs_idx__")
+    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == (
+        "obs",
+        "__obs_idx__",
+    )
     assert "__obs_idx__" not in mdata_local.obs.columns
 
 
@@ -35,7 +38,10 @@ def test_get_groupby_column_fallback_obs_wins_var_name_collision(mdata):
     mdata_local.mod["protein"].var["__obs_idx__"] = ["var_a", "var_b", "var_c"]
     pdata = PlotData(mdata_local, "protein", obs_column="__obs_idx__")
 
-    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == ("obs", "__obs_idx__")
+    assert pdata._get_groupby_column("__obs_idx__", "__obs_idx__") == (
+        "obs",
+        "__obs_idx__",
+    )
 
 
 def test_get_bin_info_raises_on_empty(mdata):
@@ -80,10 +86,36 @@ def test_prep_pca_scatter_columns(mdata):
     assert isinstance(df["group"].dtype, pd.CategoricalDtype)
 
 
+def test_prep_pca_scatter_accepts_ndarray_obsm(mdata):
+    mdata_local = mdata.copy()
+    mdata_local["protein"].obsm["X_pca"] = np.asarray(mdata_local["protein"].obsm["X_pca"])
+    pdata = PlotData(mdata_local, "protein", obs_column="sample")
+
+    df = pdata.prep_embedding_scatter("protein", "group", ["PC_1", "PC_2"], "sample", key="X_pca")
+
+    assert {"PC_1", "PC_2", "group"}.issubset(df.columns)
+    assert df["PC_1"].tolist() == [1.0, 0.5, -0.3, 0.1]
+    assert df["PC_2"].tolist() == [0.2, -0.1, 0.4, -0.2]
+    assert isinstance(df["group"].dtype, pd.CategoricalDtype)
+
+
 def test_prep_umap_scatter_columns(mdata):
     pdata = PlotData(mdata, "protein", obs_column="sample")
     df = pdata.prep_embedding_scatter("protein", "group", ["UMAP_1", "UMAP_2"], "sample", key="X_umap")
     assert {"UMAP_1", "UMAP_2", "group"}.issubset(df.columns)
+    assert isinstance(df["group"].dtype, pd.CategoricalDtype)
+
+
+def test_prep_umap_scatter_accepts_ndarray_obsm(mdata):
+    mdata_local = mdata.copy()
+    mdata_local["protein"].obsm["X_umap"] = np.asarray(mdata_local["protein"].obsm["X_umap"])
+    pdata = PlotData(mdata_local, "protein", obs_column="sample")
+
+    df = pdata.prep_embedding_scatter("protein", "group", ["UMAP_1", "UMAP_2"], "sample", key="X_umap")
+
+    assert {"UMAP_1", "UMAP_2", "group"}.issubset(df.columns)
+    assert df["UMAP_1"].tolist() == [-1.0, 0.5, 1.2, -0.8]
+    assert df["UMAP_2"].tolist() == [2.0, 1.5, -0.5, -1.1]
     assert isinstance(df["group"].dtype, pd.CategoricalDtype)
 
 

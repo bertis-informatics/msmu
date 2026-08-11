@@ -10,10 +10,14 @@ from ._sage import LfqSageReader, TmtSageReader
 from ._maxquant import MaxTmtReader, MaxLfqReader, MaxQuantDataFrameConverter
 from ._fragpipe import TmtFragPipeReader, LfqFragPipeReader
 from ._delpi import DelpiReader
-from ._sdrf import attach_sdrf_metadata, read_sdrf as _read_sdrf
-# from ._cptac import TmtCPTACReader, LfqCPTACReader, CPTACDataFrameConverter
+from .._preprocessing._meta import read_sdrf as _read_sdrf
 
-from .._core._provenance import append_cmd_log, capture_provenance_output, get_bound_call_kwargs, normalize_cmd_for_runtime
+from .._core._provenance import (
+    append_cmd_log,
+    capture_provenance_output,
+    get_bound_call_kwargs,
+    normalize_cmd_for_runtime,
+)
 
 logger = get_logger(__name__)
 
@@ -22,8 +26,7 @@ def read_sage(
     identification_file: str | Path,
     label: Literal["tmt", "label_free"],
     quantification_file: str | Path | None = None,
-    sdrf_file: str | Path | None = None,
-    validate_sdrf: bool = True,
+    drop_search_result: bool = False,
 ) -> md.MuData:
     """
     Reads Sage output and returns a MuData object.
@@ -32,8 +35,6 @@ def read_sage(
         identification_file: Path to the results.sage.tsv.
         label: Label for the Sage output ('tmt' or 'label_free').
         quantification_file: Whether to include quantification data. Default is None.
-        sdrf_file: Optional SDRF metadata file to merge into obs.
-        validate_sdrf: Validate the SDRF with sdrf-pipelines if installed. Default is True.
 
     Returns:
         A MuData object containing the Sage data.
@@ -77,6 +78,8 @@ def read_sage(
             identification_df=identification_df_,
             quantification_file=quantification_file_,
             quantification_df=quantification_df_,
+            drop_search_result=drop_search_result,
+
         )
     elif label == "label_free":
         reader = LfqSageReader(
@@ -84,6 +87,7 @@ def read_sage(
             identification_df=identification_df_,
             quantification_file=quantification_file_,
             quantification_df=quantification_df_,
+            drop_search_result=drop_search_result,
         )
     else:
         raise ValueError("Argument label should be one of 'tmt', 'label_free'.")
@@ -91,7 +95,6 @@ def read_sage(
 
     with capture_provenance_output() as stdout_buffer:
         mdata: md.MuData = reader.read()
-        mdata = attach_sdrf_metadata(mdata, sdrf_file, validate=validate_sdrf)
     return append_cmd_log(
         mdata,
         function="read_sage",
@@ -100,8 +103,6 @@ def read_sage(
             identification_file,
             label,
             quantification_file=quantification_file,
-            sdrf_file=sdrf_file,
-            validate_sdrf=validate_sdrf,
         ),
         stdout=stdout_buffer.getvalue().strip() or None,
     )
@@ -109,19 +110,21 @@ def read_sage(
 
 def read_diann(
     identification_file: str | Path | list,
+    drop_search_result: bool = False,
     level: Literal["precursor", "protein_group"] = "precursor",
-    sdrf_file: str | Path | None = None,
-    validate_sdrf: bool = True,
 ) -> md.MuData:
     """
     Reads DIA-NN output and returns a MuData object.
+
+    The block-diagonal precursor quantification is stored as a SciPy sparse ``.X``: the precursor
+    pivot is ``(n_precursor_obs x n_run)`` with ~one non-null per row, so only the observed cells
+    are built (no dense pivot). Downstream tools handle the sparse ``.X`` transparently (absent
+    cells restored as NaN).
 
     Parameters:
         identification_file: Path to the DIA-NN output file or directory.
         level: Level of the output to read ('precursor' or 'protein_group').
             Note: 'protein_group' is not yet implemented.
-        sdrf_file: Optional SDRF metadata file to merge into obs.
-        validate_sdrf: Validate the SDRF with sdrf-pipelines if installed. Default is True.
 
     Returns:
         A MuData object containing the DIA-NN data.
@@ -140,8 +143,11 @@ def read_diann(
     identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
 
     with capture_provenance_output() as stdout_buffer:
-        mdata = DiannReader(identification_file=identification_file_, identification_df=identification_df_).read()
-        mdata = attach_sdrf_metadata(mdata, sdrf_file, validate=validate_sdrf)
+        mdata = DiannReader(
+            identification_file=identification_file_,
+            identification_df=identification_df_,
+            drop_search_result=drop_search_result,
+        ).read()
     return append_cmd_log(
         mdata,
         function="read_diann",
@@ -149,8 +155,6 @@ def read_diann(
             read_diann,
             identification_file,
             level=level,
-            sdrf_file=sdrf_file,
-            validate_sdrf=validate_sdrf,
         ),
         stdout=stdout_buffer.getvalue().strip() or None,
     )
@@ -162,8 +166,6 @@ def read_maxquant(
     acquisition: Literal["dda", "dia"],
     drop_search_result: bool = False,
     _quantification: bool = True,
-    sdrf_file: str | Path | None = None,
-    validate_sdrf: bool = True,
 ) -> md.MuData:
     """
     Reads MaxQuant output and returns a MuData object.
@@ -174,8 +176,6 @@ def read_maxquant(
         acquisition: Acquisition method ('dda' or 'dia'). Note: 'dia' is not yet implemented.
         drop_search_result: Whether to drop the raw search result after reading. Default is False.
         _quantification: Whether to include quantification data. Default is True.
-        sdrf_file: Optional SDRF metadata file to merge into obs.
-        validate_sdrf: Validate the SDRF with sdrf-pipelines if installed. Default is True.
 
     Returns:
         A MuData object containing the MaxQuant data.
@@ -214,7 +214,6 @@ def read_maxquant(
 
     with capture_provenance_output() as stdout_buffer:
         mdata = reader.read()
-        mdata = attach_sdrf_metadata(mdata, sdrf_file, validate=validate_sdrf)
     return append_cmd_log(
         mdata,
         function="read_maxquant",
@@ -225,8 +224,6 @@ def read_maxquant(
             acquisition,
             drop_search_result=drop_search_result,
             _quantification=_quantification,
-            sdrf_file=sdrf_file,
-            validate_sdrf=validate_sdrf,
         ),
         stdout=stdout_buffer.getvalue().strip() or None,
     )
@@ -237,8 +234,6 @@ def read_fragpipe(
     label: Literal["tmt", "label_free"],
     acquisition: Literal["dda", "dia"],
     quantification_file: str | Path | list | None = None,
-    sdrf_file: str | Path | None = None,
-    validate_sdrf: bool = True,
 ) -> md.MuData:
     """
     Reads FragPipe output and returns a MuData object.
@@ -248,8 +243,6 @@ def read_fragpipe(
         label: Label type ('tmt' or 'label_free').
         acquisition: Acquisition method ('dda' or 'dia'). Note: 'dia' is not yet implemented.
         quantification_file: Path to the FragPipe quantification file(s). Required for LFQ.
-        sdrf_file: Optional SDRF metadata file to merge into obs.
-        validate_sdrf: Validate the SDRF with sdrf-pipelines if installed. Default is True.
 
     Returns:
         A MuData object containing the FragPipe data.
@@ -275,12 +268,13 @@ def read_fragpipe(
     identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
 
     if label == "tmt" and acquisition == "dda":
-        reader = TmtFragPipeReader(identification_file=identification_file_, identification_df=identification_df_)
+        reader = TmtFragPipeReader(
+            identification_file=identification_file_,
+            identification_df=identification_df_,
+        )
     elif label == "label_free" and acquisition == "dda":
         if quantification_file is not None:
-            logger.info(
-                f"Reading FragPipe quantification data from {len(quantification_files)} quantification file(s)"
-            )
+            logger.info(f"Reading FragPipe quantification data from {len(quantification_files)} quantification file(s)")
             quantification_file_, quantification_df_ = SearchResultDataFrameConverter().convert(quantification_files)
         else:
             quantification_file_, quantification_df_ = None, None
@@ -298,7 +292,6 @@ def read_fragpipe(
 
     with capture_provenance_output() as stdout_buffer:
         mdata = reader.read()
-        mdata = attach_sdrf_metadata(mdata, sdrf_file, validate=validate_sdrf)
     return append_cmd_log(
         mdata,
         function="read_fragpipe",
@@ -308,74 +301,18 @@ def read_fragpipe(
             label,
             acquisition,
             quantification_file=quantification_file,
-            sdrf_file=sdrf_file,
-            validate_sdrf=validate_sdrf,
         ),
         stdout=stdout_buffer.getvalue().strip() or None,
     )
 
 
-# def read_cptac(
-#     identification_file: str | Path | list,
-#     label: Literal["tmt"],
-#     max_workers: int = 4,
-#     drop_search_result: bool = False,
-# ) -> md.MuData:
-#     """
-#     Reads a CPTAC output file and returns a MuData object.
-#
-#     Parameters:
-#         identification_file: Path to the CPTAC output file (mzid format).
-#         label: Label for the CPTAC output ('tmt'). Currently, only 'tmt' is supported.
-#         max_workers: Maximum number of worker processes to use for reading multiple files. Default is 4.
-#         drop_search_result: Whether to drop the search result after reading. Default is False.
-#
-#     Returns:
-#         A MuData object.
-#     """
-#     mzid_files = []
-#     if isinstance(identification_file, list):
-#         mzid_files = identification_file
-#     elif isinstance(identification_file, (str, Path)):
-#         mzid_files = [identification_file]
-#     else:
-#         raise ValueError("Argument identification_file should be a string, Path, or list of strings/Paths.")
-#
-#     if label not in ["tmt"]:
-#         raise ValueError("Argument label should be one of 'tmt'.")
-#
-#     logger.info(f"Reading CPTAC data from {len(mzid_files)} mzid file(s)")
-#     identification_file_, identification_df_ = CPTACDataFrameConverter().convert(
-#         file_paths=mzid_files, max_workers=max_workers
-#     )
-#
-#     if label == "tmt":
-#         reader = TmtCPTACReader(
-#             identification_file=identification_file_,
-#             identification_df=identification_df_,
-#             _drop_search_result=drop_search_result,
-#         )
-#     elif label == "label_free":
-#         raise NotImplementedError("LFQ CPTAC reader is not implemented yet.")
-#         # reader = LfqCPTACReader(identification_file=identification_file_, identification_df=identification_df_)
-#
-#     mdata: md.MuData = reader.read()
-#
-#     return mdata
-
-
-def read_delpi(
-    identification_file: str | Path,
-    sdrf_file: str | Path | None = None,
-    validate_sdrf: bool = True,
-) -> md.MuData:
+def read_delpi(identification_file: str | Path, drop_search_result: bool = False) -> md.MuData:
     """
     Reads a DELPI output file and returns a MuData object.
 
     Parameters:
         identification_file: Path to the DELPI output file.
-        sdrf_file: Optional SDRF metadata file to merge into obs.
-        validate_sdrf: Validate the SDRF with sdrf-pipelines if installed. Default is True.
+        drop_search_result: If True, the raw search result is not stored in varm.
 
     Returns:
         A MuData object.
@@ -390,10 +327,13 @@ def read_delpi(
 
     identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
 
-    reader = DelpiReader(identification_file=identification_file_, identification_df=identification_df_)
+    reader = DelpiReader(
+        identification_file=identification_file_,
+        identification_df=identification_df_,
+        drop_search_result=drop_search_result,
+    )
 
     mdata: md.MuData = reader.read()
-    mdata = attach_sdrf_metadata(mdata, sdrf_file, validate=validate_sdrf)
 
     return mdata
 
@@ -407,8 +347,11 @@ def read_sdrf(
     Reads tab-delimited SDRF metadata and returns an obs-ready DataFrame.
 
     Parameters:
-        sdrf_file: Path to the SDRF file.
+        sdrf_file: Path or URL to the SDRF file.
         validate_sdrf: Validate the SDRF with sdrf-pipelines if installed. Default is True.
+
+    Parsed SDRF columns preserve normalized SDRF header text, including spaces
+    and square brackets.
     """
     return _read_sdrf(sdrf_file, validate=validate_sdrf)
 

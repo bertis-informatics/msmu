@@ -32,5 +32,11 @@ def test_estimate_q_values():
         dtype=float,
     )
 
-    assert np.allclose(target_q["q_value"].loc[expected_target.index].to_numpy(), expected_target.to_numpy())
-    assert np.allclose(decoy_q["q_value"].loc[expected_decoy.index].to_numpy(), expected_decoy.to_numpy())
+    assert np.allclose(
+        target_q["q_value"].loc[expected_target.index].to_numpy(),
+        expected_target.to_numpy(),
+    )
+    assert np.allclose(
+        decoy_q["q_value"].loc[expected_decoy.index].to_numpy(),
+        expected_decoy.to_numpy(),
+    )

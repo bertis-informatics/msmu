@@ -12,7 +12,11 @@ def _dummy_mdata() -> MuData:
     from anndata import AnnData
     import numpy as np
 
-    adata = AnnData(X=np.array([[1.0]]), obs=pd.DataFrame(index=["s1"]), var=pd.DataFrame(index=["f1"]))
+    adata = AnnData(
+        X=np.array([[1.0]]),
+        obs=pd.DataFrame(index=["s1"]),
+        var=pd.DataFrame(index=["f1"]),
+    )
     return MuData({"psm": adata})
 
 
@@ -48,13 +52,23 @@ def test_read_h5mu_logs_first_command(monkeypatch):
     _assert_cmd(out, "read_h5mu", expect_stdout=False)
 
 
-def test_public_readers_only_accept_sdrf_file_and_validate_by_default():
+def test_import_readers_do_not_accept_sdrf_metadata_parameters():
     readers = [
         rr.read_sage,
         rr.read_diann,
         rr.read_maxquant,
         rr.read_fragpipe,
         rr.read_delpi,
+    ]
+
+    for reader in readers:
+        parameters = inspect.signature(reader).parameters
+        assert "sdrf_file" not in parameters
+        assert "validate_sdrf" not in parameters
+
+
+def test_read_sdrf_accepts_sdrf_file_and_validation_parameter():
+    readers = [
         rr.read_sdrf,
     ]
 
@@ -86,25 +100,19 @@ def test_read_diann_logs_first_command(monkeypatch):
     _assert_cmd(out, "read_diann")
 
 
-def test_read_diann_passes_sdrf_file_and_default_validation_to_attach(monkeypatch):
-    calls = []
-
-    def attach(mdata, sdrf_file, *, validate):
-        calls.append((sdrf_file, validate))
-        return mdata
-
+def test_read_diann_rejects_removed_sdrf_file_parameter(monkeypatch):
     monkeypatch.setattr(rr.SearchResultDataFrameConverter, "convert", _dummy_convert)
     monkeypatch.setattr(rr, "DiannReader", _DummyReader)
-    monkeypatch.setattr(rr, "attach_sdrf_metadata", attach)
 
-    out = rr.read_diann("id.tsv", sdrf_file="meta.sdrf.tsv")
+    import pytest
 
-    _assert_cmd(out, "read_diann")
-    assert calls == [("meta.sdrf.tsv", True)]
+    with pytest.raises(TypeError, match="sdrf_file"):
+        rr.read_diann("id.tsv", sdrf_file="meta.sdrf.tsv")
 
 
 def test_read_diann_protein_group_not_implemented():
     import pytest
+
     with pytest.raises(NotImplementedError):
         rr.read_diann("id.tsv", level="protein_group")
 

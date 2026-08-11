@@ -4,7 +4,12 @@ import pytest
 from anndata import AnnData
 from mudata import MuData
 
-from msmu._preprocessing._infer_protein import _make_peptide_map, _make_protein_map, infer_protein, select_representative
+from msmu._preprocessing._infer_protein import (
+    _make_peptide_map,
+    _make_protein_map,
+    infer_protein,
+)
+from msmu._utils.protein import select_representative
 
 
 def _make_peptide_mdata(
@@ -36,6 +41,19 @@ def _make_peptide_mdata(
 def test_select_representative_prefers_swissprot_canonical():
     protein_group = "P1,P2;P3"
     protein_info = {"P1": "sp_P1", "P2": "sp_P2-2", "P3": "tr_P3"}
+    assert select_representative(protein_group, protein_info) == "P1"
+
+
+def test_select_representative_uses_contaminant_behavior():
+    protein_group = "C1"
+    protein_info = {"C1": "contam_sp_Cont_C1"}
+    assert select_representative(protein_group, protein_info) == "Cont_C1"
+
+
+def test_select_representative_ranks_contaminant_below_swissprot():
+    """A Hao-style contaminant carries the ``sp`` database tag, so it must not outrank a target."""
+    protein_group = "C1,P1"
+    protein_info = {"C1": "sp_Cont_C1", "P1": "sp_P1"}
     assert select_representative(protein_group, protein_info) == "P1"
 
 
@@ -116,7 +134,7 @@ def test_infer_protein_uses_propagated_mapping_from_path(monkeypatch):
         }
     )
 
-    monkeypatch.setattr("msmu._preprocessing._infer_protein.read_h5mu", lambda _: propagated)
+    monkeypatch.setattr("msmu._read_write._reader_registry.read_h5mu", lambda _: propagated)
 
     out = infer_protein(mdata, propagated_from="mapping.h5mu")
 

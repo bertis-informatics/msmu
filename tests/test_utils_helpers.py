@@ -1,7 +1,5 @@
 import io
 import logging
-import numpy as np
-import pandas as pd
 import pytest
 from mudata import MuData
 
@@ -12,8 +10,8 @@ from msmu._utils.peptide import (
     _get_peptide_length,
     _make_stripped_peptide,
 )
-from msmu._utils import add_quant, get_label, get_modality_dict
-from msmu._utils._provenance import append_cmd_log, serialize, uns_logger
+import msmu._utils as msmu_utils
+from msmu._core._provenance import append_cmd_log, serialize, uns_logger
 
 
 def test_serialize_nested_objects():
@@ -108,7 +106,9 @@ def test_uns_logger_prunes_closed_msmu_handler(labeled_mdata):
         logger.propagate = original_propagate
 
 
-def test_uns_logger_keeps_existing_dimensions_intact_across_multiple_calls(labeled_mdata):
+def test_uns_logger_keeps_existing_dimensions_intact_across_multiple_calls(
+    labeled_mdata,
+):
     @uns_logger
     def dummy(mdata: MuData):
         return mdata
@@ -133,30 +133,9 @@ def test_append_cmd_log_rejects_invalid_cmd_type(labeled_mdata):
         append_cmd_log(mdata, function="new")
 
 
-def test_get_modality_dict_by_modality(labeled_mdata):
-    mdata = labeled_mdata
-    mods = get_modality_dict(mdata, modality="psm")
-    assert "psm" in mods
-
-
-def test_get_label_from_psm(labeled_mdata):
-    mdata = labeled_mdata
-    assert get_label(mdata) == "tmt"
-
-
-def test_add_quant_flashlfq_adds_modality(labeled_mdata):
-    mdata = labeled_mdata
-    quant = pd.DataFrame(
-        {
-            "Sequence": ["AA", "BB"],
-            "Intensity_s1": [1.0, 0.0],
-            "Intensity_s2": [2.0, 3.0],
-            "Intensity_gis1": [0.0, 4.0],
-        }
-    )
-    out = add_quant(mdata, quant_data=quant, quant_tool="flashlfq")
-    assert "peptide" in out.mod
-    assert out["peptide"].uns["level"] == "peptide"
+def test_utils_all_exports_are_bound():
+    for name in msmu_utils.__all__:
+        assert hasattr(msmu_utils, name)
 
 
 def test_peptide_helpers():

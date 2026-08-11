@@ -10,6 +10,7 @@ from ._plots import (
     plot_pca,
     plot_umap,
     plot_upset,
+    plot_volcano,
     plot_var,
 )
 from ._template import set_templates
@@ -22,5 +23,7 @@ __all__ = [
     "plot_pca",
     "plot_umap",
     "plot_upset",
+    "plot_volcano",
     "plot_var",
+    "set_templates",
 ]

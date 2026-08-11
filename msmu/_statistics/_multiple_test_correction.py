@@ -1,33 +1,76 @@
 import numpy as np
 from statsmodels.stats.multitest import multipletests
 
+# Percentile of the observed statistics used as the exceedance threshold when estimating pi0
+# from the permutation null. Because the threshold is a quantile of the very statistics whose
+# exceedances are counted, S/m is pinned at (1 - PI0_NULL_PERCENTILE/100) whatever the data,
+# so the estimator's numerator (1 - S/m) is always PI0_NULL_PERCENTILE/100 and pi0 cannot fall
+# below it.
+PI0_NULL_PERCENTILE = 95
+PI0_LOWER_BOUND = PI0_NULL_PERCENTILE / 100.0
+
+# R p.adjust / limma adjust.method names -> statsmodels multipletests methods. msmu exposes R
+# limma's adjust.method vocabulary; each maps 1:1 onto a statsmodels routine (verified numerically
+# against R's p.adjust, see tests/test_statistics_multiple_test_correction.py). "none" is
+# intentionally absent — the uncorrected values are always the p-value column itself, so "no
+# correction" is not offered as an adjustment method.
+_R_TO_STATSMODELS_METHOD = {
+    "bh": "fdr_bh",
+    "by": "fdr_by",
+    "bonferroni": "bonferroni",
+    "holm": "holm",
+    "hochberg": "simes-hochberg",
+    "hommel": "hommel",
+}
+
+# The R p.adjust adjustment methods msmu exposes (canonical lowercase names), for callers that
+# validate a requested method against the supported family.
+P_ADJUST_METHODS = tuple(_R_TO_STATSMODELS_METHOD)
+
 
 class PvalueCorrection:
     """
     Class for multiple testing correction methods.
 
     Methods:
-        bh : Benjamini-Hochberg FDR correction.
+        adjust : R p.adjust family (BH/BY/holm/hochberg/hommel/bonferroni) on a p-value vector.
         storey : Storey's q-value estimation with pi0 estimation.
         empirical : Permutation-based empirical FDR estimation.
     """
 
     @staticmethod
-    def bh(pvals: np.ndarray) -> np.ndarray:
+    def adjust(pvals: np.ndarray, method: str = "bh") -> np.ndarray:
         """
-        Benjamini-Hochberg FDR correction with NaN handling.
+        Multiple-testing correction from R's p.adjust family, with NaN handling.
+
+        Maps an R p.adjust / limma ``adjust.method`` name (case-insensitive) onto the matching
+        statsmodels ``multipletests`` routine and applies it to the non-NaN p-values, leaving NaN
+        entries untouched. This is the shared correction path for both DE engines: limma's moderated
+        p-values and the permutation p-values are adjusted identically here (the permutation engine's
+        alternative, empirical FDR, lives in :meth:`empirical` because it needs the null distribution,
+        not just the p-values).
 
         Parameters:
             pvals: Array of p-values (can include NaN).
+            method: R-style correction name, one of
+                "bh", "by", "holm", "hochberg", "hommel", "bonferroni" (case-insensitive).
 
         Returns:
-            qvals: Array of q-values (NaN-filled where p was NaN).
+            qvals: Array of adjusted p-values (NaN-filled where p was NaN).
         """
+        method_key = method.lower()
+        if method_key not in _R_TO_STATSMODELS_METHOD:
+            raise ValueError(
+                f"Unknown p-value adjustment method {method!r}. Choose from "
+                f"{list(P_ADJUST_METHODS)} (R p.adjust names, case-insensitive)."
+            )
+        statsmodels_method = _R_TO_STATSMODELS_METHOD[method_key]
+
         pvals = np.asarray(pvals)
         qvals = np.full_like(pvals, np.nan, dtype=float)
         mask = ~np.isnan(pvals)
         if np.any(mask):
-            _, qvals_nonan, _, _ = multipletests(pvals[mask], method="fdr_bh")
+            _, qvals_nonan, _, _ = multipletests(pvals[mask], method=statsmodels_method)
             qvals[mask] = qvals_nonan
         return qvals
 
@@ -119,6 +162,12 @@ class PvalueCorrection:
         Based on Equation (8): compares observed and null test statistic exceedances at a given threshold.
         pi0 = (1 - S/m) / (1 - S_star/m)
 
+        Both S and S_star are counts of *features* exceeding the threshold: S over the observed
+        statistics, S_star averaged over permutations. Summing the null matrix over its
+        permutation axis instead would make S_star a count of permutations, i.e. roughly
+        m/n_permutations times too small, which drives the denominator to 1 and collapses pi0
+        onto the constant (1 - percentile/100) regardless of the data.
+
         Parameters:
             stat_valid: 1D array of observed test statistics (NaN-excluded).
             null_matrix_valid: 2D array of null test statistics (shape: [n_permutations, m_valid]), aligned with stat_valid (i.e., same features, same filtering).
@@ -131,7 +180,7 @@ class PvalueCorrection:
         threshold = np.percentile(stat_valid, percentile)
 
         s = np.sum(stat_valid >= threshold)
-        s_star = np.mean(np.sum(null_matrix_valid >= threshold, axis=0))
+        s_star = np.mean(np.sum(null_matrix_valid >= threshold, axis=1))
         denominator = 1 - (s_star / m)
         pi0 = (1 - s / m) / denominator if denominator != 0 else 1.0
         pi0 = min(max(pi0, 0.0), 1.0)
@@ -180,7 +229,7 @@ class PvalueCorrection:
 
         # pi0 estimation (direct pi0 estimation from null distribution)
         pi0 = PvalueCorrection.estimate_pi0_null(
-            stat_valid=stat_valid, null_matrix_valid=null_matrix_valid, percentile=95
+            stat_valid=stat_valid, null_matrix_valid=null_matrix_valid, percentile=PI0_NULL_PERCENTILE
         )
 
         # # pi0 estimation (storey's)

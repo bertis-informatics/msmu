@@ -8,6 +8,19 @@ from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
 
+# Database tags of a UniProt-style entry ("sp|P02769|ALBU_BOVIN"). Anything sitting in front of
+# one of these is a decoy tag: those differ per search engine (Sage "rev_", MaxQuant "REV__",
+# Percolator "DECOY_") and Sage's is a config value, so they are never enumerated here.
+UNIPROT_DATABASE_TAGS = ("sp", "tr")
+
+# Contaminant markers seen in practice. Our search pipeline emits "contam_sp|P02769|ALBU_BOVIN"
+# (marker in front), the Hao Lab universal contaminant FASTA emits "sp|Cont_P00722|BGAL_ECOLI"
+# (marker inside the accession), MaxQuant emits "CON__".
+CONTAMINANT_MARKERS = ("contam_", "Cont_", "CON__")
+
+CANONICAL_CONTAMINANT_PREFIX = "Cont_"
+CANONICAL_DECOY_PREFIX = "rev_"
+
 
 def attach_fasta(mdata: md.MuData, fasta_file: str | None) -> md.MuData:
     """
@@ -35,12 +48,13 @@ def _get_protein_info_from_fasta(fasta_file: str) -> pd.DataFrame:
     fasta_dict: dict = dict()
     for record in SeqIO.parse(fasta_file, "fasta"):
         desc: str = record.description
-        ref_uniprot: str = record.id.split("|")[1]
         seq_: str = str(record.seq)
 
-        entry_type, accession, protein_id = _split_uniprot_fasta_entry(record.id)
-        if entry_type.startswith("contam_"):
-            ref_uniprot = "contam_" + ref_uniprot
+        entry_type, _raw_accession, protein_id = _split_uniprot_fasta_entry(record.id)
+        # Index on the canonical accession so the mapping keys match what the readers parse out
+        # of the search output, whichever contaminant FASTA convention the search used.
+        ref_uniprot, _is_contaminant = _parse_protein_entry(record.id)
+        accession, _ = _strip_contaminant_marker(_raw_accession, search_anywhere=False)
 
         gene_name_search = re.search(r"GN=([^\s]+)", desc)
         gene_name: str = gene_name_search.group(1) if gene_name_search else "Unknown"
@@ -69,26 +83,73 @@ def _get_protein_info_from_uniprot() -> pd.DataFrame:
     raise
 
 
+def _strip_contaminant_marker(text: str, *, search_anywhere: bool) -> tuple[str, bool]:
+    """Remove the first contaminant marker from ``text`` and report whether one was found.
+
+    ``search_anywhere`` is for the database field, where a decoy tag of unknown shape may sit in
+    front of the marker ("rev_contam_sp"); the accession field is matched from the start only,
+    since the Hao Lab marker is always leading there.
+    """
+    for marker in CONTAMINANT_MARKERS:
+        if search_anywhere and marker in text:
+            return text.replace(marker, "", 1), True
+        if not search_anywhere and text.startswith(marker):
+            return text[len(marker) :], True
+    return text, False
+
+
+def _parse_protein_entry(protein_entry: str) -> tuple[str, bool]:
+    """Parse one protein entry into its canonical accession and its contaminant status.
+
+    The canonical form is ``[rev_][Cont_]<accession>``, so entries reaching msmu through
+    different search engines and contaminant FASTA conventions collapse onto one spelling.
+
+    The protein name field is never inspected: real names such as ``CONA_CANLI`` would otherwise
+    match a contaminant marker.
+    """
+    fields = protein_entry.split("|")
+    if len(fields) != 3:
+        # Not a UniProt-style entry (e.g. a bare accession); only the marker can be recovered.
+        accession, is_contaminant = _strip_contaminant_marker(protein_entry, search_anywhere=True)
+        prefix = CANONICAL_CONTAMINANT_PREFIX if is_contaminant else ""
+        return prefix + accession, is_contaminant
+
+    database_field, accession, _protein_name = fields
+    database_field, marker_in_database_field = _strip_contaminant_marker(database_field, search_anywhere=True)
+    accession, marker_in_accession = _strip_contaminant_marker(accession, search_anywhere=False)
+
+    # A recognised database tag carrying something in front of it is a decoy entry. Decoy status
+    # itself comes from the reader's flag column; the prefix is kept only so that decoy accessions
+    # stay distinct from their target counterparts.
+    is_decoy = any(database_field.endswith(tag) and database_field != tag for tag in UNIPROT_DATABASE_TAGS)
+    is_contaminant = marker_in_database_field or marker_in_accession
+
+    prefix = (CANONICAL_DECOY_PREFIX if is_decoy else "") + (CANONICAL_CONTAMINANT_PREFIX if is_contaminant else "")
+    return prefix + accession, is_contaminant
+
+
+def parse_uniprot_accession_group(protein_group: str) -> tuple[str, bool]:
+    """Parse one semicolon-delimited protein group into its accession string.
+
+    Returns the accession string and whether any member is a contaminant, so callers take the
+    contaminant flag from the parser instead of re-matching the marker on the parsed string.
+
+    Kept as a per-value function so callers can deduplicate (map over distinct protein groups)
+    instead of parsing every PSM row -- protein groups repeat heavily across PSMs.
+    """
+    group_accessions: list[str] = []
+    group_has_contaminant = False
+    for protein in protein_group.split(";"):
+        accession, is_contaminant = _parse_protein_entry(protein)
+        group_accessions.append(accession)
+        group_has_contaminant = group_has_contaminant or is_contaminant
+
+    return ";".join(group_accessions), group_has_contaminant
+
+
 def parse_uniprot_accession(proteins: pd.Series) -> list[str]:
-    parsed_accessions: list[str] = []
-
     # Keep parsing in a tight Python loop; this avoids expensive explode + row-wise apply.
-    for protein_group in proteins:
-        group_accessions: list[str] = []
-        for protein in protein_group.split(";"):
-            parts = protein.split("|")
-            accession = parts[1] if len(parts) == 3 else parts[0]
-
-            if protein.startswith("rev_"):
-                accession = f"rev_{accession}"
-            elif protein.startswith("contam_"):
-                accession = f"contam_{accession}"
-
-            group_accessions.append(accession)
-
-        parsed_accessions.append(";".join(group_accessions))
-
-    return parsed_accessions
+    return [parse_uniprot_accession_group(protein_group)[0] for protein_group in proteins]
 
 
 def _split_uniprot_fasta_entry(entry: str) -> tuple[str, str, str]:

@@ -1,9 +1,13 @@
 import re
+import warnings
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 
 from ..logging_utils import get_logger
+from .._core._blockdiag import aggregate_features_by_group, dense_block, is_sparse, to_dense_df
 from ._filter import _mask_boolean_filter
 
 # for type checking only
@@ -12,6 +16,219 @@ from typing import Literal
 
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class SparseQuant:
+    """Carrier for a sparse block-diagonal quantification matrix through the summarisation path.
+
+    Wraps a SciPy sparse ``(samples, features)`` matrix together with its sample names so the
+    aggregator can reduce features per group without ever densifying the full matrix (see
+    :mod:`msmu._core._blockdiag`). Exposes ``shape``/``copy`` so it can stand in for the dense
+    quantification DataFrame in the existing flow.
+    """
+
+    matrix: sp.spmatrix  # (n_samples, n_features)
+    sample_names: list[str]
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return self.matrix.shape
+
+    def copy(self) -> "SparseQuant":
+        return SparseQuant(matrix=self.matrix.copy(), sample_names=list(self.sample_names))
+
+MEDIAN_POLISH_MAX_ITERATIONS: int = 10
+# Relative convergence on the sum of absolute residuals, matching R's ``stats::medpolish``
+# (the summarisation used by MSstats). Median polish does not always converge to a unique
+# fixed point on data with missing values, so this stops at the standard residual criterion
+# rather than iterating to machine precision.
+MEDIAN_POLISH_CONVERGENCE_TOLERANCE: float = 1e-4
+
+# directlfq's within-protein normalisation caps how many samples it uses to build the
+# pairwise-shift graph (directlfq's ``number_of_quadratic_samples`` default) and requires at
+# least this many observed ions to emit a protein estimate.
+DIRECTLFQ_NUM_SAMPLES_QUADRATIC: int = 10
+DIRECTLFQ_MIN_NON_MISSING_IONS: int = 1
+
+# directlfq's low-level per-protein worker (unlike its top-level ``run_lfq``) never runs the
+# copy-flag probe itself. On pandas>=3 / numpy>=2, ``DataFrame.to_numpy()`` returns a read-only
+# (copy-on-write) array that directlfq's in-place sample shift cannot mutate, so the flag has to
+# be set before the first call. Guarded so the one-off configuration runs at most once per process.
+_directlfq_runtime_configured: bool = False
+
+
+def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
+    """Summarise a feature-by-sample matrix to per-sample estimates via directlfq (DirectLFQ).
+
+    DirectLFQ (Ammar et al. 2023) aligns each feature's intensity trace onto a common scale
+    (a within-group "peptide shift") and takes the per-sample median of the aligned traces.
+    It is a fast, MaxLFQ-inspired label-free quantification method, but a *distinct* algorithm
+    from the classical MaxLFQ pairwise-ratio least-squares — the results are correlated, not
+    identical.
+
+    This calls directlfq's per-protein worker on a single group's submatrix, so the estimate for
+    each group depends only on that group's own features (directlfq's cross-group step is its
+    between-sample normalisation, which is skipped here — msmu handles normalisation upstream).
+    That keeps this rollup a drop-in per-group aggregation, symmetric with ``_median_polish``.
+
+    IMPORTANT: like median polish this operates in log space. directlfq's per-protein worker
+    consumes log2 intensities and returns a log2-space profile, so the input must be log2
+    (e.g. apply log2_transform first) and the output is log2.
+
+    NaN handling: missing values propagate as directlfq's own missingness. Features (rows) with
+    no observed values are dropped before the call; a sample column with no observed values
+    across every feature yields ``NaN``.
+
+    Args:
+        feature_by_sample_matrix (np.ndarray): 2D array of log-space intensities with
+            shape ``(n_features, n_samples)``. May contain NaN for missing values.
+
+    Returns:
+        np.ndarray: 1D array of length ``n_samples`` with the per-sample rollup estimate.
+    """
+    global _directlfq_runtime_configured
+
+    import directlfq.config as directlfq_config
+    import directlfq.protein_intensity_estimation as directlfq_estimation
+
+    if not _directlfq_runtime_configured:
+        directlfq_config.check_wether_to_copy_numpy_arrays_derived_from_pandas()
+        # The worker is called once per group with idx=0, and directlfq logs an INFO line
+        # whenever idx % 100 == 0 (always true at idx=0). Left on, that emits one identical
+        # "lfq-object 0" line per protein group — thousands of lines on a real run.
+        directlfq_config.set_log_processed_proteins(log_processed_proteins=False)
+        _directlfq_runtime_configured = True
+
+    matrix = np.asarray(feature_by_sample_matrix, dtype=float)
+    if matrix.ndim != 2:
+        raise ValueError("directlfq rollup expects a 2D feature-by-sample matrix.")
+
+    _number_of_features, number_of_samples = matrix.shape
+    sample_estimates = np.full(number_of_samples, np.nan, dtype=float)
+
+    # Drop features with no observed values; they contribute nothing and match directlfq's own
+    # all-NaN-row removal. A fully-missing sample column is preserved and returns NaN.
+    observed_feature_mask = ~np.all(np.isnan(matrix), axis=1)
+    if not observed_feature_mask.any():
+        return sample_estimates
+
+    observed_matrix = matrix[observed_feature_mask]
+    peptide_by_sample_df = pd.DataFrame(
+        observed_matrix,
+        index=pd.MultiIndex.from_arrays(
+            [
+                np.zeros(observed_matrix.shape[0], dtype=int),  # single protein group
+                np.arange(observed_matrix.shape[0]),  # ion (feature) identifiers
+            ],
+            names=[directlfq_config.PROTEIN_ID, directlfq_config.QUANT_ID],
+        ),
+    )
+
+    protein_profile, _shifted_peptides = directlfq_estimation.calculate_peptide_and_protein_intensities(
+        0,
+        peptide_by_sample_df,
+        DIRECTLFQ_NUM_SAMPLES_QUADRATIC,
+        DIRECTLFQ_MIN_NON_MISSING_IONS,
+    )
+    if protein_profile is None:
+        return sample_estimates
+
+    return np.asarray(protein_profile, dtype=float)
+
+
+def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
+    """Summarise a feature-by-sample matrix to per-sample estimates via Tukey's median polish.
+
+    Median polish fits the additive model ``value[feature, sample] = overall +
+    row_effect[feature] + col_effect[sample] + residual`` by iteratively sweeping row
+    and column medians out of the matrix. The rollup estimate for each sample is
+    ``overall + col_effect[sample]``.
+
+    Convergence follows R's ``stats::medpolish`` (MSstats' summarisation): iterate until the
+    relative change in the sum of absolute residuals falls below
+    ``MEDIAN_POLISH_CONVERGENCE_TOLERANCE`` or ``MEDIAN_POLISH_MAX_ITERATIONS`` is reached.
+    Convergence on ``overall`` alone is NOT sufficient — it can stabilise while the row/column
+    effects are still moving, stopping early with a wrong estimate.
+
+    IMPORTANT: this is an *additive* model, so it must be applied to log-space
+    intensities (e.g. log2). Applying it to linear intensities is not meaningful.
+
+    NaN handling: fully-missing features (all-NaN rows) are dropped before polishing --
+    they carry no information, and keeping them would bias the row-effect alignment median
+    that recovers the overall protein level toward zero (collapsing groups whose features
+    are mostly all-NaN, e.g. proteins quantified by a few unique peptides among many masked
+    shared ones). Remaining missing values are ignored via ``nanmedian``. A sample column
+    with no observed values across every feature yields ``NaN`` (there is nothing to summarise).
+
+    Args:
+        feature_by_sample_matrix (np.ndarray): 2D array of log-space intensities with
+            shape ``(n_features, n_samples)``. May contain NaN for missing values.
+
+    Returns:
+        np.ndarray: 1D array of length ``n_samples`` with the per-sample rollup estimate.
+    """
+    input_matrix = np.asarray(feature_by_sample_matrix, dtype=float)
+
+    if input_matrix.ndim != 2:
+        raise ValueError("median polish expects a 2D feature-by-sample matrix.")
+
+    number_of_samples = input_matrix.shape[1]
+    fully_missing_sample_mask = np.all(np.isnan(input_matrix), axis=0)
+
+    # Drop fully-missing features before polishing (symmetric with ``_directlfq_rollup``). An
+    # all-NaN row carries no information, yet ``nanmedian`` still yields a placeholder row effect
+    # that, folded back through the row-effect alignment median, drags ``overall`` -- and therefore
+    # every sample estimate -- toward zero. When such rows are the majority of a protein group
+    # (e.g. a few unique peptides among many masked shared ones) they collapse the whole protein
+    # to ~0. Boolean indexing returns a fresh writable copy, so the sweeps mutate in place safely.
+    observed_feature_mask = ~np.all(np.isnan(input_matrix), axis=1)
+    if not observed_feature_mask.any():
+        return np.full(number_of_samples, np.nan, dtype=float)
+    residual_matrix = input_matrix[observed_feature_mask]
+
+    number_of_features = residual_matrix.shape[0]
+
+    overall_effect: float = 0.0
+    row_effects = np.zeros(number_of_features, dtype=float)
+    col_effects = np.zeros(number_of_samples, dtype=float)
+    previous_residual_sum: float = np.inf
+
+    with warnings.catch_warnings():
+        # nanmedian legitimately hits all-NaN columns for fully-missing samples (all-NaN rows
+        # were dropped above), so silence the resulting empty-slice warning.
+        warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
+        for iteration in range(MEDIAN_POLISH_MAX_ITERATIONS):
+            # Row sweep: remove the median of each feature (row) across samples.
+            row_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=1))
+            residual_matrix -= row_medians[:, np.newaxis]
+            row_effects += row_medians
+            col_alignment = np.nan_to_num(np.nanmedian(col_effects))
+            col_effects -= col_alignment
+            overall_effect += col_alignment
+
+            # Column sweep: remove the median of each sample (column) across features.
+            col_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=0))
+            residual_matrix -= col_medians[np.newaxis, :]
+            col_effects += col_medians
+            row_alignment = np.nan_to_num(np.nanmedian(row_effects))
+            row_effects -= row_alignment
+            overall_effect += row_alignment
+
+            # Convergence on the sum of absolute residuals (R medpolish criterion).
+            current_residual_sum = float(np.nansum(np.abs(residual_matrix)))
+            if current_residual_sum == 0.0:
+                break
+            if iteration > 0 and abs(previous_residual_sum - current_residual_sum) < (
+                MEDIAN_POLISH_CONVERGENCE_TOLERANCE * current_residual_sum
+            ):
+                break
+            previous_residual_sum = current_residual_sum
+
+    sample_estimates = overall_effect + col_effects
+    sample_estimates[fully_missing_sample_mask] = np.nan
+
+    return sample_estimates
 
 
 class FeatureRanker:
@@ -150,13 +367,13 @@ class Aggregator:
         identification_df: pd.DataFrame,
         quantification_df: pd.DataFrame,
         decoy_df: pd.DataFrame | None,
-        agg_method: Literal["median", "mean", "sum"],
+        agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"],
         score_method: Literal["best_pep"],
     ) -> None:
         self._id_df: pd.DataFrame = identification_df.copy()
         self._quant_df: pd.DataFrame = quantification_df.copy()
         self._decoy_id_df: pd.DataFrame = decoy_df.copy() if decoy_df is not None else pd.DataFrame()
-        self._agg_method: Literal["median", "mean", "sum"] = agg_method
+        self._agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = agg_method
         self._score_method: Literal["best_pep"] = score_method
 
         self._id_agg_dict: dict = dict()  # placeholder
@@ -262,13 +479,60 @@ class Aggregator:
         return agg_id_df
 
     def aggregate_quantification(self) -> pd.DataFrame:
+        if isinstance(self._quant_df, SparseQuant):
+            return self._aggregate_quantification_sparse()
+
+        sample_columns = self._quant_df.columns
         agg_quant_df: pd.DataFrame = self._quant_df.copy()
         agg_quant_df[self._col_to_groupby] = self._id_df[self._col_to_groupby]
-        agg_quant_df = agg_quant_df.groupby(self._col_to_groupby, observed=False).agg(self._agg_method)
+        grouped_quant = agg_quant_df.groupby(self._col_to_groupby, observed=False)
+
+        # Matrix rollups operate on each group's full feature-by-sample submatrix, so they cannot
+        # be expressed as a column-wise pandas aggregation and are applied per group instead.
+        matrix_rollups = {
+            "median_polish": _median_polish,
+            "directlfq": _directlfq_rollup,
+        }
+        if self._agg_method in matrix_rollups:
+            rollup_function = matrix_rollups[self._agg_method]
+            agg_quant_df = grouped_quant[sample_columns].apply(
+                lambda group_quant: pd.Series(
+                    rollup_function(group_quant.to_numpy(dtype=float)),
+                    index=sample_columns,
+                )
+            )
+        else:
+            agg_quant_df = grouped_quant.agg(self._agg_method)
 
         agg_quant_df = agg_quant_df.rename_axis(index=None)
 
         return agg_quant_df
+
+    def _aggregate_quantification_sparse(self) -> pd.DataFrame:
+        """Aggregate a sparse block-diagonal quantification per group without densifying it.
+
+        Reduces feature columns within each group (median/mean/sum) directly on the sparse
+        matrix, one small group-block at a time. The group order matches
+        :meth:`aggregate_identification` (same pandas ``groupby`` order) so the returned frame
+        aligns positionally with the aggregated identifications downstream.
+        """
+        if self._agg_method not in ("median", "mean", "sum"):
+            # median_polish / directlfq are peptide->protein matrix rollups and are never applied
+            # to the sparse PSM level; they run on the (dense) peptide modality in to_protein.
+            raise NotImplementedError(
+                f"Sparse quantification supports agg_method in ('median', 'mean', 'sum'); "
+                f"got {self._agg_method!r}."
+            )
+        feature_groups = self._id_df[self._col_to_groupby].to_numpy()
+        group_order = self._id_df.groupby(self._col_to_groupby, observed=False).size().index.to_numpy()
+        groups, aggregated = aggregate_features_by_group(
+            self._quant_df.matrix,
+            feature_groups,
+            self._agg_method,
+            group_order=group_order,
+        )
+        agg_quant_df = pd.DataFrame(aggregated, index=groups, columns=self._quant_df.sample_names)
+        return agg_quant_df.rename_axis(index=None)
 
     def aggregate_decoy(self) -> pd.DataFrame:
         agg_decoy_df: pd.DataFrame = self._decoy_id_df.copy()
@@ -321,11 +585,24 @@ class SummarisationPrep:
 
     def prepare_data_to_summarise(self) -> pd.DataFrame:
         identification_df: pd.DataFrame = self.adata.var.copy()
-        quantification_df: pd.DataFrame = self.adata.to_df().transpose().copy()
+        if is_sparse(self.adata.X):
+            # Keep the block-diagonal quantification sparse; the aggregator reduces it per group
+            # without materialising the full (samples x features) matrix. Values are aligned to
+            # var order (== identification_df order) so no dense pivot is needed here.
+            quantification_df = SparseQuant(
+                matrix=self.adata.X.tocsc(),
+                sample_names=list(self.adata.obs_names),
+            )
+        else:
+            quantification_df = self.adata.to_df().transpose().copy()
         if self._has_decoy:
             decoy_df: pd.DataFrame = self.adata.uns["decoy"].copy()
 
-        return identification_df, quantification_df, decoy_df if self._has_decoy else None
+        return (
+            identification_df,
+            quantification_df,
+            decoy_df if self._has_decoy else None,
+        )
 
     def _make_filter_mask(self, id_df: pd.DataFrame):
         filter_indices = pd.Series(False, index=id_df.index)
@@ -341,7 +618,7 @@ class SummarisationPrep:
 
         ranked_id_df = FeatureRanker().__getattribute__(rank_method)(
             identification_df=self.adata.var,
-            quantification_df=self.adata.to_df().transpose(),
+            quantification_df=to_dense_df(self.adata).transpose(),
             col_to_groupby=self._col_to_groupby,
         )
 
@@ -349,7 +626,21 @@ class SummarisationPrep:
 
         return rank_mask
 
-    def _mask_quantification(self, quant_df: pd.DataFrame, mask_indices: pd.Series) -> pd.DataFrame:
+    def _mask_quantification(self, quant_df, mask_indices: pd.Series):
+        if isinstance(quant_df, SparseQuant):
+            # Drop stored entries in the masked-out feature columns so those features become
+            # all-absent (contribute nothing to the group aggregation) -- no densification. The mask
+            # is over features, whose order (id_df.index == var == matrix columns) matches the CSC.
+            keep = np.asarray(mask_indices, dtype=bool)
+            coo = quant_df.matrix.tocoo()
+            keep_entry = keep[coo.col]
+            masked = sp.coo_matrix(
+                (coo.data[keep_entry], (coo.row[keep_entry], coo.col[keep_entry])),
+                shape=quant_df.matrix.shape,
+                dtype=quant_df.matrix.dtype,
+            ).tocsc()
+            return SparseQuant(matrix=masked, sample_names=quant_df.sample_names)
+
         mask_with_nan_quant = quant_df.copy()
         mask_with_nan_quant.loc[~mask_indices, :] = np.nan
 
@@ -357,6 +648,19 @@ class SummarisationPrep:
 
     def prep(self):
         identification_df, quantification_df, decoy_df = self.prepare_data_to_summarise()
+
+        # Only the rank mask needs the quant densely (FeatureRanker ranks features by intensity); the
+        # column/purity filter is computed from the identification frame and applied sparse-natively
+        # (drop feature columns) below. So a sparse block-diagonal is densified only when a rank is
+        # requested -- the common TMT to_peptide (purity filter, no rank) stays sparse end-to-end,
+        # which is the whole point of the block-diagonal representation.
+        if isinstance(quantification_df, SparseQuant) and self.rank_tuple:
+            logger.debug("Densifying sparse quantification for rank-masked summarisation.")
+            quantification_df = pd.DataFrame(
+                dense_block(quantification_df.matrix).T,
+                index=self.adata.var_names,
+                columns=quantification_df.sample_names,
+            )
 
         # make filter mask
         if self._filter_dict:
@@ -368,7 +672,11 @@ class SummarisationPrep:
             rank_mask = self._make_rank_mask()
             quantification_df = self._mask_quantification(quantification_df, rank_mask)
 
-        return identification_df, quantification_df, decoy_df if self._has_decoy else None
+        return (
+            identification_df,
+            quantification_df,
+            decoy_df if self._has_decoy else None,
+        )
 
 
 class PtmSummarisationPrep(SummarisationPrep):
@@ -393,6 +701,15 @@ class PtmSummarisationPrep(SummarisationPrep):
 
     def prep(self):
         identification_df, quantification_df, _ = self.prepare_data_to_summarise()
+        # PTM sites are aggregated from the peptide modality, which is dense (peptides span samples,
+        # so it is not block-diagonal). Densify defensively if a sparse .X is ever passed -- the
+        # pd.merge below cannot operate on a SparseQuant.
+        if isinstance(quantification_df, SparseQuant):
+            quantification_df = pd.DataFrame(
+                dense_block(quantification_df.matrix).T,
+                index=self.adata.var_names,
+                columns=quantification_df.sample_names,
+            )
         identification_df["peptide"] = identification_df.index
         modi_df = self._extract_modi_peptide_df(data=identification_df)
 

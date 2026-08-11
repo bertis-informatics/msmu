@@ -2,10 +2,10 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 
 from ._base_reader import SearchResultReader, SearchResultSettings
-from .._utils.fasta import parse_uniprot_accession
+from .._utils.fasta import parse_uniprot_accession_group
+from .._utils._filenames import MS_EXTENSION_REGEX, strip_ms_extensions
 from . import label_info
 
 
@@ -21,11 +21,12 @@ class SageReader(SearchResultReader):
     def __init__(
         self,
         identification_file: str | Path,
+        drop_search_result: bool = False,
         identification_df: pd.DataFrame | None = None,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(_drop_search_result=drop_search_result)
         self.search_settings: SearchResultSettings = SearchResultSettings(
             search_engine="sage",
             quantification="sage",
@@ -59,39 +60,61 @@ class SageReader(SearchResultReader):
             ]
         )
 
-    @staticmethod
-    def _label_decoy(label: int) -> int:
-        if label == -1:
-            return 1
-        else:
-            return 0
-
-    @staticmethod
-    def _label_possible_contaminant(proteins: str) -> int:
-        if "contam_" in proteins:
-            return 1
-        else:
-            return 0
-
-    @staticmethod
-    def _extract_scan_number(scan_str: str) -> int:
-        return int(scan_str.split("scan=")[1])
-
     def _read_config_file(self):
         with open(self.search_settings.config_path, "r") as f:
             config = json.load(f)
         return config
 
     def _make_needed_columns_for_identification(self, identification_df: pd.DataFrame) -> pd.DataFrame:
-        identification_df["proteins"] = parse_uniprot_accession(identification_df["proteins"])
-        identification_df["filename"] = identification_df["filename"].apply(self._strip_filename)
-        identification_df["scan_num"] = identification_df["scannr"].apply(self._extract_scan_number)
-        identification_df["stripped_peptide"] = identification_df["peptide"].apply(self._make_stripped_peptide)
-        identification_df["decoy"] = identification_df["label"].apply(self._label_decoy)
-        identification_df["contaminant"] = identification_df["proteins"].apply(self._label_possible_contaminant)
-        identification_df["PEP"] = np.power(10, identification_df["posterior_error"])  # convert log10 PEP to PEP
+        """Build the feature frame on a FRESH DataFrame rather than mutating the input, so the caller
+        keeps the raw frame intact (to serve varm or be freed) without a defensive copy.
 
-        return identification_df.copy()
+        The whole identification transform runs as polars expressions and converts to pandas once
+        (the AnnData boundary). Non-obvious equivalences (polars has no lookbehind / list.eval is slow):
+          stripped peptide  re ``([A-Z]+)|(\\[\\+\\d+\\.\\d+\\])`` join == ``str.replace_all("[^A-Z]", "")``
+          accession parse   per-group fn via ``replace_strict`` over UNIQUE groups (dedup)
+          filename strip    ``Path(x).name.rsplit(".",1)[0]`` == ``split("/").list.last().replace(r"\\.[^.]*$", "")``
+        """
+        import polars as pl
+
+        # Fail loud on a scannr with no "scan=<number>" token (e.g. a non-Thermo instrument), the
+        # way the old pandas int(...) did -- otherwise the polars extract nulls the scan, the index
+        # float-promotes, and every feature is silently dropped at the ident/quant intersection.
+        invalid_scannr = identification_df.filter(
+            pl.col("scannr").is_not_null() & pl.col("scannr").str.extract(r"scan=(\d+)", 1).is_null()
+        )
+        if invalid_scannr.height > 0:
+            raise ValueError(
+                "Sage scannr has no 'scan=<number>' token (non-Thermo scan format is not supported): "
+                f"{invalid_scannr['scannr'].head(3).to_list()}"
+            )
+
+        uniq = identification_df.select("proteins").unique().to_series().to_list()
+        parsed_by_group = {value: parse_uniprot_accession_group(value) for value in uniq}
+        accession_map = {group: accession for group, (accession, _) in parsed_by_group.items()}
+        contaminant_map = {group: int(is_contaminant) for group, (_, is_contaminant) in parsed_by_group.items()}
+        feature_df = identification_df.select(
+            pl.col("proteins").replace_strict(accession_map).alias("proteins"),
+            # Both expressions read the original (unparsed) column: the flag comes from the parser
+            # rather than from re-matching a marker on the parsed accession string.
+            pl.col("proteins").replace_strict(contaminant_map).cast(pl.Int64).alias("contaminant"),
+            pl.col("peptide"),
+            pl.col("filename").str.split("/").list.last().str.replace(MS_EXTENSION_REGEX, "").alias("filename"),
+            pl.col("scannr").str.extract(r"scan=(\d+)", 1).cast(pl.Int64).alias("scan_num"),
+            pl.col("peptide").str.replace_all(r"[^A-Z]", "").alias("stripped_peptide"),
+            pl.col("charge"),
+            pl.col("peptide_len"),
+            pl.col("expmass"),
+            pl.col("calcmass"),
+            pl.col("rt"),
+            pl.col("missed_cleavages"),
+            pl.col("semi_enzymatic"),
+            (pl.col("label") == -1).fill_null(False).cast(pl.Int64).alias("decoy"),  # null label -> target (0)
+            (pl.lit(10.0) ** pl.col("posterior_error")).alias("PEP"),  # convert log10 PEP to PEP
+            pl.col("hyperscore"),
+            pl.col("spectrum_q"),
+        )
+        return feature_df.to_pandas()
 
 
 class TmtSageReader(SageReader):
@@ -105,25 +128,48 @@ class TmtSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
+        drop_search_result: bool = False,
         identification_df: pd.DataFrame | None = None,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
-        super().__init__(identification_file, identification_df, quantification_file, quantification_df)
+        super().__init__(
+            identification_file=identification_file,
+            identification_df=identification_df,
+            quantification_file=quantification_file,
+            quantification_df=quantification_df,
+            drop_search_result=drop_search_result,
+        )
         self.search_settings.label = "tmt"
         self.search_settings.quantification_level = "psm"
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
-        quantification_df["filename"] = quantification_df["filename"].apply(self._strip_filename)
-        quantification_df["scan_num"] = quantification_df["scannr"].apply(self._extract_scan_number)
-        quantification_df = self._make_unique_index(quantification_df)
-        quantification_df = quantification_df.drop(["filename", "scannr", "scan_num", "ion_injection_time"], axis=1)
+        """polars TMT quant: build the ``filename.scan_num`` index (== identification's unique index,
+        so the downstream obs rename / replace(0, NaN) / build_mudata are unchanged) and keep the
+        tmt columns.
+        """
+        import polars as pl
 
-        return quantification_df
+        tmt_cols = [col for col in quantification_df.columns if col.startswith("tmt_")]
+        return (
+            quantification_df.select(
+                (
+                    pl.col("filename").str.split("/").list.last().str.replace(MS_EXTENSION_REGEX, "")
+                    + pl.lit(".")
+                    # cast through Int64 to strip leading zeros (scan=001001 -> 1001), matching the
+                    # identification side's int cast so the two indexes intersect.
+                    + pl.col("scannr").str.extract(r"scan=(\d+)", 1).cast(pl.Int64).cast(pl.Utf8)
+                ).alias("tmp_index"),
+                *[pl.col(col) for col in tmt_cols],
+            )
+            .to_pandas()
+            .set_index("tmp_index")
+            .rename_axis(index=None)
+        )
 
     def _make_rename_dict_for_obs(self, quantification_df: pd.DataFrame) -> dict:
         plex = len(quantification_df.columns)
-        tmt_labels = getattr(label_info, f"Tmt{plex}").label
+        tmt_labels = [label_info.to_sdrf_channel_label(reporter) for reporter in getattr(label_info, f"Tmt{plex}").label]
         sage_labels = [f"tmt_{x}" for x in range(1, plex + 1)]
 
         channel_dict = {sage_col: tmt for sage_col, tmt in zip(sage_labels, tmt_labels)}
@@ -143,11 +189,18 @@ class LfqSageReader(SageReader):
     def __init__(
         self,
         identification_file: str | Path,
+        drop_search_result: bool = False,
         identification_df: pd.DataFrame | None = None,
         quantification_file: str | Path | None = None,
         quantification_df: pd.DataFrame | None = None,
     ) -> None:
-        super().__init__(identification_file, identification_df, quantification_file, quantification_df)
+        super().__init__(
+            identification_file=identification_file,
+            identification_df=identification_df,
+            quantification_file=quantification_file,
+            quantification_df=quantification_df,
+            drop_search_result=drop_search_result,
+        )
         self.search_settings.label = "label_free"
 
         if quantification_file is not None:
@@ -156,6 +209,9 @@ class LfqSageReader(SageReader):
             self.search_settings.quantification = None
 
     def _make_needed_columns_for_quantification(self, quantification_df: pd.DataFrame) -> pd.DataFrame:
+        # The LFQ peptide-quant table is small (peptides x samples); convert it to pandas here and
+        # share one tail -- the identification frame is where the polars win lives, not this table.
+        quantification_df = quantification_df.to_pandas()
         quantification_df = quantification_df.set_index("peptide", drop=True).rename_axis(index=None).copy()
         quantification_df = quantification_df.drop(["charge", "proteins", "q_value", "score", "spectral_angle"], axis=1)
 
@@ -164,4 +220,4 @@ class LfqSageReader(SageReader):
     def _make_rename_dict_for_obs(self, quantification_df) -> dict:
         original_cols = quantification_df.columns.tolist()
 
-        return {col: self._strip_filename(col) for col in original_cols}
+        return {col: strip_ms_extensions(col) for col in original_cols}

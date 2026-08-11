@@ -98,7 +98,11 @@ def protein_adata(obs_df: pd.DataFrame, var_df: pd.DataFrame) -> AnnData:
     protein_var = var_df.copy()
     protein_var.index = [f"protein_{idx}" for idx in protein_var.index]
     return _make_adata(
-        x, obs_df.copy(), protein_var, uns={"X_pca": {"variance_ratio": np.array([0.6, 0.3])}}, obsm=obsm
+        x,
+        obs_df.copy(),
+        protein_var,
+        uns={"X_pca": {"variance_ratio": np.array([0.6, 0.3])}},
+        obsm=obsm,
     )
 
 
@@ -118,7 +122,12 @@ def filter_mdata() -> MuData:
     obs = pd.DataFrame(index=["s1", "s2"])
     var = pd.DataFrame({"score": [10.0, 20.0, 30.0]}, index=["v1", "v2", "v3"])
     x = pd.DataFrame([[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]], index=obs.index, columns=var.index)
-    adata = _make_adata(x, obs, var, uns={"decoy": pd.DataFrame({"score": [5.0, 25.0, 30.0]}, index=var.index)})
+    adata = _make_adata(
+        x,
+        obs,
+        var,
+        uns={"decoy": pd.DataFrame({"score": [5.0, 25.0, 30.0]}, index=var.index)},
+    )
     return _make_mdata({"psm": adata})
 
 

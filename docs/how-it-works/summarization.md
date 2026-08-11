@@ -11,9 +11,24 @@ The `Summarization` process generally involves:
 1. **Feature selection**  
    Selecting features to include in the aggregation based on criteria such as peptide type (unique/shared), precursor isolation purity, or abundance.
 2. **Intensity aggregation**  
-   Aggregation of quantification values using methods like `median`, `mean`, or `sum`.
+   Aggregation of quantification values with either a column-wise reduction (`median`, `mean`, `sum`) or, at the protein level, a matrix rollup that models per-peptide response factors (`median_polish`, `directlfq`). See [Aggregation methods](#aggregation_methods) below.
 3. **Computing identification confidence scores (PEP, q-value) at the new level when possible.**  
    Calculating PEP and q-values for the aggregated features using appropriate methods.
+
+## Aggregation methods
+
+The `agg_method` argument selects how quantification values are combined. Two families are available.
+
+**Column-wise reductions** — `median` (default), `mean`, and `sum` collapse each sample's features independently. They make no assumption about the relationship between features and are available at every level (`to_peptide`, `to_protein`, `to_ptm`).
+
+**Matrix rollups** — `median_polish` and `directlfq` treat the feature-by-sample block of a protein group as a whole matrix and estimate a per-sample protein profile while accounting for the fact that different peptides ionize with different efficiencies (per-peptide "response factors"):
+
+- `median_polish` fits Tukey's additive model `value = overall + peptide_effect + sample_effect + residual` by iteratively sweeping out row and column medians; the per-sample estimate is `overall + sample_effect`. This follows R's `stats::medpolish`, the protein summarization used by MSstats ([Choi et al., Bioinformatics, 2014](https://doi.org/10.1093/bioinformatics/btu305)).
+- `directlfq` applies the DirectLFQ rollup ([Ammar et al., 2023](https://doi.org/10.1016/j.mcpro.2023.100581)): it aligns each peptide's intensity trace onto a common within-group scale and takes the per-sample median of the aligned traces. DirectLFQ is MaxLFQ-inspired but a *distinct* algorithm from the classical MaxLFQ pairwise-ratio least-squares, so the two are correlated, not identical.
+
+Because they model per-peptide response factors — meaningful when combining *distinct* peptides into a protein, but not when combining replicate PSMs of the *same* peptide — the matrix rollups are offered only at the peptide-to-protein step (`to_protein` and `to_ptm`). `to_peptide` accepts only the column-wise reductions.
+
+**Important:** `median_polish` and `directlfq` are additive / log-space methods and must be applied to log2-transformed data. Call `mm.pp.log2_transform()` before summarizing with them.
 
 ## `to_peptide()`
 
@@ -28,9 +43,9 @@ and returns
 This step aggregates PSMs and their quantification values by `peptide` (non-redundant modified peptide).
 Peptide-level PEP is calculated with `best_pep` method by default and peptide-level q-values are computed using a conservative approach when decoy information is available.
 
-For quantification aggregation, the default method is `median`, and an optional `top_n` argument can be used to restrict aggregation using top N (e.g., top 3) features within each peptide. Feature ranking is based on `median_intensity` unless specified otherwise.
+For quantification aggregation, the default method is `median`, and an optional `top_n` argument can be used to restrict aggregation using top N (e.g., top 3) features within each peptide. Feature ranking is based on `median_intensity` unless specified otherwise. Only the column-wise reductions (`median`, `mean`, `sum`) are available at the peptide level; the matrix rollups belong to the protein step (see [Aggregation methods](#aggregation_methods)).
 
-In TMT studies, PSMs with low precursor isolation purity may be excluded prior to quantification aggregation to remove spectra with low quantitative accuracy. Precursor isolation purity should be computed with `mm.pp.compute_precursor_isolation_purity()` before calling `to_peptide()`. A `purity_threshold` (commonly `0.7`) can be applied during aggregation.
+In TMT studies, PSMs with low precursor isolation purity may be excluded prior to quantification aggregation to remove spectra with low quantitative accuracy. Precursor isolation purity should be computed with `mm.tl.compute_precursor_isolation_purity()` before calling `to_peptide()`. A `purity_threshold` (commonly `0.7`) can be applied during aggregation.
 
 Note that filtering by `top_n` or `purity_threshold` affects quantification aggregation only and does not modify identification feature aggregation.
 
@@ -41,6 +56,8 @@ mdata = mm.pp.to_peptide(
     purity_threshold=0.7,           # for tmt data
     top_n=None,                     # default
     rank_method="median_intensity",  # default
+    layer=None,                     # default; read from .X, or name a layer to summarise instead
+    calculate_q=True,               # default; set False to skip peptide-level PEP/q-value
     )
 ```
 
@@ -66,6 +83,8 @@ As in peptide-level aggregation, protein group level `PEP` and `q-value` are com
 
 The default settings use `top_n=3` with ranking by `median_intensity`, so only the top three peptides per protein group contribute to quantification.
 
+Beyond the column-wise reductions, `to_protein` also accepts the matrix rollups `median_polish` and `directlfq`, which estimate a per-sample protein profile from the whole peptide-by-sample block while accounting for per-peptide response factors (see [Aggregation methods](#aggregation_methods)). Both require log2-transformed input, so run `mm.pp.log2_transform()` first. They are typically combined with `top_n=None` so that all peptides inform the estimate.
+
 ```python
 # Infer protein group from mdata (containing peptide modality)
 mdata = mm.pp.infer_protein(mdata)
@@ -73,9 +92,11 @@ mdata = mm.pp.infer_protein(mdata)
 # Summarize peptides to protein group
 mdata = mm.pp.to_protein(
     mdata,
-    agg_method="median",            # default
-    top_n=3,                        # default
+    agg_method="median",            # "median" (default), "mean", "sum", "median_polish", "directlfq"
+    top_n=3,                        # default; use None with the matrix rollups
     rank_method="median_intensity",  # default
+    layer=None,                     # default; read from .X, or name a layer to summarise instead
+    calculate_q=True,               # default; set False to skip protein-level PEP/q-value
     )
 ```
 
@@ -106,7 +127,7 @@ A FASTA file is required because PTM sites must be mapped to protein-sequence co
 
 The argument `modi_name` determines the modality name (e.g., "phospho" -> "phospho_site"), and the `modification` string is used to identify modified peptides.
 
-`agg_method` can be selected among methods as described in other summarization functions.
+`agg_method` can be selected among the methods described in [Aggregation methods](#aggregation_methods); the matrix rollups `median_polish` and `directlfq` are available here as well (on log2-transformed data).
 
 ```python
 mdata = mm.utils.attach_fasta("fasta/file/path.fasta")

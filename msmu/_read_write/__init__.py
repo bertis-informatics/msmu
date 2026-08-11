@@ -8,8 +8,10 @@ from ._reader_registry import (
     read_delpi,
 )
 from ._export import to_readable, write_csv, write_flashlfq_input, write_pin
+from ._import import add_quant
 
 __all__ = [
+    "add_quant",
     "read_sage",
     "read_diann",
     "read_maxquant",

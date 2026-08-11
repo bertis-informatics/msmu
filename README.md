@@ -18,11 +18,14 @@ This unique marriage between flexible processing pipeline and `MuData` empowers 
 
 - **Flexible data ingestion** from Sage, DIA-NN, and other popular DB search tools
 - **MuData/AnnData-compatible** object structure for organizing multi-level MS data
+- **SDRF-native sample metadata**: attach a validated SDRF as the immutable source of truth and project it onto samples
+- **Command provenance**: every processing step records its arguments, versions, log output, and resulting dimensions in the container
 - **Protein inference**: infer protein groups from peptide evidence using parsimony rule
+- **Hierarchical summarization**: PSM/precursor → peptide → protein/PTM rollup (median, mean, sum, median polish, DirectLFQ)
 - **Normalization**: median centering, quantile normalization, etc.
 - **Batch correction** for discrete and continuous variations
 - **Built-in QC**: identification count, peptide length, charge, missed cleavage, intensity distribution, etc.
-- **Statistical analysis**: differential expression analysis, dimensionality reduction
+- **Statistical analysis**: differential expression (limma moderated-t by default, or a label-permutation test), dimensionality reduction
 - **PTM data support** and stoichiometry adjustment with matched global dataset (if available)
 - **Visualization**: PCA, UMAP, volcano plots, heatmaps, QC metrics
 

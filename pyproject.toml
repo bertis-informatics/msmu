@@ -11,17 +11,19 @@ authors = [
 license = {file = "LICENSE"}
 description = "BERTIS LC-MS/MS analysis library through MuData"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 keywords = ["LC-MS/MS", "Proteomics", "Protein", "Peptide", "Mass Spectrometry"]
 dynamic = ["version"]
 dependencies = [
-    "anndata>=0.12.0",
+    "anndata>=0.13.0",
     "biopython>=1.86",
+    "directlfq>=0.3.3,<0.4",
     "fastparquet>=2025.12.0",
     "inmoose>=0.9.1",
     "kaleido>=1.2.0",
-    "mudata>=0.3.2",
+    "mudata>=0.3.10",
     "plotly>=6.5.2",
+    "polars>=1.0.0",
     "pyopenms>=3.5.0",
     "scikit-learn>=1.8.0",
     "scipy>=1.17.0",
@@ -36,6 +38,7 @@ dev = [
     "nbval>=0.11.0",
     "pytest>=9.0.2",
     "pyright",
+    "ruff>=0.8.0",
 ]
 docs = [
     "mkdocs>=1.6.1",
@@ -68,3 +71,18 @@ local_scheme = "no-local-version"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --nbval-lax"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = [
+    "docs/tutorials",
+    "tests/*.ipynb",
+    "msmu/_version.py",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]

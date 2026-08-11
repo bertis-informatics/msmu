@@ -12,11 +12,85 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 from ..logging_utils import get_logger
+from ._template import DEFAULT_TEMPLATE, add_msmu_template, add_msmu_pastel_template
 
 _FALLBACK_COLUMN = "__obs_idx__"
-_DEFAULT_OBS_PRIORITY = ("source_name", "sample", "filename", _FALLBACK_COLUMN)
+_DEFAULT_OBS_PRIORITY = (
+    "source name",
+    "source_name",
+    "sample",
+    "filename",
+    _FALLBACK_COLUMN,
+)
 
 logger = get_logger(__name__)
+
+
+def _get_obsm_embedding(mdata: md.MuData, modality: str, key: str):
+    """Return an embedding from `.obsm` after validating the key exists."""
+    if key not in mdata.mod[modality].obsm:
+        raise ValueError(f"Key {key} not found in .obsm at {modality}")
+
+    return mdata.mod[modality].obsm[key]
+
+
+def _validate_embedding_array(
+    embedding,
+    *,
+    modality: str,
+    key: str,
+    required_components: int,
+) -> np.ndarray:
+    """Validate an array-backed embedding and return it as a NumPy array."""
+    values = np.asarray(embedding)
+    if values.ndim != 2:
+        raise ValueError(
+            f"Embedding {key} at {modality} must be a 2-dimensional array "
+            f"shaped like (n_obs, n_components); found shape {values.shape}."
+        )
+    if values.shape[1] < required_components:
+        raise ValueError(
+            f"Embedding {key} at {modality} must contain at least "
+            f"{required_components} components; found {values.shape[1]}."
+        )
+
+    return values
+
+
+def _embedding_column_indices(columns: list[str]) -> list[int]:
+    """Translate generated embedding column names to zero-based array indices."""
+    indices: list[int] = []
+    for fallback_index, column in enumerate(columns):
+        suffix = column.rsplit("_", maxsplit=1)[-1]
+        if suffix.isdigit() and int(suffix) > 0:
+            indices.append(int(suffix) - 1)
+        else:
+            indices.append(fallback_index)
+
+    return indices
+
+
+def obsm_embedding_to_frame(
+    mdata: md.MuData,
+    modality: str,
+    key: str,
+    columns: list[str],
+) -> pd.DataFrame:
+    """Return selected embedding dimensions as a named DataFrame."""
+    embedding = _get_obsm_embedding(mdata, modality, key)
+    if isinstance(embedding, pd.DataFrame):
+        return pd.DataFrame(embedding[columns])
+
+    column_indices = _embedding_column_indices(columns)
+    values = _validate_embedding_array(
+        embedding,
+        modality=modality,
+        key=key,
+        required_components=max(column_indices) + 1,
+    )
+    adata = mdata.mod[modality]
+
+    return pd.DataFrame(values[:, column_indices], index=adata.obs_names, columns=pd.Index(columns))
 
 
 class BinInfo(TypedDict):
@@ -421,6 +495,33 @@ def get_bin_info(data: pd.DataFrame | pd.Series | np.ndarray, bins: int) -> BinI
     )
 
 
+def ensure_msmu_templates_registered() -> None:
+    """Register the msmu Plotly templates on first use, without changing the global default.
+
+    Registering (rather than activating via ``pio.templates.default``) lets a per-figure
+    ``template="msmu"`` resolve to the house style while keeping ``import msmu`` free of any
+    global Plotly side effect. Users who want msmu as the session-wide default can still opt
+    in explicitly with :func:`msmu.pl.set_templates`.
+    """
+    if DEFAULT_TEMPLATE not in pio.templates:
+        add_msmu_template()
+        add_msmu_pastel_template()
+
+
+def apply_msmu_template(fig: go.Figure, template: str | None = None) -> go.Figure:
+    """Register the msmu templates if needed and apply one to ``fig`` (msmu by default).
+
+    Every public plot function routes its output through this helper so figures carry the
+    msmu house style per-figure, without relying on the global ``pio.templates.default``
+    (i.e. without any import-time side effect). Functions that build a figure outside the
+    :func:`finalize_figure` path — e.g. :func:`plot_volcano`, which takes a results frame
+    rather than a MuData and therefore has no :class:`PlotContext` — call this directly.
+    """
+    ensure_msmu_templates_registered()
+    fig.update_layout(template=resolve_template_key(template or DEFAULT_TEMPLATE))
+    return fig
+
+
 def finalize_figure(
     fig: go.Figure,
     *,
@@ -428,7 +529,15 @@ def finalize_figure(
     layout_kwargs: dict,
     apply_color: bool = False,
 ) -> go.Figure:
-    """Apply shared layout overrides and optional categorical coloring."""
+    """Apply the msmu template, shared layout overrides, and optional categorical coloring."""
+    # msmu styles every figure it produces. The template is applied per-figure (not via the
+    # global default) so import stays side-effect-free; an explicit template in layout_kwargs
+    # still wins.
+    if "template" in layout_kwargs:
+        ensure_msmu_templates_registered()  # so an explicit "msmu"/"msmu_pastel" still resolves
+    else:
+        fig = apply_msmu_template(fig, context.template)
+
     fig = apply_layout_overrides(fig, layout_kwargs)
 
     if apply_color and context.groupby is not None and context.template is not None:
@@ -526,17 +635,22 @@ def get_pc_cols(
     elif pcs[0] > pcs[1]:
         pcs = (pcs[1], pcs[0])
 
-    # Check if PCs exist
-    if key not in mdata.mod[modality].obsm:
-        raise ValueError(f"Key {key} not found in .obsm at {modality}")
-
     # Get PC columns
     pc_columns = [f"PC_{pc}" for pc in pcs]
+    embedding = _get_obsm_embedding(mdata, modality, key)
 
-    if pc_columns[0] not in mdata.mod[modality].obsm[key].columns:  # type: ignore
-        raise ValueError(f"{pc_columns[0]} not found in {modality}")
-    if pc_columns[1] not in mdata.mod[modality].obsm[key].columns:  # type: ignore
-        raise ValueError(f"{pc_columns[1]} not found in {modality}")
+    if isinstance(embedding, pd.DataFrame):
+        if pc_columns[0] not in embedding.columns:
+            raise ValueError(f"{pc_columns[0]} not found in {modality}")
+        if pc_columns[1] not in embedding.columns:
+            raise ValueError(f"{pc_columns[1]} not found in {modality}")
+    else:
+        _validate_embedding_array(
+            embedding,
+            modality=modality,
+            key=key,
+            required_components=max(pcs),
+        )
 
     return pcs, pc_columns
 
@@ -557,16 +671,21 @@ def get_umap_cols(
     Returns:
         List of UMAP column names used for plotting.
     """
-    # Check if UMAP exist
-    if key not in mdata.mod[modality].obsm:
-        raise ValueError(f"Key {key} not found in .obsm at {modality}")
-
     # Get UMAP columns
     umap_columns = [f"UMAP_{pc}" for pc in [1, 2]]
+    embedding = _get_obsm_embedding(mdata, modality, key)
 
-    if umap_columns[0] not in mdata.mod[modality].obsm[key].columns:  # type: ignore
-        raise ValueError(f"{umap_columns[0]} not found in {modality}")
-    if umap_columns[1] not in mdata.mod[modality].obsm[key].columns:  # type: ignore
-        raise ValueError(f"{umap_columns[1]} not found in {modality}")
+    if isinstance(embedding, pd.DataFrame):
+        if umap_columns[0] not in embedding.columns:
+            raise ValueError(f"{umap_columns[0]} not found in {modality}")
+        if umap_columns[1] not in embedding.columns:
+            raise ValueError(f"{umap_columns[1]} not found in {modality}")
+    else:
+        _validate_embedding_array(
+            embedding,
+            modality=modality,
+            key=key,
+            required_components=2,
+        )
 
     return umap_columns

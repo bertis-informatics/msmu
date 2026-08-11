@@ -1,8 +1,4 @@
-import math
-from itertools import combinations
-
 import numpy as np
-from scipy.stats import percentileofscore
 from tqdm import tqdm
 
 from ._statistics import (
@@ -10,11 +6,55 @@ from ._statistics import (
     StatResult,
     HypothesisTesting,
     calc_permutation_pvalue,
-    _calc_log2fc,
-    _measure_central_tendency,
 )
-from ._multiple_test_correction import PvalueCorrection
+from ._multiple_test_correction import PvalueCorrection, PI0_LOWER_BOUND
 from ._de_base import PermTestResult
+from ._permutation_core import (
+    count_combinations,
+    resolve_method,
+    make_iterations,
+    split,
+    permuted_log2fc,
+    fc_threshold_from_null,
+)
+from ..logging_utils import get_logger
+
+logger = get_logger(__name__)
+
+# q threshold that reported hits are conventionally screened at; used to decide whether a
+# design's floor makes significance unreachable and therefore worth warning about.
+_CONVENTIONAL_Q_CUTOFF = 0.05
+
+
+def min_achievable_q(n_ctrl: int, n_expr: int, n_permutations: int, fdr: str) -> float:
+    """
+    Smallest q-value a permutation design can produce, whatever the data says.
+
+    The observed labelling is itself one of the permutations the null is built from, so every
+    observed feature at ``|stat| >= s`` contributes its own statistic back into the null pool.
+    A balanced design contributes it twice, because the complement of the observed split is
+    another split of the same sizes and is therefore also enumerated. That forces
+    ``fp >= self_inclusion * tp`` and leaves a floor under q that no effect size can cross.
+
+    For fdr="empirical" the estimator is ``pi0 * (fp+1)/(B+1) / (tp+1)``, which is increasing
+    in tp, so the floor is taken at tp=1. For fdr="bh" the pooled p-value is
+    ``(fp+1)/(B*m+1)`` and BH multiplies by m/k, leaving ``self_inclusion/B`` in the limit.
+
+    Parameters:
+        n_ctrl: Number of control samples.
+        n_expr: Number of experimental samples.
+        n_permutations: Number of permutations the null is actually built from.
+        fdr: Multiple testing correction in use ("empirical" or "bh").
+
+    Returns:
+        The minimum q-value attainable for this design.
+    """
+    self_inclusion = 2 if n_ctrl == n_expr else 1
+
+    if fdr == "bh":
+        return self_inclusion / n_permutations
+
+    return PI0_LOWER_BOUND * (self_inclusion + 1) / ((n_permutations + 1) * 2)
 
 
 class PermutationTest:
@@ -42,53 +82,61 @@ class PermutationTest:
         expr_arr: np.ndarray,
         n_resamples: int,
         _force_resample: bool,
-        fdr: bool | str,
+        fdr: str,
     ):
         self._ctrl_arr: np.ndarray = ctrl_arr
         self._expr_arr: np.ndarray = expr_arr
 
-        self._possible_combination_count: int = self._get_number_of_combinations()
+        self._possible_combination_count: int = count_combinations(len(ctrl_arr), len(expr_arr))
         self._n_resamples: int = n_resamples
         self._force_resample: bool = _force_resample
-        self._permutation_method: str = self._get_permutation_method()
-        self.fdr: bool | str = fdr
+        self._permutation_method: str = resolve_method(len(ctrl_arr), len(expr_arr), n_resamples, _force_resample)
+        # "empirical" (permutation-native FDR from the null) or an R p.adjust family method applied
+        # to the permutation p-values (see _perm_test).
+        self.fdr: str = fdr
 
-    def _get_permutation_method(self) -> str:
-        if self._n_resamples == -np.inf:
-            permutation_method = "exact"
-        elif self._n_resamples == self._possible_combination_count:
-            permutation_method = "exact"
-        elif (self._n_resamples > self._possible_combination_count) and not self._force_resample:
-            permutation_method = "exact"
-        elif (self._n_resamples > self._possible_combination_count) and self._force_resample:
-            permutation_method = "randomised"
-        else:
-            permutation_method = "randomised"
+        self._warn_if_resamples_ignored()
+        self._warn_if_significance_unreachable()
 
-        return permutation_method
+    def _warn_if_resamples_ignored(self) -> None:
+        if self._permutation_method != "exact" or self._n_resamples <= self._possible_combination_count:
+            return
 
-    def _get_combinations(self) -> list:
-        total_sample_num = len(self.ctrl_arr) + len(self.expr_arr)
+        logger.warning(
+            "n_resamples=%s exceeds the %s distinct %s vs %s splits that exist, so every split is "
+            "enumerated instead and the null is built from %s permutations. Drawing more would "
+            "only resample the same splits.",
+            self._n_resamples,
+            self._possible_combination_count,
+            len(self.ctrl_arr),
+            len(self.expr_arr),
+            self._possible_combination_count,
+        )
 
-        return list(combinations(range(total_sample_num), len(self.ctrl_arr)))
+    def _warn_if_significance_unreachable(self) -> None:
+        if self.fdr not in ("empirical", "bh") or self.n_permutations_used < 1:
+            return
 
-    def _get_number_of_combinations(self) -> int:
-        total_sample_num = len(self.ctrl_arr) + len(self.expr_arr)
-        combination_count = math.comb(total_sample_num, len(self.ctrl_arr))
+        floor = min_achievable_q(
+            n_ctrl=len(self.ctrl_arr),
+            n_expr=len(self.expr_arr),
+            n_permutations=self.n_permutations_used,
+            fdr=self.fdr,
+        )
+        if floor < _CONVENTIONAL_Q_CUTOFF:
+            return
 
-        return combination_count
-
-    def _get_iterations(self, method: str, n_resamples: int) -> list:
-        if method == "exact":
-            return self._get_combinations()
-        elif method == "randomised":
-            return [np.random.permutation(range(len(self.ctrl_arr) + len(self.expr_arr))) for _ in range(n_resamples)]
-
-    def _get_fc_percentile(self, obs_med_diff, null_med_diff) -> np.ndarray:
-        return percentileofscore(null_med_diff, obs_med_diff, kind="rank", nan_policy="omit")
-
-    def _calc_two_sided_p_value(self, stat_obs, stat_perm):
-        return np.mean(np.abs(stat_perm) >= np.abs(stat_obs), axis=0)
+        logger.warning(
+            "%s vs %s with fdr='%s' cannot produce q < %s: the null is built from only %s "
+            "permutations and the observed labelling is one of them, which floors q at %.3f "
+            "no matter how strong the effect. Use stat_method='limma' for this design.",
+            len(self.ctrl_arr),
+            len(self.expr_arr),
+            self.fdr,
+            _CONVENTIONAL_Q_CUTOFF,
+            self.n_permutations_used,
+            floor,
+        )
 
     def _perm_test(
         self,
@@ -157,72 +205,42 @@ class PermutationTest:
                 stat_obs=obs_stats.statistic,
                 null_dist=stat_null_dist.null_distribution,
             )
-        elif self.fdr == "bh":
-            q_vals = PvalueCorrection.bh(pvals=pval_permutation)
+        else:
+            # Any R p.adjust family method (bh/by/holm/hochberg/hommel/bonferroni) applied to the
+            # permutation p-values. "empirical" above is the permutation-native FDR (built from the
+            # null distribution); every other option is a plain p-value adjustment, shared with the
+            # limma engine through PvalueCorrection.adjust so both engines correct identically.
+            q_vals = PvalueCorrection.adjust(pvals=pval_permutation, method=self.fdr)
 
         # put results to PermutationTestResult
         perm_test_res.p_value = pval_permutation
         perm_test_res.q_value = q_vals
+        # observed parametric statistic (the value ranked against the empirical null)
+        perm_test_res.statistic = obs_stats.statistic
 
         # Calculate the fold change percentile
         fc_pct_criteria = [1, 5]  # 1% and 5% thresholds
         perm_test_res.fc_pct_1, perm_test_res.fc_pct_5 = [
-            self._get_fc_threshold(log2fc_null_dist.null_distribution, x) for x in fc_pct_criteria
+            fc_threshold_from_null(log2fc_null_dist.null_distribution, x) for x in fc_pct_criteria
         ]
 
         return perm_test_res
 
-    @staticmethod
-    def _get_fc_threshold(null_med_diff: np.ndarray, percentile: int) -> float:
-        x = np.asarray(null_med_diff)
-        if x.ndim == 2:
-            x = x.ravel()
-        x = x[~np.isnan(x)]
-        if x.size == 0:
-            return float("nan")
-        p = float(percentile)
-        low = np.nanpercentile(x, p)  # e.g., 5th
-        high = np.nanpercentile(x, 100.0 - p)  # e.g., 95th
-        q = (abs(low) + abs(high)) / 2.0
-
-        return round(float(q), 2)
-
-    def _set_permuted_comparison(
-        self, concated_arr: np.ndarray, combinations: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
-        if self.permutation_method == "exact":
-            total_index: np.ndarray = np.arange(len(self.ctrl_arr) + len(self.expr_arr))
-            ctrl_idx = list(combinations)
-            expr_idx: np.ndarray = np.delete(total_index, ctrl_idx)
-        else:  # randomised
-            total_index = combinations
-            ctrl_idx = total_index[: len(self.ctrl_arr)]
-            expr_idx: np.ndarray = total_index[len(self.ctrl_arr) :]
-
-        perm_ctrl: np.ndarray = concated_arr[ctrl_idx, :]
-        perm_expr: np.ndarray = concated_arr[expr_idx, :]
-
-        return perm_ctrl, perm_expr
-
     def _calc_permuted_stats(self, concated_arr: np.ndarray, combinations: np.ndarray, stat_method: str) -> StatResult:
-        perm_ctrl, perm_expr = self._set_permuted_comparison(concated_arr, combinations)
-
-        stat_res: StatResult = HypothesisTesting.test(ctrl=perm_ctrl, expr=perm_expr, stat_method=stat_method)
-
-        return stat_res
+        perm_ctrl, perm_expr = split(concated_arr, combinations, self.permutation_method, len(self.ctrl_arr))
+        return HypothesisTesting.test(ctrl=perm_ctrl, expr=perm_expr, stat_method=stat_method)
 
     def _calc_permuted_log2fc(
-        self, concated_arr: np.ndarray, combinations: np.ndarray, measure: str, log_transformed: bool
+        self,
+        concated_arr: np.ndarray,
+        combinations: np.ndarray,
+        measure: str,
+        log_transformed: bool,
     ) -> StatResult:
-        perm_ctrl, perm_expr = self._set_permuted_comparison(concated_arr, combinations)
-
-        repr_ctrl: np.ndarray = _measure_central_tendency(perm_ctrl, measure)
-        repr_expr: np.ndarray = _measure_central_tendency(perm_expr, measure)
-        log2fc: np.ndarray = _calc_log2fc(repr_ctrl, repr_expr, log_transformed=log_transformed)
-
-        fc_res: StatResult = StatResult(stat_method=None, statistic=log2fc, p_value=None)
-
-        return fc_res
+        log2fc: np.ndarray = permuted_log2fc(
+            concated_arr, combinations, self.permutation_method, len(self.ctrl_arr), measure, log_transformed
+        )
+        return StatResult(stat_method=None, statistic=log2fc, p_value=None)
 
     def run(
         self,
@@ -234,9 +252,8 @@ class PermutationTest:
 
         concated_arr: np.ndarray = np.concatenate((self.ctrl_arr, self.expr_arr), axis=0)
 
-        iterations: list = self._get_iterations(
-            method=self.permutation_method,
-            n_resamples=n_permutations,
+        iterations: list = make_iterations(
+            len(self.ctrl_arr), len(self.expr_arr), self.permutation_method, n_permutations
         )
 
         perm_test_res: PermTestResult = self._perm_test(
@@ -260,6 +277,13 @@ class PermutationTest:
     @property
     def possible_combination_count(self):
         return self._possible_combination_count
+
+    @property
+    def n_permutations_used(self) -> int:
+        """Number of permutations the null is actually built from ('exact' enumerates every split)."""
+        if self._permutation_method == "exact":
+            return self._possible_combination_count
+        return self._n_resamples
 
     @property
     def permutation_method(self):

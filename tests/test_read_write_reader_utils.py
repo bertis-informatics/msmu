@@ -2,9 +2,13 @@ import numpy as np
 import pandas as pd
 import pytest
 from anndata import AnnData
-from mudata import MuData
 
-from msmu._read_write._reader_utils import _decompose_data, add_modality, merge_mudata, to_categorical
+from msmu._read_write._reader_utils import (
+    _decompose_data,
+    add_modality,
+    merge_mudata,
+    to_categorical,
+)
 
 
 def test_decompose_data_requires_modality_for_anndata():
@@ -37,7 +41,11 @@ def test_add_modality_requires_parent_mods(mdata_factory):
 
 def test_add_modality_inserts_modality(mdata_factory):
     mdata = mdata_factory("a")
-    new_adata = AnnData(np.array([[1.0]]), obs=pd.DataFrame(index=["a_s1"]), var=pd.DataFrame(index=["p1"]))
+    new_adata = AnnData(
+        np.array([[1.0]]),
+        obs=pd.DataFrame(index=["a_s1"]),
+        var=pd.DataFrame(index=["p1"]),
+    )
     out = add_modality(mdata=mdata, adata=new_adata, mod_name="peptide", parent_mods=["psm"])
     assert "peptide" in out.mod
 

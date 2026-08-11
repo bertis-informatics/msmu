@@ -5,6 +5,7 @@ from typing import Literal
 import pandas as pd
 from mudata import MuData
 
+from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
 from .._core._provenance import uns_logger
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
@@ -45,7 +46,7 @@ def add_filter(
         raise ValueError("key must be provided when on is 'varm' or 'obsm'.")
 
     filter_name = f"{column}_{keep}_{value}"
-    adata = mdata.mod[modality]
+    adata = get_anndata_mod(mdata, modality)
 
     if on == "var":
         source_df = adata.var
@@ -86,23 +87,23 @@ def add_filter(
         else:
             adata.obsm["filter"][filter_name] = mask
 
-    if "filter" not in mdata.mod[modality].uns:
-        mdata.mod[modality].uns["filter"] = [filter_name]
+    if "filter" not in adata.uns:
+        adata.uns["filter"] = [filter_name]
     else:
-        mdata.mod[modality].uns["filter"] = list(set([*mdata.mod[modality].uns["filter"]] + [filter_name]))
+        adata.uns["filter"] = list(set([*adata.uns["filter"]] + [filter_name]))
 
     # add filter for decoy (only supported for variable-level filters)
     if store_axis == "varm" and mstatus.__getattribute__(modality).has_decoy:
-        decoy_df = mdata.mod[modality].uns["decoy"]
+        decoy_df = adata.uns["decoy"]
         if on == "var":
             decoy_mask = _mask_boolean_filter(series_to_mask=decoy_df[column], keep=keep, value=value)
         else:
             decoy_mask = mask.reindex(decoy_df.index).fillna(False)
 
-        if "decoy_filter" not in mdata.mod[modality].uns:
-            mdata.mod[modality].uns["decoy_filter"] = decoy_mask.to_frame(name=filter_name)
+        if "decoy_filter" not in adata.uns:
+            adata.uns["decoy_filter"] = decoy_mask.to_frame(name=filter_name)
         else:
-            mdata.mod[modality].uns["decoy_filter"][filter_name] = decoy_mask
+            adata.uns["decoy_filter"][filter_name] = decoy_mask
 
     return mdata
 
@@ -154,7 +155,7 @@ def apply_filter(
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
 
-    adata_to_filter = mdata.mod[modality]
+    adata_to_filter = get_anndata_mod(mdata, modality)
     apply_var = on in {"var", "all"}
     apply_obs = on in {"obs", "all"}
     var_mask = slice(None)
@@ -236,12 +237,15 @@ def apply_filter(
                 all_available_columns.update(obs_filter_df.columns)
             missing_filter_columns = [col for col in columns if col not in all_available_columns]
             if missing_filter_columns:
-                logger.warning("Filter columns not found in %s: %s", modality, missing_filter_columns)
+                logger.warning(
+                    "Filter columns not found in %s: %s",
+                    modality,
+                    missing_filter_columns,
+                )
             if not selected_filter_columns:
                 raise ValueError(f"No matching filter columns found in {modality}.")
 
     filtered_adata = adata_to_filter[obs_mask, var_mask].copy()
-    mdata.mod[modality] = filtered_adata
 
     if mstatus.__getattribute__(modality).has_decoy and var_filter_columns:
         decoy_df = adata_to_filter.uns["decoy"]
@@ -255,7 +259,9 @@ def apply_filter(
         decoy_filtered_df = decoy_df[decoy_filter[decoy_use_columns].all(axis=1)].copy()
         decoy_filter = decoy_filter.loc[decoy_filtered_df.index, decoy_use_columns]
 
-        mdata.mod[modality].uns["decoy"] = decoy_filtered_df
-        mdata.mod[modality].uns["decoy_filter"] = decoy_filter
+        filtered_adata.uns["decoy"] = decoy_filtered_df
+        filtered_adata.uns["decoy_filter"] = decoy_filter
+
+    get_mudata_mod_as_mutable(mdata)[modality] = filtered_adata
 
     return mdata.copy()

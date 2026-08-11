@@ -1,3 +1,6 @@
+from types import SimpleNamespace
+
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -104,6 +107,16 @@ def test_get_pc_cols_sorted_and_validated(mdata):
     assert columns == ["PC_1", "PC_2"]
 
 
+def test_get_pc_cols_accepts_ndarray_obsm(mdata):
+    mdata_local = mdata.copy()
+    mdata_local["protein"].obsm["X_pca"] = np.asarray(mdata_local["protein"].obsm["X_pca"])
+
+    pcs, columns = get_pc_cols(mdata_local, "protein", (2, 1))
+
+    assert pcs == (1, 2)
+    assert columns == ["PC_1", "PC_2"]
+
+
 def test_get_pc_cols_invalid_length(mdata):
     with pytest.raises(ValueError, match="Only 2 PCs are allowed"):
         get_pc_cols(mdata, "protein", (1, 2, 3))
@@ -111,6 +124,15 @@ def test_get_pc_cols_invalid_length(mdata):
 
 def test_get_umap_cols_valid(mdata):
     columns = get_umap_cols(mdata, "protein")
+    assert columns == ["UMAP_1", "UMAP_2"]
+
+
+def test_get_umap_cols_accepts_ndarray_obsm(mdata):
+    mdata_local = mdata.copy()
+    mdata_local["protein"].obsm["X_umap"] = np.asarray(mdata_local["protein"].obsm["X_umap"])
+
+    columns = get_umap_cols(mdata_local, "protein")
+
     assert columns == ["UMAP_1", "UMAP_2"]
 
 
@@ -131,10 +153,33 @@ def test_get_pc_cols_missing_pca(mdata):
         get_pc_cols(mdata_local, "protein", (1, 2))
 
 
+def test_get_pc_cols_ndarray_requires_two_components(mdata):
+    mdata_local = mdata.copy()
+    mdata_local["protein"].obsm["X_pca"] = np.asarray(mdata_local["protein"].obsm["X_pca"])[:, :1]
+
+    with pytest.raises(ValueError, match="must contain at least 2 components"):
+        get_pc_cols(mdata_local, "protein", (1, 2))
+
+
+def test_get_pc_cols_ndarray_rejects_one_dimensional_obsm():
+    mdata = SimpleNamespace(mod={"protein": SimpleNamespace(obsm={"X_pca": np.array([1.0, 0.5, -0.3, 0.1])})})
+
+    with pytest.raises(ValueError, match=r"must be a 2-dimensional array shaped like \(n_obs, n_components\)"):
+        get_pc_cols(mdata, "protein", (1, 2))
+
+
 def test_get_umap_cols_missing_umap(mdata):
     mdata_local = mdata.copy()
     del mdata_local["protein"].obsm["X_umap"]
     with pytest.raises(ValueError, match="Key X_umap not found in .obsm at protein"):
+        get_umap_cols(mdata_local, "protein")
+
+
+def test_get_umap_cols_ndarray_requires_two_components(mdata):
+    mdata_local = mdata.copy()
+    mdata_local["protein"].obsm["X_umap"] = np.asarray(mdata_local["protein"].obsm["X_umap"])[:, :1]
+
+    with pytest.raises(ValueError, match="must contain at least 2 components"):
         get_umap_cols(mdata_local, "protein")
 
 

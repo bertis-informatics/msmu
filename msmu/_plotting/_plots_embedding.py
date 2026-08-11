@@ -84,7 +84,12 @@ def plot_pca(
         raise ValueError(f"Key {key} not found in .uns at {modality}")
     variances = mdata.mod[modality].uns[key]["variance_ratio"]
 
-    data = PlotData(context.mdata, context.modality, layer=context.layer, obs_column=context.obs_column)
+    data = PlotData(
+        context.mdata,
+        context.modality,
+        layer=context.layer,
+        obs_column=context.obs_column,
+    )
     coordinates = data.prep_embedding_scatter(
         modality,
         context.groupby,
@@ -127,7 +132,12 @@ def plot_umap(
         raise ValueError("plot_umap requires a grouping column.")
 
     umap_columns = get_umap_cols(mdata, modality, key=key)
-    data = PlotData(context.mdata, context.modality, layer=context.layer, obs_column=context.obs_column)
+    data = PlotData(
+        context.mdata,
+        context.modality,
+        layer=context.layer,
+        obs_column=context.obs_column,
+    )
     coordinates = data.prep_embedding_scatter(
         modality,
         context.groupby,

@@ -5,15 +5,24 @@ from scipy.interpolate import interp1d
 from scipy.stats import rankdata
 from sklearn.linear_model import Ridge
 
-from typing import Callable
+from typing import Callable, Literal, get_args
 
+from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
+from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
 
+NormalisationMethod = Literal["median", "median_center", "quantile", "total_sum"]
+# Runtime tuple derived from the Literal so the accepted methods have a single source of truth.
+_NORMALISATION_METHODS: tuple[str, ...] = get_args(NormalisationMethod)
+
 
 class Normalisation:
-    def __init__(self, method: str, axis: str) -> None:
+    def __init__(self, method: NormalisationMethod, axis: str) -> None:
+        if method not in _NORMALISATION_METHODS:
+            raise ValueError(f"Unknown normalisation method '{method}'. Choose from {_NORMALISATION_METHODS}.")
+        self._method = method
         self._method_call: Callable = getattr(self, f"_{method}")
         self._axis = axis
 
@@ -31,7 +40,45 @@ class Normalisation:
         return normalise_median_center(arr=arr)
 
     def _total_sum(self, arr) -> np.ndarray:
-        return normalise_total_sum()
+        return normalise_total_sum(arr)
+
+    # Sparse per-block rescalers, mirroring the dense ``_{method}`` above. The obs/var partitioning and
+    # cell gathering live in ``_normalise._normalise_per_group_sparse``; these just rewrite the given
+    # block's stored ``.data`` in place, nan-aware to match the dense path. A method is sparse-native iff
+    # it defines ``_{method}_sparse`` -- quantile does not (its per-sample rank mapping couples all
+    # samples), so it densifies instead.
+    def _total_sum_sparse(self, csr, cell_indices) -> None:
+        data = csr.data
+        row_totals = np.array([np.nansum(np.exp2(data[idx].astype(np.float64))) for idx in cell_indices])
+        block_log2_target = np.log2(np.median(row_totals))
+        for idx, row_total in zip(cell_indices, row_totals):
+            data[idx] = data[idx] + csr.dtype.type(block_log2_target - np.log2(row_total))
+
+    def _median_sparse(self, csr, cell_indices) -> None:
+        self._centre_on_median_sparse(csr, cell_indices, add_block_median=True)
+
+    def _median_center_sparse(self, csr, cell_indices) -> None:
+        self._centre_on_median_sparse(csr, cell_indices, add_block_median=False)
+
+    @staticmethod
+    def _centre_on_median_sparse(csr, cell_indices, add_block_median: bool) -> None:
+        data = csr.data
+        if add_block_median:
+            block_median = np.nanmedian(np.concatenate([data[idx] for idx in cell_indices]))
+        else:
+            block_median = csr.dtype.type(0)
+        for idx in cell_indices:
+            values = data[idx]
+            data[idx] = values - np.nanmedian(values) + block_median
+
+    @property
+    def is_sparse_native(self) -> bool:
+        """Whether this method can be computed on the sparse block-diagonal without densifying."""
+        return hasattr(self, f"_{self._method}_sparse")
+
+    def rescale_sparse_block(self, csr, cell_indices) -> None:
+        """Rescale one block's stored cells in place, dispatching to this method's sparse rescaler."""
+        getattr(self, f"_{self._method}_sparse")(csr, cell_indices)
 
     def normalise(self, arr) -> np.ndarray:
         na_idx = np.isnan(arr)
@@ -68,7 +115,7 @@ def normalise_quantile(arr: np.ndarray) -> np.ndarray:
     N = valSize[0]
 
     # create space for output
-    if tiedFlag == True:
+    if tiedFlag:
         rr = np.empty([valSize[1]], dtype=object)
 
     # for each column we want to ordered values and the ranks with ties
@@ -125,13 +172,37 @@ def normalise_median_center(arr: np.ndarray) -> np.ndarray:
     return median_centered_data
 
 
-def normalise_total_sum():
-    """Total sum normalisation of data"""
-    raise NotImplementedError("Total sum normalisation is not implemented yet.")
+def normalise_total_sum(arr: np.ndarray) -> np.ndarray:
+    """Total-intensity (constant-sum) normalisation.
+
+    Rescales every sample so its summed intensity equals ``T`` -- the median of the per-sample totals
+    -- correcting sample-to-sample loading / injection differences while leaving within-sample feature
+    ratios unchanged. ``arr`` is oriented (features x samples) here (``Normalisation`` transposes the
+    obs axis before calling), so the totals are taken per column.
+
+    The input is assumed log2-transformed, matching the msmu convention that ``normalise`` runs after
+    ``log2_transform``. Summing log values is meaningless (it yields the log of the product, not the
+    total), so each sample total is computed on the linear scale (``2 ** arr``) and the rescale is
+    returned to log2. On the log2 scale this reduces to a per-sample additive shift
+    ``log2(T) - log2(S_i)``. Structurally-absent cells (NaN) contribute nothing to the total and stay
+    NaN in the result.
+    """
+    linear_values: np.ndarray = np.exp2(arr.astype(np.float64))
+    sample_totals: np.ndarray = np.nansum(linear_values, axis=0)
+    target_total: float = np.median(sample_totals)
+    per_sample_shift: np.ndarray = np.log2(target_total) - np.log2(sample_totals)
+
+    return arr + per_sample_shift
 
 
 class PTMProteinAdjuster:
-    def __init__(self, ptm_mdata: md.MuData, global_mdata: md.MuData, ptm_mod: str, global_mod: str):
+    def __init__(
+        self,
+        ptm_mdata: md.MuData,
+        global_mdata: md.MuData,
+        ptm_mod: str,
+        global_mod: str,
+    ):
         self.ptm_mdata = ptm_mdata
         self.ptm_mod = ptm_mod
         self.global_mdata = global_mdata
@@ -141,11 +212,14 @@ class PTMProteinAdjuster:
         self.ptm_data, self.global_data = self._extract_data()
 
     def _extract_data(self):
-        ptm_data: pd.DataFrame = self.ptm_mdata.mod[self.ptm_mod].to_df().T.copy()
-        ptm_data["ptm_site"] = ptm_data.index
-        ptm_data["protein_group"] = self.ptm_mdata.mod[self.ptm_mod].var["protein_group"]
+        ptm_adata = get_anndata_mod(self.ptm_mdata, self.ptm_mod)
+        global_adata = get_anndata_mod(self.global_mdata, self.global_mod)
 
-        global_data: pd.DataFrame = self.global_mdata.mod[self.global_mod].to_df().T.copy()
+        ptm_data: pd.DataFrame = to_dense_df(ptm_adata).T.copy()
+        ptm_data["ptm_site"] = ptm_data.index
+        ptm_data["protein_group"] = ptm_adata.var["protein_group"]
+
+        global_data: pd.DataFrame = to_dense_df(global_adata).T.copy()
         global_data = global_data[self.sample_cols]  # sort sample order
         global_data["protein_group"] = global_data.index
 
@@ -189,7 +263,13 @@ class PTMProteinAdjuster:
 
                 residual: np.ndarray = y_full - y_hat
 
-                records.append({"ptm_site": row["ptm_site"], "protein_group": pid, "residual": residual})
+                records.append(
+                    {
+                        "ptm_site": row["ptm_site"],
+                        "protein_group": pid,
+                        "residual": residual,
+                    }
+                )
 
         result_df: pd.DataFrame = pd.DataFrame(records)
         residual_df = result_df.drop(columns="residual").copy()
@@ -201,7 +281,7 @@ class PTMProteinAdjuster:
 
     def _adjuted_ptm_to_mdata(self, adjusted_ptm: pd.DataFrame) -> md.MuData:
         adj_ptm_mdata: md.MuData = self.ptm_mdata.copy()
-        adj_ptm_adata = adj_ptm_mdata.mod[self.ptm_mod].copy()
+        adj_ptm_adata = get_anndata_mod(adj_ptm_mdata, self.ptm_mod).copy()
         adj_ptm_adata = adj_ptm_adata[:, adjusted_ptm["ptm_site"]].copy()
 
         adjusted_ptm = adjusted_ptm.set_index("ptm_site", drop=True)
@@ -209,7 +289,7 @@ class PTMProteinAdjuster:
         adjusted_ptm = adjusted_ptm.rename_axis(index=None)
         adj_ptm_adata.X = adjusted_ptm.T
 
-        adj_ptm_mdata.mod[self.ptm_mod] = adj_ptm_adata.copy()
+        get_mudata_mod_as_mutable(adj_ptm_mdata)[self.ptm_mod] = adj_ptm_adata.copy()
         adj_ptm_mdata.update()
 
         return adj_ptm_mdata
