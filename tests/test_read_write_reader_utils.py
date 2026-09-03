@@ -50,7 +50,14 @@ def test_add_modality_inserts_modality(mdata_factory):
     assert "peptide" in out.mod
 
 
-def test_to_categorical_casts_object_columns():
-    df = pd.DataFrame({"group": ["A", "B"]})
+def test_to_categorical_casts_string_columns_and_preserves_missing_values():
+    df = pd.DataFrame(
+        {
+            "object": pd.Series(["A", None], dtype=object),
+            "string": pd.Series(["A", pd.NA], dtype="string"),
+        }
+    )
     out = to_categorical(df)
-    assert out["group"].dtype.name == "category"
+    assert out["object"].dtype.name == "category"
+    assert out["string"].dtype.name == "category"
+    assert out.iloc[1].isna().all()

@@ -43,7 +43,7 @@ def add_msmu_template():
             "hoverlabel": {"align": "left"},
             "hovermode": "closest",
             "margin": {"l": 20, "r": 20, "t": 60, "b": 20},
-            "mapbox": {"style": "light"},
+            "map": {"style": "light"},
             "paper_bgcolor": "white",
             "plot_bgcolor": "white",
             "title": {"x": 0, "xanchor": "left", "xref": "container", "pad": {"l": 16}},
