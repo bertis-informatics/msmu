@@ -6,9 +6,6 @@ on:
       - dev
       - main
   push:
-    branches:
-      - dev
-      - main
     tags:
       - "v*.*.*"
   workflow_dispatch:
