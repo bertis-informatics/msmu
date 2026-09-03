@@ -4,6 +4,25 @@ All notable changes to `msmu` are documented in this file. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Release versions are derived
 from git tags via setuptools-scm.
 
+## [0.3.2] - 2026-09-04
+
+### Fixed
+
+- **MuData 0.4 compatibility** — package initialisation and readers no longer call the removed
+  `mudata.set_options`; the supported dependency range is now `mudata>=0.4.1,<0.5`.
+- **Pandas 3 string metadata remains categorical** — `to_categorical` now handles both object and
+  string dtypes while preserving missing values, so merged dataset labels support the `.cat`
+  accessor again.
+- **Plotly 7 map templates render correctly** — the default template uses `layout.map` instead of
+  the legacy Mapbox layout entry.
+
+### Changed
+
+- **GitHub Actions use the current checkout and Python setup runtimes**, avoiding their Node.js 20
+  deprecation warnings.
+- **Pull requests are no longer tested a second time after merging** — `dev` and `main` remain PR
+  targets, while `push` runs are reserved for release tags.
+
 ## [0.3.1] - 2026-08-11
 
 ### Fixed
@@ -158,5 +177,6 @@ metadata, one canonical accession form across readers, and sparse-in / sparse-ou
 - **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
 - **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
+[0.3.2]: https://github.com/bertis-informatics/msmu/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/bertis-informatics/msmu/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/bertis-informatics/msmu/compare/0.2.10...v0.3.0
