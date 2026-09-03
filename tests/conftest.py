@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 import sys
 
-import mudata
 import numpy as np
 import pandas as pd
 import pytest
@@ -10,7 +9,6 @@ from anndata import AnnData
 from mudata import MuData
 
 
-mudata.set_options(pull_on_update=False)
 os.environ.setdefault("NUMBA_DISABLE_CACHE", "1")
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]

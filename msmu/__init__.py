@@ -1,5 +1,4 @@
 import anndata
-import mudata
 
 from .logging_utils import ensure_null_handler, setup_logger
 
@@ -29,8 +28,6 @@ else:
 
 logger = ensure_null_handler()
 
-mudata.set_options(pull_on_update=False)
-
 # msmu serialises proteomics MuData to .h5mu. The reader frames (polars -> pandas on the pandas-3
 # stack) carry pandas nullable / Arrow-backed string columns -- including the obs/var index -- which
 # anndata 0.13 refuses to write when pd.options.future.infer_string is False unless this is opted
@@ -39,7 +36,6 @@ mudata.set_options(pull_on_update=False)
 if hasattr(anndata.settings, "allow_write_nullable_strings"):
     anndata.settings.allow_write_nullable_strings = True
 
-del mudata
 del anndata
 
 __all__ = [
