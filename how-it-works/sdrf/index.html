@@ -3579,18 +3579,18 @@ container is reshaped, while <code>.obs</code> holds only what is well-defined p
 through <a href="#add_meta-metadata-without-an-sdrf"><code>add_meta()</code></a>.</p>
 <h2 id="attach_sdrf"><code>attach_sdrf()</code></h2>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_sage</span><span class="p">(</span>
-    <span class="n">identification_file</span><span class="o">=</span><span class="s2">&quot;data/sage_tmt/sage/results.sage.tsv&quot;</span><span class="p">,</span>
-    <span class="n">quantification_file</span><span class="o">=</span><span class="s2">&quot;data/sage_tmt/sage/tmt.tsv&quot;</span><span class="p">,</span>
-    <span class="n">label</span><span class="o">=</span><span class="s2">&quot;tmt&quot;</span><span class="p">,</span>
+    <span class="n">identification_file</span><span class="o">=</span><span class="s2">"data/sage_tmt/sage/results.sage.tsv"</span><span class="p">,</span>
+    <span class="n">quantification_file</span><span class="o">=</span><span class="s2">"data/sage_tmt/sage/tmt.tsv"</span><span class="p">,</span>
+    <span class="n">label</span><span class="o">=</span><span class="s2">"tmt"</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">attach_sdrf</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="s2">&quot;data/sage_tmt/meta.sdrf.tsv&quot;</span><span class="p">,</span>  <span class="c1"># path, URL, or DataFrame</span>
+    <span class="s2">"data/sage_tmt/meta.sdrf.tsv"</span><span class="p">,</span>  <span class="c1"># path, URL, or DataFrame</span>
     <span class="n">validate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                  <span class="c1"># optional, default True: validate with sdrf-pipelines</span>
     <span class="n">skip_ontology</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>             <span class="c1"># optional, default True: skip ontology term lookups</span>
 <span class="p">)</span>
 
-<span class="n">mdata</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s2">&quot;sdrf&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span>   <span class="c1"># (144, 17)</span>
+<span class="n">mdata</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s2">"sdrf"</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span>   <span class="c1"># (144, 17)</span>
 </code></pre></div>
 <p>The SDRF may be a path, a URL, or a DataFrame. Paths and URLs are read with <code>mm.read_sdrf()</code>, and
 the table is validated with <a href="https://github.com/bigbio/sdrf-pipelines"><code>sdrf-pipelines</code></a> unless you
@@ -3603,10 +3603,10 @@ directly.</p>
 are a function of that key:</p>
 <p><div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_sdrf_to_obs</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>WARNING - apply_sdrf_to_obs: psm columns not projectable under &#39;comment[label]&#39;;
-          kept only in uns[&#39;sdrf&#39;]: [&#39;assay name&#39;, &#39;comment[data file]&#39;, &#39;comment[fraction identifier]&#39;]
+<div class="highlight"><pre><span></span><code>WARNING - apply_sdrf_to_obs: psm columns not projectable under 'comment[label]';
+          kept only in uns['sdrf']: ['assay name', 'comment[data file]', 'comment[fraction identifier]']
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;psm&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span><span class="p">[</span><span class="s2">"psm"</span><span class="p">]</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>        source name  characteristics[organism]  ...  factor value[condition]  factor value[time point]
 TMT126          t0h               Homo sapiens  ...                       t0                       t0h
@@ -3644,11 +3644,11 @@ run file names. <code>set_index</code> renames them to the SDRF's own sample ide
     <span class="n">mdata</span><span class="p">,</span>
     <span class="n">on</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                                             <span class="c1"># optional, default None: match key auto-picked per modality</span>
                                                          <span class="c1">#   (comment[label] for TMT, comment[data file] otherwise)</span>
-    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;source name&quot;</span><span class="p">,</span> <span class="s2">&quot;factor value[condition]&quot;</span><span class="p">],</span>  <span class="c1"># optional, default None: project every projectable column</span>
-    <span class="n">set_index</span><span class="o">=</span><span class="s2">&quot;source name&quot;</span><span class="p">,</span>                             <span class="c1"># optional, default None: keep obs.index unchanged</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">"source name"</span><span class="p">,</span> <span class="s2">"factor value[condition]"</span><span class="p">],</span>  <span class="c1"># optional, default None: project every projectable column</span>
+    <span class="n">set_index</span><span class="o">=</span><span class="s2">"source name"</span><span class="p">,</span>                             <span class="c1"># optional, default None: keep obs.index unchanged</span>
 <span class="p">)</span>
 
-<span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;psm&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">obs</span>
+<span class="n">mdata</span><span class="p">[</span><span class="s2">"psm"</span><span class="p">]</span><span class="o">.</span><span class="n">obs</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>      source name factor value[condition]
 t0h           t0h                      t0
@@ -3667,20 +3667,20 @@ including the columns that were not projectable.</p>
   never projected.</li>
 <li>Its values must be <strong>unique across obs</strong>, since they become the index.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_sdrf_to_obs</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">set_index</span><span class="o">=</span><span class="s2">&quot;characteristics[organism]&quot;</span><span class="p">)</span>
-<span class="c1"># ValueError: set_index &#39;characteristics[organism]&#39; is not unique across psm.obs; cannot index.</span>
+<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_sdrf_to_obs</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">set_index</span><span class="o">=</span><span class="s2">"characteristics[organism]"</span><span class="p">)</span>
+<span class="c1"># ValueError: set_index 'characteristics[organism]' is not unique across psm.obs; cannot index.</span>
 
-<span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_sdrf_to_obs</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">set_index</span><span class="o">=</span><span class="s2">&quot;comment[data file]&quot;</span><span class="p">)</span>
-<span class="c1"># ValueError: set_index &#39;comment[data file]&#39; is neither a projectable SDRF column nor an obs column</span>
+<span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_sdrf_to_obs</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">set_index</span><span class="o">=</span><span class="s2">"comment[data file]"</span><span class="p">)</span>
+<span class="c1"># ValueError: set_index 'comment[data file]' is neither a projectable SDRF column nor an obs column</span>
 </code></pre></div>
 <p>On a multi-plex experiment, project and rename <strong>after</strong> <code>split_tmt()</code>, not before. The split
 builds its <code>channel_set</code> obs names from the current obs names and starts the new modality with an
 empty <code>obs</code>, so renaming first both discards the projected columns and produces names
 (<code>t0h_set1</code>) that no longer match the SDRF's <code>comment[label]</code>. Keep the channel labels through
 the split:</p>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">attach_sdrf</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">&quot;meta.sdrf.tsv&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">attach_sdrf</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">"meta.sdrf.tsv"</span><span class="p">)</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">split_tmt</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>                                  <span class="c1"># obs: TMT126_set1, ...</span>
-<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_sdrf_to_obs</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">set_index</span><span class="o">=</span><span class="s2">&quot;source name&quot;</span><span class="p">)</span>  <span class="c1"># obs: the SDRF&#39;s sample names</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_sdrf_to_obs</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">set_index</span><span class="o">=</span><span class="s2">"source name"</span><span class="p">)</span>  <span class="c1"># obs: the SDRF's sample names</span>
 </code></pre></div>
 <p>The projected columns are also merged onto the MuData-level <code>mdata.obs</code>, where functions such as
 <code>correct_batch_effect()</code> read them.</p>
@@ -3691,10 +3691,10 @@ with <code>comment[label]</code> without a translation table.</p>
 SDRF attached it derives the file → set map itself:</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">split_tmt</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="nb">map</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                                     <span class="c1"># optional, default None: derive the file -&gt; set map from uns[&quot;sdrf&quot;]</span>
-    <span class="n">set_key</span><span class="o">=</span><span class="s2">&quot;comment[sample preparation batch]&quot;</span><span class="p">,</span>  <span class="c1"># optional, default shown: SDRF column naming each file&#39;s set</span>
+    <span class="nb">map</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                                     <span class="c1"># optional, default None: derive the file -&gt; set map from uns["sdrf"]</span>
+    <span class="n">set_key</span><span class="o">=</span><span class="s2">"comment[sample preparation batch]"</span><span class="p">,</span>  <span class="c1"># optional, default shown: SDRF column naming each file's set</span>
 <span class="p">)</span>
-<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_sdrf_to_obs</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>               <span class="c1"># obs are now &quot;TMT126_set1&quot;, ...</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_sdrf_to_obs</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>               <span class="c1"># obs are now "TMT126_set1", ...</span>
 </code></pre></div>
 <p>Which columns it reads, by default:</p>
 <table>
@@ -3726,14 +3726,14 @@ SDRF attached it derives the file → set map itself:</p>
 <p>SDRF has no dedicated column for the TMT set, which is why the batch column stands in for it.
 <code>split_tmt()</code> errors if the column is absent, or if one data file maps to two sets. Any column
 that is constant per data file may be named instead:</p>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">split_tmt</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">set_key</span><span class="o">=</span><span class="s2">&quot;factor value[plex]&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">split_tmt</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">set_key</span><span class="o">=</span><span class="s2">"factor value[plex]"</span><span class="p">)</span>
 </code></pre></div>
 <p><code>split_tmt()</code> records the key it used, so the following <code>apply_sdrf_to_obs()</code> knows to match on the
 composite <code>[comment[label], set_key]</code> that the post-split <code>channel_set</code> obs index encodes — no
 manual <code>on</code> is needed.</p>
 <p>Passing <code>map</code> explicitly skips the SDRF entirely — a <code>dict</code>, <code>Series</code>, or two-column <code>DataFrame</code>
 of file name → set:</p>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">split_tmt</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="nb">map</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;run_A&quot;</span><span class="p">:</span> <span class="s2">&quot;set1&quot;</span><span class="p">,</span> <span class="s2">&quot;run_B&quot;</span><span class="p">:</span> <span class="s2">&quot;set2&quot;</span><span class="p">})</span>  <span class="c1"># SDRF not consulted</span>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">split_tmt</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="nb">map</span><span class="o">=</span><span class="p">{</span><span class="s2">"run_A"</span><span class="p">:</span> <span class="s2">"set1"</span><span class="p">,</span> <span class="s2">"run_B"</span><span class="p">:</span> <span class="s2">"set2"</span><span class="p">})</span>  <span class="c1"># SDRF not consulted</span>
 </code></pre></div>
 <h2 id="add_meta_metadata_without_an_sdrf"><code>add_meta()</code> — metadata without an SDRF</h2>
 <p>Not every experiment has an SDRF. <code>add_meta()</code> is the generic path: it takes a <strong>DataFrame you
@@ -3743,9 +3743,9 @@ onto <code>obs</code> by one metadata key and one obs key.</p>
 
 <span class="n">meta</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
     <span class="p">{</span>
-        <span class="s2">&quot;channel&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;TMT126&quot;</span><span class="p">,</span> <span class="s2">&quot;TMT127&quot;</span><span class="p">,</span> <span class="s2">&quot;TMT128&quot;</span><span class="p">,</span> <span class="s2">&quot;TMT129&quot;</span><span class="p">,</span> <span class="s2">&quot;TMT130&quot;</span><span class="p">,</span> <span class="s2">&quot;TMT131&quot;</span><span class="p">],</span>
-        <span class="s2">&quot;condition&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;ctrl&quot;</span><span class="p">,</span> <span class="s2">&quot;ctrl&quot;</span><span class="p">,</span> <span class="s2">&quot;ctrl&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">,</span> <span class="s2">&quot;treat&quot;</span><span class="p">],</span>
-        <span class="s2">&quot;replicate&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>
+        <span class="s2">"channel"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"TMT126"</span><span class="p">,</span> <span class="s2">"TMT127"</span><span class="p">,</span> <span class="s2">"TMT128"</span><span class="p">,</span> <span class="s2">"TMT129"</span><span class="p">,</span> <span class="s2">"TMT130"</span><span class="p">,</span> <span class="s2">"TMT131"</span><span class="p">],</span>
+        <span class="s2">"condition"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"ctrl"</span><span class="p">,</span> <span class="s2">"ctrl"</span><span class="p">,</span> <span class="s2">"ctrl"</span><span class="p">,</span> <span class="s2">"treat"</span><span class="p">,</span> <span class="s2">"treat"</span><span class="p">,</span> <span class="s2">"treat"</span><span class="p">],</span>
+        <span class="s2">"replicate"</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>
     <span class="p">}</span>
 <span class="p">)</span>
 
@@ -3753,13 +3753,13 @@ onto <code>obs</code> by one metadata key and one obs key.</p>
     <span class="n">mdata</span><span class="p">,</span>
     <span class="n">meta</span><span class="p">,</span>                   <span class="c1"># DataFrame, path, or URL</span>
     <span class="nb">format</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>            <span class="c1"># optional, default None: for files, inferred from the extension</span>
-    <span class="n">metadata_on</span><span class="o">=</span><span class="s2">&quot;channel&quot;</span><span class="p">,</span>  <span class="c1"># optional, default None: metadata column to match on (default: its index)</span>
+    <span class="n">metadata_on</span><span class="o">=</span><span class="s2">"channel"</span><span class="p">,</span>  <span class="c1"># optional, default None: metadata column to match on (default: its index)</span>
     <span class="n">obs_columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>       <span class="c1"># optional, default None: obs column to match on (default: the obs index)</span>
     <span class="n">validate_sdrf</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>     <span class="c1"># optional, default True: only applies to SDRF input</span>
     <span class="n">skip_ontology</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>     <span class="c1"># optional, default True: skip ontology term lookups</span>
 <span class="p">)</span>
 
-<span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;psm&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">obs</span>
+<span class="n">mdata</span><span class="p">[</span><span class="s2">"psm"</span><span class="p">]</span><span class="o">.</span><span class="n">obs</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>       channel condition  replicate
 TMT126  TMT126      ctrl          1

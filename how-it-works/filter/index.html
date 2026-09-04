@@ -3505,21 +3505,21 @@
 <div class="highlight"><pre><span></span><code><span class="c1"># feature-level filter from .var</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">add_filter</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span>
-    <span class="n">on</span><span class="o">=</span><span class="s2">&quot;var&quot;</span><span class="p">,</span>
-    <span class="n">column</span><span class="o">=</span><span class="s2">&quot;q_value&quot;</span><span class="p">,</span>
-    <span class="n">keep</span><span class="o">=</span><span class="s2">&quot;lt&quot;</span><span class="p">,</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">,</span>
+    <span class="n">on</span><span class="o">=</span><span class="s2">"var"</span><span class="p">,</span>
+    <span class="n">column</span><span class="o">=</span><span class="s2">"q_value"</span><span class="p">,</span>
+    <span class="n">keep</span><span class="o">=</span><span class="s2">"lt"</span><span class="p">,</span>
     <span class="n">value</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># sample-level filter from .obs</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">add_filter</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span>
-    <span class="n">on</span><span class="o">=</span><span class="s2">&quot;obs&quot;</span><span class="p">,</span>
-    <span class="n">column</span><span class="o">=</span><span class="s2">&quot;condition&quot;</span><span class="p">,</span>
-    <span class="n">keep</span><span class="o">=</span><span class="s2">&quot;not_contains&quot;</span><span class="p">,</span>
-    <span class="n">value</span><span class="o">=</span><span class="s2">&quot;BLANK&quot;</span><span class="p">,</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">,</span>
+    <span class="n">on</span><span class="o">=</span><span class="s2">"obs"</span><span class="p">,</span>
+    <span class="n">column</span><span class="o">=</span><span class="s2">"condition"</span><span class="p">,</span>
+    <span class="n">keep</span><span class="o">=</span><span class="s2">"not_contains"</span><span class="p">,</span>
+    <span class="n">value</span><span class="o">=</span><span class="s2">"BLANK"</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
 <h2 id="apply_filter"><code>apply_filter</code></h2>
@@ -3535,14 +3535,14 @@ printed and that axis is skipped. When <code>on="var"</code> or <code>on="obs"</
 filter table is missing, an error is raised.</p>
 <p>The function also prints which filter columns are applied, and this printed output
 is captured into <code>mdata.uns["_cmd"]</code> by the command logger.</p>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_filter</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">&quot;all&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_filter</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">"all"</span><span class="p">)</span>
 
 <span class="c1"># apply only selected filters</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_filter</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span>
-    <span class="n">on</span><span class="o">=</span><span class="s2">&quot;var&quot;</span><span class="p">,</span>
-    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;q_value_lt_0.01&quot;</span><span class="p">],</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">,</span>
+    <span class="n">on</span><span class="o">=</span><span class="s2">"var"</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">"q_value_lt_0.01"</span><span class="p">],</span>
 <span class="p">)</span>
 </code></pre></div>
 <h2 id="contaminants_and_decoys">Contaminants and decoys</h2>

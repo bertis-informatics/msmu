@@ -3510,7 +3510,7 @@
 <p>The <code>log2_transform()</code> function applies a log2 transformation to the quantification data in the specified modality. This transformation helps stabilize variance and make the data more normally distributed, which is beneficial for downstream statistical analyses. <code>msmu</code> assumes that <code>log2_transform()</code> is applied on basal level of data before applying normalization methods.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">log2_transform</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span>  <span class="c1"># or &quot;peptide&quot;, &quot;protein&quot;</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">,</span>  <span class="c1"># or "peptide", "protein"</span>
     <span class="n">layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>      <span class="c1"># optional; default None transforms .X</span>
 <span class="p">)</span>
 </code></pre></div>
@@ -3518,10 +3518,10 @@
 <p>The <code>normalize()</code> function offers multiple normalization methods: median (<code>median</code>), quantile (<code>quantile</code>), and total-intensity / constant-sum (<code>total_sum</code>, which rescales each sample so its summed intensity equals the median of the per-sample totals). Users can select the method that best suits their data and experimental design. All methods assume log2-transformed input. Normalization can also be performed independently within groups: pass <code>group_obs</code> (an <code>adata.obs</code> column, e.g. sample batch or type) and/or <code>group_var</code> (an <code>adata.var</code> column, e.g. <code>"filename"</code> for fractionated runs) to normalize within each group.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">,</span>           <span class="c1"># or &quot;peptide&quot;, &quot;protein&quot;</span>
-    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>          <span class="c1"># options: &quot;median&quot;, &quot;quantile&quot;, &quot;total_sum&quot;; default &quot;median&quot;</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">,</span>           <span class="c1"># or "peptide", "protein"</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">"median"</span><span class="p">,</span>          <span class="c1"># options: "median", "quantile", "total_sum"; default "median"</span>
     <span class="n">group_obs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>           <span class="c1"># optional adata.obs column: normalize within each sample group</span>
-    <span class="n">group_var</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>           <span class="c1"># optional adata.var column (e.g. &quot;filename&quot;): normalize within each feature group</span>
+    <span class="n">group_var</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>           <span class="c1"># optional adata.var column (e.g. "filename"): normalize within each feature group</span>
     <span class="n">layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>               <span class="c1"># optional; default None normalizes .X</span>
 <span class="p">)</span>
 </code></pre></div>
@@ -3532,8 +3532,8 @@
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">adjust_ptm_by_protein</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
     <span class="n">global_mdata</span><span class="o">=</span><span class="n">global_mdata</span><span class="p">,</span>   <span class="c1"># MuData object for global proteome</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;phospho_site&quot;</span><span class="p">,</span>     <span class="c1"># ptm modality</span>
-    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;ridge&quot;</span><span class="p">,</span>              <span class="c1"># options: &quot;ridge&quot;, &quot;ratio&quot;. default &quot;ridge&quot;</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"phospho_site"</span><span class="p">,</span>     <span class="c1"># ptm modality</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">"ridge"</span><span class="p">,</span>              <span class="c1"># options: "ridge", "ratio". default "ridge"</span>
     <span class="n">rescale</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                <span class="c1"># whether to rescale adjusted values. default True</span>
     <span class="n">layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                  <span class="c1"># optional; default None adjusts .X</span>
 <span class="p">)</span>

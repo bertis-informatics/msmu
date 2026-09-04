@@ -3543,10 +3543,10 @@
 <p>See more details in the <a href="../../reference/tl/run_de/"><code>msmu.tl.run_de</code></a> and usage examples in the tutorial <a href="../../tutorials/dea/"><code>DE Analysis</code></a>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">de_res</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">tl</span><span class="o">.</span><span class="n">run_de</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;protein&quot;</span><span class="p">,</span>      <span class="c1"># or &quot;peptide&quot;</span>
-    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;condition&quot;</span><span class="p">,</span>    <span class="c1"># column in .obs defining groups</span>
-    <span class="n">ctrl</span><span class="o">=</span><span class="s2">&quot;control&quot;</span><span class="p">,</span>          <span class="c1"># control group label</span>
-    <span class="n">expr</span><span class="o">=</span><span class="s2">&quot;treated&quot;</span><span class="p">,</span>          <span class="c1"># experimental group label</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span>      <span class="c1"># or "peptide"</span>
+    <span class="n">category</span><span class="o">=</span><span class="s2">"condition"</span><span class="p">,</span>    <span class="c1"># column in .obs defining groups</span>
+    <span class="n">ctrl</span><span class="o">=</span><span class="s2">"control"</span><span class="p">,</span>          <span class="c1"># control group label</span>
+    <span class="n">expr</span><span class="o">=</span><span class="s2">"treated"</span><span class="p">,</span>          <span class="c1"># experimental group label</span>
     <span class="c1"># min_pct=0.5,           # (opt-in) also require &gt;=50% coverage per group; default 0.0 tests every estimable feature</span>
     <span class="n">log_transformed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>    <span class="c1"># whether data is log-transformed, default True</span>
 <span class="p">)</span>                            <span class="c1"># stat_method omitted -&gt; the default limma engine runs</span>
@@ -3567,25 +3567,25 @@
 <div class="highlight"><pre><span></span><code><span class="c1"># Two-group moderated-t (recommended for small sample sizes)</span>
 <span class="n">de_res</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">tl</span><span class="o">.</span><span class="n">run_de</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;protein&quot;</span><span class="p">,</span>
-    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;condition&quot;</span><span class="p">,</span>
-    <span class="n">ctrl</span><span class="o">=</span><span class="s2">&quot;control&quot;</span><span class="p">,</span>
-    <span class="n">expr</span><span class="o">=</span><span class="s2">&quot;treated&quot;</span><span class="p">,</span>
-    <span class="n">stat_method</span><span class="o">=</span><span class="s2">&quot;limma&quot;</span><span class="p">,</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span>
+    <span class="n">category</span><span class="o">=</span><span class="s2">"condition"</span><span class="p">,</span>
+    <span class="n">ctrl</span><span class="o">=</span><span class="s2">"control"</span><span class="p">,</span>
+    <span class="n">expr</span><span class="o">=</span><span class="s2">"treated"</span><span class="p">,</span>
+    <span class="n">stat_method</span><span class="o">=</span><span class="s2">"limma"</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># Interaction: does the treated-vs-control effect differ between genotypes,</span>
 <span class="c1"># adjusting for batch?</span>
 <span class="n">de_res</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">tl</span><span class="o">.</span><span class="n">run_de</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;protein&quot;</span><span class="p">,</span>
-    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;condition&quot;</span><span class="p">,</span>
-    <span class="n">ctrl</span><span class="o">=</span><span class="s2">&quot;control&quot;</span><span class="p">,</span>
-    <span class="n">expr</span><span class="o">=</span><span class="s2">&quot;treated&quot;</span><span class="p">,</span>
-    <span class="n">stat_method</span><span class="o">=</span><span class="s2">&quot;limma&quot;</span><span class="p">,</span>
-    <span class="n">interaction</span><span class="o">=</span><span class="s2">&quot;genotype&quot;</span><span class="p">,</span>
-    <span class="n">interaction_levels</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;wild_type&quot;</span><span class="p">,</span> <span class="s2">&quot;knockout&quot;</span><span class="p">],</span>
-    <span class="n">covariates</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;batch&quot;</span><span class="p">],</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span>
+    <span class="n">category</span><span class="o">=</span><span class="s2">"condition"</span><span class="p">,</span>
+    <span class="n">ctrl</span><span class="o">=</span><span class="s2">"control"</span><span class="p">,</span>
+    <span class="n">expr</span><span class="o">=</span><span class="s2">"treated"</span><span class="p">,</span>
+    <span class="n">stat_method</span><span class="o">=</span><span class="s2">"limma"</span><span class="p">,</span>
+    <span class="n">interaction</span><span class="o">=</span><span class="s2">"genotype"</span><span class="p">,</span>
+    <span class="n">interaction_levels</span><span class="o">=</span><span class="p">[</span><span class="s2">"wild_type"</span><span class="p">,</span> <span class="s2">"knockout"</span><span class="p">],</span>
+    <span class="n">covariates</span><span class="o">=</span><span class="p">[</span><span class="s2">"batch"</span><span class="p">],</span>
 <span class="p">)</span>
 
 <span class="n">de_res</span><span class="o">.</span><span class="n">to_df</span><span class="p">()</span>  <span class="c1"># get results as pandas DataFrame</span>
@@ -3599,11 +3599,11 @@
 <p>With very small groups the permutation null has few distinct label splits — only 20 for a 3-vs-3 comparison — and because the observed labelling is itself one of them, the empirical/BH q-value is floored (around <code>0.068</code> for 3-vs-3) regardless of effect size. <strong>This is why <code>limma</code> is the default.</strong> <code>run_de()</code> warns when a permutation design cannot reach <code>q &lt; 0.05</code>; the floor drops below 0.05 by roughly 4-vs-4.</p>
 <div class="highlight"><pre><span></span><code><span class="n">de_res</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">tl</span><span class="o">.</span><span class="n">run_de</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;protein&quot;</span><span class="p">,</span>
-    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;condition&quot;</span><span class="p">,</span>
-    <span class="n">ctrl</span><span class="o">=</span><span class="s2">&quot;control&quot;</span><span class="p">,</span>
-    <span class="n">expr</span><span class="o">=</span><span class="s2">&quot;treated&quot;</span><span class="p">,</span>
-    <span class="n">stat_method</span><span class="o">=</span><span class="s2">&quot;welch&quot;</span><span class="p">,</span>     <span class="c1"># &quot;welch&quot;, &quot;student&quot; or &quot;wilcoxon&quot;</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span>
+    <span class="n">category</span><span class="o">=</span><span class="s2">"condition"</span><span class="p">,</span>
+    <span class="n">ctrl</span><span class="o">=</span><span class="s2">"control"</span><span class="p">,</span>
+    <span class="n">expr</span><span class="o">=</span><span class="s2">"treated"</span><span class="p">,</span>
+    <span class="n">stat_method</span><span class="o">=</span><span class="s2">"welch"</span><span class="p">,</span>     <span class="c1"># "welch", "student" or "wilcoxon"</span>
     <span class="n">n_resamples</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>        <span class="c1"># number of label shuffles (positive integer)</span>
 <span class="p">)</span>
 </code></pre></div>

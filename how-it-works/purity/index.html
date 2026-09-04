@@ -3443,7 +3443,7 @@
 <p>In <code>msmu</code>, PIP is calculated using the <code>compute_precursor_isolation_purity()</code> function, which leverages the <a href="https://pyopenms.readthedocs.io/en/latest/user_guide/ms_data.html#example-precursor-purity"><code>pyopenms</code></a> library to analyze MS1 spectra and determine the purity of each precursor ion.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">tl</span><span class="o">.</span><span class="n">compute_precursor_isolation_purity</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">mzml_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;/path/to/mzml/files&quot;</span><span class="p">],</span>  <span class="c1"># path to mzML files</span>
+    <span class="n">mzml_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">"/path/to/mzml/files"</span><span class="p">],</span>  <span class="c1"># path to mzML files</span>
     <span class="n">tolerance</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>                        <span class="c1"># mass tolerance</span>
     <span class="n">unit_ppm</span><span class="o">=</span><span class="kc">True</span>                        <span class="c1"># mass tolerance in ppm</span>
     <span class="p">)</span>

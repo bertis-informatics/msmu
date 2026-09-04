@@ -3495,11 +3495,11 @@
 <p>For <code>gis</code>, <code>median_center</code>, and <code>continuous</code>, the per-feature abundance scale is restored automatically after correction (geometric mean of the per-batch GIS levels for <code>gis</code> — classic IRS; per-feature overall median otherwise). The decision is made for the whole modality: if the matrix has cross-batch structure (at least one feature observed in ≥2 batches, as at the peptide/protein level) every feature is restored, so a lone single-batch feature stays on the same abundance scale as the rest; if the matrix is fully block-diagonal (no feature spans ≥2 batches, e.g. a per-plex-split PSM matrix) nothing is restored and the output stays reference-relative, ready to roll up.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">correct_batch_effect</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;peptide&quot;</span><span class="p">,</span>                      <span class="c1"># or &quot;protein&quot;</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"peptide"</span><span class="p">,</span>                      <span class="c1"># or "protein"</span>
     <span class="n">layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                              <span class="c1"># layer to correct, default is .X</span>
-    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;batch&quot;</span><span class="p">,</span>                        <span class="c1"># batch information column in .obs</span>
-    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;gis&quot;</span><span class="p">,</span>                            <span class="c1"># options: &quot;median_center&quot;, &quot;gis&quot;, &quot;combat&quot;, &quot;continuous&quot;</span>
-    <span class="n">gis_samples</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;POOLED_1&quot;</span><span class="p">,</span> <span class="s2">&quot;POOLED_2&quot;</span><span class="p">],</span>    <span class="c1"># GIS channel names (for TMT data only)</span>
+    <span class="n">category</span><span class="o">=</span><span class="s2">"batch"</span><span class="p">,</span>                        <span class="c1"># batch information column in .obs</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">"gis"</span><span class="p">,</span>                            <span class="c1"># options: "median_center", "gis", "combat", "continuous"</span>
+    <span class="n">gis_samples</span><span class="o">=</span><span class="p">[</span><span class="s2">"POOLED_1"</span><span class="p">,</span> <span class="s2">"POOLED_2"</span><span class="p">],</span>    <span class="c1"># GIS channel names (for TMT data only)</span>
     <span class="n">drop_gis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                           <span class="c1"># whether to drop GIS channels after correction. Default is True</span>
     <span class="n">log_transformed</span><span class="o">=</span><span class="kc">True</span>                     <span class="c1"># whether data is log-transformed. Default is True</span>
 <span class="p">)</span>
@@ -3507,17 +3507,17 @@
 <span class="c1"># or</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">correct_batch_effect</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;peptide&quot;</span><span class="p">,</span>
-    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;batch&quot;</span><span class="p">,</span>
-    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;median_center&quot;</span><span class="p">,</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"peptide"</span><span class="p">,</span>
+    <span class="n">category</span><span class="o">=</span><span class="s2">"batch"</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">"median_center"</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># or</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">correct_batch_effect</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;protein&quot;</span><span class="p">,</span>
-    <span class="n">category</span><span class="o">=</span><span class="s2">&quot;run_order&quot;</span><span class="p">,</span>
-    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;continuous&quot;</span><span class="p">,</span>
+    <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span>
+    <span class="n">category</span><span class="o">=</span><span class="s2">"run_order"</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">"continuous"</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
 <h2 id="usage_notes">Usage notes</h2>

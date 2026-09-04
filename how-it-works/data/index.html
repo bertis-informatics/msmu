@@ -3490,10 +3490,10 @@ Therefore, understanding the usage of <a href="https://mudata.readthedocs.io/en/
 <p>A <code>MuData</code> object used in <code>msmu</code> is organized by modalities, each corresponding to a specific processing level such as <code>psm</code>, <code>peptide</code>, and <code>protein</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;psm&quot;</span><span class="p">]</span>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span><span class="p">[</span><span class="s2">"psm"</span><span class="p">]</span>
 
 <span class="c1"># or</span>
-<span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;protein&quot;</span><span class="p">]</span>
+<span class="n">mdata</span><span class="p">[</span><span class="s2">"protein"</span><span class="p">]</span>
 </code></pre></div>
 <p>As a general AnnData object, each individual modality contains <code>.X</code>, <code>.var</code>, <code>.varm</code>, <code>.obs</code>, <code>.obsm</code>, <code>.uns</code>, etc.</p>
 <ul>
@@ -3547,25 +3547,25 @@ Therefore, understanding the usage of <a href="https://mudata.readthedocs.io/en/
 <li>Raw information from a search tool is stored in <code>mdata["psm"].varm["search_result"]</code></li>
 </ul>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_sage</span><span class="p">(</span>
-    <span class="n">identification_file</span><span class="o">=</span><span class="s2">&quot;path/to/results.sage.tsv&quot;</span><span class="p">,</span>
-    <span class="n">quantification_file</span><span class="o">=</span><span class="s2">&quot;path/to/tmt.tsv&quot;</span><span class="p">,</span>
-    <span class="n">label</span><span class="o">=</span><span class="s2">&quot;tmt&quot;</span><span class="p">,</span>  <span class="c1"># or &quot;label_free&quot;</span>
+    <span class="n">identification_file</span><span class="o">=</span><span class="s2">"path/to/results.sage.tsv"</span><span class="p">,</span>
+    <span class="n">quantification_file</span><span class="o">=</span><span class="s2">"path/to/tmt.tsv"</span><span class="p">,</span>
+    <span class="n">label</span><span class="o">=</span><span class="s2">"tmt"</span><span class="p">,</span>  <span class="c1"># or "label_free"</span>
 <span class="p">)</span>
 
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_diann</span><span class="p">(</span>
-    <span class="n">identification_file</span><span class="o">=</span><span class="s2">&quot;path/to/report.tsv&quot;</span><span class="p">,</span>
+    <span class="n">identification_file</span><span class="o">=</span><span class="s2">"path/to/report.tsv"</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_maxquant</span><span class="p">(</span>
-    <span class="n">identification_file</span><span class="o">=</span><span class="s2">&quot;path/to/output_file&quot;</span><span class="p">,</span>
-    <span class="n">label</span><span class="o">=</span><span class="s2">&quot;tmt&quot;</span><span class="p">,</span>  <span class="c1"># or &quot;label_free&quot;</span>
-    <span class="n">acquisition</span><span class="o">=</span><span class="s2">&quot;dda&quot;</span><span class="p">,</span>  <span class="c1"># or &quot;dia&quot;</span>
+    <span class="n">identification_file</span><span class="o">=</span><span class="s2">"path/to/output_file"</span><span class="p">,</span>
+    <span class="n">label</span><span class="o">=</span><span class="s2">"tmt"</span><span class="p">,</span>  <span class="c1"># or "label_free"</span>
+    <span class="n">acquisition</span><span class="o">=</span><span class="s2">"dda"</span><span class="p">,</span>  <span class="c1"># or "dia"</span>
 <span class="p">)</span>
 
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_fragpipe</span><span class="p">(</span>
-    <span class="n">identification_file</span><span class="o">=</span><span class="s2">&quot;path/to/output_file/psm.tsv&quot;</span><span class="p">,</span>
-    <span class="n">quantification_file</span><span class="o">=</span><span class="s2">&quot;path/to/quantification_file/combined_modified_peptide.tsv&quot;</span><span class="p">,</span> <span class="c1"># for LFQ</span>
-    <span class="n">label</span><span class="o">=</span><span class="s2">&quot;tmt&quot;</span><span class="p">,</span>  <span class="c1"># or &quot;label_free&quot;</span>
+    <span class="n">identification_file</span><span class="o">=</span><span class="s2">"path/to/output_file/psm.tsv"</span><span class="p">,</span>
+    <span class="n">quantification_file</span><span class="o">=</span><span class="s2">"path/to/quantification_file/combined_modified_peptide.tsv"</span><span class="p">,</span> <span class="c1"># for LFQ</span>
+    <span class="n">label</span><span class="o">=</span><span class="s2">"tmt"</span><span class="p">,</span>  <span class="c1"># or "label_free"</span>
 <span class="p">)</span>
 </code></pre></div>
 <h2 id="the_quantification_matrix">The quantification matrix</h2>
@@ -3644,17 +3644,17 @@ a dense matrix. Normalisation, scaling and batch correction also return sparse o
 input, so the saving is not spent at the first preprocessing step.</p>
 <p>Summarisation removes the grouping — a peptide is one feature across every run and plex, so its
 cells are all measurable — and peptide- and protein-level modalities are dense again:</p>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_diann</span><span class="p">(</span><span class="n">identification_file</span><span class="o">=</span><span class="s2">&quot;path/to/report.parquet&quot;</span><span class="p">)</span>
-<span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;psm&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">X</span>          <span class="c1"># &lt;6x5038 sparse matrix ...&gt;, 5,037 stored cells (16.7%)</span>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_diann</span><span class="p">(</span><span class="n">identification_file</span><span class="o">=</span><span class="s2">"path/to/report.parquet"</span><span class="p">)</span>
+<span class="n">mdata</span><span class="p">[</span><span class="s2">"psm"</span><span class="p">]</span><span class="o">.</span><span class="n">X</span>          <span class="c1"># &lt;6x5038 sparse matrix ...&gt;, 5,037 stored cells (16.7%)</span>
 
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">to_peptide</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
-<span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;peptide&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">X</span>      <span class="c1"># dense ndarray</span>
+<span class="n">mdata</span><span class="p">[</span><span class="s2">"peptide"</span><span class="p">]</span><span class="o">.</span><span class="n">X</span>      <span class="c1"># dense ndarray</span>
 </code></pre></div>
 <p>To read the values out yourself, use <code>mm.io.to_readable()</code>, which restores absent cells as <code>NaN</code>.
 AnnData's own <code>mdata["psm"].to_df()</code> densifies a sparse <code>.X</code> with <strong>zeros</strong>, so absent
 measurements silently become <code>0</code> intensities:</p>
-<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">to_readable</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">&quot;psm&quot;</span><span class="p">)</span>   <span class="c1"># absent cells -&gt; NaN</span>
-<span class="n">mdata</span><span class="p">[</span><span class="s2">&quot;psm&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_df</span><span class="p">()</span>                       <span class="c1"># absent cells -&gt; 0  (do not use on a sparse .X)</span>
+<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">to_readable</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">)</span>   <span class="c1"># absent cells -&gt; NaN</span>
+<span class="n">mdata</span><span class="p">[</span><span class="s2">"psm"</span><span class="p">]</span><span class="o">.</span><span class="n">to_df</span><span class="p">()</span>                       <span class="c1"># absent cells -&gt; 0  (do not use on a sparse .X)</span>
 </code></pre></div>
 <p><code>to_readable()</code> returns <code>.var</code> and the quantification side by side; narrow it with the optional
 <code>include</code> / <code>exclude</code> (feature columns to keep or drop) and <code>quantification=False</code> (annotations

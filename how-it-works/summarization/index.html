@@ -3564,10 +3564,10 @@ Peptide-level PEP is calculated with <code>best_pep</code> method by default and
 <p>Note that filtering by <code>top_n</code> or <code>purity_threshold</code> affects quantification aggregation only and does not modify identification feature aggregation.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">to_peptide</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">agg_method</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>            <span class="c1"># default</span>
+    <span class="n">agg_method</span><span class="o">=</span><span class="s2">"median"</span><span class="p">,</span>            <span class="c1"># default</span>
     <span class="n">purity_threshold</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>           <span class="c1"># for tmt data</span>
     <span class="n">top_n</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                     <span class="c1"># default</span>
-    <span class="n">rank_method</span><span class="o">=</span><span class="s2">&quot;median_intensity&quot;</span><span class="p">,</span>  <span class="c1"># default</span>
+    <span class="n">rank_method</span><span class="o">=</span><span class="s2">"median_intensity"</span><span class="p">,</span>  <span class="c1"># default</span>
     <span class="n">layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                     <span class="c1"># default; read from .X, or name a layer to summarise instead</span>
     <span class="n">calculate_q</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>               <span class="c1"># default; set False to skip peptide-level PEP/q-value</span>
     <span class="p">)</span>
@@ -3597,9 +3597,9 @@ Details are provided in the <a href="../../how-it-works/inference/">Protein Infe
 <span class="c1"># Summarize peptides to protein group</span>
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">to_protein</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">agg_method</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>            <span class="c1"># &quot;median&quot; (default), &quot;mean&quot;, &quot;sum&quot;, &quot;median_polish&quot;, &quot;directlfq&quot;</span>
+    <span class="n">agg_method</span><span class="o">=</span><span class="s2">"median"</span><span class="p">,</span>            <span class="c1"># "median" (default), "mean", "sum", "median_polish", "directlfq"</span>
     <span class="n">top_n</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>                        <span class="c1"># default; use None with the matrix rollups</span>
-    <span class="n">rank_method</span><span class="o">=</span><span class="s2">&quot;median_intensity&quot;</span><span class="p">,</span>  <span class="c1"># default</span>
+    <span class="n">rank_method</span><span class="o">=</span><span class="s2">"median_intensity"</span><span class="p">,</span>  <span class="c1"># default</span>
     <span class="n">layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>                     <span class="c1"># default; read from .X, or name a layer to summarise instead</span>
     <span class="n">calculate_q</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>               <span class="c1"># default; set False to skip protein-level PEP/q-value</span>
     <span class="p">)</span>
@@ -3628,13 +3628,13 @@ Details are provided in the <a href="../../how-it-works/inference/">Protein Infe
 <p>A FASTA file is required because PTM sites must be mapped to protein-sequence coordinates. FASTA can be attached using <code>mm.utils.attach_fasta()</code>.</p>
 <p>The argument <code>modi_name</code> determines the modality name (e.g., "phospho" -&gt; "phospho_site"), and the <code>modification</code> string is used to identify modified peptides.</p>
 <p><code>agg_method</code> can be selected among the methods described in <a href="#aggregation_methods">Aggregation methods</a>; the matrix rollups <code>median_polish</code> and <code>directlfq</code> are available here as well (on log2-transformed data).</p>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">attach_fasta</span><span class="p">(</span><span class="s2">&quot;fasta/file/path.fasta&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">attach_fasta</span><span class="p">(</span><span class="s2">"fasta/file/path.fasta"</span><span class="p">)</span>
 
 <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">to_ptm</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modi_name</span><span class="o">=</span><span class="s2">&quot;phospho&quot;</span><span class="p">,</span>
-    <span class="n">modification</span><span class="o">=</span><span class="s2">&quot;[+79.9663]&quot;</span><span class="p">,</span>
-    <span class="n">agg_method</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>        <span class="c1"># default</span>
+    <span class="n">modi_name</span><span class="o">=</span><span class="s2">"phospho"</span><span class="p">,</span>
+    <span class="n">modification</span><span class="o">=</span><span class="s2">"[+79.9663]"</span><span class="p">,</span>
+    <span class="n">agg_method</span><span class="o">=</span><span class="s2">"median"</span><span class="p">,</span>        <span class="c1"># default</span>
     <span class="n">top_n</span><span class="o">=</span><span class="kc">None</span>                  <span class="c1"># default</span>
     <span class="p">)</span>
 </code></pre></div>
