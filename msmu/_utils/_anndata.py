@@ -18,6 +18,27 @@ def _require_columns(frame: DataFrame | Dataset2D, columns: list[str], context: 
         raise ValueError(f"Required columns missing from {context}: {missing_columns}")
 
 
+# Each level labels its accessions differently: a modality that has been through protein inference
+# carries "protein_group", PTM sites carry the accessions they were localised on as
+# "modified_protein", and peptides carry the search engine's own list as "proteins". Most preferred
+# first.
+ACCESSION_COLUMN_PREFERENCE: tuple[str, ...] = ("protein_group", "modified_protein", "proteins")
+
+
+def _resolve_accession_column(frame: DataFrame | Dataset2D, context: str) -> str:
+    """Return the var column carrying protein accessions for annotation helpers.
+
+    Annotation only needs *some* accession string, so this takes the first available rather than
+    requiring protein inference to have run -- the PTM path localises sites from the search engine's
+    accessions and never attaches an inferred ``protein_group``.
+    """
+    for column in ACCESSION_COLUMN_PREFERENCE:
+        if column in frame.columns:
+            return column
+
+    raise ValueError(f"No protein accession column found in {context}; expected one of {ACCESSION_COLUMN_PREFERENCE}.")
+
+
 def _has_quant_values(matrix: XDataType | None) -> bool:
     """Return whether an AnnData matrix contains at least one non-NaN value."""
     if matrix is None:

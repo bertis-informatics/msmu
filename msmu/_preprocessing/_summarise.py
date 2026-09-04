@@ -7,7 +7,13 @@ from .._utils._mudata import add_modality, get_anndata_mod, get_mudata, get_muda
 from .._core._provenance import uns_logger
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
-from ._summarisation import SummarisationPrep, PtmSummarisationPrep, Aggregator
+from ._summarisation import (
+    MATRIX_ROLLUP_METHODS,
+    Aggregator,
+    PtmSummarisationPrep,
+    SummarisationPrep,
+    warn_if_not_log_scale,
+)
 from .._statistics._target_decoy_q import estimate_q_values
 from .._preprocessing._filter import add_filter, apply_filter
 
@@ -331,18 +337,22 @@ def to_ptm(
     modi_name: str,
     modification: str,
     layer: str | None = None,
-    agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median",
+    agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median_polish",
     top_n: int | None = None,
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
 ) -> md.MuData:
     """Summarise peptide-level data to PTM-level data.
+
+    Sites are localised from the peptide's own ``proteins`` accessions and the attached FASTA, so
+    this step does not need an inferred ``protein_group`` and the resulting site ids do not depend on
+    any other dataset.
 
     Parameters:
         mdata: MuData object containing peptide-level data.
         modi_name: Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
         modification: Modification string (e.g., "[+79.96633]", "(unimod:21)").
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply log2_transform first).
+        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median_polish", which models a per-peptidoform effect and so is not perturbed when the set of peptidoforms supporting a site changes between samples; for a site backed by a single peptidoform it is identical to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply log2_transform first).
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
 
@@ -353,6 +363,9 @@ def to_ptm(
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for PTM summarisation.", layer)
+
+    if agg_method in MATRIX_ROLLUP_METHODS:
+        warn_if_not_log_scale(adata_to_summarise.X, context=f"to_ptm(agg_method='{agg_method}')")
 
     modality_name = f"{modi_name}_site"
     mstatus = MuDataStatus(mdata)

@@ -8,12 +8,13 @@ import scipy.sparse as sp
 
 from ..logging_utils import get_logger
 from .._core._blockdiag import aggregate_features_by_group, dense_block, is_sparse, to_dense_df
+from .._utils._anndata import _require_columns
 from .._utils._pandas import split_delimited_strings
 from ._filter import _mask_boolean_filter
 
 # for type checking only
 import anndata as ad
-from typing import Literal
+from typing import Callable, Literal
 
 
 logger = get_logger(__name__)
@@ -138,6 +139,33 @@ def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     return np.asarray(protein_profile, dtype=float)
 
 
+# log2 intensities from real MS data sit well under 64 (2**64 is ~1.8e19, far above any observed
+# linear intensity), so a maximum above it is a reliable sign the matrix is still on a linear scale.
+MAX_PLAUSIBLE_LOG2_INTENSITY: float = 64.0
+
+
+def warn_if_not_log_scale(matrix, context: str) -> None:
+    """Warn when a matrix headed for an additive rollup still looks like linear intensities.
+
+    ``median_polish`` and ``directlfq`` fit an additive feature + sample model, which is only
+    meaningful in log space. Applying them to linear intensities silently produces nonsense rather
+    than failing, so this warns instead of leaving the user with no signal. It is a heuristic, hence
+    a warning and not an error.
+    """
+    values = dense_block(matrix) if is_sparse(matrix) else np.asarray(matrix, dtype=float)
+    if values.size == 0:
+        return
+
+    observed_maximum = np.nanmax(values) if np.any(~np.isnan(values)) else np.nan
+    if np.isfinite(observed_maximum) and observed_maximum > MAX_PLAUSIBLE_LOG2_INTENSITY:
+        logger.warning(
+            "%s: values reach %.3g, which looks like linear intensity rather than log2. "
+            "Additive rollups (median_polish, directlfq) assume log space -- apply log2_transform first.",
+            context,
+            observed_maximum,
+        )
+
+
 def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     """Summarise a feature-by-sample matrix to per-sample estimates via Tukey's median polish.
 
@@ -230,6 +258,16 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     sample_estimates[fully_missing_sample_mask] = np.nan
 
     return sample_estimates
+
+
+# Rollups that consume a group's whole feature-by-sample submatrix rather than reducing each column
+# independently. Both fit an additive model and so require log-space input; keeping the mapping here
+# gives the aggregator and the callers that must warn about scale a single source of truth.
+MATRIX_ROLLUP_FUNCTIONS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
+    "median_polish": _median_polish,
+    "directlfq": _directlfq_rollup,
+}
+MATRIX_ROLLUP_METHODS: tuple[str, ...] = tuple(MATRIX_ROLLUP_FUNCTIONS)
 
 
 class FeatureRanker:
@@ -464,7 +502,6 @@ class Aggregator:
             "count_peptide": ("peptide", "nunique"),
             "count_stripped_peptide": ("stripped_peptide", "nunique"),
             "modified_protein": ("modified_protein", "first"),
-            "protein_group": ("protein_group", "first"),
         }
 
         return aggregator
@@ -483,19 +520,18 @@ class Aggregator:
         if isinstance(self._quant_df, SparseQuant):
             return self._aggregate_quantification_sparse()
 
-        sample_columns = self._quant_df.columns
+        # The PTM path carries its grouping column inside the quantification frame (it is what aligns
+        # quant rows to the exploded site rows), so exclude it explicitly. The column-wise ``.agg``
+        # branch drops the groupby key on its own, but a matrix rollup would try to average a string.
+        sample_columns = [column for column in self._quant_df.columns if column != self._col_to_groupby]
         agg_quant_df: pd.DataFrame = self._quant_df.copy()
         agg_quant_df[self._col_to_groupby] = self._id_df[self._col_to_groupby]
         grouped_quant = agg_quant_df.groupby(self._col_to_groupby, observed=True)
 
         # Matrix rollups operate on each group's full feature-by-sample submatrix, so they cannot
         # be expressed as a column-wise pandas aggregation and are applied per group instead.
-        matrix_rollups = {
-            "median_polish": _median_polish,
-            "directlfq": _directlfq_rollup,
-        }
-        if self._agg_method in matrix_rollups:
-            rollup_function = matrix_rollups[self._agg_method]
+        if self._agg_method in MATRIX_ROLLUP_FUNCTIONS:
+            rollup_function = MATRIX_ROLLUP_FUNCTIONS[self._agg_method]
             agg_quant_df = grouped_quant[sample_columns].apply(
                 lambda group_quant: pd.Series(
                     rollup_function(group_quant.to_numpy(dtype=float)),
@@ -712,6 +748,11 @@ class PtmSummarisationPrep(SummarisationPrep):
                 columns=quantification_df.sample_names,
             )
         identification_df["peptide"] = identification_df.index
+        _require_columns(
+            identification_df,
+            columns=["proteins", "stripped_peptide"],
+            context="peptide.var (PTM site localisation)",
+        )
         modi_df = self._extract_modi_peptide_df(data=identification_df)
 
         labelled_ptm_df = self.label_ptm_site(
@@ -750,6 +791,14 @@ class PtmSummarisationPrep(SummarisationPrep):
         """
         Label PTM site to each single protein and get data arranged by peptide - peptide site
 
+        Site identity is derived from the peptide's own ``proteins`` accessions rather than from an
+        inferred ``protein_group``. Localisation needs only an accession, a sequence and the FASTA;
+        protein grouping is a judgement made from one dataset's peptide evidence, so folding it into
+        the site name would make the same PTM data yield different site ids depending on which global
+        dataset it was processed alongside. Keeping accessions flat makes the site id a function of
+        (peptide, FASTA) alone. Resolving an accession to a quantifiable protein group is the
+        denominator step's job, not this one's.
+
         Parameters:
             data (pd.DataFrame): Peptide data from msmu mudata['peptide']
 
@@ -766,8 +815,7 @@ class PtmSummarisationPrep(SummarisationPrep):
 
         # explode data to single protein for label protein site
         ptm_info = self._explode_mod_site(ptm_info)
-        ptm_info = self._explode_protein_groups(ptm_info)
-        ptm_info = self._explode_protein_group(ptm_info)
+        ptm_info = self._explode_proteins(ptm_info)
 
         # label protein site to each single protein
         ptm_info["protein_site"] = ptm_info.apply(
@@ -781,9 +829,6 @@ class PtmSummarisationPrep(SummarisationPrep):
         )
         ptm_info = ptm_info.loc[ptm_info["protein_site"].str.len() > 0].copy()
         ptm_info["modified_protein"] = ptm_info["protein_site"].apply(lambda x: x.split("|")[0])
-
-        # wrap up single protein to single protein group
-        ptm_info = self._implode_protein_group(ptm_info)
 
         # group by modified peptide and its peptide site
         ptm_info = self._implode_peptide_peptide_site(ptm_info)
@@ -829,45 +874,28 @@ class PtmSummarisationPrep(SummarisationPrep):
 
         return pep_labed_data
 
-    def _explode_protein_groups(self, pep_labed_data: pd.DataFrame) -> pd.DataFrame:
-        pep_labed_data["_prot_gr"] = split_delimited_strings(pep_labed_data["protein_group"], ";")
-        exploded_data = pep_labed_data.explode("_prot_gr", ignore_index=True)
+    def _explode_proteins(self, pep_labed_data: pd.DataFrame) -> pd.DataFrame:
+        """Explode the peptide's accession list to one row per accession, in canonical order.
+
+        The accessions are sorted so the imploded ``protein_site`` is the same string whichever order
+        the search engine happened to list them in -- otherwise two peptidoforms covering one site
+        could disagree on the site name and split into two features.
+        """
+        accessions = split_delimited_strings(pep_labed_data["proteins"], ";")
+        pep_labed_data["_prots"] = accessions.apply(lambda parts: sorted(parts) if isinstance(parts, list) else parts)
+        exploded_data = pep_labed_data.explode("_prots", ignore_index=True)
 
         return exploded_data
-
-    def _explode_protein_group(self, data) -> pd.DataFrame:
-        data["_prots"] = split_delimited_strings(data["_prot_gr"], ",")
-        exploded_data = data.explode("_prots", ignore_index=True)
-
-        return exploded_data
-
-    def _implode_protein_group(self, data) -> pd.DataFrame:
-        data = (
-            data.groupby(["peptide", "peptide_site", "_prot_gr"], as_index=False, observed=True)
-            .agg(
-                {
-                    "protein_site": ",".join,
-                    "protein_group": "first",
-                    "modified_protein": ",".join,
-                    "stripped_peptide": "first",
-                    "count_psm": "sum",
-                    # "repr_protein": "first",
-                }
-            )
-            .copy()
-        )
-
-        return data
 
     def _implode_peptide_peptide_site(self, data) -> pd.DataFrame:
         data = data.groupby(["peptide", "peptide_site"], as_index=False, observed=True).agg(
             {
                 "protein_site": ";".join,
-                "protein_group": "first",
                 "modified_protein": ";".join,
                 "stripped_peptide": "first",
-                "count_psm": "sum",
-                # "repr_protein": "first",
+                # "first", not "sum": the accession explode duplicated this peptidoform's row, so
+                # summing here would multiply its PSM count by the number of accessions it maps to.
+                "count_psm": "first",
             }
         )
 

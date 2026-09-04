@@ -3,13 +3,12 @@ import warnings
 import anndata as ad
 import mudata as md
 import numpy as np
-from typing import Literal
 
 from .._utils._mudata import get_anndata_mod
 from .._core._provenance import uns_logger
 from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise, to_observed_sparse
 from ..logging_utils import get_logger
-from ._normalisation import Normalisation, NormalisationMethod, PTMProteinAdjuster
+from ._normalisation import Normalisation, NormalisationMethod, PTMAdjustmentMethod, PTMProteinAdjuster
 
 logger = get_logger(__name__)
 
@@ -323,23 +322,47 @@ def adjust_ptm_by_protein(
     global_mdata: md.MuData,
     modality: str = "phospho_site",
     layer: str | None = None,
-    method: Literal["ridge", "ratio"] = "ridge",
+    method: PTMAdjustmentMethod = "ratio",
     rescale: bool = True,
+    ridge_alpha: float | None = None,
+    adjusted_layer: str = "protein_adjusted",
 ) -> md.MuData:
     """
-    Estimation of PTM stoichiometry by using Global Protein Data.
+    Adjust PTM site intensities by parent protein abundance from a matched global dataset.
+
+    This computes *differential PTM usage* (DPU): the site's log intensity minus the log intensity
+    of its parent protein in the same sample, so that a site's change is read relative to whatever
+    its protein did. It is not occupancy/stoichiometry -- that additionally requires the unmodified
+    counterpart peptide, and is a different estimand with far lower coverage.
+
+    A site's denominator is found through the accessions it was localised on, translated into a
+    global protein group via the global dataset's ``uns['protein_map']``. Nothing is looked up by
+    peptide, so a PTM peptide the global run never observed is still adjustable whenever its protein
+    was quantified there. Sites whose accessions span two or more quantified global groups have no
+    valid denominator and are left unadjusted; ``var['adjustment_status']`` records why for every
+    site.
+
+    Adjusted values are written to ``layers[adjusted_layer]`` and ``.X`` keeps the unadjusted
+    intensities, so both analyses stay available and are never mixed in one matrix.
 
     Parameters:
-        mdata: MuData object to normalise.
+        mdata: MuData object holding the PTM data.
         global_mdata: MuData object which contains global protein expression, read from its
-            'protein' modality.
-        modality: PTM modality to normalise (e.g. phospho_site, {ptm}_site).
-        layer: Layer to normalise. If None, the default layer (.X) will be used.
-        method: A method for normalisation. Options: ridge, ratio. Default is 'ridge'.
-        rescale: If True, rescale the data after normalisation with median value across dataset. Default is True.
+            'protein' modality, and the protein mapping in uns['protein_map'].
+        modality: PTM modality to adjust (e.g. phospho_site, {ptm}_site).
+        layer: Layer to use as the PTM input. If None, the default layer (.X) will be used.
+        method: Estimator to use. 'ratio' subtracts the protein level, assuming the slope-one
+            relationship mass action predicts; 'ridge' instead fits a slope per site. Default is
+            'ratio', which needs no fitting and so stays usable at proteomics sample counts.
+        rescale: If True, shift the adjusted values by the PTM data's overall median so they read on
+            a comparable scale. A single constant, so it cancels in any contrast. Default is True.
+        ridge_alpha: Ridge penalty, used only when method='ridge'. A single-predictor ridge keeps
+            ``Sxx / (Sxx + alpha)`` of the least-squares slope, so a large alpha silently turns the
+            residual into a plain mean-centring. Defaults to DEFAULT_RIDGE_ALPHA.
+        adjusted_layer: Name of the layer to write adjusted values into. Default 'protein_adjusted'.
 
     Returns:
-        Normalised MuData object.
+        MuData object with the adjusted layer and per-site adjustment annotations added.
     """
     mdata = mdata.copy()
     adata = get_anndata_mod(mdata, modality)
@@ -353,7 +376,12 @@ def adjust_ptm_by_protein(
         ptm_mod=modality,
         global_mod="protein",
     )
-    adj_ptm_mdata: md.MuData = ptm_adjuster.adjust(method=method, rescale=rescale)
+    adj_ptm_mdata: md.MuData = ptm_adjuster.adjust(
+        method=method,
+        rescale=rescale,
+        layer=adjusted_layer,
+        alpha=ridge_alpha,
+    )
 
     return adj_ptm_mdata
 

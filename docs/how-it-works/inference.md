@@ -39,13 +39,18 @@ Optional arguments:
 - `propagated_from` (default `None`) — reuse an existing inference instead of running one.
 
 `propagated_from` takes an already-inferred `MuData`, or a path to an `.h5mu` holding one, and
-applies its `uns["peptide_map"]` / `uns["protein_map"]` as-is (it raises if the source lacks
-them). The usual case is PTM data, which should carry the protein grouping of its matched global
-dataset rather than one inferred from modified peptides alone:
+applies its `uns["peptide_map"]` / `uns["protein_map"]` as-is (it raises if the source lacks them,
+and also if a peptide is absent from the propagated map).
 
-```python
-ptm_mdata = mm.pp.infer_protein(ptm_mdata, propagated_from=global_mdata)
-```
+!!! note "PTM data does not need this"
+
+    PTM workflows used to propagate the matched global dataset's grouping onto the PTM container.
+    They no longer do. `to_ptm` localises sites from each peptide's own accessions and the attached
+    FASTA, and `adjust_ptm_by_protein` resolves a site's denominator by translating those accessions
+    through the *global* dataset's `protein_map`. Protein groups are a judgement derived from one
+    dataset's peptide evidence, so keeping them on the side that produced them means a PTM peptide
+    the global run never observed — the normal case under enrichment — is still adjustable whenever
+    its protein was quantified there. See [PTM adjustment](../api/preprocessing.md).
 
 ## Output
 

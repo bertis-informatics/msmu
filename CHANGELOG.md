@@ -4,6 +4,54 @@ All notable changes to `msmu` are documented in this file. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Release versions are derived
 from git tags via setuptools-scm.
 
+## [Unreleased]
+
+### Changed
+
+- **PTM adjustment finds its denominator by accession instead of by peptide.** A site's parent
+  protein is now located by translating the accessions it was localised on through the *global*
+  dataset's `uns["protein_map"]`, rather than by looking the PTM peptide up in the global peptide
+  map. Under enrichment a phospho peptide is routinely absent from the global run while its protein
+  is quantified there from other peptides, so the old lookup failed on the normal case — and failed
+  loudly, aborting the whole run. `infer_protein(propagated_from=...)` is no longer part of the PTM
+  path.
+- **PTM sites are localised from the peptide's own accessions.** `to_ptm` reads `proteins` instead
+  of an inferred `protein_group`, so site ids no longer depend on which global dataset the PTM data
+  happened to be processed alongside. **Breaking**: site ids are now flat — `"P1|S30;P2|S30;P3|S45"`
+  where they previously nested a comma tier inside the semicolons — and, because the search engine's
+  own accession list is used, a site may list accessions that the global parsimony had removed.
+  Accessions are sorted, so a site's id no longer depends on the order the engine listed them in.
+- **`adjust_ptm_by_protein` defaults to `method="ratio"`.** The previous default, `ridge`, both
+  discarded every site with two or fewer paired observations and shrank its slope by
+  `Sxx / (Sxx + alpha)`; with the hardcoded `alpha=100` and proteomics-scale variance that left a
+  few percent of the slope, so the residual reduced to centring each site and no protein correction
+  happened. `ridge` remains available and `alpha` is now reachable as `ridge_alpha`.
+- **Adjusted values go to a layer; `.X` keeps the unadjusted intensities.** Adjustment no longer
+  overwrites `.X` or drops the sites it could not adjust. Every site gains
+  `var["adjustment_status"]`, `var["denominator_group"]` and `var["is_protein_adjusted"]`, and the
+  per-reason counts are logged — including a distinct status for accessions missing from the global
+  FASTA, which means the two searches used different databases rather than that the protein went
+  undetected.
+- **`to_ptm` defaults to `agg_method="median_polish"`.** It models a per-peptidoform effect, so a
+  site's value no longer moves when the set of peptidoforms supporting it changes between samples;
+  for a site backed by a single peptidoform it is identical to `median`. Linear-looking input is
+  warned about, since the additive rollups require log space.
+
+### Fixed
+
+- **PSM counts are no longer multiplied by a site's accession count.** `to_ptm` summed `count_psm`
+  after exploding each peptidoform over its accessions, inflating the count by that many times.
+- **Matrix rollups no longer try to aggregate the grouping column.** `median_polish` and `directlfq`
+  received the PTM path's `protein_site` column alongside the sample columns and failed on it.
+
+### Notes
+
+- Sites whose accessions span two or more *quantified* global protein groups are reported but left
+  unadjusted. Their measured signal is a sum over those groups, and protein rollup values carry a
+  per-protein offset that makes them incomparable across groups, so neither picking one group nor
+  summing them yields a valid denominator. Accessions that the global dataset could not tell apart
+  are a single group and remain adjustable.
+
 ## [0.3.2] - 2026-09-04
 
 ### Fixed

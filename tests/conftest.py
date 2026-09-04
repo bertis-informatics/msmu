@@ -168,8 +168,10 @@ def simple_adata() -> AnnData:
 
 @pytest.fixture
 def ptm_mdata() -> MuData:
+    # Sites carry the accessions they were localised on; the denominator is resolved from those,
+    # not from a protein group copied over from the global dataset.
     obs = pd.DataFrame(index=["s1", "s2"])
-    ptm_var = pd.DataFrame({"protein_group": ["P1", "P1"]}, index=["site1", "site2"])
+    ptm_var = pd.DataFrame({"modified_protein": ["P1", "P1"]}, index=["site1", "site2"])
     ptm_x = np.array([[1.0, 2.0], [3.0, 4.0]])
     ptm_adata = _make_adata(ptm_x, obs.copy(), ptm_var)
     return _make_mdata({"phospho_site": ptm_adata})
@@ -181,7 +183,10 @@ def global_mdata() -> MuData:
     global_var = pd.DataFrame(index=["P1"])
     global_x = np.array([[0.5], [1.5]])
     global_adata = _make_adata(global_x, obs.copy(), global_var)
-    return _make_mdata({"protein": global_adata})
+    mdata = _make_mdata({"protein": global_adata})
+    # protein_map is what infer_protein leaves on the global container: accession -> protein group.
+    mdata.uns["protein_map"] = pd.DataFrame({"initial_protein": ["P1"], "protein_group": ["P1"]})
+    return mdata
 
 
 @pytest.fixture
