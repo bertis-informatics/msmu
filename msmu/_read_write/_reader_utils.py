@@ -215,16 +215,16 @@ def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict
 
 def to_categorical(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Converts object-type columns in a DataFrame to categorical.
+    Converts object- and string-type columns in a DataFrame to categorical.
 
     Args:
         df: Input DataFrame.
 
     Returns:
-        DataFrame with object columns converted to categorical.
+        DataFrame with object and string columns converted to categorical.
     """
     df = df.copy()
-    for col in df.select_dtypes(include=["object"]).columns:
-        df[col] = pd.Categorical(df[col], categories=df[col].unique())
+    for col in df.select_dtypes(include=["object", "string"]).columns:
+        df[col] = pd.Categorical(df[col])
 
     return df
