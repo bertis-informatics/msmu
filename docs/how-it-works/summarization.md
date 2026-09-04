@@ -109,11 +109,14 @@ Internally, the function performs:
 1. Filtering data with only modified peptides with modi_identifier
 2. Extracting modified sites from peptide
 3. Assigning peptide-level site labels
-4. Exploding peptides to single proteins for per-protein site labeling
+4. Exploding peptides to their own accessions for per-protein site labeling
 5. Mapping the site to the corresponding position in each protein
-6. Merging single-protein results back into protein groups
-7. Grouping by modified peptide and peptide-site combination
-8. Merging site metadata with peptide-level quantification
+6. Grouping by modified peptide and peptide-site combination
+7. Merging site metadata with peptide-level quantification
+
+Sites are localized from the accessions in the peptide's `proteins` column, not from an inferred
+`protein_group`, so a site id depends only on the peptide and the FASTA — the same PTM data yields
+the same sites whether or not it was processed alongside a global dataset.
 
 `to_ptm()` function takes:
 
@@ -136,7 +139,7 @@ mdata = mm.pp.to_ptm(
     mdata,
     modi_name="phospho",
     modification="[+79.9663]",
-    agg_method="median",        # default
+    agg_method="median_polish", # default
     top_n=None                  # default
     )
 ```

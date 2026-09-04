@@ -50,7 +50,7 @@ and also if a peptide is absent from the propagated map).
     through the *global* dataset's `protein_map`. Protein groups are a judgement derived from one
     dataset's peptide evidence, so keeping them on the side that produced them means a PTM peptide
     the global run never observed — the normal case under enrichment — is still adjustable whenever
-    its protein was quantified there. See [PTM adjustment](../api/preprocessing.md).
+    its protein was quantified there. See [`adjust_ptm_by_protein`](../../reference/pp/adjust_ptm_by_protein/).
 
 ## Output
 

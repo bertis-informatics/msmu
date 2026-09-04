@@ -188,19 +188,53 @@ def test_ratio_is_the_default_estimator():
     assert inspect.signature(mm.pp.adjust_ptm_by_protein).parameters["method"].default == "ratio"
 
 
-def test_ridge_alpha_is_reachable_from_the_public_api():
-    """A hidden penalty decides whether ridge regresses at all, so it must be settable."""
+def _ridge_residuals(alpha: float) -> np.ndarray:
+    """Adjust one site through the public API at a given penalty and return its residuals."""
     ptm = _make_ptm({"P1|S30": "P1"})
+    ptm["phospho_site"].X = np.array([[10.0], [12.0], [11.0], [15.0]])
     global_mdata = _make_global(quantified_groups=["P1"], accession_to_group={"P1": "P1"})
+    global_mdata["protein"].X = np.array([[1.0], [3.0], [2.0], [8.0]])
 
     adjusted = mm.pp.adjust_ptm_by_protein(
-        ptm, global_mdata, modality="phospho_site", method="ridge", ridge_alpha=1e6, rescale=False
+        ptm, global_mdata, modality="phospho_site", method="ridge", ridge_alpha=alpha, rescale=False
     )
+    return adjusted["phospho_site"].layers["protein_adjusted"][:, 0]
 
-    # With an enormous penalty the slope collapses to zero, so the residual is the site centred on
-    # its own mean -- the protein axis is not removed at all.
-    residuals = adjusted["phospho_site"].layers["protein_adjusted"][:, 0]
-    assert residuals == pytest.approx(residuals - np.nanmean(residuals), abs=1e-6)
+
+def test_ridge_alpha_changes_the_answer_and_reaches_the_estimator():
+    """The penalty must actually be plumbed through, and it must matter.
+
+    Asserting only that the residuals are mean-zero would prove nothing: ``Ridge(fit_intercept=True)``
+    gives mean-zero residuals at *every* alpha, so such a test passes even if ridge_alpha is dropped
+    on the floor. These are the two answers pinned to literals instead.
+    """
+    assert _ridge_residuals(1.0) == pytest.approx([-1 / 3, 1 / 3, 0.0, 0.0], abs=1e-6)
+
+    # Sxx = 29.0 here, so alpha=1e6 keeps ~3e-5 of the slope: the protein axis is not removed and the
+    # residual collapses onto the site centred on its own mean, [-2, 0, -1, 3].
+    assert _ridge_residuals(1e6) == pytest.approx([-2.0, 0.0, -1.0, 3.0], abs=1e-3)
+
+
+def test_each_site_is_divided_by_its_own_protein_in_the_right_sample_order():
+    """Pin actual numbers in the layer, not just its NaN pattern.
+
+    Two sites on different proteins, with values chosen so that reversing the sample axis, or pairing
+    a site with the other site's protein, both produce a different matrix. Shape-only assertions let
+    either misalignment through silently, and neither would raise.
+    """
+    ptm = _make_ptm({"A|S1": "PA", "B|S2": "PB"})
+    ptm["phospho_site"].X = np.array([[10.0, 20.0], [11.0, 22.0], [13.0, 25.0], [16.0, 29.0]])
+    global_mdata = _make_global(
+        quantified_groups=["PA", "PB"],
+        accession_to_group={"PA": "PA", "PB": "PB"},
+    )
+    global_mdata["protein"].X = np.array([[1.0, 7.0], [2.0, 7.0], [3.0, 8.0], [4.0, 8.0]])
+
+    adjusted = mm.pp.adjust_ptm_by_protein(ptm, global_mdata, modality="phospho_site", rescale=False)
+    layer = adjusted["phospho_site"].layers["protein_adjusted"]
+
+    assert layer[:, 0] == pytest.approx([9.0, 9.0, 10.0, 12.0])  # site A minus PA
+    assert layer[:, 1] == pytest.approx([13.0, 15.0, 17.0, 21.0])  # site B minus PB
 
 
 def test_unknown_method_is_rejected():

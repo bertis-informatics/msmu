@@ -722,11 +722,10 @@ class PtmSummarisationPrep(SummarisationPrep):
         1. Filter data with only modified peptides with modi_identifier
         2. Get modified sites from peptide
         3. Label peptide site
-        4. Explode data to single protein for labeling protein site
+        4. Explode data to the peptide's own accessions for labeling protein site
         5. Label protein site to each single protein
-        6. Wrap up single protein to single protein group
-        7. Group by modified peptide and its peptide site
-        8. Merge data with peptide value indexed by peptide
+        6. Group by modified peptide and its peptide site
+        7. Merge data with peptide value indexed by peptide
     """
 
     def __init__(self, adata: ad.AnnData, modi_identifier: str, fasta: pd.DataFrame) -> None:
