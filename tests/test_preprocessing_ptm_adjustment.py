@@ -150,13 +150,8 @@ def test_without_a_global_fasta_the_two_absences_are_reported_together():
     assert _statuses(ptm, global_mdata) == {"Q99|S10": ADJUSTMENT_STATUS_NO_GLOBAL_GROUP}
 
 
-def test_unadjusted_sites_survive_and_x_keeps_the_unadjusted_intensities():
-    """Adjustment must not truncate features or overwrite .X.
-
-    Residuals and raw abundances are different quantities; leaving both in one matrix would let
-    downstream testing compare them along the same axis with no way to tell them apart. Dropping the
-    unadjustable sites instead would destroy the unadjusted analysis entirely.
-    """
+def test_unadjustable_sites_survive_as_nan_and_the_adjusted_values_replace_the_matrix():
+    """Adjustment must not truncate features, and must write where downstream tools will read."""
     ptm = _make_ptm({"P1|S30": "P1", "P3|S30;P9|S45": "P3;P9"})
     original_x = ptm["phospho_site"].X.copy()
     global_mdata = _make_global(
@@ -168,11 +163,12 @@ def test_unadjusted_sites_survive_and_x_keeps_the_unadjusted_intensities():
     site_adata = adjusted["phospho_site"]
 
     assert list(site_adata.var_names) == ["P1|S30", "P3|S30;P9|S45"]
-    assert np.allclose(site_adata.X, original_x)
-
-    adjusted_layer = site_adata.layers["protein_adjusted"]
-    assert not np.isnan(adjusted_layer[:, 0]).any()
-    assert np.isnan(adjusted_layer[:, 1]).all()
+    # The adjusted values replace the matrix that was read, as every other msmu transform does --
+    # leaving them elsewhere would mean run_de, which defaults to .X, silently used the raw data.
+    assert not np.allclose(site_adata.X[:, 0], original_x[:, 0])
+    # The unadjustable site is NaN rather than still holding its raw abundance, so residuals and raw
+    # abundances never share a matrix.
+    assert np.isnan(site_adata.X[:, 1]).all()
     assert site_adata.var["is_protein_adjusted"].tolist() == [True, False]
     assert site_adata.var["adjustment_status"].tolist() == [
         ADJUSTMENT_STATUS_ADJUSTED,
@@ -198,7 +194,7 @@ def _ridge_residuals(alpha: float) -> np.ndarray:
     adjusted = mm.pp.adjust_ptm_by_protein(
         ptm, global_mdata, modality="phospho_site", method="ridge", ridge_alpha=alpha, rescale=False
     )
-    return adjusted["phospho_site"].layers["protein_adjusted"][:, 0]
+    return adjusted["phospho_site"].X[:, 0]
 
 
 def test_ridge_alpha_changes_the_answer_and_reaches_the_estimator():
@@ -231,7 +227,7 @@ def test_each_site_is_divided_by_its_own_protein_in_the_right_sample_order():
     global_mdata["protein"].X = np.array([[1.0, 7.0], [2.0, 7.0], [3.0, 8.0], [4.0, 8.0]])
 
     adjusted = mm.pp.adjust_ptm_by_protein(ptm, global_mdata, modality="phospho_site", rescale=False)
-    layer = adjusted["phospho_site"].layers["protein_adjusted"]
+    layer = adjusted["phospho_site"].X
 
     assert layer[:, 0] == pytest.approx([9.0, 9.0, 10.0, 12.0])  # site A minus PA
     assert layer[:, 1] == pytest.approx([13.0, 15.0, 17.0, 21.0])  # site B minus PB

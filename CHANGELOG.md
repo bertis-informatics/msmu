@@ -26,12 +26,14 @@ from git tags via setuptools-scm.
   `Sxx / (Sxx + alpha)`; with the hardcoded `alpha=100` and proteomics-scale variance that left a
   few percent of the slope, so the residual reduced to centring each site and no protein correction
   happened. `ridge` remains available and `alpha` is now reachable as `ridge_alpha`.
-- **Adjusted values go to a layer; `.X` keeps the unadjusted intensities.** Adjustment no longer
-  overwrites `.X` or drops the sites it could not adjust. Every site gains
-  `var["adjustment_status"]`, `var["denominator_group"]` and `var["is_protein_adjusted"]`, and the
-  per-reason counts are logged — including a distinct status for accessions missing from the global
-  FASTA, which means the two searches used different databases rather than that the protein went
-  undetected.
+- **Adjustment no longer drops the sites it could not adjust.** The adjusted values replace the
+  matrix that was read — `.X`, or `layers[layer]` when given — matching `log2_transform`,
+  `normalise` and `correct_batch_effect`, so tools that default to `.X` see the adjusted data. A
+  site without a valid denominator is set to `NaN` rather than left holding its raw abundance, so
+  residuals and raw abundances never share a matrix. Every site gains `var["adjustment_status"]`,
+  `var["denominator_group"]` and `var["is_protein_adjusted"]`, and the per-reason counts are logged
+  — including a distinct status for accessions missing from the global FASTA, which means the two
+  searches used different databases rather than that the protein went undetected.
 - **`to_ptm` defaults to `agg_method="median_polish"`.** It models a per-peptidoform effect, so a
   site's value no longer moves when the set of peptidoforms supporting it changes between samples;
   for a site backed by a single peptidoform it is identical to `median`. Linear-looking input is

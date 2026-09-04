@@ -284,12 +284,15 @@ class PTMProteinAdjuster:
         ptm_mod: str,
         global_mod: str,
         accession_column: str = "modified_protein",
+        layer: str | None = None,
     ):
         self.ptm_mdata = ptm_mdata
         self.ptm_mod = ptm_mod
         self.global_mdata = global_mdata
         self.global_mod = global_mod
         self.accession_column = accession_column
+        # Read and write the same matrix, as every other msmu transform does.
+        self.layer = layer
         self.sample_cols: list[str] = list(ptm_mdata.obs.index)
 
         self.resolution = self._resolve_denominators()
@@ -410,7 +413,7 @@ class PTMProteinAdjuster:
 
         adjustable_mask = self.resolution["adjustment_status"] == ADJUSTMENT_STATUS_ADJUSTED
 
-        ptm_data: pd.DataFrame = to_dense_df(ptm_adata).T.copy()
+        ptm_data: pd.DataFrame = to_dense_df(ptm_adata, layer=self.layer).T.copy()
         ptm_data = ptm_data.loc[adjustable_mask.values]
         ptm_data["ptm_site"] = ptm_data.index
         ptm_data["denominator_group"] = self.resolution.loc[adjustable_mask, "denominator_group"].values
@@ -504,13 +507,17 @@ class PTMProteinAdjuster:
 
         return adjusted_ptm
 
-    def _write_back(self, adjusted_ptm: pd.DataFrame, layer: str) -> md.MuData:
-        """Store adjusted values in a layer and annotate every site with how it was resolved.
+    def _write_back(self, adjusted_ptm: pd.DataFrame, layer: str | None) -> md.MuData:
+        """Replace the quantification in place and annotate every site with how it was resolved.
 
-        The unadjusted matrix stays in ``.X`` and no site is dropped. Residuals and raw abundances
-        are different quantities, so leaving them in one matrix would let downstream testing compare
-        them along the same axis with no way to tell them apart; keeping DPU beside DPA rather than
-        replacing it is also what the literature reports.
+        Writes back to whichever matrix was read -- ``.X`` or ``layers[layer]`` -- the same contract
+        as ``log2_transform``, ``normalise``, ``scale_data`` and ``correct_batch_effect``. Leaving the
+        adjusted values somewhere else would mean ``run_de`` and friends, which default to ``.X``,
+        silently analysed the unadjusted data.
+
+        No site is dropped. A site that could not be adjusted is set to NaN rather than left holding
+        its raw abundance, so residuals and raw abundances never share a matrix; ``adjustment_status``
+        records why for each one.
         """
         adj_ptm_mdata: md.MuData = self.ptm_mdata.copy()
         adj_ptm_adata = get_anndata_mod(adj_ptm_mdata, self.ptm_mod).copy()
@@ -540,7 +547,11 @@ class PTMProteinAdjuster:
                 int(resolved_but_empty.sum()),
             )
 
-        adj_ptm_adata.layers[layer] = adjusted_matrix.to_numpy()
+        if layer is None:
+            adj_ptm_adata.X = adjusted_matrix.to_numpy()
+        else:
+            adj_ptm_adata.layers[layer] = adjusted_matrix.to_numpy()
+
         adj_ptm_adata.var["denominator_group"] = self.resolution["denominator_group"].reindex(adj_ptm_adata.var_names)
         adj_ptm_adata.var["adjustment_status"] = final_status
         adj_ptm_adata.var["is_protein_adjusted"] = produced_values
@@ -549,14 +560,16 @@ class PTMProteinAdjuster:
         adj_ptm_mdata.update()
 
         logger.info(
-            "Protein-adjusted values written to %s.layers['%s']; .X still holds unadjusted intensities.",
-            self.ptm_mod,
-            layer,
+            "Protein-adjusted %s written to %s; %d of %d sites are NaN because they could not be adjusted.",
+            "quantification" if layer is None else f"layer '{layer}'",
+            f"{self.ptm_mod}.X" if layer is None else f"{self.ptm_mod}.layers['{layer}']",
+            int((~produced_values).sum()),
+            len(produced_values),
         )
 
         return adj_ptm_mdata
 
-    def adjust(self, method: str, rescale: bool, layer: str, alpha: float | None = None) -> md.MuData:
+    def adjust(self, method: str, rescale: bool, alpha: float | None = None) -> md.MuData:
         if method not in _PTM_ADJUSTMENT_METHODS:
             raise ValueError(f"Unknown PTM adjustment method '{method}'. Choose from {_PTM_ADJUSTMENT_METHODS}.")
 
@@ -568,4 +581,4 @@ class PTMProteinAdjuster:
         if rescale and len(adjusted_ptm):
             adjusted_ptm = self._rescale(adjusted_ptm)
 
-        return self._write_back(adjusted_ptm, layer=layer)
+        return self._write_back(adjusted_ptm, layer=self.layer)

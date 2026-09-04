@@ -46,15 +46,21 @@ mdata = mm.pp.adjust_ptm_by_protein(
     modality="phospho_site",     # ptm modality
     method="ratio",              # options: "ratio", "ridge". default "ratio"
     rescale=True,                # whether to rescale adjusted values. default True
-    layer=None,                  # optional; default None reads .X
+    layer=None,                  # optional; default None adjusts .X
     ridge_alpha=None,            # ridge penalty; only used when method="ridge"
-    adjusted_layer="protein_adjusted",  # layer the adjusted values are written to
 )
 ```
 
 ### Where the result goes
 
-Adjusted values are written to `layers["protein_adjusted"]` and **`.X` keeps the unadjusted intensities**. Nothing is dropped: a site that could not be adjusted stays in place with `NaN` in that layer, so the unadjusted analysis remains available and the two are never mixed in one matrix.
+The adjusted values **replace the matrix that was read** — `.X`, or `layers[layer]` when given — the same contract as `log2_transform()`, `normalise()` and `correct_batch_effect()`. Nothing is dropped: a site that could not be adjusted is set to `NaN` rather than left holding its raw abundance, so residuals and raw abundances never share a matrix.
+
+To keep the unadjusted values for a side-by-side comparison, copy them into a layer first:
+
+```python
+mdata["phospho_site"].layers["unadjusted"] = mdata["phospho_site"].X.copy()
+mdata = mm.pp.adjust_ptm_by_protein(mdata, global_mdata=global_mdata)
+```
 
 Each site is annotated with how it was resolved:
 

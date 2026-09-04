@@ -325,7 +325,6 @@ def adjust_ptm_by_protein(
     method: PTMAdjustmentMethod = "ratio",
     rescale: bool = True,
     ridge_alpha: float | None = None,
-    adjusted_layer: str = "protein_adjusted",
 ) -> md.MuData:
     """
     Adjust PTM site intensities by parent protein abundance from a matched global dataset.
@@ -342,15 +341,20 @@ def adjust_ptm_by_protein(
     valid denominator and are left unadjusted; ``var['adjustment_status']`` records why for every
     site.
 
-    Adjusted values are written to ``layers[adjusted_layer]`` and ``.X`` keeps the unadjusted
-    intensities, so both analyses stay available and are never mixed in one matrix.
+    The adjusted values replace the quantification that was read -- ``.X``, or ``layers[layer]`` when
+    given -- the same contract as ``log2_transform``, ``normalise`` and ``correct_batch_effect``. A
+    site that could not be adjusted is set to NaN rather than left holding its raw abundance, so
+    residuals and raw abundances never share a matrix. To keep the unadjusted values, copy them into
+    a layer first::
+
+        mdata[modality].layers["unadjusted"] = mdata[modality].X.copy()
 
     Parameters:
         mdata: MuData object holding the PTM data.
         global_mdata: MuData object which contains global protein expression, read from its
             'protein' modality, and the protein mapping in uns['protein_map'].
         modality: PTM modality to adjust (e.g. phospho_site, {ptm}_site).
-        layer: Layer to use as the PTM input. If None, the default layer (.X) will be used.
+        layer: Layer to adjust. If None, the default layer (.X) will be used.
         method: Estimator to use. 'ratio' subtracts the protein level, assuming the slope-one
             relationship mass action predicts; 'ridge' instead fits a slope per site. Default is
             'ratio', which needs no fitting and so stays usable at proteomics sample counts.
@@ -359,27 +363,22 @@ def adjust_ptm_by_protein(
         ridge_alpha: Ridge penalty, used only when method='ridge'. A single-predictor ridge keeps
             ``Sxx / (Sxx + alpha)`` of the least-squares slope, so a large alpha silently turns the
             residual into a plain mean-centring. Defaults to DEFAULT_RIDGE_ALPHA.
-        adjusted_layer: Name of the layer to write adjusted values into. Default 'protein_adjusted'.
 
     Returns:
-        MuData object with the adjusted layer and per-site adjustment annotations added.
+        MuData object with the adjusted quantification and per-site adjustment annotations.
     """
     mdata = mdata.copy()
-    adata = get_anndata_mod(mdata, modality)
-
-    if layer is not None:
-        adata.X = adata.layers[layer]
 
     ptm_adjuster: PTMProteinAdjuster = PTMProteinAdjuster(
         ptm_mdata=mdata,
         global_mdata=global_mdata,
         ptm_mod=modality,
         global_mod="protein",
+        layer=layer,
     )
     adj_ptm_mdata: md.MuData = ptm_adjuster.adjust(
         method=method,
         rescale=rescale,
-        layer=adjusted_layer,
         alpha=ridge_alpha,
     )
 
