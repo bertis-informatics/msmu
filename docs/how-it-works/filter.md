@@ -59,8 +59,8 @@ When `on="all"` and one side does not have a stored filter table, a warning is
 printed and that axis is skipped. When `on="var"` or `on="obs"` and the requested
 filter table is missing, an error is raised.
 
-The function also prints which filter columns are applied, and this printed output
-is captured into `mdata.uns["_cmd"]` by the command logger.
+The function also prints which filter columns are applied. The provenance logger records
+the successful call in `mdata.uns["_log"]`, but does not capture printed output.
 
 ```python
 mdata = mm.pp.apply_filter(mdata, modality="psm", on="all")
