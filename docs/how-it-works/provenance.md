@@ -41,6 +41,11 @@ Entities have independent UUIDs and argument/return roles. Input descriptors and
 captured **before** computation, including for in-place mutations. A new observation receives
 a new entity ID even when its content hash matches an earlier observation. Parents identify
 inherited history, not proof that no unrecorded edits happened between calls.
+With hashing enabled, the decorator compares each input MuData hash with its head event's
+MuData output hash before executing the function. A mismatch emits a Python `UserWarning` at the caller location and execution
+continues unless the caller configures warnings as errors. This reuses the input hash; no additional full-data hash is calculated. Comparison
+is skipped when hashes are unavailable/disabled, algorithms differ, or the previous event
+has multiple MuData outputs whose ownership cannot be resolved.
 
 Returned MuData objects receive the history. For `tl.run_de`, the history stays on the input
 MuData, with a descriptor and optional hash of the returned `DeaResult`'s instance fields.

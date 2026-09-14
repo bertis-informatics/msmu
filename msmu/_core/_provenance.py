@@ -14,6 +14,7 @@ from pathlib import Path
 import platform
 import subprocess
 import time
+import warnings
 from importlib.metadata import distributions
 from uuid import uuid4
 
@@ -285,6 +286,33 @@ def log_provenance(func):
             "outputs": [],
             "hashing": hashing,
         }
+        if hashing:
+            for entity, (_, value) in zip(event["inputs"], inputs):
+                if not isinstance(value, md.MuData):
+                    continue
+                previous = _read_log(value)
+                current_hash = entity["hash"]
+                if not previous["head"] or current_hash.get("status") != "completed":
+                    continue
+                head = json.loads(previous["events"][previous["head"]])
+                outputs = [output for output in head["outputs"] if output["type"] == "MuData"]
+                # Multiple MuData outputs have no persistent object-to-output mapping yet.
+                if len(outputs) != 1:
+                    continue
+                previous_hash = outputs[0]["hash"]
+                if (
+                    previous_hash.get("status") == "completed"
+                    and previous_hash.get("algorithm") == current_hash.get("algorithm")
+                    and previous_hash.get("value") != current_hash["value"]
+                ):
+                    warnings.warn(
+                        "Data changed outside the recorded workflow.\n"
+                        f"  Between: {head['function']} → {func.__name__}\n"
+                        "  If this step needs MSMU support, please open an issue describing the operation:\n"
+                        "  https://github.com/bertis-informatics/msmu/issues",
+                        UserWarning,
+                        stacklevel=3,
+                    )
         environment = _environment()
         environment_json = _json(environment)
         from hashlib import sha256

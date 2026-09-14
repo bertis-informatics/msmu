@@ -1,4 +1,5 @@
 from pathlib import Path
+import warnings
 from types import SimpleNamespace
 
 import anndata as ad
@@ -304,3 +305,74 @@ def test_concurrent_calls_keep_histories_independent(capsys):
     for label in ("first", "second"):
         assert f"start-{label}" in output
         assert f"end-{label}" in output
+
+
+@pytest.mark.parametrize("prior_hashing,current_hashing,changed,expect_warning", [
+    (True, True, True, True),
+    (True, True, False, False),
+    (False, True, True, False),
+    (True, False, True, False),
+])
+def test_warns_before_execution_on_unrecorded_change(
+    monkeypatch, prior_hashing, current_hashing, changed, expect_warning
+):
+    with options(hashing=prior_hashing):
+        m = identity(data())
+    head = get_log(m)["head"]
+    if changed:
+        m["protein"].var["label"] = ["changed", "a", "b"]
+    calls = []
+    original_hash = core.compute_hash
+
+    def counted_hash(value):
+        calls.append(value)
+        return original_hash(value)
+
+    monkeypatch.setattr(core, "compute_hash", counted_hash)
+
+    @mm.provenance.log
+    def next_step(mdata):
+        assert any("Data changed outside" in str(item.message) for item in caught) == expect_warning
+        return mdata
+
+    with warnings.catch_warnings(record=True) as caught, options(hashing=current_hashing):
+        warnings.simplefilter("always")
+        result = next_step(m)
+    if expect_warning:
+        warning = next(item for item in caught if "Data changed outside" in str(item.message))
+        assert warning.category is UserWarning
+        assert warning.filename == __file__
+        assert "identity → next_step" in str(warning.message)
+    assert get_log(result)["events"][-1]["parents"] == [head]
+    assert len(calls) == (2 if current_hashing else 0)
+
+
+def test_ambiguous_previous_outputs_do_not_warn():
+    with warnings.catch_warnings(record=True) as caught, options(hashing=True):
+        warnings.simplefilter("always")
+        m = identity(data())
+        m["protein"].var["label"] = ["changed", "a", "b"]
+        head = m.uns["_log"]["head"]
+        import json
+        event = json.loads(m.uns["_log"]["events"][head])
+        event["outputs"] *= 2
+        m.uns["_log"]["events"][head] = json.dumps(event)
+        identity(m)
+    assert not any("Data changed outside" in str(item.message) for item in caught)
+
+
+def test_unrecorded_change_warning_can_stop_execution():
+    with options(hashing=True):
+        m = identity(data())
+        m["protein"].var["label"] = ["changed", "a", "b"]
+        before = get_log(m)
+
+        @mm.provenance.log
+        def must_not_run(mdata):
+            pytest.fail("Warning promoted to an error must stop execution")
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message="Data changed outside", category=UserWarning)
+            with pytest.raises(UserWarning, match="Data changed outside"):
+                must_not_run(m)
+        assert get_log(m) == before
