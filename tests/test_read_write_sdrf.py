@@ -114,12 +114,14 @@ def test_read_sdrf_reads_url_like_sources_via_tabular_ingestion(monkeypatch):
         return _PANDAS_READ_CSV(source, *args, **kwargs)
 
     monkeypatch.setattr(meta_module.pd, "read_csv", fake_read_csv)
+    from msmu._core import _sources
+    monkeypatch.setattr(_sources, "urlopen", lambda *args, **kwargs: io.BytesIO(content.encode()))
 
     metadata = mm.read_sdrf(url, validate_sdrf=False)
 
     assert metadata.loc[0, "source name"] == "sample_1"
     assert metadata.attrs["sdrf_file"] == url
-    assert opened[0]["source"] == url
+    assert isinstance(opened[0]["source"], io.BytesIO)
     assert opened[0]["kwargs"]["sep"] == "\t"
     assert "header" not in opened[0]["kwargs"]
 

@@ -93,20 +93,19 @@ def test_add_meta_loads_url_like_tsv_source(monkeypatch):
 
     def fake_read_csv(source, *args, **kwargs):
         opened.append({"source": source, "kwargs": kwargs})
-        if source == url:
-            return _PANDAS_READ_CSV(
-                io.StringIO("run\tcondition\nrun_1\tcase\n"),
-                *args,
-                **kwargs,
-            )
         return _PANDAS_READ_CSV(source, *args, **kwargs)
 
+    from msmu._core import _sources
+
+    monkeypatch.setattr(
+        _sources, "urlopen", lambda *args, **kwargs: io.BytesIO(b"run\tcondition\nrun_1\tcase\n")
+    )
     monkeypatch.setattr(meta_module.pd, "read_csv", fake_read_csv)
 
     out = mm.pp.add_meta(mdata, url, metadata_on="run")
 
     assert out.obs["condition"].tolist() == ["case"]
-    assert opened[0]["source"] == url
+    assert isinstance(opened[0]["source"], io.BytesIO)
     assert opened[0]["kwargs"]["sep"] == "\t"
     assert "meta" not in out.uns
 
