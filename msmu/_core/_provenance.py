@@ -1,316 +1,341 @@
-from collections.abc import Mapping, Sequence
+"""Execution provenance stored entirely inside MuData.uns['_log']."""
+
+from collections.abc import Mapping
+from contextvars import ContextVar
 from copy import deepcopy
 import contextlib
 import datetime
 import functools
 import inspect
-import io
 import json
 import logging
 import os
+from pathlib import Path
 import platform
-import sys
-from importlib.metadata import PackageNotFoundError, version
+import subprocess
+import time
+from importlib.metadata import distributions
+from uuid import uuid4
 
 import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
+from scipy import sparse
 
-from ..logging_utils import get_logger, prune_closed_package_stream_handlers
+from ._hashing import ALGORITHM, compute_hash
+from ._sources import get_download_buffer, is_url, source_scope
+from ..logging_utils import get_logger, prune_closed_package_stream_handlers, prune_closed_stream_handlers
 
-MAX_SEQ_ITEMS = 20
-MAX_STRING_LEN = 500
-MAX_DEPTH = 10
-
-__all__ = [
-    "append_cmd_log",
-    "capture_provenance_output",
-    "get_bound_call_kwargs",
-    "normalize_cmd_for_runtime",
-    "serialize",
-    "uns_logger",
-]
+_hashing = ContextVar("msmu_provenance_hashing", default=False)
+_active = ContextVar("msmu_provenance_active", default=False)
+_OMIT = object()
 
 
-def _truncate_string(value: str, max_len: int = MAX_STRING_LEN) -> str:
-    if len(value) <= max_len:
-        return value
-    return f"{value[:max_len]}...(truncated)"
+def set_options(*, hashing: bool) -> None:
+    """Enable or disable input/output hashing in this execution context (default False)."""
+    if not isinstance(hashing, bool):
+        raise TypeError("hashing must be a bool")
+    _hashing.set(hashing)
 
 
-def _get_msmu_version() -> str:
-    try:
-        return version("msmu")
-    except PackageNotFoundError:
-        return "unknown"
-
-
-def get_bound_call_kwargs(func, *args, **kwargs) -> dict[str, object]:
-    """
-    Bind a function call to its signature and return parameter->value mapping,
-    including defaults for omitted arguments.
-    """
-    bound = inspect.signature(func).bind_partial(*args, **kwargs)
-    bound.apply_defaults()
-    return {str(k): v for k, v in bound.arguments.items() if k not in {"self", "mdata"}}
-
-
-def serialize(obj, *, depth: int = 0) -> object:
-    if depth >= MAX_DEPTH:
-        return {"__type__": "truncated", "reason": "max_depth"}
-
-    if obj is None or isinstance(obj, (bool, int, float, str)):
-        if isinstance(obj, str):
-            return _truncate_string(obj)
-        return obj
-
-    if isinstance(obj, os.PathLike):
-        return _truncate_string(os.fspath(obj))
-
-    if isinstance(obj, np.generic):
-        return obj.item()
-
-    if isinstance(obj, datetime.datetime):
-        return obj.isoformat()
-
-    if isinstance(obj, Mapping):
-        out = {}
-        for i, (k, v) in enumerate(obj.items()):
-            if i >= MAX_SEQ_ITEMS:
-                out["__truncated__"] = True
-                break
-            out[str(k)] = serialize(v, depth=depth + 1)
-        return out
-
-    if isinstance(obj, (set, tuple, list)):
-        values = list(obj)[:MAX_SEQ_ITEMS]
-        out = [serialize(v, depth=depth + 1) for v in values]
-        if len(obj) > MAX_SEQ_ITEMS:
-            out.append({"__truncated__": True})
-        return out
-
-    if isinstance(obj, np.ndarray):
-        return {
-            "__type__": "ndarray",
-            "shape": list(obj.shape),
-            "dtype": str(obj.dtype),
-        }
-
-    if isinstance(obj, pd.DataFrame):
-        return {
-            "__type__": "dataframe",
-            "shape": [int(obj.shape[0]), int(obj.shape[1])],
-            "columns": [str(c) for c in obj.columns[:MAX_SEQ_ITEMS]],
-        }
-
-    if isinstance(obj, pd.Series):
-        return {
-            "__type__": "series",
-            "length": int(obj.shape[0]),
-            "dtype": str(obj.dtype),
-            "name": None if obj.name is None else str(obj.name),
-        }
-
-    if isinstance(obj, ad.AnnData):
-        return {
-            "__type__": "anndata",
-            "shape": [int(obj.n_obs), int(obj.n_vars)],
-        }
-
-    if isinstance(obj, md.MuData):
-        return {
-            "__type__": "mudata",
-            "mod_names": [str(x) for x in obj.mod.keys()],
-        }
-
-    if isinstance(obj, Sequence) and not isinstance(obj, str):
-        values = list(obj)[:MAX_SEQ_ITEMS]
-        out = [serialize(v, depth=depth + 1) for v in values]
-        if len(obj) > MAX_SEQ_ITEMS:
-            out.append({"__truncated__": True})
-        return out
-
-    return {"__type__": type(obj).__name__, "repr": _truncate_string(repr(obj))}
-
-
-def append_cmd_log(
-    mdata: md.MuData,
-    *,
-    function: str,
-    payload: Mapping | None = None,
-    stdout: str | None = None,
-    input_dimensions: Mapping | None = None,
-    output_dimensions: Mapping | None = None,
-) -> md.MuData:
-    if not isinstance(mdata, md.MuData):
-        return mdata
-
-    serialized_payload = serialize({} if payload is None else dict(payload))
-
-    log_entry = {
-        "function": function,
-        "timestamp": datetime.datetime.now().isoformat(),
-        "msmu_version": _get_msmu_version(),
-        "python_version": platform.python_version(),
-        "payload": serialized_payload,
-    }
-    if stdout:
-        log_entry["stdout"] = _truncate_string(stdout)
-    if input_dimensions is not None:
-        log_entry["input_dimensions"] = serialize(dict(input_dimensions))
-    if output_dimensions is not None:
-        log_entry["output_dimensions"] = serialize(dict(output_dimensions))
-
-    normalize_cmd_for_runtime(mdata)
-    if "_cmd" not in mdata.uns:
-        mdata.uns["_cmd"] = {}
-
-    cmd_logs: dict[str, dict] = mdata.uns["_cmd"]
-    cmd_logs[_next_cmd_key(cmd_logs)] = log_entry
-    return mdata
-
-
-def _next_cmd_key(cmd_logs: Mapping[str, object]) -> str:
-    numeric_keys = [int(k) for k in cmd_logs if str(k).isdigit()]
-    if not numeric_keys:
-        return "0"
-    return str(max(numeric_keys) + 1)
-
-
-def _coerce_cmd_entry_to_dict(entry) -> dict:
-    if isinstance(entry, dict):
-        return deepcopy(entry)
-    if isinstance(entry, str):
-        try:
-            parsed = json.loads(entry)
-            if isinstance(parsed, dict):
-                return _coerce_cmd_entry_to_dict(parsed)
-            return {"function": "unknown", "payload": serialize(parsed)}
-        except Exception:
-            return {"function": "unknown", "payload": _truncate_string(entry)}
-    return {"function": "unknown", "payload": _truncate_string(repr(entry))}
-
-
-def normalize_cmd_for_runtime(mdata: md.MuData) -> md.MuData:
-    """Ensure ``mdata.uns['_cmd']`` is ``dict[str, dict]`` in runtime."""
-    if not isinstance(mdata, md.MuData):
-        return mdata
-    if "_cmd" not in mdata.uns:
-        return mdata
-
-    raw = mdata.uns["_cmd"]
-    if isinstance(raw, dict):
-        mdata.uns["_cmd"] = {str(k): _coerce_cmd_entry_to_dict(v) for k, v in raw.items()}
-    elif isinstance(raw, list):
-        mdata.uns["_cmd"] = {str(i): _coerce_cmd_entry_to_dict(x) for i, x in enumerate(raw)}
-    else:
-        raise TypeError("mdata.uns['_cmd'] must be dict or list for runtime normalization.")
-
-    return mdata
-
-
-class _StdoutTee:
-    def __init__(self, original, buffer):
-        self._original = original
-        self._buffer = buffer
-
-    def write(self, data):
-        self._original.write(data)
-        self._buffer.write(data)
-        return len(data)
-
-    def flush(self):
-        self._original.flush()
-        self._buffer.flush()
-
-
-class _LogCaptureHandler(logging.Handler):
-    def __init__(self, buffer: io.StringIO, tee_to_stdout: bool):
-        super().__init__(level=logging.INFO)
-        self._buffer = buffer
-        self._tee_to_stdout = tee_to_stdout
-
-    def emit(self, record: logging.LogRecord) -> None:
-        msg = self.format(record)
-        self._buffer.write(msg + "\n")
-        if self._tee_to_stdout:
-            sys.stdout.write(msg + "\n")
-            sys.stdout.flush()
+def get_options() -> dict[str, bool]:
+    """Return a snapshot of the settings in this execution context."""
+    return {"hashing": _hashing.get()}
 
 
 @contextlib.contextmanager
-def capture_provenance_output():
-    """
-    Capture stdout + msmu logger output while still showing messages on screen.
-    Returns a StringIO buffer containing captured text.
-    """
-    stdout_buffer = io.StringIO()
-    tee = _StdoutTee(sys.stdout, stdout_buffer)
-
-    msmu_logger = get_logger()
-    prune_closed_package_stream_handlers()
-    original_level = msmu_logger.level
-    original_propagate = msmu_logger.propagate
-    visible_handlers = [h for h in msmu_logger.handlers if not isinstance(h, logging.NullHandler)]
-    has_info_visible_handler = any(h.level <= logging.INFO for h in visible_handlers)
-    handler = _LogCaptureHandler(stdout_buffer, tee_to_stdout=not has_info_visible_handler)
-    handler.setFormatter(logging.Formatter("%(levelname)s - %(message)s"))
-    msmu_logger.addHandler(handler)
-    msmu_logger.propagate = False
-    if msmu_logger.getEffectiveLevel() > logging.INFO:
-        msmu_logger.setLevel(logging.INFO)
-
+def options(*, hashing: bool):
+    """Temporarily enable/disable hashing, restoring the previous setting on exit."""
+    if not isinstance(hashing, bool):
+        raise TypeError("hashing must be a bool")
+    token = _hashing.set(hashing)
     try:
-        with contextlib.redirect_stdout(tee):
-            yield stdout_buffer
+        yield
     finally:
-        msmu_logger.removeHandler(handler)
-        msmu_logger.setLevel(original_level)
-        msmu_logger.propagate = original_propagate
+        _hashing.reset(token)
 
 
-def _get_mudata_dimensions(mdata: md.MuData) -> dict[str, object]:
-    def _get_mod_dimensions(mod_data: ad.AnnData | md.MuData) -> dict[str, object]:
-        dimensions: dict[str, object] = {
-            "n_obs": int(mod_data.n_obs),
-            "n_vars": int(mod_data.n_vars),
-        }
-        if isinstance(mod_data, ad.AnnData):
-            # anndata >=0.13 exposes ``.X`` as a ``None``-keyed layer; drop it so the recorded
-            # provenance lists real layer names only (not a spurious "None").
-            dimensions["layers"] = [str(layer) for layer in mod_data.layers.keys() if layer is not None]
-        else:
-            dimensions["modalities"] = [str(mod) for mod in mod_data.mod.keys()]
-        return dimensions
+def _json(value):
+    return json.dumps(value, sort_keys=True, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
 
+
+def _empty_log():
+    return {"schema_version": 1, "events": {}, "environments": {}, "head": ""}
+
+
+def _read_log(mdata):
+    log = mdata.uns.get("_log", _empty_log())
+    if not isinstance(log, dict) or log.get("schema_version") != 1:
+        raise ValueError("Unsupported mdata.uns['_log'] schema")
+    if not all(isinstance(log.get(k), dict) for k in ("events", "environments")):
+        raise ValueError("Invalid mdata.uns['_log'] entries")
+    if not isinstance(log.get("head"), str) or log["head"] and log["head"] not in log["events"]:
+        raise ValueError("Invalid mdata.uns['_log'] head")
+    for group in ("events", "environments"):
+        for key, value in log[group].items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise ValueError("Invalid mdata.uns['_log'] entry")
+    return log
+
+
+def get_log(mdata: md.MuData) -> dict:
+    """Return detached, decoded provenance in lineage order, then execution-start order."""
+    log = _read_log(mdata)
     return {
-        "n_obs": int(mdata.n_obs),
-        "n_vars": int(mdata.n_vars),
-        "modalities": {mod: _get_mod_dimensions(mdata.mod[mod]) for mod in mdata.mod.keys()},
+        "schema_version": int(log["schema_version"]),
+        "head": log["head"],
+        "events": sorted(
+            (json.loads(v) for v in log["events"].values()), key=lambda e: (e["sequence"], e["started_at"], e["id"])
+        ),
+        "environments": {key: json.loads(value) for key, value in log["environments"].items()},
     }
 
 
-def uns_logger(func):
-    @functools.wraps(func)
-    def wrapper(mdata, *args, **kwargs):
-        with capture_provenance_output() as stdout_buffer:
-            result = func(mdata, *args, **kwargs)
+def _merge_logs(target, source):
+    for group in ("events", "environments"):
+        for key, value in source[group].items():
+            if key in target[group] and target[group][key] != value:
+                raise ValueError(f"Conflicting provenance entry: {key}")
+            target[group][key] = value
 
-        if not isinstance(mdata, md.MuData) or not isinstance(result, md.MuData):
-            return result
 
-        full_kwargs = get_bound_call_kwargs(func, mdata, *args, **kwargs)
-        captured_stdout = stdout_buffer.getvalue().strip()
-        input_dimensions = _get_mudata_dimensions(mdata)
-        output_dimensions = _get_mudata_dimensions(result)
-        return append_cmd_log(
-            result,
-            function=func.__name__,
-            payload=full_kwargs,
-            stdout=captured_stdout if captured_stdout else None,
-            input_dimensions=input_dimensions,
-            output_dimensions=output_dimensions,
+def _serialize_parameters(obj, _seen=None):
+    """Serialize option values without truncation, omitting data objects."""
+    if obj is None or isinstance(obj, (bool, int, str)):
+        return obj
+    if isinstance(obj, float):
+        return obj if np.isfinite(obj) else {"type": "float", "value": str(obj)}
+    if isinstance(obj, np.generic):
+        return _serialize_parameters(obj.item())
+    if isinstance(obj, os.PathLike):
+        return os.fsdecode(obj)
+    if isinstance(obj, (datetime.date, datetime.datetime)):
+        return {"type": type(obj).__name__, "value": obj.isoformat()}
+    if isinstance(obj, (md.MuData, ad.AnnData, pd.DataFrame, pd.Series, pd.Index, np.ndarray)) or sparse.issparse(obj):
+        return _OMIT
+    if callable(obj):
+        return {
+            "type": "callable",
+            "path": f"{getattr(obj, '__module__', '')}.{getattr(obj, '__qualname__', type(obj).__qualname__)}",
+            "replayable": False,
+        }
+    seen = set() if _seen is None else _seen
+    if id(obj) in seen:
+        return {"type": "reference", "reason": "cyclic parameter", "replayable": False}
+    seen.add(id(obj))
+    try:
+        if isinstance(obj, Mapping):
+            items = [(k, _serialize_parameters(v, seen)) for k, v in obj.items()]
+            items = [(k, v) for k, v in items if v is not _OMIT]
+            if obj and not items:
+                return _OMIT
+            if all(isinstance(k, str) for k in obj):
+                return dict(items)
+            return {"type": "mapping", "items": [[_serialize_parameters(k, seen), v] for k, v in items]}
+        if isinstance(obj, (list, tuple, set, frozenset)):
+            values = [_serialize_parameters(v, seen) for v in obj]
+            values = [v for v in values if v is not _OMIT]
+            if obj and not values:
+                return _OMIT
+            return sorted(values, key=_json) if isinstance(obj, (set, frozenset)) else values
+        return {
+            "type": f"{type(obj).__module__}.{type(obj).__qualname__}",
+            "representation": repr(obj),
+            "replayable": False,
+        }
+    finally:
+        seen.remove(id(obj))
+
+
+
+@functools.lru_cache(maxsize=1)
+def _base_environment():
+    packages = {
+        dist.metadata["Name"]: dist.version
+        for dist in distributions()
+        if dist.metadata["Name"]
+    }
+    try:
+        from .._version import __commit_id__
+    except ImportError:
+        __commit_id__ = None
+    source = {"commit": __commit_id__ or "unavailable", "dirty": None}
+    root = Path(__file__).resolve().parents[2]
+    if (root / ".git").exists():
+        try:
+            source["commit"] = subprocess.check_output(
+                ["git", "-C", str(root), "rev-parse", "HEAD"], timeout=2, stderr=subprocess.DEVNULL, text=True
+            ).strip()
+            source["dirty"] = bool(
+                subprocess.check_output(
+                    ["git", "-C", str(root), "status", "--porcelain", "--", "msmu"],
+                    timeout=2,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                ).strip()
+            )
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return {
+        "python": platform.python_version(),
+        "implementation": platform.python_implementation(),
+        "os": platform.system(),
+        "os_release": platform.release(),
+        "architecture": platform.machine(),
+        "packages": packages,
+        "msmu_source": source,
+    }
+
+
+def _environment():
+    result = deepcopy(_base_environment())
+    result["numpy_errors"] = np.geterr()
+    result["thread_settings"] = {
+        name: os.environ[name]
+        for name in (
+            "OMP_NUM_THREADS",
+            "OPENBLAS_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+            "VECLIB_MAXIMUM_THREADS",
+            "PYTHONHASHSEED",
         )
+        if name in os.environ
+    }
+    try:
+        from threadpoolctl import threadpool_info
+
+        result["threadpools"] = [{k: v for k, v in pool.items() if k != "filepath"} for pool in threadpool_info()]
+    except ImportError:
+        result["threadpools"] = "unavailable"
+    return result
+
+
+def _entities(value, path, seen=None):
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return
+    if isinstance(value, (md.MuData, ad.AnnData, pd.DataFrame, pd.Series, pd.Index, np.ndarray)) or sparse.issparse(
+        value
+    ):
+        yield path, value
+    elif is_url(value):
+        yield path, value
+    elif isinstance(value, os.PathLike) or isinstance(value, str) and any(x in path.lower() for x in ("file", "path")):
+        yield path, Path(value)
+    elif isinstance(value, (Mapping, list, tuple)):
+        seen.add(id(value))
+        try:
+            items = value.items() if isinstance(value, Mapping) else enumerate(value)
+            for key, item in items:
+                yield from _entities(item, f"{path}/{key}", seen)
+        finally:
+            seen.remove(id(value))
+
+
+def _entity(path, value, hashing):
+    entity = {"id": str(uuid4()), "role": path, "type": type(value).__name__, "hash": {"status": "disabled"}}
+    if isinstance(value, Path) or is_url(value):
+        entity["path"] = str(value)
+    if is_url(value):
+        entity["type"] = "URL"
+    if hashing:
+        started = time.perf_counter()
+        try:
+            content = get_download_buffer(value) if is_url(value) else value
+            if content is None:
+                raise ValueError("URL content was not read through the shared input loader")
+            entity["hash"] = {"status": "completed", "algorithm": ALGORITHM, "value": compute_hash(content)}
+        except Exception as error:
+            entity["hash"] = {"status": "unavailable", "algorithm": ALGORITHM, "reason": str(error)}
+        entity["hash"]["duration_seconds"] = time.perf_counter() - started
+    return entity
+
+
+def log_provenance(func):
+    """Log one public call. Nested MSMU calls are represented by their outer call."""
+
+    def run(*args, **kwargs):
+        if _active.get():
+            return func(*args, **kwargs)
+        bound = inspect.signature(func).bind(*args, **kwargs)
+        bound.apply_defaults()
+        inputs = list(_entities(bound.arguments, "arguments"))
+        owners = [v for _, v in inputs if isinstance(v, md.MuData)]
+        log = _empty_log()
+        parents = []
+        for owner in owners:
+            previous = _read_log(owner)
+            _merge_logs(log, previous)
+            if previous["head"]:
+                parents.append(previous["head"])
+        hashing = _hashing.get()
+        event = {
+            "id": str(uuid4()),
+            "function": func.__name__,
+            "function_path": f"{func.__module__}.{func.__qualname__}",
+            "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "parents": list(dict.fromkeys(parents)),
+            "parameters": {
+                key: value for key, argument in bound.arguments.items()
+                if (value := _serialize_parameters(argument)) is not _OMIT
+            },
+            "inputs": [_entity(path, value, hashing) for path, value in inputs],
+            "outputs": [],
+            "hashing": hashing,
+        }
+        environment = _environment()
+        environment_json = _json(environment)
+        from hashlib import sha256
+
+        env_id = sha256(environment_json.encode()).hexdigest()
+        log["environments"][env_id] = environment_json
+        event["environment_id"] = env_id
+        token = _active.set(True)
+        started = time.perf_counter()
+        try:
+            prune_closed_package_stream_handlers()
+            prune_closed_stream_handlers(logging.getLogger(), only_msmu_handlers=False)
+            result = func(*args, **kwargs)
+        finally:
+            _active.reset(token)
+        event["duration_seconds"] = time.perf_counter() - started
+        event["ended_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        try:
+            if hashing:
+                for entity, (path, value) in zip(event["inputs"], inputs):
+                    if is_url(value):
+                        entity["hash"] = _entity(path, value, True)["hash"]
+            outputs = list(_entities(result, "return"))
+            # DEA has a separate result object, while the history belongs to its input MuData.
+            if result is not None and type(result).__name__ == "DeaResult":
+                outputs = [("return/DeaResult", vars(result))]
+            event["outputs"] = [_entity(path, value, hashing) for path, value in outputs]
+            targets = [v for _, v in outputs if isinstance(v, md.MuData)] or owners
+            # Readers, notably read_h5mu, return an existing history without an input MuData.
+            if not owners:
+                for target in targets:
+                    previous = _read_log(target)
+                    _merge_logs(log, previous)
+                    if previous["head"]:
+                        event["parents"].append(previous["head"])
+            # A non-MuData-returning operation may still modify its input.
+            if not any(isinstance(v, md.MuData) for _, v in outputs):
+                event["outputs"].extend(_entity(f"after/{i}", owner, hashing) for i, owner in enumerate(owners))
+            event["sequence"] = len(log["events"])
+            log["events"][event["id"]] = _json(event)
+            log["head"] = event["id"]
+            for target in targets:
+                target.uns["_log"] = deepcopy(log)
+        except Exception as error:
+            # Logging must not discard a successful computation result.
+            get_logger().warning("Could not store provenance for %s: %s", func.__name__, error)
+        return result
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with source_scope():
+            return run(*args, **kwargs)
 
     return wrapper

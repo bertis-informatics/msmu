@@ -1,5 +1,6 @@
 import re
 
+from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
 from .fasta import CANONICAL_CONTAMINANT_PREFIX
 from ..logging_utils import get_logger
@@ -11,6 +12,7 @@ import mudata as md
 logger = get_logger(__name__)
 
 
+@log_provenance
 def select_repr_protein(mdata: md.MuData, modality: str) -> md.MuData:
     """
     Select canonical protein from protein list based on priority.

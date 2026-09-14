@@ -11,7 +11,7 @@ import mudata as md
 import pandas as pd
 from mudata import MuData
 
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._tools import _sdrf_pipelines as sdrf_tools
 from .._utils._filenames import strip_ms_extensions
 from ..logging_utils import get_logger
@@ -32,7 +32,7 @@ class _LoadedMetadata:
     source: str | Path | None
 
 
-@uns_logger
+@log_provenance
 def add_meta(
     mdata: MuData,
     metadata: pd.DataFrame | str | PathLike[str],
@@ -121,7 +121,7 @@ def validate_sdrf_file(
     logger.info("SDRF validation succeeded for %s.", subject)
 
 
-@uns_logger
+@log_provenance
 def attach_sdrf(
     mdata: MuData,
     sdrf: pd.DataFrame | str | PathLike[str],
@@ -167,7 +167,7 @@ def attach_sdrf(
     return out
 
 
-@uns_logger
+@log_provenance
 def apply_sdrf_to_obs(
     mdata: MuData,
     *,

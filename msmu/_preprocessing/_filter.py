@@ -6,14 +6,14 @@ import pandas as pd
 from mudata import MuData
 
 from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
 
 
-@uns_logger
+@log_provenance
 def add_filter(
     mdata: MuData,
     modality: str,
@@ -129,7 +129,7 @@ def _mask_boolean_filter(series_to_mask: pd.Series, keep, value):
         raise ValueError(f"Unknown filter operator: {keep}")
 
 
-@uns_logger
+@log_provenance
 def apply_filter(
     mdata: MuData,
     modality: str,

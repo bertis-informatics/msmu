@@ -1,3 +1,4 @@
+from msmu.provenance import get_log
 import io
 import logging
 
@@ -127,33 +128,33 @@ def test_apply_filter_columns_with_unknown_raises_for_var_mode(filter_mdata):
 def test_apply_filter_payload_records_columns(filter_mdata):
     filtered = add_filter(filter_mdata, modality="psm", column="score", keep="gt", value=15.0, on="var")
     applied = apply_filter(filtered, modality="psm", on="var", columns=["score_gt_15.0"])
-    last_key = max(applied.uns["_cmd"], key=lambda x: int(x))
-    entry = applied.uns["_cmd"][last_key]
+
+    entry = get_log(applied)["events"][-1]
     assert entry["function"] == "apply_filter"
-    assert entry["payload"]["columns"] == ["score_gt_15.0"]
+    assert entry["parameters"]["columns"] == ["score_gt_15.0"]
 
 
-def test_apply_filter_stdout_records_filter_columns(filter_mdata):
+def test_apply_filter_logs_filter_columns_to_console(filter_mdata, caplog):
+    caplog.set_level(logging.INFO, logger="msmu")
     filtered = add_filter(filter_mdata, modality="psm", column="score", keep="gt", value=15.0, on="var")
     applied = apply_filter(filtered, modality="psm", on="var")
-    last_key = max(applied.uns["_cmd"], key=lambda x: int(x))
-    entry = applied.uns["_cmd"][last_key]
-    assert "stdout" in entry
-    assert "Applying var filters for psm:" in entry["stdout"]
-    assert "score_gt_15.0" in entry["stdout"]
+
+    entry = get_log(applied)["events"][-1]
+    assert "stdout" not in entry
+    assert "Applying var filters for psm:" in caplog.text
+    assert "score_gt_15.0" in caplog.text
 
 
-def test_apply_filter_all_with_var_filters_does_not_warn_for_missing_obs(filter_mdata):
+def test_apply_filter_all_with_var_filters_does_not_warn_for_missing_obs(filter_mdata, caplog):
+    caplog.set_level(logging.INFO, logger="msmu")
     filtered = add_filter(filter_mdata, modality="psm", column="score", keep="gt", value=15.0)
     filtered = add_filter(filtered, modality="psm", column="score", keep="lt", value=25.0)
 
     applied = apply_filter(filtered, modality="psm")
 
-    last_key = max(applied.uns["_cmd"], key=lambda x: int(x))
-    entry = applied.uns["_cmd"][last_key]
     assert applied["psm"].var_names.tolist() == ["v2"]
-    assert "Applying var filters for psm:" in entry["stdout"]
-    assert "obsm['filter']" not in entry["stdout"]
+    assert "Applying var filters for psm:" in caplog.text
+    assert "obsm['filter']" not in caplog.text
 
 
 def test_apply_filter_all_with_obs_filter_and_decoy_does_not_require_var_decoy_filter(
@@ -196,10 +197,10 @@ def test_apply_filter_prunes_closed_msmu_stream_handler(filter_mdata, capsys):
         applied = apply_filter(filtered, modality="psm", on="var")
 
         captured = capsys.readouterr()
-        last_key = max(applied.uns["_cmd"], key=lambda x: int(x))
+
         assert stale_handler not in logger.handlers
         assert "--- Logging error ---" not in captured.err
-        assert "Applying var filters for psm:" in applied.uns["_cmd"][last_key]["stdout"]
+        assert "stdout" not in get_log(applied)["events"][-1]
     finally:
         logger.handlers = original_handlers
         logger.setLevel(original_level)
@@ -224,10 +225,10 @@ def test_apply_filter_prunes_closed_package_stream_handler(filter_mdata, capsys)
         applied = apply_filter(filtered, modality="psm", on="var")
 
         captured = capsys.readouterr()
-        last_key = max(applied.uns["_cmd"], key=lambda x: int(x))
+
         assert stale_handler not in logger.handlers
         assert "--- Logging error ---" not in captured.err
-        assert "Applying var filters for psm:" in applied.uns["_cmd"][last_key]["stdout"]
+        assert "stdout" not in get_log(applied)["events"][-1]
     finally:
         logger.handlers = original_handlers
         logger.setLevel(original_level)
@@ -252,10 +253,10 @@ def test_apply_filter_prunes_closed_child_stream_handler(filter_mdata, capsys):
         applied = apply_filter(filtered, modality="psm", on="var")
 
         captured = capsys.readouterr()
-        last_key = max(applied.uns["_cmd"], key=lambda x: int(x))
+
         assert stale_handler not in logger.handlers
         assert "--- Logging error ---" not in captured.err
-        assert "Applying var filters for psm:" in applied.uns["_cmd"][last_key]["stdout"]
+        assert "stdout" not in get_log(applied)["events"][-1]
     finally:
         logger.handlers = original_handlers
         logger.setLevel(original_level)
@@ -278,9 +279,9 @@ def test_apply_filter_does_not_emit_to_closed_root_stream_handler(filter_mdata, 
         applied = apply_filter(filtered, modality="psm", on="var")
 
         captured = capsys.readouterr()
-        last_key = max(applied.uns["_cmd"], key=lambda x: int(x))
+
         assert "--- Logging error ---" not in captured.err
-        assert "Applying var filters for psm:" in applied.uns["_cmd"][last_key]["stdout"]
+        assert "stdout" not in get_log(applied)["events"][-1]
     finally:
         root_logger.handlers = original_handlers
         root_logger.setLevel(original_level)

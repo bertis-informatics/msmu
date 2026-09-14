@@ -6,7 +6,7 @@ import numpy as np
 from typing import Literal
 
 from .._utils._mudata import get_anndata_mod
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise, to_observed_sparse
 from ..logging_utils import get_logger
 from ._normalisation import Normalisation, NormalisationMethod, PTMProteinAdjuster
@@ -14,7 +14,7 @@ from ._normalisation import Normalisation, NormalisationMethod, PTMProteinAdjust
 logger = get_logger(__name__)
 
 
-@uns_logger
+@log_provenance
 def log2_transform(
     mdata: md.MuData,
     modality: str,
@@ -51,7 +51,7 @@ def log2_transform(
     return mdata
 
 
-@uns_logger
+@log_provenance
 def scale_data(
     mdata: md.MuData,
     modality: str,
@@ -99,7 +99,7 @@ def scale_data(
     return mdata
 
 
-@uns_logger
+@log_provenance
 def normalise(
     mdata: md.MuData,
     method: NormalisationMethod,
@@ -317,7 +317,7 @@ def _normalise_by_groups(
     return normalised_arr
 
 
-@uns_logger
+@log_provenance
 def adjust_ptm_by_protein(
     mdata: md.MuData,
     global_mdata: md.MuData,

@@ -7,10 +7,10 @@ from mudata import MuData
 
 from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
 from .._core._blockdiag import to_dense_df
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 
 
-@uns_logger
+@log_provenance
 def corr(
     mdata: MuData,
     modality: str,

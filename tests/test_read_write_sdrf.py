@@ -1,3 +1,4 @@
+from msmu.provenance import get_log
 import io
 import logging
 
@@ -30,8 +31,8 @@ def _write_sdrf(tmp_path, content: str):
 
 
 def _last_cmd_entry(mdata: MuData) -> dict[str, object]:
-    key = max(mdata.uns["_cmd"], key=lambda value: int(value))
-    return mdata.uns["_cmd"][key]
+
+    return get_log(mdata)["events"][-1]
 
 
 class _FakeValidationError:
@@ -159,9 +160,7 @@ def test_add_meta_sdrf_validates_through_pipeline_and_only_logs_validation_resul
     ]
     assert validated[0]["source"] == str(path)
     assert "meta" not in out.uns
-    stdout = _last_cmd_entry(out)["stdout"]
-    assert "Validating SDRF metadata for" in stdout
-    assert "SDRF validation succeeded for" in stdout
+    assert "stdout" not in _last_cmd_entry(out)
 
 
 def test_add_meta_sdrf_raw_dataframe_keeps_headers_before_matching(monkeypatch, tmp_path):

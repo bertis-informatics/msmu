@@ -1,5 +1,6 @@
 """Summary plot facades for identification and intersection visualizations."""
 
+from .._core._provenance import log_provenance
 from typing import Any
 
 import mudata as md
@@ -104,6 +105,7 @@ def _build_upset_figure(
     return fig
 
 
+@log_provenance
 def plot_id(
     mdata: md.MuData,
     modality: str,
@@ -160,6 +162,7 @@ def plot_id(
     return finalize_figure(fig, context=context, layout_kwargs=kwargs, apply_color=True)
 
 
+@log_provenance
 def plot_upset(
     mdata: md.MuData,
     modality: str = "protein",

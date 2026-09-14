@@ -5,6 +5,7 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
+from .._core._provenance import log_provenance
 from .._utils._filenames import strip_ms_extensions
 from .._utils._mudata import add_modality, get_anndata_mod
 from ..logging_utils import get_logger
@@ -33,6 +34,7 @@ def _sample_names_from_obs(mdata: md.MuData, index_name: str | None) -> dict[str
     return {strip_ms_extensions(str(filename)): str(obs_name) for filename, obs_name in zip(filenames, obs_df.index)}
 
 
+@log_provenance
 def add_quant(
     mdata: md.MuData,
     quant_data: str | PathLike[str] | pd.DataFrame,

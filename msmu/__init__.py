@@ -18,6 +18,7 @@ from ._read_write._reader_registry import (
     # read_cptac,
 )
 from . import _utils as utils
+from . import provenance
 
 try:
     from ._version import version as __version__
@@ -53,5 +54,6 @@ __all__ = [
     "tl",
     "utils",
     "io",
+    "provenance",
     "setup_logger",
 ]

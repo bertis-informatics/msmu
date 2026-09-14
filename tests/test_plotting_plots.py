@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+import msmu as mm
 
 from msmu._plotting._plots import (
     plot_correlation,
@@ -13,6 +14,21 @@ from msmu._plotting._plots import (
     plot_var,
     plot_volcano,
 )
+
+
+def test_plot_records_success_on_input_mudata(mdata):
+    with mm.provenance.options(hashing=True):
+        fig = plot_id(mdata, modality="protein")
+    event = mm.provenance.get_log(mdata)["events"][-1]
+    assert fig.data
+    assert event["function"] == "plot_id"
+    assert event["parameters"]["modality"] == "protein"
+    assert event["inputs"][0]["hash"]["status"] == "completed"
+    assert event["outputs"][0]["hash"]["value"] == mm.provenance.compute_hash(mdata)
+    before = mm.provenance.get_log(mdata)
+    with pytest.raises(ValueError):
+        plot_id(mdata, modality="protein", obs_column="missing_group")
+    assert mm.provenance.get_log(mdata) == before
 
 
 def test_plot_id_defaults_to_fallback_obs_index(mdata):

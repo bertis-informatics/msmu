@@ -1,3 +1,4 @@
+from msmu.provenance import get_log
 import inspect
 import logging
 from pathlib import Path
@@ -33,23 +34,20 @@ class _DummyReader:
         return _dummy_mdata()
 
 
-def _assert_cmd(mdata: MuData, expected_function: str, expect_stdout: bool = True):
-    assert "_cmd" in mdata.uns
-    entry = mdata.uns["_cmd"]["0"]
+def _assert_cmd(mdata: MuData, expected_function: str):
+    assert "_log" in mdata.uns
+    entry = get_log(mdata)["events"][0]
     assert entry["function"] == expected_function
-    assert "msmu_version" in entry
-    assert "python_version" in entry
-    payload = entry["payload"]
+    assert entry["environment_id"] in get_log(mdata)["environments"]
+    payload = entry["parameters"]
     assert isinstance(payload, dict)
-    if expect_stdout:
-        assert "stdout" in entry
-        assert "INFO - reader log" in entry["stdout"]
+    assert "stdout" not in entry
 
 
 def test_read_h5mu_logs_first_command(monkeypatch):
     monkeypatch.setattr(rr.md, "read_h5mu", lambda _: _dummy_mdata())
     out = rr.read_h5mu(Path("dummy.h5mu"))
-    _assert_cmd(out, "read_h5mu", expect_stdout=False)
+    _assert_cmd(out, "read_h5mu")
 
 
 def test_import_readers_do_not_accept_sdrf_metadata_parameters():
