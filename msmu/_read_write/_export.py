@@ -68,18 +68,18 @@ def write_csv(
 
 def write_pin(
     mdata: md.MuData,
-    filename: str | Path | None = None,
-) -> pd.DataFrame | None:
+    filename: str | Path,
+) -> None:
     """
     Exports MuData psm object to Percolator input format.
 
     Parameters:
         mdata: MuData object containing the data to export.
-        filename: Path to the output Percolator input file. If None, the function will return a DataFrame instead of writing to a file.
-
-    Returns:
-        A pandas DataFrame in Percolator input format if filename is None, otherwise None.
+        filename: Path to the output Percolator input file.
     """
+    if filename is None:
+        raise TypeError("filename must be an output file path, not None")
+
     pin_source_columns = [
         "filename",
         "scan_num",
@@ -139,10 +139,7 @@ def write_pin(
     ]
     pin_df = pin_df[pin_req_columns]
 
-    if filename is None:
-        return pin_df
-    else:
-        pin_df.to_csv(filename, sep="\t", index=False)
+    pin_df.to_csv(filename, sep="\t", index=False)
 
 
 def to_readable(
