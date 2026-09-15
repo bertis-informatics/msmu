@@ -48,6 +48,13 @@ def test_add_filter_on_obs_stores_in_obsm(filter_mdata):
     assert out["psm"].obsm["filter"].iloc[:, 0].tolist() == [True, False]
 
 
+def test_add_filter_preserves_order_without_duplicates(filter_mdata):
+    mdata = filter_mdata
+    for value in [15.0, 25.0, 15.0]:
+        mdata = add_filter(mdata, modality="psm", column="score", keep="gt", value=value)
+    assert mdata["psm"].uns["filter"] == ["score_gt_15.0", "score_gt_25.0"]
+
+
 def test_add_filter_on_obsm_with_key_stores_in_obsm(filter_mdata):
     mdata = filter_mdata.copy()
     mdata.mod["psm"].obsm["qc"] = pd.DataFrame({"score": [0.1, 0.9]}, index=mdata.mod["psm"].obs_names)
