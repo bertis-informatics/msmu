@@ -13,6 +13,12 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
+try:
+    import pyarrow as pa
+    import pyarrow.compute as pc
+except ImportError:
+    pa = None
+
 ALGORITHM = "sha256"
 
 
@@ -30,6 +36,30 @@ def compute_hash(value) -> str:
             data = str(data).encode("utf-8")
         digest.update(struct.pack("<Q", len(data)))
         digest.update(data)
+
+    def visit_string_array(array):
+        """Emit the existing string-array token stream using Arrow's native kernels."""
+        token("array")
+        visit((len(array),))
+        token("values")
+        chunks = array.chunks if isinstance(array, pa.ChunkedArray) else [array]
+        for chunk in chunks:
+            # Limit temporary buffers to 65,536 strings; boundaries never enter the hash.
+            for start in range(0, len(chunk), 65536):
+                binary = pc.cast(chunk.slice(start, 65536), pa.large_binary())
+                lengths = pc.cast(pc.fill_null(pc.binary_length(binary), 0), pa.int64())
+                length_bytes = pa.Array.from_buffers(
+                    pa.binary(8), len(lengths), [None, lengths.buffers()[1]], offset=lengths.offset
+                )
+                encoded = pc.binary_join_element_wise(
+                    pa.scalar(struct.pack("<Q", 3) + b"str", pa.large_binary()),
+                    pc.cast(length_bytes, pa.large_binary()), binary,
+                    pa.scalar(b"", pa.large_binary()),
+                )
+                encoded = pc.fill_null(encoded, struct.pack("<Q", 4) + b"null")
+                offsets = np.frombuffer(encoded.buffers()[1], dtype="<i8", count=len(encoded) + 1,
+                                        offset=encoded.offset * 8)
+                digest.update(memoryview(encoded.buffers()[2])[offsets[0]:offsets[-1]])
 
     def visit(obj):
         if obj is None or obj is pd.NA or obj is pd.NaT:
@@ -95,12 +125,18 @@ def compute_hash(value) -> str:
             if obj.ordered:
                 token("ordered-category")
                 visit(obj.categories)
-            visit(np.asarray(obj))
+            if pa is not None and isinstance(obj.categories.dtype, pd.StringDtype):
+                visit_string_array(pc.cast(pa.array(obj), pa.large_string()))
+            else:
+                visit(np.asarray(obj))
         elif isinstance(obj, pd.api.extensions.ExtensionArray):
             # Nullable string/object/category storage is normalized by semantic values.
             if pd.api.types.is_numeric_dtype(obj.dtype):
                 token(str(obj.dtype))
-            visit(np.asarray(obj))
+            if pa is not None and isinstance(obj.dtype, pd.StringDtype):
+                visit_string_array(obj.__arrow_array__())
+            else:
+                visit(np.asarray(obj))
         elif isinstance(obj, np.ndarray):
             token("array")
             visit(obj.shape)

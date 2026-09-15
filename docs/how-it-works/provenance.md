@@ -98,6 +98,10 @@ with sorted/combined entries, without densification. Explicit zero entries remai
 sparse and dense representations are distinct. Unordered categorical columns hash by values,
 normalizing h5mu's automatic string-to-category conversion. Unused unordered categories and
 the string storage backend are intentionally ignored; ordered categories retain order metadata.
+When PyArrow is available, pandas string arrays and string categories emit the same framed
+UTF-8 byte stream in batches using Arrow kernels, avoiding per-value Python conversions.
+Chunk boundaries and slice offsets do not affect the digest. The scalar fallback remains
+available without PyArrow; existing hash values and the covered data are unchanged.
 
 Path objects and strings in `file`/`path` arguments are input file entities. Existing files
 are streamed in 1 MiB blocks when hashing is enabled. HTTP(S)/FTP URLs retain their original
