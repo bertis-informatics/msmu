@@ -8,7 +8,7 @@ import pandas as pd
 import scipy.sparse as sp
 
 from .._utils._mudata import get_anndata_mod
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block, is_sparse
 from ..logging_utils import get_logger
 
@@ -45,7 +45,7 @@ _AGG_FUNCTIONS = {
 }
 
 
-@uns_logger
+@log_provenance
 def collapse_obs(
     mdata: md.MuData,
     sample_key: str,

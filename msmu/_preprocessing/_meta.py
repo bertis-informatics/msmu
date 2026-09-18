@@ -11,7 +11,8 @@ import mudata as md
 import pandas as pd
 from mudata import MuData
 
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
+from .._core._sources import open_source
 from .._tools import _sdrf_pipelines as sdrf_tools
 from .._utils._filenames import strip_ms_extensions
 from ..logging_utils import get_logger
@@ -32,7 +33,7 @@ class _LoadedMetadata:
     source: str | Path | None
 
 
-@uns_logger
+@log_provenance
 def add_meta(
     mdata: MuData,
     metadata: pd.DataFrame | str | PathLike[str],
@@ -121,7 +122,7 @@ def validate_sdrf_file(
     logger.info("SDRF validation succeeded for %s.", subject)
 
 
-@uns_logger
+@log_provenance
 def attach_sdrf(
     mdata: MuData,
     sdrf: pd.DataFrame | str | PathLike[str],
@@ -167,7 +168,7 @@ def attach_sdrf(
     return out
 
 
-@uns_logger
+@log_provenance
 def apply_sdrf_to_obs(
     mdata: MuData,
     *,
@@ -430,7 +431,8 @@ def _load_metadata_input(
     resolved_format = _resolve_source_metadata_format(source, explicit_format=format)
 
     if resolved_format == "parquet":
-        dataframe = pd.read_parquet(source)
+        with open_source(source) as buffer:
+            dataframe = pd.read_parquet(buffer)
     elif resolved_format == "csv":
         dataframe = _read_delimited_dataframe(source, sep=",")
     elif resolved_format == "tsv":
@@ -508,7 +510,8 @@ def _source_path_for_detection(source: str | Path) -> Path:
 
 def _read_delimited_dataframe(source: str | Path, *, sep: str, **kwargs) -> pd.DataFrame:
     try:
-        return pd.read_csv(source, sep=sep, **kwargs)
+        with open_source(source) as buffer:
+            return pd.read_csv(buffer, sep=sep, **kwargs)
     except pd.errors.EmptyDataError as exc:
         raise ValueError(f"{source} is empty.") from exc
 

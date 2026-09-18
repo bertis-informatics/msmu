@@ -6,6 +6,7 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
+from .._core._provenance import log_provenance
 from .._utils._mudata import get_anndata_mod
 from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
@@ -336,6 +337,7 @@ class LimmaEngine(DeEngine):
         return de_res
 
 
+@log_provenance
 def run_de(
     mdata: md.MuData,
     modality: str,

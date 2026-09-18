@@ -70,24 +70,24 @@ def test_normalise_group_obs_and_group_var_combined(mdata):
 # ---- deprecated aliases: still work, but warn and map to the new names ----
 
 
-def test_normalise_batch_key_is_deprecated_alias_for_group_obs(mdata):
-    with pytest.warns(DeprecationWarning, match="batch_key"):
-        legacy = normalise(mdata, method="median_center", modality="psm", batch_key="batch")
+def test_normalise_batch_key_is_deprecated_alias_for_group_obs(mdata, caplog):
+    legacy = normalise(mdata, method="median_center", modality="psm", batch_key="batch")
+    assert "deprecated" in caplog.text
     current = normalise(mdata, method="median_center", modality="psm", group_obs="batch")
     assert np.allclose(legacy["psm"].X, current["psm"].X, equal_nan=True)
 
 
-def test_normalise_fraction_key_is_deprecated_alias_for_group_var(mdata):
+def test_normalise_fraction_key_is_deprecated_alias_for_group_var(mdata, caplog):
     mdata.mod["psm"].var["filename"] = ["f1", "f2", "f1"]
-    with pytest.warns(DeprecationWarning, match="fraction_key"):
-        legacy = normalise(mdata, method="median_center", modality="psm", fraction_key="filename")
+    legacy = normalise(mdata, method="median_center", modality="psm", fraction_key="filename")
+    assert "deprecated" in caplog.text
     current = normalise(mdata, method="median_center", modality="psm", group_var="filename")
     assert np.allclose(legacy["psm"].X, current["psm"].X, equal_nan=True)
 
 
-def test_normalise_fraction_bool_deprecated_and_maps_to_group_var_filename(mdata):
+def test_normalise_fraction_bool_deprecated_and_maps_to_group_var_filename(mdata, caplog):
     mdata.mod["psm"].var["filename"] = ["f1", "f2", "f1"]
-    with pytest.warns(DeprecationWarning, match="fraction"):
-        legacy = normalise(mdata, method="median_center", modality="psm", fraction=True)
+    legacy = normalise(mdata, method="median_center", modality="psm", fraction=True)
+    assert "deprecated" in caplog.text
     current = normalise(mdata, method="median_center", modality="psm", group_var="filename")
     assert np.allclose(legacy["psm"].X, current["psm"].X, equal_nan=True)

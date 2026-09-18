@@ -1,3 +1,4 @@
+from msmu._provenance import get_log
 import io
 import logging
 
@@ -30,8 +31,8 @@ def _write_sdrf(tmp_path, content: str):
 
 
 def _last_cmd_entry(mdata: MuData) -> dict[str, object]:
-    key = max(mdata.uns["_cmd"], key=lambda value: int(value))
-    return mdata.uns["_cmd"][key]
+
+    return get_log(mdata)["events"][-1]
 
 
 class _FakeValidationError:
@@ -113,12 +114,14 @@ def test_read_sdrf_reads_url_like_sources_via_tabular_ingestion(monkeypatch):
         return _PANDAS_READ_CSV(source, *args, **kwargs)
 
     monkeypatch.setattr(meta_module.pd, "read_csv", fake_read_csv)
+    from msmu._core import _sources
+    monkeypatch.setattr(_sources, "urlopen", lambda *args, **kwargs: io.BytesIO(content.encode()))
 
     metadata = mm.read_sdrf(url, validate_sdrf=False)
 
     assert metadata.loc[0, "source name"] == "sample_1"
     assert metadata.attrs["sdrf_file"] == url
-    assert opened[0]["source"] == url
+    assert isinstance(opened[0]["source"], io.BytesIO)
     assert opened[0]["kwargs"]["sep"] == "\t"
     assert "header" not in opened[0]["kwargs"]
 
@@ -159,9 +162,7 @@ def test_add_meta_sdrf_validates_through_pipeline_and_only_logs_validation_resul
     ]
     assert validated[0]["source"] == str(path)
     assert "meta" not in out.uns
-    stdout = _last_cmd_entry(out)["stdout"]
-    assert "Validating SDRF metadata for" in stdout
-    assert "SDRF validation succeeded for" in stdout
+    assert "stdout" not in _last_cmd_entry(out)
 
 
 def test_add_meta_sdrf_raw_dataframe_keeps_headers_before_matching(monkeypatch, tmp_path):

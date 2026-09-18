@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+import msmu as mm
 
 from msmu._plotting._plots import (
     plot_correlation,
@@ -13,6 +14,29 @@ from msmu._plotting._plots import (
     plot_var,
     plot_volcano,
 )
+
+
+@pytest.mark.parametrize("plot,kwargs", [
+    (plot_id, {}),
+    (plot_intensity, {}),
+    (plot_missingness, {}),
+    (plot_correlation, {}),
+    (plot_var, {"var_column": "class"}),
+    (plot_pca, {}),
+    (plot_umap, {}),
+    (plot_upset, {}),
+])
+def test_plots_preserve_analysis_state_and_history(mdata, plot, kwargs):
+    before = mm.pv.get_log(mdata)
+    before_hash = mm.pv.compute_hash(mdata)
+    with mm.pv.options(hashing=True):
+        fig = plot(mdata, modality="protein", **kwargs)
+    assert fig.data
+    assert mm.pv.get_log(mdata) == before
+    assert mm.pv.compute_hash(mdata) == before_hash
+    with pytest.raises(ValueError):
+        plot_id(mdata, modality="protein", obs_column="missing_group")
+    assert mm.pv.get_log(mdata) == before
 
 
 def test_plot_id_defaults_to_fallback_obs_index(mdata):

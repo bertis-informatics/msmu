@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
+from .._core._provenance import log_provenance
 from ..logging_utils import get_logger
 
 MutableMuDataMod: TypeAlias = MutableMapping[str, ad.AnnData | md.MuData]
@@ -112,6 +113,7 @@ def add_modality(
     return mdata
 
 
+@log_provenance
 def reindex_obs(
     mdata: md.MuData,
     column: str,

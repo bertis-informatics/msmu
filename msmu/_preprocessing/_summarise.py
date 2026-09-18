@@ -4,7 +4,7 @@ import anndata as ad
 import pandas as pd
 
 from .._utils._mudata import add_modality, get_anndata_mod, get_mudata, get_mudata_mod_as_mutable
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
 from ._summarisation import SummarisationPrep, PtmSummarisationPrep, Aggregator
@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 PEPTIDE_AGG_METHODS: tuple[str, ...] = ("median", "mean", "sum")
 
 
-@uns_logger
+@log_provenance
 def to_peptide(
     mdata: md.MuData,
     layer: str | None = None,
@@ -194,7 +194,7 @@ def to_peptide(
     return mdata
 
 
-@uns_logger
+@log_provenance
 def to_protein(
     mdata: md.MuData,
     layer: str | None = None,
@@ -325,7 +325,7 @@ def to_protein(
     return mdata
 
 
-@uns_logger
+@log_provenance
 def to_ptm(
     mdata: md.MuData,
     modi_name: str,

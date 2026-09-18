@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._core._status import AnnDataFlags, MuDataStatus
 from .._utils._anndata import _require_columns
 from .._utils._pandas import split_delimited_strings
@@ -21,7 +21,7 @@ class Mapping(TypedDict):
     memb: dict[str, str]
 
 
-@uns_logger
+@log_provenance
 def infer_protein(
     mdata: md.MuData,
     modality: str = "peptide",

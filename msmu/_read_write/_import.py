@@ -5,6 +5,8 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
+from .._core._provenance import log_provenance
+from .._core._sources import open_source
 from .._utils._filenames import strip_ms_extensions
 from .._utils._mudata import add_modality, get_anndata_mod
 from ..logging_utils import get_logger
@@ -14,7 +16,8 @@ logger = get_logger(__name__)
 
 def _read_quant_data(quant_data: str | PathLike[str] | pd.DataFrame) -> pd.DataFrame:
     if isinstance(quant_data, (str, PathLike)):
-        return pd.read_csv(quant_data, sep="\t")
+        with open_source(quant_data) as source:
+            return pd.read_csv(source, sep="\t")
     if isinstance(quant_data, pd.DataFrame):
         return quant_data.copy()
 
@@ -33,6 +36,7 @@ def _sample_names_from_obs(mdata: md.MuData, index_name: str | None) -> dict[str
     return {strip_ms_extensions(str(filename)): str(obs_name) for filename, obs_name in zip(filenames, obs_df.index)}
 
 
+@log_provenance
 def add_quant(
     mdata: md.MuData,
     quant_data: str | PathLike[str] | pd.DataFrame,
