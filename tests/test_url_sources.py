@@ -9,7 +9,7 @@ import pytest
 import msmu as mm
 from msmu._core import _sources
 from msmu._read_write._base_reader import SearchResultDataFrameConverter
-from msmu.provenance import compute_hash, get_log
+from msmu._provenance import compute_hash, get_log
 
 
 @pytest.mark.parametrize("suffix", ["csv", "tsv", "parquet"])
@@ -33,7 +33,7 @@ def test_url_buffer_shared_by_polars_pandas_and_hash(monkeypatch, tmp_path, suff
 
     monkeypatch.setattr(_sources, "urlopen", download)
 
-    @mm.provenance.log
+    @mm.pv.log
     def load(input_file):
         source, frame = SearchResultDataFrameConverter._read_file(input_file)
         assert source == url
@@ -46,7 +46,7 @@ def test_url_buffer_shared_by_polars_pandas_and_hash(monkeypatch, tmp_path, suff
         pd.testing.assert_frame_equal(other, expected)
         return md.MuData({"data": ad.AnnData(frame.to_numpy())})
 
-    with mm.provenance.options(hashing=hashing):
+    with mm.pv.options(hashing=hashing):
         result = load(url)
     event = get_log(result)["events"][0]
     entity = event["inputs"][0]
@@ -72,12 +72,12 @@ def test_failed_url_read_releases_scope_without_logging(monkeypatch):
 
     monkeypatch.setattr(_sources, "urlopen", fail)
 
-    @mm.provenance.log
+    @mm.pv.log
     def load(mdata, input_file):
         SearchResultDataFrameConverter._read_file(input_file)
         return mdata
 
-    with mm.provenance.options(hashing=True), pytest.raises(URLError) as caught:
+    with mm.pv.options(hashing=True), pytest.raises(URLError) as caught:
         load(mdata, url)
     assert caught.value is error
     assert "_log" not in mdata.uns

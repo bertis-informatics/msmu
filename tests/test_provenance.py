@@ -11,7 +11,7 @@ from scipy import sparse
 
 import msmu as mm
 from msmu._core import _provenance as core
-from msmu.provenance import compute_hash, get_log, options
+from msmu._provenance import compute_hash, get_log, options
 
 
 def data():
@@ -23,7 +23,7 @@ def data():
     return md.MuData({"protein": a})
 
 
-@mm.provenance.log
+@mm.pv.log
 def identity(mdata, value=10, text="default"):
     return mdata
 
@@ -33,7 +33,8 @@ def test_hash_off_does_not_visit_content(monkeypatch):
         raise AssertionError("Hashing must not run")
 
     monkeypatch.setattr(core, "compute_hash", forbidden)
-    m = identity(data(), text="a" * 2000, value={str(i): i for i in range(40)})
+    with options(hashing=False):
+        m = identity(data(), text="a" * 2000, value={str(i): i for i in range(40)})
     log = get_log(m)
     event = log["events"][0]
     assert "status" not in event
@@ -72,7 +73,7 @@ def test_inplace_hashes_and_failed_mutation():
     original = compute_hash(m)
     error = ValueError("computation failed")
 
-    @mm.provenance.log
+    @mm.pv.log
     def mutate(mdata, fail=False):
         mdata["protein"].X.data[0] += 1
         if fail:
@@ -105,7 +106,7 @@ def test_nested_copy_history_and_environment():
     m = identity(data())
     before = get_log(m)
 
-    @mm.provenance.log
+    @mm.pv.log
     def outer(mdata):
         return identity(mdata.copy())
 
@@ -192,7 +193,7 @@ def test_file_hash_snapshot_and_options_restore(tmp_path):
     path.write_text("before")
     digest = compute_hash(path)
 
-    @mm.provenance.log
+    @mm.pv.log
     def reader(input_file):
         Path(input_file).write_text("after")
         return data()
@@ -203,39 +204,41 @@ def test_file_hash_snapshot_and_options_restore(tmp_path):
         out = reader(str(path))
     event = get_log(out)["events"][0]
     assert event["inputs"][0]["hash"]["value"] == digest != compute_hash(path)
-    assert get_log(identity(data()))["events"][0]["hashing"] is False
+    assert get_log(identity(data()))["events"][0]["hashing"] is True
     with pytest.raises(TypeError):
-        mm.provenance.set_options(hashing="yes")
+        mm.pv.set_options(hashing="yes")
 
 
 def test_set_options_and_temporary_hashing_restore():
-    assert mm.provenance.get_options() == {"hashing": False}
-    mm.provenance.set_options(hashing=True)
+    assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
+    mm.pv.set_options(hashing=True)
     try:
-        snapshot = mm.provenance.get_options()
+        snapshot = mm.pv.get_options()
         snapshot["hashing"] = False
-        assert mm.provenance.get_options() == {"hashing": True}
+        assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
         with pytest.raises(ValueError):
             with options(hashing=False):
-                assert mm.provenance.get_options() == {"hashing": False}
+                assert mm.pv.get_options() == {"hashing": False, "significant_digits": 12}
                 assert get_log(identity(data()))["events"][-1]["hashing"] is False
                 raise ValueError("stop")
         assert get_log(identity(data()))["events"][-1]["hashing"] is True
-        assert mm.provenance.get_options() == {"hashing": True}
+        assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
         with pytest.raises(TypeError):
             with options(hashing="yes"):
                 pass
+        mm.pv.set_options(hashing=False)
+        assert get_log(identity(data()))["events"][-1]["hashing"] is False
     finally:
-        mm.provenance.set_options(hashing=False)
-    assert get_log(identity(data()))["events"][-1]["hashing"] is False
-    assert mm.provenance.get_options() == {"hashing": False}
+        mm.pv.set_options(hashing=True)
+    assert get_log(identity(data()))["events"][-1]["hashing"] is True
+    assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
 
 
 def test_merge_histories_have_distinct_entities_and_shared_parent():
     base = identity(data())
     left, right = identity(base.copy()), identity(base.copy())
 
-    @mm.provenance.log
+    @mm.pv.log
     def combine(mdatas):
         return mdatas["left"].copy()
 
@@ -288,7 +291,7 @@ def test_concurrent_calls_keep_histories_independent(capsys):
 
     barrier = Barrier(2)
 
-    @mm.provenance.log
+    @mm.pv.log
     def noisy(mdata, label):
         print(f"start-{label}")
         barrier.wait(timeout=10)
@@ -314,7 +317,7 @@ def test_concurrent_calls_keep_histories_independent(capsys):
     (True, False, True, False),
 ])
 def test_warns_before_execution_on_unrecorded_change(
-    monkeypatch, prior_hashing, current_hashing, changed, expect_warning
+    monkeypatch, caplog, prior_hashing, current_hashing, changed, expect_warning
 ):
     with options(hashing=prior_hashing):
         m = identity(data())
@@ -324,32 +327,29 @@ def test_warns_before_execution_on_unrecorded_change(
     calls = []
     original_hash = core.compute_hash
 
-    def counted_hash(value):
+    def counted_hash(value, **kwargs):
         calls.append(value)
-        return original_hash(value)
+        return original_hash(value, **kwargs)
 
     monkeypatch.setattr(core, "compute_hash", counted_hash)
 
-    @mm.provenance.log
+    @mm.pv.log
     def next_step(mdata):
-        assert any("Data changed outside" in str(item.message) for item in caught) == expect_warning
+        assert any("Data changed outside" in item.message for item in caplog.records) == expect_warning
         return mdata
 
-    with warnings.catch_warnings(record=True) as caught, options(hashing=current_hashing):
-        warnings.simplefilter("always")
+    with options(hashing=current_hashing):
         result = next_step(m)
     if expect_warning:
-        warning = next(item for item in caught if "Data changed outside" in str(item.message))
-        assert warning.category is UserWarning
-        assert warning.filename == __file__
-        assert "identity → next_step" in str(warning.message)
+        warning = next(item for item in caplog.records if "Data changed outside" in item.message)
+        assert warning.levelname == "WARNING"
+        assert "identity → next_step" in warning.message
     assert get_log(result)["events"][-1]["parents"] == [head]
     assert len(calls) == (2 if current_hashing else 0)
 
 
-def test_ambiguous_previous_outputs_do_not_warn():
-    with warnings.catch_warnings(record=True) as caught, options(hashing=True):
-        warnings.simplefilter("always")
+def test_ambiguous_previous_outputs_do_not_warn(caplog):
+    with options(hashing=True):
         m = identity(data())
         m["protein"].var["label"] = ["changed", "a", "b"]
         head = m.uns["_log"]["head"]
@@ -358,21 +358,16 @@ def test_ambiguous_previous_outputs_do_not_warn():
         event["outputs"] *= 2
         m.uns["_log"]["events"][head] = json.dumps(event)
         identity(m)
-    assert not any("Data changed outside" in str(item.message) for item in caught)
+    assert not any("Data changed outside" in item.message for item in caplog.records)
 
 
-def test_unrecorded_change_warning_can_stop_execution():
+def test_unrecorded_change_logs_even_when_python_warnings_are_errors(caplog):
     with options(hashing=True):
         m = identity(data())
         m["protein"].var["label"] = ["changed", "a", "b"]
-        before = get_log(m)
-
-        @mm.provenance.log
-        def must_not_run(mdata):
-            pytest.fail("Warning promoted to an error must stop execution")
-
+        before = get_log(m)["head"]
         with warnings.catch_warnings():
-            warnings.filterwarnings("error", message="Data changed outside", category=UserWarning)
-            with pytest.raises(UserWarning, match="Data changed outside"):
-                must_not_run(m)
-        assert get_log(m) == before
+            warnings.simplefilter("error", UserWarning)
+            result = identity(m)
+        assert "Data changed outside" in caplog.text
+        assert get_log(result)["events"][-1]["parents"] == [before]

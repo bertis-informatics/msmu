@@ -20,15 +20,48 @@ except ImportError:
     pa = None
 
 ALGORITHM = "sha256"
+FLOAT_NORMALIZATION = "significant-digits-v1"
+_POWERS_OF_TEN = np.array([float(f"1e{exponent}") for exponent in range(-308, 309)])
+_FLOAT_RECORD = np.dtype([("mantissa", "<i8"), ("exponent", "<i2"), ("special", "u1")])
 
 
-def compute_hash(value) -> str:
+def _validate_precision(significant_digits):
+    if significant_digits is not None and (type(significant_digits) is not int or not 1 <= significant_digits <= 15):
+        raise ValueError("significant_digits must be None (exact) or an integer from 1 to 15")
+
+
+def _rounded_float_bytes(values, significant_digits):
+    # Bounded scratch space; encode decimal integers instead of rounding back to binary floats.
+    values = np.asarray(values, dtype=np.float64)
+    result = np.zeros(values.size, dtype=_FLOAT_RECORD)
+    result["special"][np.isnan(values)] = 1
+    result["special"][np.isposinf(values)] = 2
+    result["special"][np.isneginf(values)] = 3
+    result["special"][(values == 0) & np.signbit(values)] = 4
+    finite = np.isfinite(values) & (values != 0)
+    numbers = values[finite]
+    exponents = np.floor(np.log10(np.abs(numbers))).astype(np.int16)
+    bounded = np.clip(exponents, -308, 308)
+    mantissas = numbers / _POWERS_OF_TEN[bounded + 308]
+    mantissas /= _POWERS_OF_TEN[exponents - bounded + 308]
+    rounded = np.rint(mantissas * 10 ** (significant_digits - 1)).astype(np.int64)
+    carry = np.abs(rounded) >= 10 ** significant_digits
+    rounded[carry] //= 10
+    exponents[carry] += 1
+    result["mantissa"][finite] = rounded
+    result["exponent"][finite] = exponents
+    return result.tobytes()
+
+
+def compute_hash(value, *, significant_digits=12) -> str:
     """Hash supported data content. Unsupported objects raise TypeError.
 
     Unordered categories hash by values, allowing h5mu's string-to-category conversion.
+    Floats use 12 significant digits by default; None preserves the legacy exact hash.
     Numeric dtypes, axis order/names and ordered categorical metadata are significant.
     Files are streamed; sparse storage is canonical CSR and explicit zeroes are retained.
     """
+    _validate_precision(significant_digits)
     digest = sha256()
 
     def token(data):
@@ -62,6 +95,7 @@ def compute_hash(value) -> str:
                 digest.update(memoryview(encoded.buffers()[2])[offsets[0]:offsets[-1]])
 
     def visit(obj):
+        nonlocal significant_digits
         if obj is None or obj is pd.NA or obj is pd.NaT:
             token("null")
         elif isinstance(obj, (bool, np.bool_)):
@@ -72,7 +106,12 @@ def compute_hash(value) -> str:
             token(int(obj))
         elif isinstance(obj, (float, np.floating)):
             token("float")
-            token("nan" if np.isnan(obj) else float(obj).hex())
+            if significant_digits is None:
+                token("nan" if np.isnan(obj) else float(obj).hex())
+            else:
+                token(FLOAT_NORMALIZATION)
+                token(significant_digits)
+                token(_rounded_float_bytes(np.array([obj]), significant_digits))
         elif isinstance(obj, str):
             token("str")
             token(obj)
@@ -115,12 +154,22 @@ def compute_hash(value) -> str:
             visit(obj.array)
         elif isinstance(obj, pd.MultiIndex):
             token("multiindex")
-            visit(obj.names)
-            visit(obj.tolist())
+            precision = significant_digits
+            try:
+                significant_digits = None
+                visit(obj.names)
+                visit(obj.tolist())
+            finally:
+                significant_digits = precision
         elif isinstance(obj, pd.Index):
             token("index")
-            visit(obj.name)
-            visit(obj.array)
+            precision = significant_digits
+            try:
+                significant_digits = None
+                visit(obj.name)
+                visit(obj.array)
+            finally:
+                significant_digits = precision
         elif isinstance(obj, pd.Categorical):
             if obj.ordered:
                 token("ordered-category")
@@ -143,6 +192,18 @@ def compute_hash(value) -> str:
             if obj.dtype.kind in "biufcMm":
                 token(obj.dtype.str.replace(">", "<"))
                 array = np.asarray(obj, dtype=obj.dtype.newbyteorder("<"), order="C")
+                if obj.dtype.kind in "fc" and significant_digits is not None:
+                    if obj.dtype.itemsize > (16 if obj.dtype.kind == "c" else 8):
+                        raise TypeError("Rounded hashing supports up to float64/complex128; use significant_digits=None")
+                    token(FLOAT_NORMALIZATION)
+                    token(significant_digits)
+                    count = array.size * (2 if obj.dtype.kind == "c" else 1)
+                    token(count * _FLOAT_RECORD.itemsize)
+                    for chunk in np.nditer(array, flags=["external_loop", "buffered", "zerosize_ok"],
+                                           op_flags=["readonly"], order="C", buffersize=65536):
+                        components = chunk.view("<f" + str(obj.dtype.itemsize // 2)) if obj.dtype.kind == "c" else chunk
+                        digest.update(_rounded_float_bytes(components, significant_digits))
+                    return
                 # Normalize NaN payloads without changing the user's array.
                 if obj.dtype.kind in "fc" and np.isnan(array).any():
                     array = array.copy()

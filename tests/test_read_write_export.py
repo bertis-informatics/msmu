@@ -64,20 +64,20 @@ def test_exports_skip_logging_and_hashing(tmp_path, psm_mdata_export, monkeypatc
     from msmu._core import _provenance as core
 
     mdata = _make_pin_ready_mdata(psm_mdata_export)
-    mm.provenance.log(lambda mdata: mdata)(mdata)
-    before = mm.provenance.get_log(mdata)
+    mm.pv.log(lambda mdata: mdata)(mdata)
+    before = mm.pv.get_log(mdata)
 
     def forbidden(_):
         raise AssertionError("Export must not calculate hashes")
 
     monkeypatch.setattr(core, "compute_hash", forbidden)
-    with mm.provenance.options(hashing=True):
+    with mm.pv.options(hashing=True):
         assert isinstance(to_readable(mdata, modality="psm"), pd.DataFrame)
         write_csv(mdata, modality="psm", filename=tmp_path / "out.csv", sep=",")
         write_flashlfq_input(mdata, tmp_path / "flashlfq.tsv")
         assert write_pin(mdata, tmp_path / "out.pin") is None
     assert all((tmp_path / name).is_file() for name in ("out.csv", "flashlfq.tsv", "out.pin"))
-    assert mm.provenance.get_log(mdata) == before
+    assert mm.pv.get_log(mdata) == before
 
 
 def test_write_pin_requires_filename(psm_mdata_export):
@@ -165,7 +165,7 @@ def test_write_pin_missing_required_decoy_column_raises(tmp_path, psm_mdata_expo
 
 def test_mdata_write_h5mu_preserves_provenance(tmp_path, psm_mdata_export):
     mdata = psm_mdata_export.copy()
-    from msmu.provenance import log, get_log
+    from msmu._provenance import log, get_log
     import mudata
     mdata = log(lambda mdata: mdata)(mdata)
     before = get_log(mdata)

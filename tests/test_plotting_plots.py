@@ -16,19 +16,27 @@ from msmu._plotting._plots import (
 )
 
 
-def test_plot_records_success_on_input_mudata(mdata):
-    with mm.provenance.options(hashing=True):
-        fig = plot_id(mdata, modality="protein")
-    event = mm.provenance.get_log(mdata)["events"][-1]
+@pytest.mark.parametrize("plot,kwargs", [
+    (plot_id, {}),
+    (plot_intensity, {}),
+    (plot_missingness, {}),
+    (plot_correlation, {}),
+    (plot_var, {"var_column": "class"}),
+    (plot_pca, {}),
+    (plot_umap, {}),
+    (plot_upset, {}),
+])
+def test_plots_preserve_analysis_state_and_history(mdata, plot, kwargs):
+    before = mm.pv.get_log(mdata)
+    before_hash = mm.pv.compute_hash(mdata)
+    with mm.pv.options(hashing=True):
+        fig = plot(mdata, modality="protein", **kwargs)
     assert fig.data
-    assert event["function"] == "plot_id"
-    assert event["parameters"]["modality"] == "protein"
-    assert event["inputs"][0]["hash"]["status"] == "completed"
-    assert event["outputs"][0]["hash"]["value"] == mm.provenance.compute_hash(mdata)
-    before = mm.provenance.get_log(mdata)
+    assert mm.pv.get_log(mdata) == before
+    assert mm.pv.compute_hash(mdata) == before_hash
     with pytest.raises(ValueError):
         plot_id(mdata, modality="protein", obs_column="missing_group")
-    assert mm.provenance.get_log(mdata) == before
+    assert mm.pv.get_log(mdata) == before
 
 
 def test_plot_id_defaults_to_fallback_obs_index(mdata):

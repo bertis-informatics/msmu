@@ -1,6 +1,5 @@
 """Distribution-oriented plotting functions."""
 
-from .._core._provenance import log_provenance
 import mudata as md
 import pandas as pd
 import plotly.graph_objects as go
@@ -19,7 +18,6 @@ from ._template import DEFAULT_TEMPLATE
 from ._utils import PlotContext, finalize_figure
 
 
-@log_provenance
 def plot_intensity(
     mdata: md.MuData,
     modality: str,
@@ -102,7 +100,6 @@ def plot_intensity(
     return finalize_figure(fig, context=context, layout_kwargs=kwargs, apply_color=True)
 
 
-@log_provenance
 def plot_missingness(
     mdata: md.MuData,
     modality: str,
@@ -146,7 +143,6 @@ def plot_missingness(
     return finalize_figure(fig, context=context, layout_kwargs=kwargs)
 
 
-@log_provenance
 def plot_correlation(
     mdata: md.MuData,
     modality: str = "protein",
@@ -176,7 +172,6 @@ def plot_correlation(
     return finalize_figure(fig, context=context, layout_kwargs=kwargs)
 
 
-@log_provenance
 def plot_var(
     mdata: md.MuData,
     modality: str = "psm",

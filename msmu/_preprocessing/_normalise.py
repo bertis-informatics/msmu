@@ -1,5 +1,3 @@
-import warnings
-
 import anndata as ad
 import mudata as md
 import numpy as np
@@ -136,18 +134,16 @@ def normalise(
         independently within each (obs-group × var-group) block.
     """
     if batch_key is not None:
-        warnings.warn("`batch_key` is deprecated; use `group_obs` instead.", DeprecationWarning, stacklevel=2)
+        logger.warning("`batch_key` is deprecated; use `group_obs` instead.")
         if group_obs is None:
             group_obs = batch_key
     if fraction_key is not None:
-        warnings.warn("`fraction_key` is deprecated; use `group_var` instead.", DeprecationWarning, stacklevel=2)
+        logger.warning("`fraction_key` is deprecated; use `group_var` instead.")
         if group_var is None:
             group_var = fraction_key
     if fraction:
-        warnings.warn(
+        logger.warning(
             "`fraction=True` is deprecated; use `group_var='filename'` instead.",
-            DeprecationWarning,
-            stacklevel=2,
         )
         if group_var is None:
             group_var = "filename"

@@ -1,4 +1,4 @@
-from msmu.provenance import get_log
+from msmu._provenance import get_log
 import numpy as np
 import pandas as pd
 import pytest

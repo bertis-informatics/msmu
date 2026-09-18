@@ -1,4 +1,4 @@
-from msmu.provenance import get_log
+from msmu._provenance import get_log
 import inspect
 import logging
 from pathlib import Path

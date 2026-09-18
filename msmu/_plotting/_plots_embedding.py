@@ -1,6 +1,5 @@
 """Embedding-oriented plotting functions."""
 
-from .._core._provenance import log_provenance
 import mudata as md
 import pandas as pd
 import plotly.graph_objects as go
@@ -57,7 +56,6 @@ def _build_embedding_plot(
     return finalize_figure(fig, context=context, layout_kwargs=kwargs, apply_color=True)
 
 
-@log_provenance
 def plot_pca(
     mdata: md.MuData,
     modality: str = "protein",
@@ -111,7 +109,6 @@ def plot_pca(
     )
 
 
-@log_provenance
 def plot_umap(
     mdata: md.MuData,
     modality: str = "protein",

@@ -1,3 +1,5 @@
+import logging
+
 import anndata
 
 from .logging_utils import ensure_null_handler, setup_logger
@@ -18,7 +20,8 @@ from ._read_write._reader_registry import (
     # read_cptac,
 )
 from . import _utils as utils
-from . import provenance
+from . import _provenance as pv
+from . import _data as dt
 
 try:
     from ._version import version as __version__
@@ -28,6 +31,10 @@ else:
     version = __version__
 
 logger = ensure_null_handler()
+if logger.level == logging.NOTSET and not any(
+    not isinstance(handler, logging.NullHandler) for handler in logger.handlers
+):
+    setup_logger()
 
 # msmu serialises proteomics MuData to .h5mu. The reader frames (polars -> pandas on the pandas-3
 # stack) carry pandas nullable / Arrow-backed string columns -- including the obs/var index -- which
@@ -50,10 +57,11 @@ __all__ = [
     # "read_cptac",
     "merge_mudata",
     "pp",
+    "dt",
     "pl",
     "tl",
     "utils",
     "io",
-    "provenance",
+    "pv",
     "setup_logger",
 ]

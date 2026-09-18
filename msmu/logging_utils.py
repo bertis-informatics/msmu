@@ -95,6 +95,8 @@ def prune_closed_stream_handlers(
     for handler in list(logger.handlers):
         if only_msmu_handlers and not getattr(handler, "_msmu_handler", False):
             continue
+        if isinstance(handler, _MsmuStreamHandler):
+            continue  # This handler reconnects to the current stderr when its stream closes.
         if _has_closed_stream(handler):
             logger.removeHandler(handler)
             handler.close()
