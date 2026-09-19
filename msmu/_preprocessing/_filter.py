@@ -6,14 +6,14 @@ import pandas as pd
 from mudata import MuData
 
 from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
 
 
-@uns_logger
+@log_provenance
 def add_filter(
     mdata: MuData,
     modality: str,
@@ -90,7 +90,7 @@ def add_filter(
     if "filter" not in adata.uns:
         adata.uns["filter"] = [filter_name]
     else:
-        adata.uns["filter"] = list(set([*adata.uns["filter"]] + [filter_name]))
+        adata.uns["filter"] = list(dict.fromkeys([*adata.uns["filter"], filter_name]))
 
     # add filter for decoy (only supported for variable-level filters)
     if store_axis == "varm" and mstatus.__getattribute__(modality).has_decoy:
@@ -129,7 +129,7 @@ def _mask_boolean_filter(series_to_mask: pd.Series, keep, value):
         raise ValueError(f"Unknown filter operator: {keep}")
 
 
-@uns_logger
+@log_provenance
 def apply_filter(
     mdata: MuData,
     modality: str,

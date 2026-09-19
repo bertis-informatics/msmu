@@ -12,16 +12,12 @@ from ._fragpipe import TmtFragPipeReader, LfqFragPipeReader
 from ._delpi import DelpiReader
 from .._preprocessing._meta import read_sdrf as _read_sdrf
 
-from .._core._provenance import (
-    append_cmd_log,
-    capture_provenance_output,
-    get_bound_call_kwargs,
-    normalize_cmd_for_runtime,
-)
+from .._core._provenance import log_provenance
 
 logger = get_logger(__name__)
 
 
+@log_provenance
 def read_sage(
     identification_file: str | Path,
     label: Literal["tmt", "label_free"],
@@ -93,21 +89,11 @@ def read_sage(
         raise ValueError("Argument label should be one of 'tmt', 'label_free'.")
     logger.debug("Selected Sage reader: %s", type(reader).__name__)
 
-    with capture_provenance_output() as stdout_buffer:
-        mdata: md.MuData = reader.read()
-    return append_cmd_log(
-        mdata,
-        function="read_sage",
-        payload=get_bound_call_kwargs(
-            read_sage,
-            identification_file,
-            label,
-            quantification_file=quantification_file,
-        ),
-        stdout=stdout_buffer.getvalue().strip() or None,
-    )
+    mdata: md.MuData = reader.read()
+    return mdata
 
 
+@log_provenance
 def read_diann(
     identification_file: str | Path | list,
     drop_search_result: bool = False,
@@ -142,24 +128,15 @@ def read_diann(
 
     identification_file_, identification_df_ = SearchResultDataFrameConverter().convert(identification_files)
 
-    with capture_provenance_output() as stdout_buffer:
-        mdata = DiannReader(
-            identification_file=identification_file_,
-            identification_df=identification_df_,
-            drop_search_result=drop_search_result,
-        ).read()
-    return append_cmd_log(
-        mdata,
-        function="read_diann",
-        payload=get_bound_call_kwargs(
-            read_diann,
-            identification_file,
-            level=level,
-        ),
-        stdout=stdout_buffer.getvalue().strip() or None,
-    )
+    mdata = DiannReader(
+        identification_file=identification_file_,
+        identification_df=identification_df_,
+        drop_search_result=drop_search_result,
+    ).read()
+    return mdata
 
 
+@log_provenance
 def read_maxquant(
     identification_file: str | Path | list,
     label: Literal["tmt", "label_free"],
@@ -212,23 +189,11 @@ def read_maxquant(
         )
     logger.debug("Selected MaxQuant reader: %s", type(reader).__name__)
 
-    with capture_provenance_output() as stdout_buffer:
-        mdata = reader.read()
-    return append_cmd_log(
-        mdata,
-        function="read_maxquant",
-        payload=get_bound_call_kwargs(
-            read_maxquant,
-            identification_file,
-            label,
-            acquisition,
-            drop_search_result=drop_search_result,
-            _quantification=_quantification,
-        ),
-        stdout=stdout_buffer.getvalue().strip() or None,
-    )
+    mdata = reader.read()
+    return mdata
 
 
+@log_provenance
 def read_fragpipe(
     identification_file: str | Path | list,
     label: Literal["tmt", "label_free"],
@@ -290,22 +255,11 @@ def read_fragpipe(
             "Argument label should be one of 'tmt', 'label_free' and acquisition should be one of 'dda', 'dia'."
         )
 
-    with capture_provenance_output() as stdout_buffer:
-        mdata = reader.read()
-    return append_cmd_log(
-        mdata,
-        function="read_fragpipe",
-        payload=get_bound_call_kwargs(
-            read_fragpipe,
-            identification_file,
-            label,
-            acquisition,
-            quantification_file=quantification_file,
-        ),
-        stdout=stdout_buffer.getvalue().strip() or None,
-    )
+    mdata = reader.read()
+    return mdata
 
 
+@log_provenance
 def read_delpi(identification_file: str | Path, drop_search_result: bool = False) -> md.MuData:
     """
     Reads a DELPI output file and returns a MuData object.
@@ -356,6 +310,7 @@ def read_sdrf(
     return _read_sdrf(sdrf_file, validate=validate_sdrf)
 
 
+@log_provenance
 def read_h5mu(h5mu_file: str | Path) -> md.MuData:
     """
     Reads an h5mu file (HDF5) and returns a MuData object.
@@ -367,12 +322,7 @@ def read_h5mu(h5mu_file: str | Path) -> md.MuData:
         A MuData object.
     """
     mdata = md.read_h5mu(h5mu_file)
-    mdata = normalize_cmd_for_runtime(mdata)
-    return append_cmd_log(
-        mdata,
-        function="read_h5mu",
-        payload=get_bound_call_kwargs(read_h5mu, h5mu_file),
-    )
+    return mdata
 
 
 #######################################################################

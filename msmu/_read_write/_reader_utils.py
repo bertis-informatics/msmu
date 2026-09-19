@@ -4,10 +4,12 @@ import anndata as ad
 import mudata as md
 import pandas as pd
 
+from .._core._provenance import log_provenance
 from .._utils._mudata import add_modality as add_modality
 
 
 # Utility functions for Readers
+@log_provenance
 def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     """
     Merges multiple MuData objects into a single MuData object.
@@ -98,15 +100,19 @@ def _decompose_data(
             tmp = getattr(data, component, None)
             if tmp is not None:
                 if component == "var":
+                    tmp = tmp.copy()
                     if "level" in data.uns:
                         if data.uns["level"] == "psm":
                             tmp["dataset"] = name
                     components_dict[mod][component][name] = tmp
                 elif component == "obs":
+                    tmp = tmp.copy()
                     tmp["dataset"] = name
                     components_dict[mod][component][name] = tmp
                 elif component in ["varm", "varp", "obsm", "obsp", "uns"]:
                     for sub_comp in tmp.keys():
+                        if component == "uns" and sub_comp == "_log":
+                            continue
                         if sub_comp not in components_dict[mod][component].keys():
                             components_dict[mod][component][sub_comp] = {}
                         components_dict[mod][component][sub_comp][name] = tmp[sub_comp]

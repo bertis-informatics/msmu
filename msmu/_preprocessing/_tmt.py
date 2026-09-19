@@ -4,11 +4,13 @@ import scipy.sparse as sp
 from anndata import AnnData
 from mudata import MuData
 
+from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block
 from .._utils._filenames import strip_ms_extensions
 from .._utils._mudata import get_anndata_mod
 
 
+@log_provenance
 def split_tmt(
     mdata: MuData,
     map: dict[str, str] | pd.Series | pd.DataFrame | None = None,
@@ -64,7 +66,6 @@ def split_tmt(
     if set_labels.isna().any():
         unmapped = psm_adata.var["filename"].map(strip_ms_extensions)[set_labels.isna()].unique()
         raise ValueError(f"split_tmt: no set mapping for filename(s): {list(unmapped)[:5]}")
-    psm_adata.var["set"] = set_labels
 
     channels = list(psm_adata.obs_names)
     set_names = list(pd.unique(set_labels))  # first-occurrence order (matches the legacy .unique())
@@ -76,7 +77,7 @@ def split_tmt(
     new_adata = AnnData(
         X=new_x,
         obs=pd.DataFrame(index=pd.Index(new_obs_names)),
-        var=psm_adata.var.copy(),
+        var=psm_adata.var.assign(set=set_labels),
     )
     new_adata.uns = dict(psm_adata.uns)
 

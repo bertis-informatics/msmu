@@ -7,7 +7,7 @@ import statsmodels.api as sm
 from inmoose.pycombat import pycombat_norm
 
 from .._utils._mudata import get_anndata_mod, get_mudata
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block, is_sparse, to_observed_sparse
 from ..logging_utils import get_logger
 
@@ -26,7 +26,7 @@ _NAN_PRESERVING_METHODS: tuple[str, ...] = ("gis", "median_center", "continuous"
 MIN_BATCHES_FOR_SCALE_RESTORE: int = 2
 
 
-@uns_logger
+@log_provenance
 def correct_batch_effect(
     mdata: md.MuData,
     modality: str,

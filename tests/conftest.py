@@ -229,3 +229,16 @@ def psm_mdata_export() -> MuData:
     )
     adata = _make_adata(x, obs, var)
     return _make_mdata({"psm": adata})
+
+
+@pytest.fixture
+def caplog(caplog):
+    # MSMU owns its console handler and does not propagate to the root logger.
+    import logging
+
+    logger = logging.getLogger("msmu")
+    logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        logger.removeHandler(caplog.handler)

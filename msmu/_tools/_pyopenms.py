@@ -12,6 +12,7 @@ from tqdm import tqdm
 import anndata as ad
 import mudata as md
 
+from .._core._provenance import log_provenance
 from .._utils._anndata import _require_columns
 import plotly.graph_objects as go
 
@@ -292,6 +293,7 @@ def compute_precursor_isolation_purity_from_mzml(
     return purity_result
 
 
+@log_provenance
 def compute_precursor_isolation_purity(
     mdata: md.MuData,
     mzml_paths: str | Path | list,

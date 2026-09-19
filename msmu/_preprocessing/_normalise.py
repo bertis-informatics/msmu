@@ -1,11 +1,9 @@
-import warnings
-
 import anndata as ad
 import mudata as md
 import numpy as np
 
 from .._utils._mudata import get_anndata_mod
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise, to_observed_sparse
 from ..logging_utils import get_logger
 from ._normalisation import Normalisation, NormalisationMethod, PTMAdjustmentMethod, PTMProteinAdjuster
@@ -13,7 +11,7 @@ from ._normalisation import Normalisation, NormalisationMethod, PTMAdjustmentMet
 logger = get_logger(__name__)
 
 
-@uns_logger
+@log_provenance
 def log2_transform(
     mdata: md.MuData,
     modality: str,
@@ -50,7 +48,7 @@ def log2_transform(
     return mdata
 
 
-@uns_logger
+@log_provenance
 def scale_data(
     mdata: md.MuData,
     modality: str,
@@ -98,7 +96,7 @@ def scale_data(
     return mdata
 
 
-@uns_logger
+@log_provenance
 def normalise(
     mdata: md.MuData,
     method: NormalisationMethod,
@@ -135,18 +133,16 @@ def normalise(
         independently within each (obs-group × var-group) block.
     """
     if batch_key is not None:
-        warnings.warn("`batch_key` is deprecated; use `group_obs` instead.", DeprecationWarning, stacklevel=2)
+        logger.warning("`batch_key` is deprecated; use `group_obs` instead.")
         if group_obs is None:
             group_obs = batch_key
     if fraction_key is not None:
-        warnings.warn("`fraction_key` is deprecated; use `group_var` instead.", DeprecationWarning, stacklevel=2)
+        logger.warning("`fraction_key` is deprecated; use `group_var` instead.")
         if group_var is None:
             group_var = fraction_key
     if fraction:
-        warnings.warn(
+        logger.warning(
             "`fraction=True` is deprecated; use `group_var='filename'` instead.",
-            DeprecationWarning,
-            stacklevel=2,
         )
         if group_var is None:
             group_var = "filename"
@@ -316,7 +312,7 @@ def _normalise_by_groups(
     return normalised_arr
 
 
-@uns_logger
+@log_provenance
 def adjust_ptm_by_protein(
     mdata: md.MuData,
     global_mdata: md.MuData,

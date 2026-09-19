@@ -4,6 +4,7 @@ from Bio import SeqIO
 
 import mudata as md
 
+from .._core._provenance import log_provenance
 from ._anndata import _resolve_accession_column
 from ..logging_utils import get_logger
 
@@ -23,6 +24,7 @@ CANONICAL_CONTAMINANT_PREFIX = "Cont_"
 CANONICAL_DECOY_PREFIX = "rev_"
 
 
+@log_provenance
 def attach_fasta(mdata: md.MuData, fasta_file: str | None) -> md.MuData:
     """
     Attach FASTA metadata to the MuData object.
@@ -194,6 +196,7 @@ def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> s
     return ";".join(transformed_groups)
 
 
+@log_provenance
 def map_fasta(
     mdata: md.MuData,
     modality: str,

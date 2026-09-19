@@ -1,6 +1,7 @@
 import io
 import logging
 import sys
+import subprocess
 
 from msmu.logging_utils import (
     PACKAGE_LOGGER_NAME,
@@ -8,6 +9,7 @@ from msmu.logging_utils import (
     ensure_null_handler,
     get_logger,
     setup_logger,
+    prune_closed_package_stream_handlers,
 )
 
 
@@ -83,6 +85,7 @@ def test_setup_logger_handler_recovers_when_stream_closes(monkeypatch) -> None:
     original_level = logger.level
     original_propagate = logger.propagate
     try:
+        logger.handlers = []
         initial_stream = io.StringIO()
         monkeypatch.setattr(sys, "stderr", initial_stream)
         configured = setup_logger(LogLevel.INFO)
@@ -91,6 +94,7 @@ def test_setup_logger_handler_recovers_when_stream_closes(monkeypatch) -> None:
 
         replacement_stream = io.StringIO()
         monkeypatch.setattr(sys, "stderr", replacement_stream)
+        prune_closed_package_stream_handlers()
         configured.info("logger recovered")
 
         assert "logger recovered" in replacement_stream.getvalue()
@@ -99,3 +103,14 @@ def test_setup_logger_handler_recovers_when_stream_closes(monkeypatch) -> None:
         logger.handlers = original_handlers
         logger.setLevel(original_level)
         logger.propagate = original_propagate
+
+
+def test_default_console_logging_and_explicit_level():
+    result = subprocess.run(
+        [sys.executable, "-c", "import msmu as mm; mm.logger.info('visible'); "
+         "mm.setup_logger(level=30); mm.logger.info('hidden'); mm.logger.warning('notice')"],
+        capture_output=True, text=True, check=True,
+    )
+    assert result.stderr.count("INFO - visible") == 1
+    assert result.stderr.count("WARNING - notice") == 1
+    assert "hidden" not in result.stderr
