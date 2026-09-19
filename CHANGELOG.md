@@ -34,6 +34,12 @@ from git tags via setuptools-scm.
   `var["denominator_group"]` and `var["is_protein_adjusted"]`, and the per-reason counts are logged
   — including a distinct status for accessions missing from the global FASTA, which means the two
   searches used different databases rather than that the protein went undetected.
+- **`to_ptm`'s `modification` is matched as a whole tag and accepts several.** It is the tag exactly
+  as written in `peptide` (`"[+79.9663]"`, `"(UniMod:21)"`), optionally qualified by its residue
+  (`"S[167]"`), or a list of them summarised into one modality — FragPipe writes pS, pT and pY as
+  three different residue masses. **Breaking**: matching is by equality with a whole tag, not by
+  substring, so a fragment such as `"79.97"` is rejected. A modification that matches nothing now
+  raises an error listing the tags the data does contain, instead of an unrelated pandas error.
 - **`to_ptm` defaults to `agg_method="median_polish"`.** It models a per-peptidoform effect, so a
   site's value no longer moves when the set of peptidoforms supporting it changes between samples;
   for a site backed by a single peptidoform it is identical to `median`. Linear-looking input is
@@ -41,6 +47,15 @@ from git tags via setuptools-scm.
 
 ### Fixed
 
+- **PTM site positions no longer count the letters inside modification tags.** `to_ptm` located a
+  site by counting every letter before the modification, so each tag with letters in it —
+  DIA-NN's `(UniMod:4)`, MaxQuant's `(Oxidation (M))` — pushed every later site further along the
+  protein. Positions were right only for Sage's mass notation. Oxidised and unoxidised forms of one
+  phosphopeptide split into two sites, and two genuinely different sites could merge into one.
+  Peptides are now parsed into residues and tags, and each parse is checked against
+  `stripped_peptide`; a notation msmu cannot read raises instead of producing misplaced sites. A
+  target modification on the peptide N-terminus, which crashed with `IndexError`, is now placed on
+  residue 1.
 - **PSM counts are no longer multiplied by a site's accession count.** `to_ptm` summed `count_psm`
   after exploding each peptidoform over its accessions, inflating the count by that many times.
 - **Matrix rollups no longer try to aggregate the grouping column.** `median_polish` and `directlfq`

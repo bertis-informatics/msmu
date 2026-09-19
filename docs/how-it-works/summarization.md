@@ -106,13 +106,19 @@ To summarize modified peptide into post-translational modification (PTM) sites, 
 
 Internally, the function performs:
 
-1. Filtering data with only modified peptides with modi_identifier
-2. Extracting modified sites from peptide
-3. Assigning peptide-level site labels
-4. Exploding peptides to their own accessions for per-protein site labeling
-5. Mapping the site to the corresponding position in each protein
-6. Grouping by modified peptide and peptide-site combination
-7. Merging site metadata with peptide-level quantification
+1. Parsing each modified peptide into residues and their modification tags, and keeping the peptidoforms that carry a target modification
+2. Assigning peptide-level site labels from the positions of the residues that carry it
+3. Exploding peptides to their own accessions for per-protein site labeling
+4. Mapping the site to the corresponding position in each protein
+5. Grouping by modified peptide and peptide-site combination
+6. Merging site metadata with peptide-level quantification
+
+A site's position counts residues only: everything inside a modification tag's brackets is tag
+text, however many letters it holds, so `AC(UniMod:4)M(UniMod:35)PSGS(UniMod:21)YTK` and
+`AC[+57.0215]M[+15.9949]PSGS[+79.9663]YTK` both put the phosphate on residue 7. A tag written before
+the first residue (an N-terminal modification) belongs to residue 1. Every parse is checked against
+the peptide's `stripped_peptide`, and a notation msmu cannot read raises rather than yield misplaced
+sites.
 
 Sites are localized from the accessions in the peptide's `proteins` column, not from an inferred
 `protein_group`, so a site id depends only on the peptide and the FASTA — the same PTM data yields
@@ -128,7 +134,18 @@ and returns:
 
 A FASTA file is required because PTM sites must be mapped to protein-sequence coordinates. FASTA can be attached using `mm.utils.attach_fasta()`.
 
-The argument `modi_name` determines the modality name (e.g., "phospho" -> "phospho_site"), and the `modification` string is used to identify modified peptides.
+The argument `modi_name` determines the modality name (e.g., "phospho" -> "phospho_site"). The
+`modification` argument is the modification tag exactly as it appears in the `peptide` column,
+brackets and case included, or a list of tags to summarise into one modality. A tag may be qualified
+by its residue (`"S[167]"`) to match that residue only. Tags are matched exactly, not as substrings;
+if nothing matches, the error lists the tags the data contains.
+
+| Search engine | Phospho `modification` |
+|---|---|
+| Sage | `"[+79.9663]"` (decimals follow the search settings) |
+| DIA-NN | `"(UniMod:21)"` |
+| MaxQuant | `"(Phospho (STY))"` |
+| FragPipe | `["S[167]", "T[181]", "Y[243]"]` (the modified residue's total mass) |
 
 `agg_method` can be selected among the methods described in [Aggregation methods](#aggregation_methods); the matrix rollups `median_polish` and `directlfq` are available here as well (on log2-transformed data).
 

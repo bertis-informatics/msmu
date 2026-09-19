@@ -24,8 +24,11 @@ PROTEIN_SEQUENCES = {
     "P1": "MAAASPGSPVLRKKQ",
     "P2": "MMSPGSPVLRQQ",
     "P3": "MAAASPGSPVLRKKQ",
+    # "ACMPSGSYTK" sits at offset 2: its Cys and Met carry modifications ahead of the phosphosite.
+    "P4": "MKACMPSGSYTKRR",
 }
 PHOSPHO = "[+79.97]"
+CYS_MET_PEPTIDE = "ACMPSGSYTK"
 
 
 def _make_peptide_mdata(peptide_rows: list[dict]) -> MuData:
@@ -173,4 +176,93 @@ def test_missing_accession_column_names_what_is_required():
     del mdata["peptide"].var["proteins"]
 
     with pytest.raises(ValueError, match="proteins"):
+        mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+
+
+def _single_peptide_mdata(peptide: str, stripped_peptide: str, proteins: str = "P4") -> MuData:
+    return _make_peptide_mdata(
+        [{"peptide": peptide, "stripped_peptide": stripped_peptide, "proteins": proteins, "count_psm": 5}]
+    )
+
+
+@pytest.mark.parametrize(
+    ("peptide", "modification"),
+    [
+        ("AC[+57.0215]M[+15.9949]PSGS[+79.9663]YTK", "[+79.9663]"),  # Sage
+        ("AC(UniMod:4)M(UniMod:35)PSGS(UniMod:21)YTK", "(UniMod:21)"),  # DIA-NN
+        ("_ACM(Oxidation (M))PSGS(Phospho (STY))YTK_", "(Phospho (STY))"),  # MaxQuant
+        ("AC[160]M[147]PSGS[167]YTK", "S[167]"),  # FragPipe
+    ],
+)
+def test_the_site_does_not_depend_on_the_modification_notation(peptide, modification):
+    """The letters inside a tag such as '(UniMod:35)' are not residues and must not shift the site."""
+    result = mm.pp.to_ptm(
+        _single_peptide_mdata(peptide, CYS_MET_PEPTIDE), modi_name="phospho", modification=modification
+    )
+
+    assert list(result["phospho_site"].var_names) == ["P4|S9"]
+
+
+def test_peptidoforms_differing_only_in_other_modifications_share_one_site():
+    """With DIA-NN tags counted as residues, the oxidised form landed on a different, wrong site."""
+    mdata = _make_peptide_mdata(
+        [
+            {"peptide": "ACMPSGS(UniMod:21)YTK", "stripped_peptide": CYS_MET_PEPTIDE, "proteins": "P4", "count_psm": 5},
+            {
+                "peptide": "AC(UniMod:4)M(UniMod:35)PSGS(UniMod:21)YTK",
+                "stripped_peptide": CYS_MET_PEPTIDE,
+                "proteins": "P4",
+                "count_psm": 3,
+            },
+        ]
+    )
+
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification="(UniMod:21)")
+
+    assert list(result["phospho_site"].var_names) == ["P4|S9"]
+    assert _site_var(result)["count_peptide"].tolist() == [2]
+
+
+def test_a_target_modification_on_the_n_terminus_is_placed_on_residue_one():
+    result = mm.pp.to_ptm(
+        _single_peptide_mdata("[+42.0106]-SPGSPVLR", "SPGSPVLR", proteins="P1"),
+        modi_name="acetyl",
+        modification="[+42.0106]",
+    )
+
+    assert list(result["acetyl_site"].var_names) == ["P1|S5"]
+
+
+def test_several_modifications_are_summarised_into_one_modality():
+    """FragPipe writes pS, pT and pY as three different residue masses; one call must cover all three."""
+    mdata = _make_peptide_mdata(
+        [
+            {"peptide": "ACMPS[167]GSYTK", "stripped_peptide": CYS_MET_PEPTIDE, "proteins": "P4", "count_psm": 5},
+            {"peptide": "ACMPSGSY[243]T[181]K", "stripped_peptide": CYS_MET_PEPTIDE, "proteins": "P4", "count_psm": 5},
+        ]
+    )
+
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=["S[167]", "T[181]", "Y[243]"])
+
+    assert sorted(result["phospho_site"].var_names) == ["P4|S7", "P4|T11", "P4|Y10"]
+
+
+def test_a_modification_that_matches_nothing_lists_the_tags_present():
+    mdata = _single_peptide_mdata("ACMPSGS(UniMod:21)YTK", CYS_MET_PEPTIDE)
+
+    with pytest.raises(ValueError, match=r"\(UniMod:21\)"):
+        mm.pp.to_ptm(mdata, modi_name="phospho", modification="(unimod:21)")
+
+
+def test_a_modification_that_is_not_a_tag_is_rejected():
+    mdata = _single_peptide_mdata(f"SPGS{PHOSPHO}PVLR", "SPGSPVLR", proteins="P1")
+
+    with pytest.raises(ValueError, match="Invalid modification"):
+        mm.pp.to_ptm(mdata, modi_name="phospho", modification="79.97")
+
+
+def test_a_peptide_whose_parse_disagrees_with_stripped_peptide_raises_instead_of_misplacing_sites():
+    mdata = _single_peptide_mdata(f"SPGS{PHOSPHO}PVLR", "SPGSPVLK", proteins="P1")
+
+    with pytest.raises(ValueError, match="stripped_peptide"):
         mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)

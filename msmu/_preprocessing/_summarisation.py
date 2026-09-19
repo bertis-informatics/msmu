@@ -1,5 +1,7 @@
 import re
 import warnings
+from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -10,6 +12,12 @@ from ..logging_utils import get_logger
 from .._core._blockdiag import aggregate_features_by_group, dense_block, is_sparse, to_dense_df
 from .._utils._anndata import _require_columns
 from .._utils._pandas import split_delimited_strings
+from .._utils.peptide import (
+    MODIFICATION_TAG_CLOSER_BY_OPENER,
+    is_residue_qualified_modification,
+    parse_modified_peptide,
+    residue_carries_modification,
+)
 from ._filter import _mask_boolean_filter
 
 # for type checking only
@@ -18,6 +26,11 @@ from typing import Callable, Literal
 
 
 logger = get_logger(__name__)
+
+# How many unreadable peptidoforms a notation error quotes, and how many present tags a
+# modification-not-found error lists; enough to diagnose, few enough to read.
+MAX_REPORTED_MISREAD_PEPTIDES: int = 5
+MAX_REPORTED_PRESENT_TAGS: int = 10
 
 
 @dataclass
@@ -716,20 +729,48 @@ class SummarisationPrep:
         )
 
 
+def normalise_target_modifications(modification: str | Sequence[str]) -> tuple[str, ...]:
+    """Validate ``to_ptm``'s ``modification`` argument and return it as a tuple of tags.
+
+    Each entry must be a tag exactly as the search engine writes it (``[+79.9663]``, ``(UniMod:21)``)
+    or a tag qualified by its residue (``S[167]``). Matching is by equality with a parsed tag, not by
+    substring, so anything that does not look like a tag can never match and is rejected here.
+    """
+    modifications = (modification,) if isinstance(modification, str) else tuple(modification)
+    if not modifications:
+        raise ValueError("modification must name at least one modification tag.")
+
+    for target_modification in modifications:
+        tag_text = _get_modification_tag_text(target_modification) if isinstance(target_modification, str) else ""
+        if tag_text[:1] not in MODIFICATION_TAG_CLOSER_BY_OPENER:
+            raise ValueError(
+                f"Invalid modification {target_modification!r}. Pass the tag exactly as it appears in the "
+                "peptide string, brackets included -- e.g. '[+79.9663]' (Sage), '(UniMod:21)' (DIA-NN) -- "
+                "or qualify it with its residue, e.g. 'S[167]' (FragPipe)."
+            )
+
+    return modifications
+
+
+def _get_modification_tag_text(modification: str) -> str:
+    """The tag part of a target modification: ``S[167]`` -> ``[167]``; a bare tag is returned as is."""
+    return modification[1:] if is_residue_qualified_modification(modification) else modification
+
+
 class PtmSummarisationPrep(SummarisationPrep):
     """
     Preparation steps for PTM site summarisation.
-        1. Filter data with only modified peptides with modi_identifier
-        2. Get modified sites from peptide
-        3. Label peptide site
-        4. Explode data to the peptide's own accessions for labeling protein site
-        5. Label protein site to each single protein
-        6. Group by modified peptide and its peptide site
-        7. Merge data with peptide value indexed by peptide
+        1. Keep the peptidoforms carrying a target modification, labelled with the peptide positions
+           of the residues that carry it
+        2. Explode data to one row per peptide site
+        3. Explode data to the peptide's own accessions for labeling protein site
+        4. Label protein site to each single protein
+        5. Group by modified peptide and its peptide site
+        6. Merge data with peptide value indexed by peptide
     """
 
-    def __init__(self, adata: ad.AnnData, modi_identifier: str, fasta: pd.DataFrame) -> None:
-        self._modi_identifier = modi_identifier
+    def __init__(self, adata: ad.AnnData, modification: str | Sequence[str], fasta: pd.DataFrame) -> None:
+        self._target_modifications: tuple[str, ...] = normalise_target_modifications(modification)
         self._fasta_dict: dict = fasta["Sequence"].to_dict()
         self._col_to_groupby = "ptm_site"
 
@@ -777,11 +818,93 @@ class PtmSummarisationPrep(SummarisationPrep):
         self,
         data: pd.DataFrame,
     ) -> pd.DataFrame:
-        extracted_df: pd.DataFrame = data.copy()
-        extracted_df = extracted_df.loc[extracted_df["peptide"].str.contains(self._modi_identifier, regex=False)].copy()
+        """Keep the peptidoforms carrying a target modification, labelled with where it sits.
+
+        ``peptide_site`` lists every residue carrying a target modification as ``<residue><1-based
+        position>`` (e.g. ``S7``), counted over residues only, so the letters inside a tag such as
+        ``(UniMod:35)`` never shift it. Each parse is checked against the engine's own
+        ``stripped_peptide``; a disagreement means msmu misread the notation, and every site in that
+        peptide would be misplaced, so it raises instead.
+        """
+        peptide_strings = data["peptide"].astype(str)
+        # A cheap substring pre-filter, so only plausible peptidoforms are parsed -- and a notation
+        # msmu cannot read fails only if it actually carries the modification being summarised.
+        has_target_tag_text = pd.Series(False, index=data.index)
+        for target_modification in self._target_modifications:
+            has_target_tag_text |= peptide_strings.str.contains(
+                _get_modification_tag_text(target_modification), regex=False
+            )
+        candidate_df: pd.DataFrame = data.loc[has_target_tag_text].copy()
+
+        peptide_sites: list[list[str]] = []
+        misread_peptide_descriptions: list[str] = []
+        for peptide, stripped_peptide in zip(
+            candidate_df["peptide"].astype(str), candidate_df["stripped_peptide"].astype(str)
+        ):
+            try:
+                modified_residues = parse_modified_peptide(peptide)
+            except ValueError as parse_error:
+                misread_peptide_descriptions.append(str(parse_error))
+                peptide_sites.append([])
+                continue
+
+            parsed_sequence = "".join(modified_residue.residue for modified_residue in modified_residues)
+            if parsed_sequence != stripped_peptide:
+                misread_peptide_descriptions.append(
+                    f"{peptide!r} parsed as {parsed_sequence!r}, but stripped_peptide is {stripped_peptide!r}"
+                )
+                peptide_sites.append([])
+                continue
+
+            peptide_sites.append(
+                [
+                    f"{modified_residue.residue}{modified_residue.position_in_peptide}"
+                    for modified_residue in modified_residues
+                    if any(
+                        residue_carries_modification(modified_residue, target_modification)
+                        for target_modification in self._target_modifications
+                    )
+                ]
+            )
+
+        if misread_peptide_descriptions:
+            raise ValueError(
+                f"Could not read the modification notation of {len(misread_peptide_descriptions)} "
+                f"peptidoform(s), so their site positions would be wrong. First "
+                f"{min(len(misread_peptide_descriptions), MAX_REPORTED_MISREAD_PEPTIDES)}:\n  "
+                + "\n  ".join(misread_peptide_descriptions[:MAX_REPORTED_MISREAD_PEPTIDES])
+            )
+
+        candidate_df["peptide_site"] = pd.Series(peptide_sites, index=candidate_df.index, dtype=object)
+        has_target_site = np.array([len(sites) > 0 for sites in peptide_sites], dtype=bool)
+        extracted_df = candidate_df.loc[has_target_site].copy()
+        if extracted_df.empty:
+            raise ValueError(self._describe_missing_target_modification(peptide_strings))
+
         logger.debug("Extracted modified peptides: %d / %d", len(extracted_df), len(data))
 
         return extracted_df
+
+    def _describe_missing_target_modification(self, peptide_strings: pd.Series) -> str:
+        """Explain a modification that matched nothing, listing the tags the data does contain."""
+        peptidoform_count_by_tag: Counter[str] = Counter()
+        for peptide in peptide_strings.unique():
+            try:
+                modified_residues = parse_modified_peptide(peptide)
+            except ValueError:
+                continue
+            peptidoform_count_by_tag.update(
+                {tag for modified_residue in modified_residues for tag in modified_residue.tags}
+            )
+
+        present_tags = ", ".join(
+            f"{tag!r} x{count}" for tag, count in peptidoform_count_by_tag.most_common(MAX_REPORTED_PRESENT_TAGS)
+        )
+        return (
+            f"No peptidoform carries the modification {list(self._target_modifications)}. Tags are matched "
+            f"exactly, brackets and case included. Tags present (peptidoform counts): "
+            f"{present_tags or 'none'}. A tag may also be qualified by its residue, e.g. 'S[167]'."
+        )
 
     def label_ptm_site(
         self,
@@ -799,18 +922,13 @@ class PtmSummarisationPrep(SummarisationPrep):
         denominator step's job, not this one's.
 
         Parameters:
-            data (pd.DataFrame): Peptide data from msmu mudata['peptide']
+            data (pd.DataFrame): Peptide data from msmu mudata['peptide'], already reduced to the
+                target peptidoforms and labelled with ``peptide_site`` by ``_extract_modi_peptide_df``
 
         Returns:
             ptm_data (pd.DataFrame): PTM data arranged by peptide - peptide site
         """
         ptm_info: pd.DataFrame = data.copy()
-        ptm_info["peptide_site"] = (
-            ptm_info["peptide"].astype(str).apply(lambda x: self._get_mod_sites(x, self._modi_identifier))
-        )
-
-        # label peptide site
-        ptm_info["peptide_site"] = ptm_info["peptide_site"].apply(lambda x: self._label_peptide_site(x))
 
         # explode data to single protein for label protein site
         ptm_info = self._explode_mod_site(ptm_info)
@@ -833,23 +951,6 @@ class PtmSummarisationPrep(SummarisationPrep):
         ptm_info = self._implode_peptide_peptide_site(ptm_info)
 
         return ptm_info
-
-    def _get_mod_sites(self, pep: str, modi_identifier: str) -> list:
-        mod_sites: list = pep.split(modi_identifier)
-        mod_sites: list = mod_sites[:-1]
-
-        return mod_sites
-
-    def _label_peptide_site(self, mod_sites: list) -> list:
-        sites = list()
-        site_pos: int = 0
-        for mod in mod_sites:
-            mod = "".join(filter(str.isalpha, mod))
-            site_pos = site_pos + len(mod)
-            site = f"{mod[-1]}{site_pos}"
-            sites.append(site)
-
-        return sites
 
     def _label_protein_site(self, protein: str, peptide: str, pep_site: str, fasta_dict: dict) -> str:
         aa: str = pep_site[0]
