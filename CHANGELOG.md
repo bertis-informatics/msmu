@@ -13,8 +13,8 @@ from git tags via setuptools-scm.
   dataset's `uns["protein_map"]`, rather than by looking the PTM peptide up in the global peptide
   map. Under enrichment a phospho peptide is routinely absent from the global run while its protein
   is quantified there from other peptides, so the old lookup failed on the normal case — and failed
-  loudly, aborting the whole run. `infer_protein(propagated_from=...)` is no longer part of the PTM
-  path.
+  loudly, aborting the whole run. The PTM container no longer needs `infer_protein` at all; see
+  *Removed* for `propagated_from`.
 - **PTM sites are localised from the peptide's own accessions.** `to_ptm` reads `proteins` instead
   of an inferred `protein_group`, so site ids no longer depend on which global dataset the PTM data
   happened to be processed alongside. **Breaking**: site ids are now flat — `"P1|S30;P2|S30;P3|S45"`
@@ -63,6 +63,16 @@ from git tags via setuptools-scm.
   after exploding each peptidoform over its accessions, inflating the count by that many times.
 - **Matrix rollups no longer try to aggregate the grouping column.** `median_polish` and `directlfq`
   received the PTM path's `protein_site` column alongside the sample columns and failed on it.
+
+### Removed
+
+- **`infer_protein(propagated_from=...)`.** It copied another dataset's `peptide_map` and
+  `protein_map` onto the container, and raised if any peptide was missing from the copied map — so it
+  only ever ran when the target held no peptide the source lacked, which in practice meant the same
+  data. Its one documented use, carrying a global dataset's grouping onto PTM data, is gone: PTM
+  denominators are now resolved from the global `protein_map` directly. **Breaking**: passing
+  `propagated_from` raises `TypeError`; drop the argument and pass the global `MuData` to
+  `adjust_ptm_by_protein` instead.
 
 ### Notes
 
