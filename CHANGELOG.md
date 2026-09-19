@@ -56,6 +56,9 @@ from git tags via setuptools-scm.
   `stripped_peptide`; a notation msmu cannot read raises instead of producing misplaced sites. A
   target modification on the peptide N-terminus, which crashed with `IndexError`, is now placed on
   residue 1.
+- **`modified_protein` keeps accessions that contain `|`.** It was cut from the site label at the
+  first `|`, so a GENCODE or NCBI `gi|…` accession was truncated and its sites could never find a
+  denominator in `adjust_ptm_by_protein`, which resolves from this column.
 - **PSM counts are no longer multiplied by a site's accession count.** `to_ptm` summed `count_psm`
   after exploding each peptidoform over its accessions, inflating the count by that many times.
 - **Matrix rollups no longer try to aggregate the grouping column.** `median_polish` and `directlfq`

@@ -26,6 +26,8 @@ PROTEIN_SEQUENCES = {
     "P3": "MAAASPGSPVLRKKQ",
     # "ACMPSGSYTK" sits at offset 2: its Cys and Met carry modifications ahead of the phosphosite.
     "P4": "MKACMPSGSYTKRR",
+    # GENCODE-style accessions contain "|" themselves.
+    "ENSP00000000001.1|ENST00000000001.1|GENE1": "MAAASPGSPVLRKKQ",
 }
 PHOSPHO = "[+79.97]"
 CYS_MET_PEPTIDE = "ACMPSGSYTK"
@@ -266,3 +268,13 @@ def test_a_peptide_whose_parse_disagrees_with_stripped_peptide_raises_instead_of
 
     with pytest.raises(ValueError, match="stripped_peptide"):
         mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+
+
+def test_modified_protein_keeps_accessions_that_contain_a_pipe():
+    """adjust_ptm_by_protein resolves denominators from this column; a truncated accession finds none."""
+    gencode_accession = "ENSP00000000001.1|ENST00000000001.1|GENE1"
+    mdata = _single_peptide_mdata(f"SPGS{PHOSPHO}PVLR", "SPGSPVLR", proteins=gencode_accession)
+
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+
+    assert _site_var(result)["modified_protein"].tolist() == [gencode_accession]

@@ -945,7 +945,9 @@ class PtmSummarisationPrep(SummarisationPrep):
             axis=1,
         )
         ptm_info = ptm_info.loc[ptm_info["protein_site"].str.len() > 0].copy()
-        ptm_info["modified_protein"] = ptm_info["protein_site"].apply(lambda x: x.split("|")[0])
+        # The accession itself, not protein_site cut at its first "|": accessions such as GENCODE ids
+        # contain "|", and this column is what adjust_ptm_by_protein resolves denominators from.
+        ptm_info["modified_protein"] = ptm_info["_prots"]
 
         # group by modified peptide and its peptide site
         ptm_info = self._implode_peptide_peptide_site(ptm_info)
