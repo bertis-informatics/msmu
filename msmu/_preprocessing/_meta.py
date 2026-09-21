@@ -242,6 +242,8 @@ def apply_sdrf_to_obs(
         ):
             if column not in projected_columns:
                 projected_columns.append(column)
+        if set_index is not None:
+            _relabel_obsm_frames(adata)
     out.update()
     # update() syncs obs *names* across modalities but not obs *columns*, so merge the projected
     # columns onto the MuData-level obs too (consumers like correct_batch_effect read mdata.obs).
@@ -258,6 +260,23 @@ def apply_sdrf_to_obs(
             "/ SDRF columns not lining up. Inspect obs vs uns['sdrf'] and decide."
         )
     return out
+
+
+def _relabel_obsm_frames(adata) -> None:
+    """Carry an obs rename into the DataFrames in obsm, which keep their own copy of the labels.
+
+    ``set_index`` replaces ``obs.index`` in place, and AnnData does not propagate that to obsm. The obs
+    filter ``add_filter`` records in ``obsm["filter"]`` then keeps the old labels, and the next copy of
+    the modality fails on the mismatch. That is the ordinary TMT order -- blank channels are filtered
+    out first, since they have no sample name to index by -- so the rename has to take obsm along.
+    obsm is aligned to obs by position: only the labels move.
+    """
+    for key in list(adata.obsm.keys()):
+        value = adata.obsm[key]
+        if isinstance(value, pd.DataFrame) and len(value) == adata.n_obs:
+            relabelled = value.copy()
+            relabelled.index = adata.obs_names
+            adata.obsm[key] = relabelled
 
 
 def _default_sdrf_match_key(adata) -> str:

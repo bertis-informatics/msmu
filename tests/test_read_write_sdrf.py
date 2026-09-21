@@ -442,6 +442,24 @@ def test_apply_sdrf_set_index_replaces_obs_index():
     assert list(out.mod["psm"].obs.index) == ["t0h", "t1h"]
 
 
+def test_apply_sdrf_set_index_relabels_obsm_frames_such_as_an_obs_filter():
+    """An obs filter lives in obsm["filter"] with its own copy of the obs labels.
+
+    Renaming obs has to carry it along -- otherwise the next copy of the modality fails on the
+    mismatch. This is the TMT order: blank channels are filtered out first, because they have no
+    sample name to index by, and only then are the observations renamed.
+    """
+    mdata = _tmt_mdata_with_sdrf()
+    mdata.mod["psm"].obs["is_kept"] = True
+    mdata = mm.pp.add_filter(mdata, modality="psm", column="is_kept", keep="eq", value=True, on="obs")
+    mdata = mm.pp.apply_filter(mdata, modality="psm")
+
+    out = mm.pp.apply_sdrf_to_obs(mdata, set_index="source name")
+
+    assert list(out.mod["psm"].obsm["filter"].index) == ["t0h", "t1h"]
+    out.copy()  # raised "value.index does not match parent's obs names" before the fix
+
+
 def test_apply_sdrf_named_nonfunctional_column_raises():
     with pytest.raises(ValueError, match="not a function"):
         mm.pp.apply_sdrf_to_obs(_tmt_mdata_with_sdrf(), columns="comment[fraction identifier]")
