@@ -134,6 +134,15 @@ and returns:
 
 A FASTA file is required because PTM sites must be mapped to protein-sequence coordinates. FASTA can be attached using `mm.utils.attach_fasta()`.
 
+Attach **the FASTA the search used**. The search engine found each peptide in the sequence it
+reports, so an accession the attached FASTA does not hold — or a sequence of it that does not
+contain the peptide, as after a database release change — is a match `to_ptm` cannot reproduce. Such
+accessions are dropped: sites are lost, and a site that should have been reported as spanning two
+protein groups can be adjusted as if it were unambiguous. `to_ptm` counts these and warns, naming
+examples. Contaminant accessions (`Cont_`) are reported at `INFO` instead, since search engines add
+contaminant entries a user FASTA routinely lacks. Site positions are always coordinates in the
+attached FASTA.
+
 The argument `modi_name` determines the modality name (e.g., "phospho" -> "phospho_site"). The
 `modification` argument is the modification tag exactly as it appears in the `peptide` column,
 brackets and case included, or a list of tags to summarise into one modality. A tag may be qualified

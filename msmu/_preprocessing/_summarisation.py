@@ -12,6 +12,7 @@ from ..logging_utils import get_logger
 from .._core._blockdiag import aggregate_features_by_group, dense_block, is_sparse, to_dense_df
 from .._utils._anndata import _require_columns
 from .._utils._pandas import split_delimited_strings
+from .._utils.fasta import CANONICAL_CONTAMINANT_PREFIX
 from .._utils.peptide import (
     MODIFICATION_TAG_CLOSER_BY_OPENER,
     is_residue_qualified_modification,
@@ -31,6 +32,15 @@ logger = get_logger(__name__)
 # modification-not-found error lists; enough to diagnose, few enough to read.
 MAX_REPORTED_MISREAD_PEPTIDES: int = 5
 MAX_REPORTED_PRESENT_TAGS: int = 10
+# How many accessions or peptide-accession pairs a FASTA mismatch names before it says "and N more".
+MAX_REPORTED_UNLOCALISABLE_EXAMPLES: int = 5
+
+
+def _format_examples(values: set[str]) -> str:
+    """Render a few sorted examples, saying how many were left out."""
+    shown = sorted(values)[:MAX_REPORTED_UNLOCALISABLE_EXAMPLES]
+    remainder = len(values) - len(shown)
+    return ", ".join(shown) + (f", and {remainder} more" if remainder else "")
 
 
 @dataclass
@@ -944,6 +954,7 @@ class PtmSummarisationPrep(SummarisationPrep):
             ),
             axis=1,
         )
+        self._report_unlocalisable_matches(ptm_info)
         ptm_info = ptm_info.loc[ptm_info["protein_site"].str.len() > 0].copy()
         # The accession itself, not protein_site cut at its first "|": accessions such as GENCODE ids
         # contain "|", and this column is what adjust_ptm_by_protein resolves denominators from.
@@ -953,6 +964,73 @@ class PtmSummarisationPrep(SummarisationPrep):
         ptm_info = self._implode_peptide_peptide_site(ptm_info)
 
         return ptm_info
+
+    def _report_unlocalisable_matches(self, labelled_ptm_info: pd.DataFrame) -> None:
+        """Report the peptide-accession matches the attached FASTA cannot reproduce.
+
+        The search engine found each peptide in that accession's sequence, so an accession the
+        attached FASTA does not hold -- or a sequence of it that does not contain the peptide --
+        means the attached FASTA is not the one the search used. Such matches are dropped, which
+        silently costs sites and can also turn a site that should be ``shared_groups`` into an
+        adjusted one, so they are counted here rather than passed over.
+
+        Contaminant accessions are reported separately: search engines add contaminant entries of
+        their own, so a user's FASTA routinely lacks them and that alone is not a mismatch.
+        """
+        is_unlocalised = labelled_ptm_info["protein_site"].str.len() == 0
+        absent_accessions: set[str] = set()
+        absent_contaminants: set[str] = set()
+        sequence_mismatches: set[str] = set()
+        unreproducible_match_count = 0
+        for accession, stripped_peptide in zip(
+            labelled_ptm_info.loc[is_unlocalised, "_prots"].astype(str),
+            labelled_ptm_info.loc[is_unlocalised, "stripped_peptide"].astype(str),
+        ):
+            if self._get_uniprot(accession) in self._fasta_dict:
+                sequence_mismatches.add(f"{stripped_peptide} in {accession}")
+            elif CANONICAL_CONTAMINANT_PREFIX in accession:
+                absent_contaminants.add(accession)
+                continue
+            else:
+                absent_accessions.add(accession)
+            unreproducible_match_count += 1
+
+        if absent_contaminants:
+            logger.info(
+                "%d contaminant accessions are not in the attached FASTA (%s). Search engines add "
+                "their own contaminant entries, so this is expected unless the same contaminants "
+                "were part of the search database.",
+                len(absent_contaminants),
+                _format_examples(absent_contaminants),
+            )
+
+        if not absent_accessions and not sequence_mismatches:
+            return
+
+        reasons = []
+        if absent_accessions:
+            reasons.append(
+                f"{len(absent_accessions)} accessions are absent from it ({_format_examples(absent_accessions)})"
+            )
+        if sequence_mismatches:
+            reasons.append(
+                f"{len(sequence_mismatches)} peptides are not in the attached sequence of their "
+                f"accession ({_format_examples(sequence_mismatches)})"
+            )
+
+        has_any_site = labelled_ptm_info.groupby("peptide", observed=True)["protein_site"].apply(
+            lambda protein_sites: bool((protein_sites.str.len() > 0).any())
+        )
+        logger.warning(
+            "The attached FASTA cannot reproduce %d of the search engine's peptide-protein matches: %s. "
+            "%d of %d modified peptidoforms produced no site at all. Attach the FASTA the search used -- "
+            "sites are otherwise lost, and a site whose accessions no longer span two protein groups can "
+            "be adjusted as if it were unambiguous.",
+            unreproducible_match_count,
+            "; ".join(reasons),
+            int((~has_any_site).sum()),
+            len(has_any_site),
+        )
 
     def _label_protein_site(self, protein: str, peptide: str, pep_site: str, fasta_dict: dict) -> str:
         aa: str = pep_site[0]

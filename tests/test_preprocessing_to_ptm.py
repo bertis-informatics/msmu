@@ -278,3 +278,39 @@ def test_modified_protein_keeps_accessions_that_contain_a_pipe():
     result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
 
     assert _site_var(result)["modified_protein"].tolist() == [gencode_accession]
+
+
+def _warning_messages(caplog) -> list[str]:
+    return [record.getMessage() for record in caplog.records if record.levelname == "WARNING"]
+
+
+def test_an_accession_the_attached_fasta_lacks_is_reported(caplog):
+    """The engine found the peptide in that accession, so the attached FASTA is not the search one."""
+    caplog.set_level("INFO", logger="msmu")
+    mdata = _single_peptide_mdata(f"SPGS{PHOSPHO}PVLR", "SPGSPVLR", proteins="P1;Q99999")
+
+    mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+
+    assert any("Q99999" in message for message in _warning_messages(caplog))
+
+
+def test_a_sequence_that_does_not_contain_the_peptide_is_reported(caplog):
+    """A different FASTA release or isoform keeps the accession but loses the peptide."""
+    caplog.set_level("INFO", logger="msmu")
+    # P4's sequence holds CYS_MET_PEPTIDE, not "SPGSPVLR".
+    mdata = _single_peptide_mdata(f"SPGS{PHOSPHO}PVLR", "SPGSPVLR", proteins="P1;P4")
+
+    mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+
+    assert any("SPGSPVLR in P4" in message for message in _warning_messages(caplog))
+
+
+def test_missing_contaminants_alone_do_not_warn(caplog):
+    """Search engines add their own contaminant entries, so a user FASTA routinely lacks them."""
+    caplog.set_level("INFO", logger="msmu")
+    mdata = _single_peptide_mdata(f"SPGS{PHOSPHO}PVLR", "SPGSPVLR", proteins="Cont_P02768;P1")
+
+    mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+
+    assert not _warning_messages(caplog)
+    assert any("Cont_P02768" in record.getMessage() for record in caplog.records)

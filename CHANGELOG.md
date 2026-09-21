@@ -40,6 +40,12 @@ from git tags via setuptools-scm.
   three different residue masses. **Breaking**: matching is by equality with a whole tag, not by
   substring, so a fragment such as `"79.97"` is rejected. A modification that matches nothing now
   raises an error listing the tags the data does contain, instead of an unrelated pandas error.
+- **`to_ptm` reports the peptide–protein matches the attached FASTA cannot reproduce.** An accession
+  the FASTA does not hold, or whose sequence does not contain the peptide, is dropped from the site
+  — silently until now, although it both loses sites and can turn a site whose accessions should
+  span two protein groups into an adjusted one. The counts and examples are now a `WARNING`, with
+  how many modified peptidoforms produced no site at all; missing contaminant accessions (`Cont_`)
+  are reported at `INFO`, since search engines add contaminant entries a user FASTA routinely lacks.
 - **`to_ptm` defaults to `agg_method="median_polish"`.** It models a per-peptidoform effect, so a
   site's value no longer moves when the set of peptidoforms supporting it changes between samples;
   for a site backed by a single peptidoform it is identical to `median`. Linear-looking input is
