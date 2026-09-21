@@ -333,3 +333,58 @@ def test_status_records_when_the_estimator_declined_to_produce_a_value():
     assert site_var["adjustment_status"].tolist() == [ADJUSTMENT_STATUS_NO_ESTIMATE]
     assert site_var["is_protein_adjusted"].tolist() == [False]
     assert site_var["denominator_group"].tolist() == ["P1"]
+
+
+# ---------------------------------------------------------------- the global dataset as a file
+# Passing the matched global dataset as an .h5mu path keeps the PTM container's history one chain:
+# the file is an input with a content hash, not a second MuData whose history merges in. A history
+# with two parents is what mm.pv.replay and mm.pv.to_script refuse.
+
+
+def _write_global(tmp_path, global_mdata: MuData):
+    global_path = tmp_path / "global.h5mu"
+    global_mdata.write_h5mu(global_path)
+    return global_path
+
+
+def test_the_global_dataset_can_be_given_as_a_file_and_yields_the_same_values(tmp_path):
+    ptm_mdata = _make_ptm({"P1|S5": "P1", "P2|S9": "P2"})
+    global_mdata = _make_global(["P1", "P2"], {"P1": "P1", "P2": "P2"})
+    global_path = _write_global(tmp_path, global_mdata)
+
+    from_object = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_mdata)
+    from_path = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_path)
+    from_string = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=str(global_path))
+
+    np.testing.assert_allclose(from_path["phospho_site"].X, from_object["phospho_site"].X, equal_nan=True)
+    np.testing.assert_allclose(from_string["phospho_site"].X, from_object["phospho_site"].X, equal_nan=True)
+    assert from_path["phospho_site"].var["adjustment_status"].tolist() == [ADJUSTMENT_STATUS_ADJUSTED] * 2
+
+
+def test_a_global_file_is_recorded_as_a_hashed_input_and_keeps_the_history_one_chain(tmp_path):
+    ptm_mdata = _make_ptm({"P1|S5": "P1"})
+    global_mdata = _make_global(["P1"], {"P1": "P1"})
+    global_path = _write_global(tmp_path, global_mdata)
+
+    with mm.pv.options(hashing=True):
+        from_path = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_path)
+        from_object = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_mdata)
+
+    event = mm.pv.get_log(from_path)["events"][-1]
+    global_input = next(entity for entity in event["inputs"] if entity["role"] == "arguments/global_mdata")
+    assert global_input["path"] == str(global_path)
+    assert global_input["hash"]["status"] == "completed"
+    # The object carries no history here, so neither call has a parent; what matters is that the file
+    # is an input entity rather than a MuData whose history would merge into this one.
+    assert global_input["type"] != "MuData"
+    object_input = next(
+        entity
+        for entity in mm.pv.get_log(from_object)["events"][-1]["inputs"]
+        if entity["role"] == "arguments/global_mdata"
+    )
+    assert object_input["type"] == "MuData"
+
+
+def test_a_missing_global_file_fails_before_any_adjustment(tmp_path):
+    with pytest.raises((FileNotFoundError, OSError)):
+        mm.pp.adjust_ptm_by_protein(_make_ptm({"P1|S5": "P1"}), global_mdata=tmp_path / "absent.h5mu")
