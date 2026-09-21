@@ -23,7 +23,7 @@ from ._filter import _mask_boolean_filter
 
 # for type checking only
 import anndata as ad
-from typing import Callable, Literal
+from typing import Callable, Literal, get_args
 
 
 logger = get_logger(__name__)
@@ -34,6 +34,11 @@ MAX_REPORTED_MISREAD_PEPTIDES: int = 5
 MAX_REPORTED_PRESENT_TAGS: int = 10
 # How many accessions or peptide-accession pairs a FASTA mismatch names before it says "and N more".
 MAX_REPORTED_UNLOCALISABLE_EXAMPLES: int = 5
+
+MultisiteHandling = Literal["each_site", "site_combination"]
+_MULTISITE_HANDLINGS: tuple[str, ...] = get_args(MultisiteHandling)
+# Joins the sites of one peptidoform inside a site-combination label: "P1|S5+S8".
+SITE_COMBINATION_SEPARATOR: str = "+"
 
 
 def _format_examples(values: set[str]) -> str:
@@ -525,6 +530,7 @@ class Aggregator:
             "count_peptide": ("peptide", "nunique"),
             "count_stripped_peptide": ("stripped_peptide", "nunique"),
             "modified_protein": ("modified_protein", "first"),
+            "count_site": ("count_site", "first"),
         }
 
         return aggregator
@@ -779,7 +785,16 @@ class PtmSummarisationPrep(SummarisationPrep):
         6. Merge data with peptide value indexed by peptide
     """
 
-    def __init__(self, adata: ad.AnnData, modification: str | Sequence[str], fasta: pd.DataFrame) -> None:
+    def __init__(
+        self,
+        adata: ad.AnnData,
+        modification: str | Sequence[str],
+        fasta: pd.DataFrame,
+        multisite_handling: MultisiteHandling = "each_site",
+    ) -> None:
+        if multisite_handling not in _MULTISITE_HANDLINGS:
+            raise ValueError(f"Unknown multisite_handling '{multisite_handling}'. Choose from {_MULTISITE_HANDLINGS}.")
+        self._multisite_handling: MultisiteHandling = multisite_handling
         self._target_modifications: tuple[str, ...] = normalise_target_modifications(modification)
         self._fasta_dict: dict = fasta["Sequence"].to_dict()
         self._col_to_groupby = "ptm_site"
@@ -940,6 +955,16 @@ class PtmSummarisationPrep(SummarisationPrep):
         """
         ptm_info: pd.DataFrame = data.copy()
 
+        if self._multisite_handling == "site_combination":
+            # The peptidoform is assigned to the set of sites it carries, as one unit: a multiply
+            # modified peptide's change cannot be attributed to one of its sites, the way a shared
+            # peptide's cannot be attributed to one protein. Joining the sites here makes the explode
+            # below a no-op, so each peptidoform reaches exactly one feature.
+            ptm_info["count_site"] = ptm_info["peptide_site"].map(len)
+            ptm_info["peptide_site"] = ptm_info["peptide_site"].map(SITE_COMBINATION_SEPARATOR.join)
+        else:
+            ptm_info["count_site"] = 1
+
         # explode data to single protein for label protein site
         ptm_info = self._explode_mod_site(ptm_info)
         ptm_info = self._explode_proteins(ptm_info)
@@ -1033,8 +1058,10 @@ class PtmSummarisationPrep(SummarisationPrep):
         )
 
     def _label_protein_site(self, protein: str, peptide: str, pep_site: str, fasta_dict: dict) -> str:
-        aa: str = pep_site[0]
-        pos: int = int(pep_site[1:])
+        # One peptide site ("S5") or a site combination ("S5+S8"); each is shifted by the peptide's offset.
+        peptide_sites: list[tuple[str, int]] = [
+            (site[0], int(site[1:])) for site in pep_site.split(SITE_COMBINATION_SEPARATOR)
+        ]
         prot_site: str = ""
 
         res: list = list()
@@ -1043,8 +1070,10 @@ class PtmSummarisationPrep(SummarisationPrep):
         if prot_split in fasta_dict.keys():
             refseq: str = fasta_dict[prot_split]
             for match in re.finditer(peptide, refseq):
-                matched = f"{prot_split}|{aa}{pos + match.span()[0]}"
-                res.append(matched)
+                protein_sites = SITE_COMBINATION_SEPARATOR.join(
+                    f"{residue}{position + match.span()[0]}" for residue, position in peptide_sites
+                )
+                res.append(f"{prot_split}|{protein_sites}")
             prot_site = "/".join(res)
 
         return prot_site
@@ -1076,6 +1105,7 @@ class PtmSummarisationPrep(SummarisationPrep):
                 # "first", not "sum": the accession explode duplicated this peptidoform's row, so
                 # summing here would multiply its PSM count by the number of accessions it maps to.
                 "count_psm": "first",
+                "count_site": "first",
             }
         )
 
