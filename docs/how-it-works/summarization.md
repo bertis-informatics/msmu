@@ -30,6 +30,33 @@ Because they model per-peptide response factors — meaningful when combining *d
 
 **Important:** `median_polish` and `directlfq` are additive / log-space methods and must be applied to log2-transformed data. Call `mm.pp.log2_transform()` before summarizing with them.
 
+## Identification q-values and tied PEPs
+
+With `calculate_q=True` and decoy information available, `to_peptide()` and
+`to_protein()` use the same target–decoy calculation. Exactly equal PEP values
+form one group; distinct PEP values are never rounded together. Groups are
+ordered by increasing PEP, and cumulative target (`T`) and decoy (`D`) counts
+are evaluated only after including an entire group:
+
+`FDR = min(1, (D + 1) / T)`
+
+The q-value is the reverse cumulative minimum of these group FDRs. Every target
+and decoy in a group receives the same q-value, regardless of input row order.
+For example, five targets and one decoy with the same PEP all receive
+`q = (1 + 1) / 5 = 0.4`, wherever the decoy appears in the input. Boundaries
+with no cumulative targets retain undefined (`NaN`) q-values. Missing PEPs
+form a final group, preserving the previous NaN-last ordering.
+
+This replaces the previous row-wise treatment of ties. For the same inputs at
+one calculation step, q-values can stay the same or increase, so fewer features
+may pass a given cutoff. Untied inputs keep their previous q-values. Changes to
+earlier filtering can also change the inputs and results of later steps.
+
+Existing provenance histories retain their original expected hashes and may
+fail strict replay with this policy. Rerun the original workflow from its source
+files with hashing enabled to record a new baseline; keep the old history for
+comparison. Do not overwrite its expected hashes to make verification pass.
+
 ## `to_peptide()`
 
 `to_peptide()` function takes:
