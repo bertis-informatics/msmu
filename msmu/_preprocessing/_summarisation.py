@@ -35,10 +35,14 @@ MAX_REPORTED_PRESENT_TAGS: int = 10
 # How many accessions or peptide-accession pairs a FASTA mismatch names before it says "and N more".
 MAX_REPORTED_UNLOCALISABLE_EXAMPLES: int = 5
 
-MultisiteHandling = Literal["each_site", "site_combination"]
+# "single" is reserved for a single-site table that prefers singly modified peptidoforms and fills the
+# sites seen only on multiply modified ones from the least-modified form (TMT-Integrator, PTM-SEA).
+MultisiteHandling = Literal["pool", "combination"]
 _MULTISITE_HANDLINGS: tuple[str, ...] = get_args(MultisiteHandling)
-# Joins the sites of one peptidoform inside a site-combination label: "P1|S5+S8".
-SITE_COMBINATION_SEPARATOR: str = "+"
+# Joins the sites of one peptidoform inside a site-combination label: "P1|S5_S8". An underscore rather
+# than "+": it survives regular expressions, R column names and file names, and it is what MSstatsPTM
+# writes. It only ever follows the label's last "|", so an accession containing "_" stays unambiguous.
+SITE_COMBINATION_SEPARATOR: str = "_"
 
 
 def _format_examples(values: set[str]) -> str:
@@ -790,7 +794,7 @@ class PtmSummarisationPrep(SummarisationPrep):
         adata: ad.AnnData,
         modification: str | Sequence[str],
         fasta: pd.DataFrame,
-        multisite_handling: MultisiteHandling = "each_site",
+        multisite_handling: MultisiteHandling = "pool",
     ) -> None:
         if multisite_handling not in _MULTISITE_HANDLINGS:
             raise ValueError(f"Unknown multisite_handling '{multisite_handling}'. Choose from {_MULTISITE_HANDLINGS}.")
@@ -955,7 +959,7 @@ class PtmSummarisationPrep(SummarisationPrep):
         """
         ptm_info: pd.DataFrame = data.copy()
 
-        if self._multisite_handling == "site_combination":
+        if self._multisite_handling == "combination":
             # The peptidoform is assigned to the set of sites it carries, as one unit: a multiply
             # modified peptide's change cannot be attributed to one of its sites, the way a shared
             # peptide's cannot be attributed to one protein. Joining the sites here makes the explode
@@ -1058,7 +1062,7 @@ class PtmSummarisationPrep(SummarisationPrep):
         )
 
     def _label_protein_site(self, protein: str, peptide: str, pep_site: str, fasta_dict: dict) -> str:
-        # One peptide site ("S5") or a site combination ("S5+S8"); each is shifted by the peptide's offset.
+        # One peptide site ("S5") or a site combination ("S5_S8"); each is shifted by the peptide's offset.
         peptide_sites: list[tuple[str, int]] = [
             (site[0], int(site[1:])) for site in pep_site.split(SITE_COMBINATION_SEPARATOR)
         ]
