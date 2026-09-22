@@ -71,30 +71,26 @@ MuData object is not supported.
 
 ## Floating-point hash precision
 
-Hashing uses **12 significant digits** for floating-point data by default. This only
+Hashing uses **12 significant digits** for floating-point data. The precision is fixed. This only
 normalizes the hash input: stored values and analysis calculations are unchanged.
 Files, identifiers/axes, strings, integers, booleans and numeric dtypes remain exact.
 Sparse matrices stay sparse; floating-point scratch buffers are processed in chunks.
 
 ```python
-mm.pv.set_options(hashing=True, significant_digits=12)
-# Legacy exact floating-point hashes:
-with mm.pv.options(hashing=True, significant_digits=None):
-    mdata = mm.read_sage(...)
-
-rounded = mm.pv.compute_hash(mdata)  # 12 significant digits
-exact = mm.pv.compute_hash(mdata, significant_digits=None)
+mm.pv.set_options(hashing=True)
+digest = mm.pv.compute_hash(mdata)  # Always 12 significant digits
 ```
 
-Completed data hashes record `normalization="significant-digits-v1"` and
-`significant_digits=12`. Replay and generated scripts use the recorded policy;
-older hashes without these fields retain exact verification. To use the new
+Completed data hashes record `normalization="msmu-v1"`, identifying the full MSMU
+hashing policy, including fixed 12-digit floating-point normalization. Replay and generated scripts use the recorded policy;
+older `significant-digits-v1` hashes retain their recorded precision, and hashes
+without normalization metadata retain exact verification. To use the new
 policy, rerun and record the analysis rather than relabelling existing hashes.
 
 This is quantization, **not an allclose tolerance test**. Values on opposite sides
 of a rounding boundary can still differ, and changed filter membership is never
 ignored. Rounded hash agreement establishes agreement under the recorded precision,
-not bitwise identity. Supported precision is 1–15 significant digits, or `None`.
+not bitwise identity. There is no user-selectable precision option.
 
 ## Content hashes
 
@@ -103,7 +99,7 @@ Hashing defaults to **on**. Set `hashing=False` to disable it; environment and e
 ```python
 # Persistent setting in the current execution context:
 mm.pv.set_options(hashing=True)
-print(mm.pv.get_options())  # {"hashing": True, "significant_digits": 12}
+print(mm.pv.get_options())  # {"hashing": True}
 mdata = mm.pp.log2_transform(mdata, modality="precursor")
 mm.pv.set_options(hashing=False)
 
@@ -347,8 +343,8 @@ script = mm.pv.to_script(
 
 Generated scripts enable hashing once at startup with `mm.pv.set_options(hashing=True)`,
 including when `verify=False`; that flag only skips comparison with recorded hashes.
-The setting remains enabled in the execution context. Per-call option blocks are
-only emitted when verification requires non-default hash precision.
+The setting remains enabled in the execution context. Internal compatibility blocks
+are only emitted when verifying older logs recorded with a different hash precision.
 
 `to_script` returns Python source text when `filename` is omitted. With `filename`,
 it writes the script, overwrites any existing destination, and returns `None`.
