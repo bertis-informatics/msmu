@@ -8,6 +8,29 @@ from git tags via setuptools-scm.
 
 ### Changed
 
+- **A multiply modified peptidoform quantifies its site combination, not each site.** `to_ptm`
+  gave a doubly phosphorylated peptide's value to both of its sites, so a site pooled singly and
+  multiply modified peptidoforms and one measurement reached several sites. A multiply modified
+  peptide's change cannot be attributed to one of its sites — the same problem a shared peptide
+  poses in protein inference, and the same answer: it is reported as the group it belongs to.
+  **Breaking**: by default (`multisite="combination"`) such a peptidoform becomes one feature named
+  for its site set, `"P1|S12_S25"`, and no longer contributes to `"P1|S12"` or `"P1|S25"`. Every
+  peptidoform then feeds exactly one feature; peptidoforms differing only in other modifications or
+  missed cleavages still share one. `var["count_site"]` says how many sites a feature names, so
+  `count_site == 1` selects the site table built from singly modified peptidoforms alone — what
+  site-centric tools such as PTM-SEA read. `multisite="pool"` restores the previous behaviour. On a
+  real TMTpro phospho run, two singly phosphorylated forms of one site agreed on the treatment
+  effect (r = 0.80) where a single and a multiple form did not (r = 0.36), and 6.6% of pooled sites
+  carried values identical to another site's. This is the convention of Spectrum Mill's phosphosite
+  tables (CPTAC), TMT-Integrator's multi-site report and MSstatsPTM.
+- **`adjust_ptm_by_protein` accepts the global dataset as an `.h5mu` path.** Passed as a `MuData`,
+  the global container's own history merges into the result, and `mm.pv.replay` / `mm.pv.to_script`
+  refuse a history with two parents — so a PTM workflow could be reproduced only up to the
+  adjustment. Passed as a path (`global_mdata=Path("global.h5mu")`), the file is recorded as an
+  input with its content hash, like a reader's source file, and the whole workflow replays. Replay
+  needs the original files either way, so this adds no requirement. Pass a `Path` rather than a
+  `str` for the content hash: provenance treats a string as a file only when the parameter's name
+  says so.
 - **PTM adjustment finds its denominator by accession instead of by peptide.** A site's parent
   protein is now located by translating the accessions it was localised on through the *global*
   dataset's `uns["protein_map"]`, rather than by looking the PTM peptide up in the global peptide
@@ -53,6 +76,11 @@ from git tags via setuptools-scm.
 
 ### Fixed
 
+- **`apply_sdrf_to_obs(set_index=...)` carries the obs rename into `obsm`.** The obs filter that
+  `add_filter` records in `obsm["filter"]` kept the old observation labels after the rename, and the
+  next copy of the modality failed with "value.index does not match parent's obs names". That is
+  the ordinary TMT order — blank channels have no sample name to index by, so they are filtered out
+  first and the observations renamed afterwards — so every TMT run that named its samples hit it.
 - **PTM site positions no longer count the letters inside modification tags.** `to_ptm` located a
   site by counting every letter before the modification, so each tag with letters in it —
   DIA-NN's `(UniMod:4)`, MaxQuant's `(Oxidation (M))` — pushed every later site further along the

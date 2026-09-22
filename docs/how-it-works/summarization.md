@@ -156,6 +156,38 @@ if nothing matches, the error lists the tags the data contains.
 | MaxQuant | `"(Phospho (STY))"` |
 | FragPipe | `["S[167]", "T[181]", "Y[243]"]` (the modified residue's total mass) |
 
+### Peptides carrying the modification on several residues
+
+A peptidoform with the target modification on two residues is one measurement of a species that
+carries both. Its change between conditions cannot be attributed to either residue — it is the same
+problem a shared peptide poses in protein inference, and `to_ptm` gives it the same answer: the
+peptidoform is reported as the group it belongs to. With `multisite="combination"` (the default) it
+becomes one feature named for its site set, and peptidoforms that differ only in other
+modifications or missed cleavages still share a feature:
+
+| Peptidoform | Feature |
+|---|---|
+| `SPGS[ph]PVLR`, `SPGS[ph]PVLRK` (missed cleavage) | `P1\|S8` |
+| `S[ph]PGS[ph]PVLR` | `P1\|S5_S8` |
+| `S[ph]PGS[ph]PVLR` matching two proteins | `P1\|S5_S8;P2\|S3_S6` |
+
+Every peptidoform then feeds exactly one feature, so no measurement is tested twice, and no value is
+mixed with the change of a neighbouring site. `var["count_site"]` records how many sites a feature
+names; the features with `count_site == 1` are the site table built from singly modified
+peptidoforms alone, which is what site-centric tools (kinase-activity inference, PhosphoSitePlus
+lookups) read:
+
+```python
+site = mdata["phospho_site"]
+single_site_table = site[:, site.var["count_site"] == 1]
+```
+
+A site seen only on multiply modified peptidoforms has no single-site row; it is in the combination
+rows. `multisite="pool"` instead copies a multiply modified peptidoform's whole value into each of
+its sites, so a site pools singly and multiply modified forms — the interpretation MaxQuant's and
+Spectronaut's site tables make, and the previous default. The combination convention is that of
+Spectrum Mill's phosphosite tables, TMT-Integrator's multi-site report and MSstatsPTM.
+
 `agg_method` can be selected among the methods described in [Aggregation methods](#aggregation_methods); the matrix rollups `median_polish` and `directlfq` are available here as well (on log2-transformed data).
 
 ```python
@@ -166,6 +198,7 @@ mdata = mm.pp.to_ptm(
     modi_name="phospho",
     modification="[+79.9663]",
     agg_method="median_polish", # default
+    multisite="combination",    # default; "pool" gives a multiply modified peptide to each site
     top_n=None                  # default
     )
 ```

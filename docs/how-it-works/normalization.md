@@ -42,7 +42,7 @@ For the `ridge` method, a slope is instead fitted per site and the residual is k
 ```python
 mdata = mm.pp.adjust_ptm_by_protein(
     mdata,
-    global_mdata=global_mdata,   # MuData object for global proteome
+    global_mdata=global_mdata,   # the global proteome: a MuData, or the path of its .h5mu
     modality="phospho_site",     # ptm modality
     method="ratio",              # options: "ratio", "ridge". default "ratio"
     rescale=True,                # whether to rescale adjusted values. default True
@@ -50,6 +50,27 @@ mdata = mm.pp.adjust_ptm_by_protein(
     ridge_alpha=None,            # ridge penalty; only used when method="ridge"
 )
 ```
+
+The global dataset must hold a `protein` modality and the `uns["protein_map"]` that
+`infer_protein()` writes, quantified on the same sample names as the PTM data, in log2 space.
+
+### Pass the global dataset as a file to keep the workflow reproducible
+
+Given as a `MuData`, the global container's own history merges into the result, and the adjustment
+event has two parents. `mm.pv.replay()` and `mm.pv.to_script()` refuse a history with two parents,
+so the PTM workflow could be reproduced only up to this step. Given as a path, the file is recorded
+as an input with its content hash — the way a reader's source file is — and the history stays one
+chain, so the whole workflow replays and verifies. Replay needs the original files either way, so
+this asks for nothing new.
+
+```python
+from pathlib import Path
+
+mdata = mm.pp.adjust_ptm_by_protein(mdata, global_mdata=Path("global/02_processed.h5mu"))
+```
+
+Pass a `Path` rather than a `str`: provenance records a string as a file only when the parameter's
+name says so, and this one's does not, so a string is read correctly but recorded without a hash.
 
 ### Where the result goes
 
