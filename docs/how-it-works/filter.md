@@ -59,9 +59,9 @@ mdata = mm.pp.add_filter(
 - `on="obs"`: apply only `.obsm["filter"]`
 - `columns=[...]` (optional): apply only selected filter columns by name
 
-When `on="all"` and one side does not have a stored filter table, a warning is
-printed and that axis is skipped. When `on="var"` or `on="obs"` and the requested
-filter table is missing, an error is raised.
+When `on="all"` and one side does not have a stored filter table, that axis is
+skipped. A warning is printed if neither side has filters. When `on="var"` or `on="obs"` and the requested
+filter table is missing, an error is raised. Invalid `on` values also raise an error.
 
 The function also prints which filter columns are applied. The provenance logger records
 the successful call in `mdata.uns["_log"]`, but does not capture printed output.
@@ -95,3 +95,19 @@ front of them), so the reader normalises every accession to one canonical form
 `[rev_][Cont_]<accession>` and sets the flag from the parse. If you do filter on contaminant
 status, filter on the flag rather than matching a marker on the protein string — a string match
 silently stops matching when the search uses a different contaminant FASTA.
+
+
+## Validation and compatibility
+
+Requested filter names must all exist on the selected axis (either axis for
+`on="all"`). Missing names raise an error; filters are not partially applied.
+Variable filters must also exist in the decoy mask when decoys are present.
+Applying a subset of filters preserves the other decoy conditions for later calls.
+
+`contains` and `not_contains` retain pandas regular-expression semantics:
+`A.B` also matches `AxB`. Escape regex metacharacters for literal matching.
+
+Workflows that relied on missing values passing or requested nonexistent columns
+may no longer replay unchanged. Re-record those workflows with the current API.
+
+The existing copy behavior is retained in this correctness fix.

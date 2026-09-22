@@ -302,11 +302,13 @@ def test_numeric_filters_reject_missing_values(dtype, keep):
     assert not mask.iloc[1]
     assert not mask.isna().any()
 
+
 @pytest.mark.parametrize("dtype", [object, "string"])
 @pytest.mark.parametrize("keep", ["contains", "not_contains"])
 def test_string_filters_reject_missing_values(dtype, keep):
     mask = _mask_boolean_filter(pd.Series(["abc", None, "xyz"], dtype=dtype), keep, "a")
     assert mask.tolist() == ([True, False, False] if keep == "contains" else [False, False, True])
+
 
 def test_filter_missing_values_in_targets_and_decoys(filter_mdata):
     for table in (filter_mdata["psm"].var, filter_mdata["psm"].uns["decoy"]):
@@ -315,6 +317,50 @@ def test_filter_missing_values_in_targets_and_decoys(filter_mdata):
     out = apply_filter(out, "psm")
     assert out["psm"].var_names.tolist() == ["v3"]
     assert out["psm"].uns["decoy"].index.tolist() == ["v3"]
+
+
+def test_apply_filter_rejects_invalid_axis(filter_mdata):
+    with pytest.raises(ValueError, match="Unknown filter axis"):
+        apply_filter(filter_mdata, "psm", on="vars")
+
+
+@pytest.mark.parametrize("second_columns", [None, ["score_lt_28.0"]])
+def test_sequential_filters_preserve_decoy_conditions(filter_mdata, second_columns):
+    out = add_filter(filter_mdata, "psm", "score", "gt", 15.)
+    out = add_filter(out, "psm", "score", "lt", 28.)
+    first = apply_filter(out, "psm", on="var", columns=["score_gt_15.0"])
+    assert first["psm"].uns["decoy_filter"].columns.tolist() == out["psm"].varm["filter"].columns.tolist()
+    sequential = apply_filter(first, "psm", on="var", columns=second_columns)
+    together = apply_filter(out, "psm", on="var")
+    assert sequential["psm"].var_names.tolist() == together["psm"].var_names.tolist() == ["v2"]
+    pd.testing.assert_frame_equal(sequential["psm"].uns["decoy"], together["psm"].uns["decoy"])
+    assert sequential["psm"].uns["decoy"].index.tolist() == ["v2"]
+
+
+@pytest.mark.parametrize("axis", ["var", "obs", "all"])
+def test_missing_requested_filter_does_not_apply_partial_set(filter_mdata, axis):
+    out = add_filter(filter_mdata, "psm", "score", "gt", 15.)
+    out = add_filter(out, "psm", "score", "lt", 28.)
+    if axis == "obs":
+        out["psm"].obs["group"] = ["a", "b"]
+        out = add_filter(out, "psm", "group", "eq", "a", on="obs")
+        name = "group_eq_a"
+    else:
+        name = "score_gt_15.0"
+    before = get_log(out)
+    with pytest.raises(ValueError, match="Filter columns not found"):
+        apply_filter(out, "psm", on=axis, columns=[name, "missing"])
+    assert get_log(out) == before
+    assert out["psm"].shape == (2, 3)
+
+
+def test_missing_decoy_condition_raises(filter_mdata):
+    out = add_filter(filter_mdata, "psm", "score", "gt", 15.)
+    out = add_filter(out, "psm", "score", "lt", 28.)
+    out["psm"].uns["decoy_filter"] = out["psm"].uns["decoy_filter"].drop(columns="score_lt_28.0")
+    with pytest.raises(ValueError, match="Decoy filter columns not found"):
+        apply_filter(out, "psm", on="var")
+
 
 def test_concat_undefined_masks_remain_unapplied(filter_mdata):
     import msmu as mm

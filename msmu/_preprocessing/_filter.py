@@ -152,11 +152,15 @@ def apply_filter(
             - "obs": apply only observation filters from `obsm["filter"]`
             - "all": apply both variable and observation filters
         columns: Optional list of filter column names to apply. When omitted, all
-            available filter columns for the selected axis are applied.
+            available filter columns for the selected axis are applied. Missing
+            requested columns raise ValueError rather than applying a partial set.
 
     Returns:
         MuData object with the filter applied.
     """
+    if on not in {"all", "var", "obs"}:
+        raise ValueError(f"Unknown filter axis: {on}")
+
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
 
@@ -250,6 +254,9 @@ def apply_filter(
             if not selected_filter_columns:
                 raise ValueError(f"No matching filter columns found in {modality}.")
 
+    if missing_filter_columns:
+        raise ValueError(f"Filter columns not found in {modality}: {missing_filter_columns}")
+
     filtered_adata = adata_to_filter[obs_mask, var_mask].copy()
 
     if mstatus.__getattribute__(modality).has_decoy and var_filter_columns:
@@ -257,12 +264,12 @@ def apply_filter(
         if "decoy_filter" not in adata_to_filter.uns:
             raise ValueError("No decoy filter found in the modality's uns.")
         decoy_filter = adata_to_filter.uns["decoy_filter"]
-        decoy_use_columns = [col for col in var_filter_columns if col in decoy_filter.columns]
-        if not decoy_use_columns:
-            raise ValueError("No matching decoy filter columns found in the modality's uns.")
+        missing_decoy_columns = [col for col in var_filter_columns if col not in decoy_filter.columns]
+        if missing_decoy_columns:
+            raise ValueError(f"Decoy filter columns not found: {missing_decoy_columns}")
 
-        decoy_filtered_df = decoy_df[decoy_filter[decoy_use_columns].all(axis=1)].copy()
-        decoy_filter = decoy_filter.loc[decoy_filtered_df.index, decoy_use_columns]
+        decoy_filtered_df = decoy_df[decoy_filter[var_filter_columns].all(axis=1)].copy()
+        decoy_filter = decoy_filter.loc[decoy_filtered_df.index].copy()
 
         filtered_adata.uns["decoy"] = decoy_filtered_df
         filtered_adata.uns["decoy_filter"] = decoy_filter
