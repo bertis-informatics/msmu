@@ -26,36 +26,36 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from ._hashing import ALGORITHM, FLOAT_NORMALIZATION, _validate_precision, compute_hash
+from ._hashing import ALGORITHM, HASH_POLICY, _validate_precision, compute_hash
 from ._sources import get_download_buffer, is_url, source_scope
 from ..logging_utils import get_logger, prune_closed_package_stream_handlers, prune_closed_stream_handlers
 
 _hashing = ContextVar("msmu_provenance_hashing", default=True)
 _active = ContextVar("msmu_provenance_active", default=False)
 _OMIT = object()
+_normalization: ContextVar[str | None] = ContextVar("msmu_hash_normalization", default=HASH_POLICY)
 _significant_digits: ContextVar[int | None] = ContextVar("msmu_hash_significant_digits", default=12)
 
 
-def set_options(*, hashing: bool, significant_digits: int | None = 12) -> None:
+def set_options(*, hashing: bool) -> None:
     """Enable or disable input/output hashing in this execution context (default True)."""
     if not isinstance(hashing, bool):
         raise TypeError("hashing must be a bool")
-    _validate_precision(significant_digits)
     _hashing.set(hashing)
-    _significant_digits.set(significant_digits)
 
 
-def get_options() -> dict[str, bool | int | None]:
+def get_options() -> dict[str, bool]:
     """Return a snapshot of the settings in this execution context."""
-    return {"hashing": _hashing.get(), "significant_digits": _significant_digits.get()}
+    return {"hashing": _hashing.get()}
 
 
 @contextlib.contextmanager
-def options(*, hashing: bool, significant_digits: int | None = 12):
+def options(*, hashing: bool, significant_digits: int | None = 12, normalization: str | None = HASH_POLICY):
     """Temporarily enable/disable hashing, restoring the previous setting on exit."""
     if not isinstance(hashing, bool):
         raise TypeError("hashing must be a bool")
     _validate_precision(significant_digits)
+    normalization_token = _normalization.set(normalization)
     precision_token = _significant_digits.set(significant_digits)
     token = _hashing.set(hashing)
     try:
@@ -63,6 +63,7 @@ def options(*, hashing: bool, significant_digits: int | None = 12):
     finally:
         _hashing.reset(token)
         _significant_digits.reset(precision_token)
+        _normalization.reset(normalization_token)
 
 
 def _json(value):
@@ -406,9 +407,11 @@ def _entity(path, value, hashing):
                 raise ValueError("URL content was not read through the shared input loader")
             precision = None if isinstance(content, (Path, BytesIO)) else _significant_digits.get()
             hash_info = {"status": "completed", "algorithm": ALGORITHM,
-                              "value": compute_hash(content, significant_digits=precision)}
+                              "value": compute_hash(content, significant_digits=precision, normalization=_normalization.get())}
             if precision is not None:
-                hash_info.update(normalization=FLOAT_NORMALIZATION, significant_digits=precision)
+                hash_info["normalization"] = _normalization.get()
+                if _normalization.get() != HASH_POLICY:
+                    hash_info["significant_digits"] = precision
         except Exception as error:
             hash_info = {"status": "unavailable", "algorithm": ALGORITHM, "reason": str(error)}
         hash_info["duration_seconds"] = time.perf_counter() - started

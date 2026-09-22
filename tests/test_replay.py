@@ -38,7 +38,7 @@ def test_replay_roundtrip_leaves_original_unchanged(tmp_path, decoded):
     before = get_log(original)
     with options(hashing=False):
         result = replay(before if decoded else original)
-        assert mm.pv.get_options() == {"hashing": False, "significant_digits": 12}
+        assert mm.pv.get_options() == {"hashing": False}
     assert compute_hash(result) == compute_hash(original)
     assert get_log(original) == before
     assert [e["function"] for e in get_log(result)["events"]] == [e["function"] for e in before["events"]]
@@ -205,7 +205,7 @@ def test_logging_warning_preserves_original_and_options(tmp_path, caplog):
         replay(history)
         assert "Replay environment" in caplog.text
         assert get_log(original) == before
-        assert mm.pv.get_options() == {"hashing": False, "significant_digits": 12}
+        assert mm.pv.get_options() == {"hashing": False}
 
 
 def test_script_roundtrip_and_source_replacement(tmp_path):
@@ -222,7 +222,7 @@ def test_script_roundtrip_and_source_replacement(tmp_path):
     namespace = {}
     with options(hashing=False):
         exec(compile(script, "generated_workflow.py", "exec"), namespace)
-        assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
+        assert mm.pv.get_options() == {"hashing": True}
     assert compute_hash(namespace["mdata"]) == compute_hash(original)
     assert get_log(original) == before
     assert all(event["hashing"] for event in get_log(namespace["mdata"])["events"])
@@ -250,7 +250,7 @@ def test_script_hash_mismatch_stops_execution(tmp_path, target):
     with options(hashing=False):
         with pytest.raises(ValueError, match="hash mismatch"):
             exec(script, {})
-        assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
+        assert mm.pv.get_options() == {"hashing": True}
 
 
 def test_script_hashless_opt_out(tmp_path):

@@ -14,7 +14,7 @@ import pandas as pd
 
 from ..logging_utils import get_logger
 
-from ._hashing import ALGORITHM, FLOAT_NORMALIZATION, _validate_precision, compute_hash
+from ._hashing import ALGORITHM, HASH_POLICY, FLOAT_NORMALIZATION, _validate_precision, compute_hash
 from ._provenance import _environment, _serialize_parameters, _parameter_references, _event_inputs, get_log, options
 from ._sources import is_url, open_source, source_scope
 
@@ -100,6 +100,10 @@ def _digest(entity):
 def _precision(event):
     info = event["outputs"][0].get("hash", {})
     normalization = info.get("normalization")
+    if normalization == HASH_POLICY:
+        if "significant_digits" in info:
+            raise ValueError("msmu-v1 has fixed precision; significant_digits is not supported")
+        return 12
     if normalization is None:
         if "significant_digits" in info:
             raise ValueError("Hash precision requires a normalization version")
@@ -279,14 +283,16 @@ def replay(history: md.MuData | dict, *, sources: dict | None = None, verify: bo
             else:
                 _set_source(bound.arguments, role, value)
             previous_heads.append(get_log(value)["head"])
-        with source_scope(), options(hashing=verify, significant_digits=_precision(event)):
+        with source_scope(), options(hashing=verify, significant_digits=_precision(event),
+                                     normalization=event["outputs"][0].get("hash", {}).get("normalization")):
             if verify:
                 for entity, source in files:
                     with open_source(source) as buffer:
                         _check_digest(compute_hash(buffer if is_url(source) else Path(source)), entity, event)
                 for entity in _event_inputs(event):
                     if entity["type"] == "MuData":
-                        _check_digest(compute_hash(results[bindings[entity["role"]]], significant_digits=_precision(event)), entity, event)
+                        _check_digest(compute_hash(results[bindings[entity["role"]]], significant_digits=_precision(event),
+                                                   normalization=event["outputs"][0]["hash"].get("normalization")), entity, event)
             result = func(*bound.args, **bound.kwargs)
             if not isinstance(result, md.MuData):
                 raise ValueError(f"Replay expected a MuData return from {event['function']}")
@@ -387,6 +393,10 @@ def to_script(
         "from msmu._core._sources import source_scope, open_source, is_url", "",
         f"_check_environment({_literal(environments)})", "", "mm.pv.set_options(hashing=True)", "mdata = None",
     ]
+    if verify and any(event["outputs"][0]["hash"].get("normalization") != HASH_POLICY for event, *_ in plan):
+        lines.insert(4, "from msmu._core._hashing import compute_hash as _compute_hash")
+        lines.insert(5, "from msmu._core._provenance import options as _options")
+
     def script_entity(entity):
         return {
             **entity,
@@ -401,8 +411,9 @@ def to_script(
         metadata = {key: event[key] for key in ("id", "function", "function_path")}
         metadata["outputs"] = [script_entity(entity) for entity in event["outputs"]]
         context = "source_scope()"
-        if verify and _precision(event) != 12:
-            context += f", mm.pv.options(hashing=True, significant_digits={_precision(event)!r})"
+        normalization = event["outputs"][0].get("hash", {}).get("normalization")
+        if verify and normalization != HASH_POLICY:
+            context += f", _options(hashing=True, significant_digits={_precision(event)!r}, normalization={normalization!r})"
         lines.extend(["", f"# {names[func]}", f"with {context}:"])
         if verify:
             lines.append(f"    event = {_literal(metadata)}")
@@ -411,7 +422,10 @@ def to_script(
             for entity in _event_inputs(event):
                 if entity["type"] == "MuData":
                     variable = variables[bindings[entity["role"]]]
-                    lines.append(f"    _check_digest(mm.pv.compute_hash({variable}, significant_digits={_precision(event)!r}), {_literal(script_entity(entity))}, event)")
+                    digest = f"mm.pv.compute_hash({variable})" if normalization == HASH_POLICY else (
+                        f"_compute_hash({variable}, significant_digits={_precision(event)!r}, normalization={normalization!r})"
+                    )
+                    lines.append(f"    _check_digest({digest}, {_literal(script_entity(entity))}, event)")
             for entity, source in files:
                 lines.extend([
                     f"    source = {_literal(source)}",
