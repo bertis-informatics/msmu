@@ -1,3 +1,4 @@
+from msmu._core._provenance import _event_inputs
 from io import BytesIO
 from urllib.error import URLError
 
@@ -49,11 +50,12 @@ def test_url_buffer_shared_by_polars_pandas_and_hash(monkeypatch, tmp_path, suff
     with mm.pv.options(hashing=hashing):
         result = load(url)
     event = get_log(result)["events"][0]
-    entity = event["inputs"][0]
+    assert "inputs" not in event
+    entity = _event_inputs(event)[0]
     assert requests == [url]
     assert buffers[0].closed
     assert _sources.get_download_buffer(url) is None
-    assert event["parameters"]["input_file"] == entity["path"] == url
+    assert event["parameters"]["input_file"]["path"] == entity["path"] == url
     if hashing:
         assert entity["hash"]["status"] == "completed"
         assert entity["hash"]["value"] == compute_hash(path)

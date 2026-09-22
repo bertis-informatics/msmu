@@ -53,7 +53,7 @@ def _rounded_float_bytes(values, significant_digits):
     return result.tobytes()
 
 
-def compute_hash(value, *, significant_digits=12) -> str:
+def compute_hash(value, *, significant_digits: int | None = 12) -> str:
     """Hash supported data content. Unsupported objects raise TypeError.
 
     Unordered categories hash by values, allowing h5mu's string-to-category conversion.

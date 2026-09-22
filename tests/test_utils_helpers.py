@@ -1,3 +1,4 @@
+from msmu._core._provenance import _event_inputs
 from msmu._provenance import get_log
 import io
 import logging
@@ -31,9 +32,10 @@ def test_log_provenance_adds_log_entry(labeled_mdata):
     entry = get_log(out)["events"][0]
     assert entry["function"] == "dummy"
     assert entry["environment_id"] in get_log(out)["environments"]
-    assert entry["inputs"][0]["type"] == "MuData"
+    assert _event_inputs(entry)[0]["type"] == "MuData"
     assert entry["outputs"][0]["type"] == "MuData"
-    assert set(entry["inputs"][0]) == {"id", "role", "type", "hash"}
+    assert "inputs" not in entry
+    assert set(entry["parameters"]["mdata"]) == {"id", "role", "type", "hash", "source_event"}
     payload = entry["parameters"]
     assert payload["value"] == 3
 
