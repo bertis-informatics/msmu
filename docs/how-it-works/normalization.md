@@ -18,18 +18,37 @@ mdata = mm.pp.log2_transform(
 
 ## `normalize()` (or `normalise()`)
 
-The `normalize()` function offers multiple normalization methods: median (`median`), quantile (`quantile`), and total-intensity / constant-sum (`total_sum`, which rescales each sample so its summed intensity equals the median of the per-sample totals). Users can select the method that best suits their data and experimental design. All methods assume log2-transformed input. Normalization can also be performed independently within groups: pass `group_obs` (an `adata.obs` column, e.g. sample batch or type) and/or `group_var` (an `adata.var` column, e.g. `"filename"` for fractionated runs) to normalize within each group.
+The `normalize()` function offers multiple normalization methods: median (`median`), median centering (`median_center`), quantile (`quantile`), total-intensity / constant-sum (`total_sum`, which rescales each sample so its summed intensity equals the median of the per-sample totals), and pairwise median (`pairwise_median`, see below). Users can select the method that best suits their data and experimental design. All methods assume log2-transformed input. Normalization can also be performed independently within groups: pass `group_obs` (an `adata.obs` column, e.g. sample batch or type) and/or `group_var` (an `adata.var` column, e.g. `"filename"` for fractionated runs) to normalize within each group.
 
 ```python
 mdata = mm.pp.normalize(
     mdata,
     modality="psm",           # or "peptide", "protein"
-    method="median",          # options: "median", "quantile", "total_sum"; default "median"
+    method="median",          # required; one of "median", "median_center", "quantile", "total_sum", "pairwise_median"
     group_obs=None,           # optional adata.obs column: normalize within each sample group
     group_var=None,           # optional adata.var column (e.g. "filename"): normalize within each feature group
     layer=None,               # optional; default None normalizes .X
 )
 ```
+
+### `pairwise_median`
+
+`median` centres every sample on the median of the values it observed. When missingness depends on intensity and samples differ in detection depth, that median is biased: a deeper run observes more low-abundance features, its median is pulled down, and after centring it is left too high relative to the same features in a shallower run. `pairwise_median` compares samples only on features they both observe.
+
+- **Estimator.** For every pair of samples, the median log2 difference over their co-observed features. Each sample's shift is the mean of its pairwise medians over all samples (its own pair counting as 0), which is the equal-weight least-squares solution with the shifts summing to zero; the block's mean sample level is kept. This is the construction MaxLFQ uses to build a protein profile from pairwise peptide ratios (Cox et al. 2014), applied to runs instead of proteins; pairwise medians of shared features are also how directLFQ, IonQuant and FlashLFQ align samples. It is not MaxLFQ normalization or directLFQ normalization.
+- **Assumption.** The majority of the features *shared* between two samples are unchanged.
+- **Observed medians are no longer aligned.** After `pairwise_median`, per-sample medians (and box plots) of observed values can differ between samples with different missingness. This is intended: those differences reflect which features each sample observed, not loading.
+- **Limitation.** A true global change between conditions (most features moving in one direction) cannot be told from a loading difference and is removed, as `median` does. Check the loading scheme for secretome, exosome or pull-down designs before relying on either method.
+- **Unshared samples.** Every pair of samples in a block must observe at least one feature in common. Otherwise a `ValueError` names the offending sample pairs; this happens for PSM or precursor matrices across runs or TMT plexes. Normalize within `group_obs`, or after summarizing to a level (peptide, protein) where the samples share features. A pair that shares only a few features is aligned on those few, and a warning names it when it shares far fewer than the typical pair. Blocks holding a single sample are left unchanged. Data with little missingness (e.g. TMT within a plex) gain nothing over `median`.
+
+### What `normalize()` records
+
+Every call writes what it did to each sample of each block to `adata.uns["normalisation"]`:
+
+- `summary`: one row per sample and block with `sample`, `obs_group`, `var_group`, `method`, `layer`, `n_observed_features`, `shift_log2` (the applied shift; for `quantile` the median per-sample change), `location_before` and `location_after` (median of the observed values before and after).
+- `blocks["<layer>|<obs_group>|<var_group>"]`: the same per-sample vectors, and for `pairwise_median` the `pair_median_log2` and `pair_shared_count` matrices (samples x samples) the shifts were derived from. The row mean of `pair_median_log2` is the shift; `pair_median_log2[s, t] - (shift[s] - shift[t])` is the pair's residual.
+
+Records for the same layer are replaced on a repeated call; other layers' records are kept.
 
 ## `adjust_ptm_by_protein()`
 

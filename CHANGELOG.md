@@ -6,6 +6,17 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+### Added
+
+- **`normalise(method="pairwise_median")`** — between-sample normalisation that aligns
+  samples on the features they observe in common: the median log2 difference over each pair's
+  co-observed features, combined into zero-sum per-sample shifts. Sparse-native; a block whose
+  samples share no feature raises a `ValueError` naming the sample pairs. Existing methods are
+  unchanged.
+- **`adata.uns["normalisation"]`** — every `normalise` call now records, per sample and block, the
+  observed feature count, the applied shift and the observed-value median before and after; for
+  `pairwise_median` also the pairwise median and shared-count matrices.
+
 ### Changed
 
 - **A multiply modified peptidoform quantifies its site combination, not each site.** `to_ptm`
@@ -97,6 +108,8 @@ from git tags via setuptools-scm.
   after exploding each peptidoform over its accessions, inflating the count by that many times.
 - **Matrix rollups no longer try to aggregate the grouping column.** `median_polish` and `directlfq`
   received the PTM path's `protein_site` column alongside the sample columns and failed on it.
+- **`normalise` documentation** — the method list now includes `median_center`, and the
+  how-it-works page no longer claims `method` defaults to `"median"` (it is required).
 
 ### Removed
 
