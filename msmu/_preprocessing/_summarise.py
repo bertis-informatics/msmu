@@ -10,7 +10,7 @@ from ..logging_utils import get_logger
 from ._summarisation import (
     MATRIX_ROLLUP_METHODS,
     Aggregator,
-    MultisiteHandling,
+    Multisite,
     PtmSummarisationPrep,
     SummarisationPrep,
     warn_if_not_log_scale,
@@ -342,7 +342,7 @@ def to_ptm(
     agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median_polish",
     top_n: int | None = None,
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
-    multisite_handling: MultisiteHandling = "pool",
+    multisite: Multisite = "combination",
 ) -> md.MuData:
     """Summarise peptide-level data to PTM-level data.
 
@@ -368,16 +368,16 @@ def to_ptm(
         agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median_polish", which models a per-peptidoform effect and so is not perturbed when the set of peptidoforms supporting a site changes between samples; for a site backed by a single peptidoform it is identical to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply log2_transform first).
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
-        multisite_handling: What a peptidoform carrying the target modification on several residues
-            quantifies. ``"pool"`` (default) gives its whole value to each of its sites -- it is
-            copied, not divided -- so a site pools singly and multiply modified peptidoforms and one
-            measurement can reach several sites. ``"combination"`` gives it to the set of sites it
-            carries, as one feature (``"P1|S5_S8"``): a multiply modified peptide's change cannot be attributed to one of
-            its sites, the way a shared peptide's cannot be attributed to one protein, so it is
+        multisite: What a peptidoform carrying the target modification on several residues
+            quantifies. ``"combination"`` (default) gives it to the set of sites it carries, as one
+            feature (``"P1|S5_S8"``): a multiply modified peptide's change cannot be attributed to one
+            of its sites, the way a shared peptide's cannot be attributed to one protein, so it is
             reported as the group it belongs to. Every peptidoform then feeds exactly one feature,
             and the features with ``var["count_site"] == 1`` are the site table built from singly
-            modified peptidoforms alone. Peptidoforms differing only in other modifications or
-            missed cleavages still share a feature either way.
+            modified peptidoforms alone. ``"pool"`` gives its whole value to each of its sites
+            instead -- copied, not divided -- so a site pools singly and multiply modified
+            peptidoforms and one measurement can reach several sites. Peptidoforms differing only in
+            other modifications or missed cleavages share a feature either way.
 
     Returns:
         MuData: MuData object containing PTM-level data.
@@ -402,7 +402,7 @@ def to_ptm(
         adata_to_summarise,
         modification=modification,
         fasta=mdata.uns["protein_info"],
-        multisite_handling=multisite_handling,
+        multisite=multisite,
     )
 
     # Ranking for top_n features

@@ -37,8 +37,8 @@ MAX_REPORTED_UNLOCALISABLE_EXAMPLES: int = 5
 
 # "single" is reserved for a single-site table that prefers singly modified peptidoforms and fills the
 # sites seen only on multiply modified ones from the least-modified form (TMT-Integrator, PTM-SEA).
-MultisiteHandling = Literal["pool", "combination"]
-_MULTISITE_HANDLINGS: tuple[str, ...] = get_args(MultisiteHandling)
+Multisite = Literal["pool", "combination"]
+_MULTISITE_OPTIONS: tuple[str, ...] = get_args(Multisite)
 # Joins the sites of one peptidoform inside a site-combination label: "P1|S5_S8". An underscore rather
 # than "+": it survives regular expressions, R column names and file names, and it is what MSstatsPTM
 # writes. It only ever follows the label's last "|", so an accession containing "_" stays unambiguous.
@@ -794,11 +794,11 @@ class PtmSummarisationPrep(SummarisationPrep):
         adata: ad.AnnData,
         modification: str | Sequence[str],
         fasta: pd.DataFrame,
-        multisite_handling: MultisiteHandling = "pool",
+        multisite: Multisite = "combination",
     ) -> None:
-        if multisite_handling not in _MULTISITE_HANDLINGS:
-            raise ValueError(f"Unknown multisite_handling '{multisite_handling}'. Choose from {_MULTISITE_HANDLINGS}.")
-        self._multisite_handling: MultisiteHandling = multisite_handling
+        if multisite not in _MULTISITE_OPTIONS:
+            raise ValueError(f"Unknown multisite option '{multisite}'. Choose from {_MULTISITE_OPTIONS}.")
+        self._multisite: Multisite = multisite
         self._target_modifications: tuple[str, ...] = normalise_target_modifications(modification)
         self._fasta_dict: dict = fasta["Sequence"].to_dict()
         self._col_to_groupby = "ptm_site"
@@ -959,7 +959,7 @@ class PtmSummarisationPrep(SummarisationPrep):
         """
         ptm_info: pd.DataFrame = data.copy()
 
-        if self._multisite_handling == "combination":
+        if self._multisite == "combination":
             # The peptidoform is assigned to the set of sites it carries, as one unit: a multiply
             # modified peptide's change cannot be attributed to one of its sites, the way a shared
             # peptide's cannot be attributed to one protein. Joining the sites here makes the explode

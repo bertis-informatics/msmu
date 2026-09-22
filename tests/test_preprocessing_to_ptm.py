@@ -115,8 +115,8 @@ def test_psm_count_is_not_multiplied_by_the_number_of_accessions():
     assert _site_var(result)["count_psm"].tolist() == [5]
 
 
-def test_a_doubly_modified_peptidoform_reports_both_of_its_sites():
-    """A species phosphorylated at two residues is part of the abundance of each of them."""
+def test_pooling_reports_a_doubly_modified_peptidoform_under_both_of_its_sites():
+    """Under multisite="pool" a species phosphorylated at two residues is part of the abundance of each."""
     mdata = _make_peptide_mdata(
         [
             {
@@ -128,7 +128,7 @@ def test_a_doubly_modified_peptidoform_reports_both_of_its_sites():
         ]
     )
 
-    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO, multisite="pool")
 
     assert sorted(result["phospho_site"].var_names) == ["P1|S5", "P1|S8"]
 
@@ -246,7 +246,8 @@ def test_several_modifications_are_summarised_into_one_modality():
 
     result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=["S[167]", "T[181]", "Y[243]"])
 
-    assert sorted(result["phospho_site"].var_names) == ["P4|S7", "P4|T11", "P4|Y10"]
+    # Y10 and T11 sit on one peptidoform, so by default they are reported together.
+    assert sorted(result["phospho_site"].var_names) == ["P4|S7", "P4|Y10_T11"]
 
 
 def test_a_modification_that_matches_nothing_lists_the_tags_present():
@@ -317,7 +318,7 @@ def test_missing_contaminants_alone_do_not_warn(caplog):
 
 
 # ---------------------------------------------------------------- multiply modified peptides
-# multisite_handling="combination": a peptide's value goes to the SET of sites it carries, the way
+# multisite="combination": a peptide's value goes to the SET of sites it carries, the way
 # a shared peptide goes to a protein group rather than to each protein. A multiply phosphorylated
 # peptide's change cannot be attributed to one of its sites, so it is not copied into each of them.
 
@@ -339,7 +340,7 @@ def _single_and_double_phospho_mdata() -> MuData:
 def test_a_doubly_modified_peptidoform_becomes_one_site_combination_feature():
     mdata = _single_and_double_phospho_mdata()
 
-    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO, multisite_handling="combination")
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO, multisite="combination")
 
     assert sorted(result["phospho_site"].var_names) == ["P1|S5_S8", "P1|S8"]
     assert _site_var(result)["count_site"].to_dict() == {"P1|S8": 1, "P1|S5_S8": 2}
@@ -351,7 +352,7 @@ def test_a_site_combination_keeps_the_doubly_modified_value_out_of_the_single_si
     peptide_values = mdata["peptide"].to_df()
 
     result = mm.pp.to_ptm(
-        mdata, modi_name="phospho", modification=PHOSPHO, agg_method="median", multisite_handling="combination"
+        mdata, modi_name="phospho", modification=PHOSPHO, agg_method="median", multisite="combination"
     )
     site_values = result["phospho_site"].to_df()
 
@@ -361,12 +362,14 @@ def test_a_site_combination_keeps_the_doubly_modified_value_out_of_the_single_si
 
 def test_each_peptidoform_feeds_exactly_one_site_combination_feature():
     """No measurement is tested twice: pooled, the doubly modified peptidoform is counted under S5 and S8."""
-    pooled = mm.pp.to_ptm(_single_and_double_phospho_mdata(), modi_name="phospho", modification=PHOSPHO)
+    pooled = mm.pp.to_ptm(
+        _single_and_double_phospho_mdata(), modi_name="phospho", modification=PHOSPHO, multisite="pool"
+    )
     combined = mm.pp.to_ptm(
         _single_and_double_phospho_mdata(),
         modi_name="phospho",
         modification=PHOSPHO,
-        multisite_handling="combination",
+        multisite="combination",
     )
 
     assert _site_var(pooled)["count_peptide"].sum() == 3
@@ -391,7 +394,7 @@ def test_peptidoforms_with_the_same_site_set_share_one_site_combination_feature(
         ]
     )
 
-    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification="(UniMod:21)", multisite_handling="combination")
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification="(UniMod:21)", multisite="combination")
 
     assert list(result["phospho_site"].var_names) == ["P4|S7_S9"]
     assert _site_var(result)["count_peptide"].tolist() == [2]
@@ -409,25 +412,30 @@ def test_a_site_combination_is_labelled_on_every_accession_of_the_peptide():
         ]
     )
 
-    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO, multisite_handling="combination")
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO, multisite="combination")
 
     assert list(result["phospho_site"].var_names) == ["P1|S5_S8;P2|S3_S6"]
     # The denominator is resolved from the accessions, which are those of the peptide either way.
     assert _site_var(result)["modified_protein"].tolist() == ["P1;P2"]
 
 
-def test_pool_stays_the_default_and_reports_one_site_per_feature():
-    mdata = _single_and_double_phospho_mdata()
+def test_combination_is_the_default():
+    """The default reports what was measured; pooling is the interpretation, and it is opt-in."""
+    result = mm.pp.to_ptm(_single_and_double_phospho_mdata(), modi_name="phospho", modification=PHOSPHO)
 
-    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+    assert inspect.signature(mm.pp.to_ptm).parameters["multisite"].default == "combination"
+    assert sorted(result["phospho_site"].var_names) == ["P1|S5_S8", "P1|S8"]
 
-    assert inspect.signature(mm.pp.to_ptm).parameters["multisite_handling"].default == "pool"
+
+def test_pooling_reports_one_site_per_feature():
+    result = mm.pp.to_ptm(
+        _single_and_double_phospho_mdata(), modi_name="phospho", modification=PHOSPHO, multisite="pool"
+    )
+
     assert sorted(result["phospho_site"].var_names) == ["P1|S5", "P1|S8"]
     assert set(_site_var(result)["count_site"]) == {1}
 
 
-def test_an_unknown_multisite_handling_is_rejected():
-    with pytest.raises(ValueError, match="multisite_handling"):
-        mm.pp.to_ptm(
-            _single_and_double_phospho_mdata(), modi_name="phospho", modification=PHOSPHO, multisite_handling="split"
-        )
+def test_an_unknown_multisite_is_rejected():
+    with pytest.raises(ValueError, match="multisite"):
+        mm.pp.to_ptm(_single_and_double_phospho_mdata(), modi_name="phospho", modification=PHOSPHO, multisite="split")
