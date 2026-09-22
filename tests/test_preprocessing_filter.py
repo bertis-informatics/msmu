@@ -292,3 +292,39 @@ def test_apply_filter_does_not_emit_to_closed_root_stream_handler(filter_mdata, 
     finally:
         root_logger.handlers = original_handlers
         root_logger.setLevel(original_level)
+
+
+@pytest.mark.parametrize("dtype", ["float64", "Float64"])
+@pytest.mark.parametrize("keep", ["eq", "ne", "lt", "le", "gt", "ge"])
+def test_numeric_filters_reject_missing_values(dtype, keep):
+    values = pd.Series([1., float("nan"), 3.], dtype=dtype)
+    mask = _mask_boolean_filter(values, keep, 2.)
+    assert not mask.iloc[1]
+    assert not mask.isna().any()
+
+@pytest.mark.parametrize("dtype", [object, "string"])
+@pytest.mark.parametrize("keep", ["contains", "not_contains"])
+def test_string_filters_reject_missing_values(dtype, keep):
+    mask = _mask_boolean_filter(pd.Series(["abc", None, "xyz"], dtype=dtype), keep, "a")
+    assert mask.tolist() == ([True, False, False] if keep == "contains" else [False, False, True])
+
+def test_filter_missing_values_in_targets_and_decoys(filter_mdata):
+    for table in (filter_mdata["psm"].var, filter_mdata["psm"].uns["decoy"]):
+        table["score"] = pd.array([10., None, 30.], dtype="Float64")
+    out = add_filter(filter_mdata, "psm", "score", "gt", 15.)
+    out = apply_filter(out, "psm")
+    assert out["psm"].var_names.tolist() == ["v3"]
+    assert out["psm"].uns["decoy"].index.tolist() == ["v3"]
+
+def test_concat_undefined_masks_remain_unapplied(filter_mdata):
+    import msmu as mm
+
+    filter_mdata["psm"].obs["group"] = ["a", "b"]
+    branches = {}
+    for group in ("a", "b"):
+        branch = add_filter(filter_mdata, "psm", "group", "eq", group, on="obs")
+        branches[group] = apply_filter(branch, "psm", on="obs")
+    merged = mm.dt.concat(branches)
+    assert merged["psm"].obsm["filter"].isna().any().any()
+    out = apply_filter(merged, "psm", on="obs")
+    assert out["psm"].obs_names.tolist() == ["s1", "s2"]

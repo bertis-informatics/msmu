@@ -26,6 +26,8 @@ def add_filter(
     """
     Adds a filter to the specified modality in the MuData object based on the given condition.
 
+    Missing source values never pass, including for negated conditions.
+
     Parameters:
         mdata: MuData object to which the filter will be added.
         modality: The modality within the MuData object to which the filter will be applied
@@ -109,24 +111,27 @@ def add_filter(
 
 
 def _mask_boolean_filter(series_to_mask: pd.Series, keep, value):
+    # Missing source values never satisfy a condition, including negated conditions.
+    values = series_to_mask
     if keep == "eq":
-        return series_to_mask == value
+        mask = values == value
     elif keep == "ne":
-        return series_to_mask != value
+        mask = values != value
     elif keep == "lt":
-        return series_to_mask < value
+        mask = values < value
     elif keep == "le":
-        return series_to_mask <= value
+        mask = values <= value
     elif keep == "gt":
-        return series_to_mask > value
+        mask = values > value
     elif keep == "ge":
-        return series_to_mask >= value
+        mask = values >= value
     elif keep == "contains":
-        return series_to_mask.str.contains(str(value))
+        mask = values.str.contains(str(value), na=False)
     elif keep == "not_contains":
-        return ~series_to_mask.str.contains(str(value))
+        mask = ~values.str.contains(str(value), na=False)
     else:
         raise ValueError(f"Unknown filter operator: {keep}")
+    return mask.fillna(False) & values.notna()
 
 
 @log_provenance

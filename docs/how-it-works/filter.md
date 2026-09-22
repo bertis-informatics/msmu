@@ -24,6 +24,10 @@ The `keep` argument accepts conditional operators such as `eq`, `ne`, `lt`, `le`
 Stored filter column names follow this pattern:
 `{column}_{keep}_{value}`.
 
+Missing source values never satisfy a filter, including `ne` and
+`not_contains`. Missing masks introduced by concatenating datasets remain
+unapplied to rows where that filter was not recorded.
+
 ```python
 # feature-level filter from .var
 mdata = mm.pp.add_filter(
