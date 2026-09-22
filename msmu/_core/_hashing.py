@@ -20,6 +20,7 @@ except ImportError:
     pa = None
 
 ALGORITHM = "sha256"
+HASH_POLICY = "msmu-v1"
 FLOAT_NORMALIZATION = "significant-digits-v1"
 _POWERS_OF_TEN = np.array([float(f"1e{exponent}") for exponent in range(-308, 309)])
 _FLOAT_RECORD = np.dtype([("mantissa", "<i8"), ("exponent", "<i2"), ("special", "u1")])
@@ -53,7 +54,16 @@ def _rounded_float_bytes(values, significant_digits):
     return result.tobytes()
 
 
-def compute_hash(value, *, significant_digits: int | None = 12) -> str:
+def _hash_msmu_v1(value) -> str:
+    """Hash content with MSMU v1: 12-digit floats, exact axes/dtypes, canonical CSR.
+
+    Stored values are unchanged. Files are streamed and hashed exactly.
+    Unsupported objects raise TypeError.
+    """
+    return compute_hash(value, significant_digits=12, normalization=HASH_POLICY)
+
+
+def compute_hash(value, *, significant_digits: int | None = 12, normalization: str | None = HASH_POLICY) -> str:
     """Hash supported data content. Unsupported objects raise TypeError.
 
     Unordered categories hash by values, allowing h5mu's string-to-category conversion.
@@ -109,7 +119,7 @@ def compute_hash(value, *, significant_digits: int | None = 12) -> str:
             if significant_digits is None:
                 token("nan" if np.isnan(obj) else float(obj).hex())
             else:
-                token(FLOAT_NORMALIZATION)
+                token(normalization)
                 token(significant_digits)
                 token(_rounded_float_bytes(np.array([obj]), significant_digits))
         elif isinstance(obj, str):
@@ -194,8 +204,8 @@ def compute_hash(value, *, significant_digits: int | None = 12) -> str:
                 array = np.asarray(obj, dtype=obj.dtype.newbyteorder("<"), order="C")
                 if obj.dtype.kind in "fc" and significant_digits is not None:
                     if obj.dtype.itemsize > (16 if obj.dtype.kind == "c" else 8):
-                        raise TypeError("Rounded hashing supports up to float64/complex128; use significant_digits=None")
-                    token(FLOAT_NORMALIZATION)
+                        raise TypeError("MSMU rounded hashing supports up to float64/complex128")
+                    token(normalization)
                     token(significant_digits)
                     count = array.size * (2 if obj.dtype.kind == "c" else 1)
                     token(count * _FLOAT_RECORD.itemsize)

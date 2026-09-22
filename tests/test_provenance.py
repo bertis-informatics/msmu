@@ -219,19 +219,19 @@ def test_file_hash_snapshot_and_options_restore(tmp_path):
 
 
 def test_set_options_and_temporary_hashing_restore():
-    assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
+    assert mm.pv.get_options() == {"hashing": True}
     mm.pv.set_options(hashing=True)
     try:
         snapshot = mm.pv.get_options()
         snapshot["hashing"] = False
-        assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
+        assert mm.pv.get_options() == {"hashing": True}
         with pytest.raises(ValueError):
             with options(hashing=False):
-                assert mm.pv.get_options() == {"hashing": False, "significant_digits": 12}
+                assert mm.pv.get_options() == {"hashing": False}
                 assert get_log(identity(data()))["events"][-1]["hashing"] is False
                 raise ValueError("stop")
         assert get_log(identity(data()))["events"][-1]["hashing"] is True
-        assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
+        assert mm.pv.get_options() == {"hashing": True}
         with pytest.raises(TypeError):
             with options(hashing="yes"):
                 pass
@@ -240,7 +240,7 @@ def test_set_options_and_temporary_hashing_restore():
     finally:
         mm.pv.set_options(hashing=True)
     assert get_log(identity(data()))["events"][-1]["hashing"] is True
-    assert mm.pv.get_options() == {"hashing": True, "significant_digits": 12}
+    assert mm.pv.get_options() == {"hashing": True}
 
 
 def test_merge_histories_have_distinct_entities_and_shared_parent():

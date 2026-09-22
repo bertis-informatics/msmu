@@ -3,7 +3,9 @@ import numpy as np
 import pytest
 from scipy import sparse
 
-from msmu._provenance import compute_hash, get_options, options
+from msmu._provenance import compute_hash, get_options, options, set_options
+from msmu._core._hashing import compute_hash as legacy_hash
+from msmu._core._provenance import options as legacy_options
 
 
 def test_precision_preserves_small_values_and_original_arrays():
@@ -12,7 +14,7 @@ def test_precision_preserves_small_values_and_original_arrays():
     right[0] = np.nextafter(right[0], np.inf)
     original = left.tobytes()
     assert compute_hash(left) == compute_hash(right)
-    assert compute_hash(left, significant_digits=None) != compute_hash(right, significant_digits=None)
+    assert legacy_hash(left, significant_digits=None) != legacy_hash(right, significant_digits=None)
     assert compute_hash(np.array([1e-20])) != compute_hash(np.array([1e-50]))
     assert compute_hash(pd.Index(left[:1])) != compute_hash(pd.Index(right[:1]))
     assert left.tobytes() == original
@@ -33,20 +35,23 @@ def test_files_and_non_numeric_values_remain_exact(tmp_path):
     path = tmp_path / 'input.txt'
     path.write_text('0.002418128635502926')
     first = compute_hash(path)
-    assert first == compute_hash(path, significant_digits=None)
+    assert first == legacy_hash(path, significant_digits=None)
     path.write_text('0.0024181286355029266')
     assert first != compute_hash(path)
-    assert compute_hash(['a', 1]) == compute_hash(['a', 1], significant_digits=None)
+    assert compute_hash(['a', 1]) == legacy_hash(['a', 1], significant_digits=None)
 
 
-def test_precision_settings_restore_and_validate():
+def test_public_hash_precision_is_fixed():
     before = get_options()
-    with options(hashing=True, significant_digits=None):
-        assert get_options()['significant_digits'] is None
+    assert before == {"hashing": True}
+    for precision in [None, 6, 12]:
+        with pytest.raises(TypeError, match="significant_digits"):
+            compute_hash(1.0, significant_digits=precision)
+        with pytest.raises(TypeError, match="significant_digits"):
+            set_options(hashing=True, significant_digits=precision)
+        with pytest.raises(TypeError, match="significant_digits"):
+            options(hashing=True, significant_digits=precision)
     assert get_options() == before
-    for invalid in [0, 16, True, 12.5, '12']:
-        with pytest.raises(ValueError):
-            compute_hash(1.0, significant_digits=invalid)
 
 
 def test_exact_and_rounded_replay(tmp_path):
@@ -56,18 +61,23 @@ def test_exact_and_rounded_replay(tmp_path):
 
     source = tmp_path / 'source.h5mu'
     md.MuData({'protein': ad.AnnData(np.array([[2., 4.]]))}).write_h5mu(source)
-    for precision in [None, 12]:
-        with options(hashing=True, significant_digits=precision):
+    for normalization, precision in [(None, None), ("significant-digits-v1", 6), ("significant-digits-v1", 12), ("msmu-v1", 12)]:
+        with legacy_options(hashing=True, significant_digits=precision, normalization=normalization):
             original = mm.read_h5mu(source)
             original = mm.pp.log2_transform(original, modality='protein')
         history = mm.pv.get_log(original)
         output_hash = history['events'][-1]['outputs'][0]['hash']
-        assert output_hash.get('significant_digits') == precision
+        assert output_hash.get('normalization') == normalization
+        assert output_hash.get('significant_digits') == (precision if normalization == 'significant-digits-v1' else None)
         replayed = mm.pv.replay(original)
-        assert compute_hash(replayed, significant_digits=precision) == compute_hash(original, significant_digits=precision)
+        assert legacy_hash(replayed, significant_digits=precision, normalization=normalization) == legacy_hash(original, significant_digits=precision, normalization=normalization)
         namespace = {}
-        exec(mm.pv.to_script(original), namespace)
-        assert compute_hash(namespace['mdata'], significant_digits=precision) == compute_hash(original, significant_digits=precision)
+        script = mm.pv.to_script(original)
+        if normalization == "msmu-v1":
+            assert 'significant_digits=' not in script
+        exec(script, namespace)
+        assert get_options() == {'hashing': True}
+        assert legacy_hash(namespace['mdata'], significant_digits=precision, normalization=normalization) == legacy_hash(original, significant_digits=precision, normalization=normalization)
 
 
 def test_rounding_chunks_and_array_layout_do_not_change_hash():
