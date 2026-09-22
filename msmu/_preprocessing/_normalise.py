@@ -118,7 +118,8 @@ def normalise(
         modality: Modality to normalise.
         layer: Layer to normalise. If None, the default layer (.X) will be used.
         group_obs: Column name in ``adata.obs`` defining sample groups. If provided, normalisation is
-            performed independently within each group. If None, no obs grouping is applied.
+            performed independently within each group. Missing group values are rejected.
+            If None, no obs grouping is applied.
         group_var: Column name in ``adata.var`` defining feature groups (e.g. ``"filename"`` for
             fractionated TMT or label-free workflows). If provided, normalisation is performed
             independently within each group. If None, no var grouping is applied.
@@ -163,6 +164,11 @@ def normalise(
         raise KeyError(f"group_obs '{group_obs}' not found in adata.obs of modality '{modality}'.")
     if group_var is not None and group_var not in adata.var.columns:
         raise KeyError(f"group_var '{group_var}' not found in adata.var of modality '{modality}'.")
+    if group_obs is not None and adata.obs[group_obs].isna().any():
+        raise ValueError(
+            f"group_obs '{group_obs}' contains missing values in modality '{modality}'. "
+            "Fill in the missing sample groups before normalisation."
+        )
 
     obs_groups = adata.obs[group_obs].to_numpy() if group_obs is not None else None
     var_groups = adata.var[group_var].to_numpy() if group_var is not None else None
