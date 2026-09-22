@@ -228,6 +228,8 @@ def _plan(history, sources, verify, *, check_files=True):
             )
         if func.__name__ in ("pca", "umap") and type(parameters.get("random_state")) is not int:
             raise ValueError(f"Replay requires a recorded integer random_state for {func.__name__}")
+        if func.__name__ == "add_filter":
+            parameters.setdefault("name", None)  # Histories recorded before optional names.
         signature = inspect.signature(func)
         unknown = parameters.keys() - signature.parameters.keys()
         missing = signature.parameters.keys() - parameters.keys()
