@@ -57,8 +57,8 @@ The global dataset must hold a `protein` modality and the `uns["protein_map"]` t
 ### Pass the global dataset as a file to keep the workflow reproducible
 
 Given as a `MuData`, the global container's own history merges into the result, and the adjustment
-event has two parents. `mm.pv.replay()` and `mm.pv.to_script()` refuse a history with two parents,
-so the PTM workflow could be reproduced only up to this step. Given as a path, the file is recorded
+event has two parents. `mm.pv.replay()` and `mm.pv.to_script()` accept a second `MuData` input only
+for `concat`, so the PTM workflow could be reproduced only up to this step. Given as a path, the file is recorded
 as an input with its content hash — the way a reader's source file is — and the history stays one
 chain, so the whole workflow replays and verifies. Replay needs the original files either way, so
 this asks for nothing new.

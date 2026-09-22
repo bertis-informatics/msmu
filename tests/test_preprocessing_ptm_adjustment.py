@@ -370,18 +370,14 @@ def test_a_global_file_is_recorded_as_a_hashed_input_and_keeps_the_history_one_c
         from_path = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_path)
         from_object = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_mdata)
 
-    event = mm.pv.get_log(from_path)["events"][-1]
-    global_input = next(entity for entity in event["inputs"] if entity["role"] == "arguments/global_mdata")
+    # Since BID-315 each parameter carries its own descriptor; the file shows up as a path with a hash.
+    global_input = mm.pv.get_log(from_path)["events"][-1]["parameters"]["global_mdata"]
     assert global_input["path"] == str(global_path)
     assert global_input["hash"]["status"] == "completed"
     # The object carries no history here, so neither call has a parent; what matters is that the file
-    # is an input entity rather than a MuData whose history would merge into this one.
+    # is a path descriptor rather than a MuData whose history would merge into this one.
     assert global_input["type"] != "MuData"
-    object_input = next(
-        entity
-        for entity in mm.pv.get_log(from_object)["events"][-1]["inputs"]
-        if entity["role"] == "arguments/global_mdata"
-    )
+    object_input = mm.pv.get_log(from_object)["events"][-1]["parameters"]["global_mdata"]
     assert object_input["type"] == "MuData"
 
 

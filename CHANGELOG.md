@@ -25,8 +25,8 @@ from git tags via setuptools-scm.
   tables (CPTAC), TMT-Integrator's multi-site report and MSstatsPTM.
 - **`adjust_ptm_by_protein` accepts the global dataset as an `.h5mu` path.** Passed as a `MuData`,
   the global container's own history merges into the result, and `mm.pv.replay` / `mm.pv.to_script`
-  refuse a history with two parents — so a PTM workflow could be reproduced only up to the
-  adjustment. Passed as a path (`global_mdata=Path("global.h5mu")`), the file is recorded as an
+  accept a second `MuData` input only for `concat` — so a PTM workflow could be reproduced only up
+  to the adjustment. Passed as a path (`global_mdata=Path("global.h5mu")`), the file is recorded as an
   input with its content hash, like a reader's source file, and the whole workflow replays. Replay
   needs the original files either way, so this adds no requirement. Pass a `Path` rather than a
   `str` for the content hash: provenance treats a string as a file only when the parameter's name
