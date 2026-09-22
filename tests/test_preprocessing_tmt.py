@@ -1,3 +1,4 @@
+from msmu._core._provenance import _event_inputs
 import numpy as np
 import pandas as pd
 import pytest
@@ -323,5 +324,5 @@ def test_split_tmt_keeps_source_state_and_history():
     assert mm.pv.compute_hash(source) == before
     assert mm.pv.get_log(source) == history
     event = mm.pv.get_log(result)["events"][-1]
-    assert event["inputs"][0]["hash"]["value"] == before
+    assert _event_inputs(event)[0]["hash"]["value"] == before
     assert event["outputs"][0]["hash"]["value"] == mm.pv.compute_hash(result)

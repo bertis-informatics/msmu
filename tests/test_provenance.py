@@ -1,3 +1,4 @@
+from msmu._core._provenance import _event_inputs
 from pathlib import Path
 import warnings
 from types import SimpleNamespace
@@ -41,8 +42,9 @@ def test_hash_off_does_not_visit_content(monkeypatch):
     assert "error" not in event
     assert event["parameters"]["text"] == "a" * 2000
     assert len(event["parameters"]["value"]) == 40
-    assert "mdata" not in event["parameters"]
-    assert event["inputs"][0]["hash"] == {"status": "disabled"}
+    assert "inputs" not in event
+    assert event["parameters"]["mdata"]["source_event"] == ""
+    assert _event_inputs(event)[0]["hash"] == {"status": "disabled"}
     assert log["environments"][event["environment_id"]]["packages"]["pandas"] == pd.__version__
     assert "_cmd" not in m.uns
 
@@ -55,13 +57,20 @@ def test_data_parameters_are_only_recorded_as_entities(hashes):
         identity(m, value={"frame": frame, "datasets": [m], "method": "median",
                            "columns": ["x"], "empty": [], "layer": None})
     event = get_log(m)["events"][-1]
+    inputs = {entity["role"]: entity for entity in _event_inputs(event)}
+    def reference(role, kind):
+        return inputs[role]
     assert event["parameters"] == {
-        "value": {"method": "median", "columns": ["x"], "empty": [], "layer": None},
+        "mdata": reference("arguments/mdata", "MuData"),
+        "value": {"frame": reference("arguments/value/frame", "DataFrame"),
+                  "datasets": [reference("arguments/value/datasets/0", "MuData")],
+                  "method": "median", "columns": ["x"], "empty": [], "layer": None},
         "text": "default",
     }
-    inputs = {entity["role"]: entity for entity in event["inputs"]}
     assert inputs["arguments/value/frame"]["type"] == "DataFrame"
-    assert all(set(entity) == {"id", "role", "type", "hash"} for entity in inputs.values())
+    assert "inputs" not in event
+    assert set(inputs["arguments/value/frame"]) == {"id", "role", "type", "hash"}
+    assert inputs["arguments/mdata"]["source_event"] == ""
     assert inputs["arguments/value/datasets/0"]["type"] == "MuData"
     assert all(entity["hash"]["status"] == ("completed" if hashes else "disabled")
                for entity in inputs.values())
@@ -83,7 +92,7 @@ def test_inplace_hashes_and_failed_mutation():
     with options(hashing=True):
         mutate(m)
         event = get_log(m)["events"][0]
-        assert event["inputs"][0]["hash"]["value"] == original
+        assert _event_inputs(event)[0]["hash"]["value"] == original
         assert event["outputs"][0]["hash"]["value"] == compute_hash(m) != original
         before_failure = get_log(m)
         with pytest.raises(ValueError) as caught:
@@ -184,8 +193,8 @@ def test_unavailable_hash_is_not_successful_verification():
     event = get_log(m)["events"][0]
     assert "error" not in event
     assert "status" not in event
-    assert event["inputs"][0]["hash"]["status"] == "unavailable"
-    assert "value" not in event["inputs"][0]["hash"]
+    assert _event_inputs(event)[0]["hash"]["status"] == "unavailable"
+    assert "value" not in _event_inputs(event)[0]["hash"]
 
 
 def test_file_hash_snapshot_and_options_restore(tmp_path):
@@ -203,7 +212,7 @@ def test_file_hash_snapshot_and_options_restore(tmp_path):
             assert identity(data()).uns["_log"]
         out = reader(str(path))
     event = get_log(out)["events"][0]
-    assert event["inputs"][0]["hash"]["value"] == digest != compute_hash(path)
+    assert _event_inputs(event)[0]["hash"]["value"] == digest != compute_hash(path)
     assert get_log(identity(data()))["events"][0]["hashing"] is True
     with pytest.raises(TypeError):
         mm.pv.set_options(hashing="yes")
@@ -247,7 +256,7 @@ def test_merge_histories_have_distinct_entities_and_shared_parent():
     assert len(log["events"]) == 4
     last = log["events"][-1]
     assert len(last["parents"]) == 2
-    assert len({v["id"] for v in last["inputs"] + last["outputs"]}) == 3
+    assert len({v["id"] for v in _event_inputs(last) + last["outputs"]}) == 3
     assert len(get_log(left)["events"]) == 2
 
 

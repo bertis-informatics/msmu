@@ -1,9 +1,12 @@
-"""Replay a linear, file-backed MSMU workflow from its recorded history."""
+"""Replay file-backed MSMU workflows, including recorded branches and merges."""
 
 from copy import deepcopy
 import datetime
 import inspect
+from collections import Counter
+from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
+from typing import Any
 
 import mudata as md
 import numpy as np
@@ -12,7 +15,7 @@ import pandas as pd
 from ..logging_utils import get_logger
 
 from ._hashing import ALGORITHM, FLOAT_NORMALIZATION, _validate_precision, compute_hash
-from ._provenance import _environment, _serialize_parameters, get_log, options
+from ._provenance import _environment, _serialize_parameters, _parameter_references, _event_inputs, get_log, options
 from ._sources import is_url, open_source, source_scope
 
 
@@ -39,7 +42,7 @@ def _functions():
     return functions
 
 
-def _decode(value):
+def _decode(value) -> Any:
     if isinstance(value, list):
         return [_decode(item) for item in value]
     if not isinstance(value, dict):
@@ -53,7 +56,7 @@ def _decode(value):
     if set(value) == {"type", "array"} and value["type"] == "numpy.scalar":
         return _decode(value["array"])[()]
     if value.get("type") in ("pandas.Series", "pandas.Index", "ndarray") and "values" in value:
-        dtype = value["dtype"]
+        dtype: Any = value["dtype"]
         if isinstance(dtype, dict):
             dtype = pd.CategoricalDtype(_decode(dtype["categories"]), ordered=dtype["ordered"])
         values = _decode(value["values"])
@@ -121,22 +124,23 @@ def _plan(history, sources, verify, *, check_files=True):
     by_id = {event["id"]: event for event in events}
     if not events or len(by_id) != len(events):
         raise ValueError("Replay requires a nonempty history with unique event IDs")
-    chain = []
-    current = history.get("head")
-    seen = set()
-    while current:
-        if current not in by_id or current in seen:
+    reachable = set()
+    pending = [history.get("head")]
+    while pending:
+        current = pending.pop()
+        if current not in by_id:
             raise ValueError("Invalid or cyclic provenance history")
-        seen.add(current)
-        event = by_id[current]
-        chain.append(event)
-        parents = event["parents"]
-        if len(parents) > 1:
-            raise ValueError("Replay currently supports a single MuData chain; merged histories are unsupported")
-        current = parents[0] if parents else None
-    if len(chain) != len(events):
-        raise ValueError("Replay currently supports a single MuData chain without branches")
-    chain.reverse()
+        if current in reachable:
+            continue
+        reachable.add(current)
+        pending.extend(by_id[current]["parents"])
+    try:
+        order = TopologicalSorter({key: event["parents"] for key, event in by_id.items()}).static_order()
+        chain = [by_id[key] for key in order]
+    except CycleError as error:
+        raise ValueError("Invalid or cyclic provenance history") from error
+    if reachable != set(by_id):
+        raise ValueError("Replay requires all events to be ancestors of the history head")
     functions = _functions()
     plan = []
     used_sources = set()
@@ -149,29 +153,59 @@ def _plan(history, sources, verify, *, check_files=True):
             raise ValueError(f"Replay requires one returned MuData per call: {event['function']}")
         _precision(event)
         parameters = _decode(event["parameters"])
-        mudata_inputs = [entity for entity in event["inputs"] if entity["type"] == "MuData"]
-        if index == 0:
+        mudata_inputs = [entity for entity in _event_inputs(event) if entity["type"] == "MuData"]
+        references = dict(_parameter_references(parameters))
+        if func.__name__ == "merge_mudata":
+            if any(not isinstance(key, str) for key in parameters.get("mdatas", {})):
+                raise ValueError("Replay requires string dataset names in merge_mudata")
+            parameters["mdatas"] = {}  # Input-entity order preserves first-value precedence.
+        bindings = {}
+        parents = event["parents"]
+        if not parents:
             if mudata_inputs or func.__name__ not in (
                 "read_sage", "read_diann", "read_maxquant", "read_fragpipe", "read_delpi", "read_h5mu"
             ):
                 raise ValueError("Replay must start with a file reader; the original input is not stored in the log")
-        elif len(mudata_inputs) != 1 or mudata_inputs[0]["role"].count("/") != 1:
-            raise ValueError(f"Replay requires one direct MuData input: {event['function']}")
-        mudata_argument = mudata_inputs[0]["role"].split("/")[1] if mudata_inputs else None
-        if mudata_argument:
-            previous_info = chain[index - 1]["outputs"][0].get("hash", {})
-            input_info = mudata_inputs[0].get("hash", {})
-            if _digest(chain[index - 1]["outputs"][0]) and _digest(mudata_inputs[0]) and any(
+        elif not mudata_inputs:
+            raise ValueError("Replay does not support intermediate readers without MuData inputs")
+        for entity in mudata_inputs:
+            role = entity["role"]
+            if func.__name__ == "merge_mudata" and role.startswith("arguments/mdatas/"):
+                parameters.setdefault("mdatas", {})[role.removeprefix("arguments/mdatas/")] = None
+            elif role.startswith("arguments/") and role.count("/") == 1 and len(mudata_inputs) == 1:
+                parameters[role.split("/")[1]] = None
+            else:
+                raise ValueError(f"Replay requires one direct MuData input or merge_mudata: {event['function']}")
+            reference = references.get(role)
+            producer = reference.get("source_event") if reference is not None else None
+            if reference is not None and {key: value for key, value in reference.get("hash", {}).items() if key != "duration_seconds"} != {
+                key: value for key, value in entity.get("hash", {}).items() if key != "duration_seconds"
+            }:
+                raise ValueError(f"Unrecorded data changes or inconsistent parameter hash before {event['function']}")
+            if reference is None:
+                # Older linear logs are unambiguous; older merges need unique hashes.
+                candidates = parents if len(parents) == 1 else [
+                    parent for parent in parents
+                    if _digest(entity) and _digest(by_id[parent]["outputs"][0]) == _digest(entity)
+                ]
+                if len(candidates) != 1:
+                    raise ValueError("Ambiguous input producer; record the workflow again to capture source_event")
+                producer = candidates[0]
+            if producer not in parents or role in bindings:
+                raise ValueError("MuData input producers do not match event parents")
+            bindings[role] = producer
+            previous = by_id[producer]["outputs"][0]
+            previous_info, input_info = previous.get("hash", {}), entity.get("hash", {})
+            if _digest(previous) and _digest(entity) and any(
                 previous_info.get(key) != input_info.get(key) for key in ("normalization", "significant_digits")
             ):
                 raise ValueError("Replay cannot verify a change of hash precision between consecutive steps")
-            previous_hash = _digest(chain[index - 1]["outputs"][0])
-            input_hash = _digest(mudata_inputs[0])
-            if previous_hash and input_hash and previous_hash != input_hash:
+            if _digest(previous) and _digest(entity) and _digest(previous) != _digest(entity):
                 raise ValueError(f"Unrecorded data changes before {event['function']} cannot be replayed")
-            parameters[mudata_argument] = None  # Replaced by the previous result during execution.
+        if set(bindings.values()) != set(parents):
+            raise ValueError("MuData input producers do not match event parents")
         files = []
-        for entity in event["inputs"]:
+        for entity in _event_inputs(event):
             if entity["type"] == "MuData":
                 continue
             if "path" not in entity:
@@ -183,9 +217,9 @@ def _plan(history, sources, verify, *, check_files=True):
             if check_files and not is_url(source) and not Path(source).is_file():
                 raise ValueError(f"Replay input file does not exist: {source}")
             files.append((entity, source))
-        if index == 0 and not files:
+        if not parents and not files:
             raise ValueError("Replay requires an original input file")
-        if verify and any(not _digest(entity) for entity in event["inputs"] + outputs):
+        if verify and any(not _digest(entity) for entity in _event_inputs(event) + outputs):
             raise ValueError(
                 f"Recorded hashes are missing for {event['function']}. "
                 "Use verify=False to rerun without hash verification."
@@ -202,7 +236,7 @@ def _plan(history, sources, verify, *, check_files=True):
             )
         bound = inspect.BoundArguments(signature, parameters)
         signature.bind(*bound.args, **bound.kwargs)
-        plan.append((event, func, bound, mudata_argument, files))
+        plan.append((event, func, bound, bindings, files))
     unused = sources.keys() - used_sources
     if unused:
         raise ValueError(f"Source replacements do not match recorded inputs: {sorted(unused)}")
@@ -210,7 +244,7 @@ def _plan(history, sources, verify, *, check_files=True):
 
 
 def replay(history: md.MuData | dict, *, sources: dict | None = None, verify: bool = True) -> md.MuData:
-    """Rerun a linear file-backed workflow, returning a new MuData with fresh history.
+    """Rerun a file-backed workflow, returning a new MuData with fresh history.
 
     Args:
         history: MuData containing the original log, or the decoded result of get_log().
@@ -218,7 +252,8 @@ def replay(history: md.MuData | dict, *, sources: dict | None = None, verify: bo
         verify: Require recorded hashes and verify inputs/outputs (default True).
             False reruns without hash verification; known unrecorded edits still fail.
 
-    Branches, merges, data-valued parameters and non-MuData returns are unsupported.
+    Branches and merge_mudata are supported. Shared results are copied at forks.
+    Other nested MuData inputs and non-MuData returns are unsupported.
     Only public MSMU functions can run. Environment differences are logged as warnings;
     packages are never installed or changed. The supplied object/log is not modified.
     """
@@ -227,23 +262,40 @@ def replay(history: md.MuData | dict, *, sources: dict | None = None, verify: bo
     history = get_log(history) if isinstance(history, md.MuData) else deepcopy(history)
     plan = _plan(history, dict(sources or {}), verify)
     _check_environment([history.get("environments", {}).get(event["environment_id"]) for event, *_ in plan])
-    result = None
-    for event, func, bound, mudata_argument, files in plan:
-        previous_head = get_log(result)["head"] if result is not None else None
-        if mudata_argument:
-            bound.arguments[mudata_argument] = result
+    results = {}
+    uses = Counter(producer for _, _, _, bindings, _ in plan for producer in bindings.values())
+    remaining = uses.copy()
+    for event, func, bound, bindings, files in plan:
+        previous_heads = []
+        for role, producer in bindings.items():
+            value = results[producer].copy() if uses[producer] > 1 else results[producer]
+            # Merge dataset names may themselves contain '/'.
+            if role.startswith("arguments/mdatas/"):
+                bound.arguments["mdatas"][role.removeprefix("arguments/mdatas/")] = value
+            else:
+                _set_source(bound.arguments, role, value)
+            previous_heads.append(get_log(value)["head"])
         with source_scope(), options(hashing=verify, significant_digits=_precision(event)):
             if verify:
                 for entity, source in files:
                     with open_source(source) as buffer:
                         _check_digest(compute_hash(buffer if is_url(source) else Path(source)), entity, event)
-                # Preflight matched this input to the preceding output, already verified below.
+                for entity in _event_inputs(event):
+                    if entity["type"] == "MuData":
+                        _check_digest(compute_hash(results[bindings[entity["role"]]], significant_digits=_precision(event)), entity, event)
             result = func(*bound.args, **bound.kwargs)
             if not isinstance(result, md.MuData):
                 raise ValueError(f"Replay expected a MuData return from {event['function']}")
             if verify:
-                _verify_output(result, event, previous_head)
-    return result
+                _verify_output(result, event, previous_heads)
+            results[event["id"]] = result
+        bound.arguments.clear()
+        value = None
+        for producer in bindings.values():
+            remaining[producer] -= 1
+            if not remaining[producer]:
+                del results[producer]
+    return results[history["head"]]
 
 
 def _check_environment(environments):
@@ -265,7 +317,8 @@ def _check_environment(environments):
 
 def _verify_output(result, event, previous_head):
     fresh = get_log(result)
-    if not fresh["head"] or fresh["head"] in (previous_head, event["id"]):
+    previous_heads = previous_head if isinstance(previous_head, list) else [previous_head]
+    if not fresh["head"] or fresh["head"] in [*previous_heads, event["id"]]:
         raise ValueError(f"Replay could not record a new event for {event['function']}")
     recorded = next(item for item in fresh["events"] if item["id"] == fresh["head"])
     if recorded["function_path"] != event["function_path"] and (
@@ -304,9 +357,10 @@ def to_script(
     If filename is supplied, write UTF-8 Python source (overwriting an existing
     file) and return None. Otherwise return the source text.
 
-    Accepts the same linear histories and options as replay(). The generated script
+    Accepts the same file-backed histories and options as replay(). The generated script
     requires MSMU, checks the recorded environment at execution, and leaves its
-    final MuData in ``mdata``. Generation neither reads inputs nor executes calls.
+    final MuData in ``mdata``. Scripts enable hashing even when verification is disabled.
+    Generation neither reads inputs nor executes calls.
     """
     import msmu as mm
 
@@ -327,7 +381,7 @@ def to_script(
         "import datetime", "from pathlib import Path", "import msmu as mm",
         "from msmu._core._replay import _check_environment, _check_digest, _verify_output, _decode",
         "from msmu._core._sources import source_scope, open_source, is_url", "",
-        f"_check_environment({_literal(environments)})", "", "mdata = None",
+        f"_check_environment({_literal(environments)})", "", "mm.pv.set_options(hashing=True)", "mdata = None",
     ]
     def script_entity(entity):
         return {
@@ -335,13 +389,25 @@ def to_script(
             "hash": {key: value for key, value in entity.get("hash", {}).items() if key != "duration_seconds"},
         }
 
-    for event, func, bound, mudata_argument, files in plan:
+    uses = Counter(producer for _, _, _, bindings, _ in plan for producer in bindings.values())
+    remaining = uses.copy()
+    graph = any(len(bindings) > 1 for _, _, _, bindings, _ in plan) or any(count > 1 for count in uses.values())
+    variables = {event["id"]: f"mdata_{index}" if graph else "mdata" for index, (event, *_) in enumerate(plan)}
+    for event, func, bound, bindings, files in plan:
         metadata = {key: event[key] for key in ("id", "function", "function_path")}
         metadata["outputs"] = [script_entity(entity) for entity in event["outputs"]]
-        lines.extend(["", f"# {names[func]}", f"with source_scope(), mm.pv.options(hashing={verify}, significant_digits={_precision(event)!r}):"])
+        context = "source_scope()"
+        if verify and _precision(event) != 12:
+            context += f", mm.pv.options(hashing=True, significant_digits={_precision(event)!r})"
+        lines.extend(["", f"# {names[func]}", f"with {context}:"])
         if verify:
             lines.append(f"    event = {_literal(metadata)}")
-            lines.append('    previous_head = mm.pv.get_log(mdata)["head"] if mdata is not None else None')
+            parent_variables = [variables[producer] for producer in dict.fromkeys(bindings.values())]
+            lines.append("    previous_head = [" + ", ".join(f'mm.pv.get_log({value})["head"]' for value in parent_variables) + "]")
+            for entity in _event_inputs(event):
+                if entity["type"] == "MuData":
+                    variable = variables[bindings[entity["role"]]]
+                    lines.append(f"    _check_digest(mm.pv.compute_hash({variable}, significant_digits={_precision(event)!r}), {_literal(script_entity(entity))}, event)")
             for entity, source in files:
                 lines.extend([
                     f"    source = {_literal(source)}",
@@ -350,7 +416,18 @@ def to_script(
                 ])
         arguments = []
         for name, parameter in bound.signature.parameters.items():
-            value = "mdata" if name == mudata_argument else _literal(bound.arguments[name])
+            direct_role = f"arguments/{name}"
+            def input_expression(producer):
+                return variables[producer] + (".copy()" if uses[producer] > 1 else "")
+            if direct_role in bindings:
+                value = input_expression(bindings[direct_role])
+            elif name == "mdatas" and bindings:
+                value = "{" + ", ".join(
+                    f"{_literal(role.removeprefix('arguments/mdatas/'))}: {input_expression(producer)}"
+                    for role, producer in bindings.items()
+                ) + "}"
+            else:
+                value = _literal(bound.arguments[name])
             if parameter.kind == inspect.Parameter.VAR_POSITIONAL:
                 arguments.append("*" + value)
             elif parameter.kind == inspect.Parameter.VAR_KEYWORD:
@@ -359,9 +436,16 @@ def to_script(
                 arguments.append(value)
             else:
                 arguments.append(f"{name}={value}")
-        lines.append(f"    mdata = {names[func]}({', '.join(arguments)})")
+        variable = variables[event["id"]]
+        lines.append(f"    {variable} = {names[func]}({', '.join(arguments)})")
         if verify:
-            lines.append("    _verify_output(mdata, event, previous_head)")
+            lines.append(f"    _verify_output({variable}, event, previous_head)")
+        for producer in bindings.values():
+            remaining[producer] -= 1
+            if graph and not remaining[producer]:
+                lines.append(f"    del {variables[producer]}")
+    if graph:
+        lines.append(f"\nmdata = {variables[history['head']]}")
     script = "\n".join(lines) + "\n"
     if filename is not None:
         Path(filename).write_text(script, encoding="utf-8")

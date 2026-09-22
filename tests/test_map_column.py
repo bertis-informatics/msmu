@@ -1,3 +1,4 @@
+from msmu._core._provenance import _event_inputs
 import anndata as ad
 import mudata as md
 import numpy as np
@@ -40,8 +41,8 @@ def test_mapping_and_saved_replay(tmp_path, target_index):
     m.write_h5mu(saved)
     history = mm.pv.get_log(md.read_h5mu(saved))
     event = history["events"][-1]
-    assert set(event["parameters"]) == {"source", "target", "source_index", "target_index", "columns"}
-    assert len(event["inputs"]) == 1  # Only MuData, no copied column payload.
+    assert set(event["parameters"]) == {"mdata", "source", "target", "source_index", "target_index", "columns"}
+    assert len(_event_inputs(event)) == 1  # Only MuData, no copied column payload.
     pd.testing.assert_frame_equal(mm.pv.replay(history)["peptide"].var, expected)
     namespace = {}
     exec(mm.pv.to_script(history), namespace)
