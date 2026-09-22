@@ -1,10 +1,12 @@
 import numpy as np
 import pandas as pd
 import mudata as md
+import scipy.sparse as sp
 from scipy.interpolate import interp1d
 from scipy.stats import rankdata
 from sklearn.linear_model import Ridge
 
+from dataclasses import dataclass
 from typing import Callable, Literal, get_args
 
 from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
@@ -15,7 +17,7 @@ from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
 
-NormalisationMethod = Literal["median", "median_center", "quantile", "total_sum"]
+NormalisationMethod = Literal["median", "median_center", "quantile", "total_sum", "pairwise_median"]
 # Runtime tuple derived from the Literal so the accepted methods have a single source of truth.
 _NORMALISATION_METHODS: tuple[str, ...] = get_args(NormalisationMethod)
 
@@ -86,9 +88,19 @@ class Normalisation:
         self._method = method
         self._method_call: Callable = getattr(self, f"_{method}")
         self._axis = axis
+        self.block_diagnostics: dict = {}  # per-block intermediates a method exposes; reset per block
 
     def _quantile(self, arr) -> np.ndarray:
         return normalise_quantile(arr=arr)
+
+    def _pairwise_median(self, arr) -> np.ndarray:
+        estimate = estimate_pairwise_median_shifts(np.asarray(arr, dtype=np.float64).T)
+        self.block_diagnostics = {
+            "sample_positions": np.arange(arr.shape[1]),
+            "pair_median_log2": estimate.pair_median_log2,
+            "pair_shared_count": estimate.pair_shared_count,
+        }
+        return arr - estimate.shift_log2[None, :]
 
     def _median(self, arr) -> np.ndarray:
         all_median = np.nanmedian(arr.flatten())
@@ -132,6 +144,26 @@ class Normalisation:
             values = data[idx]
             data[idx] = values - np.nanmedian(values) + block_median
 
+    def _pairwise_median_sparse(self, csr, cell_indices) -> None:
+        # Refuses a block with an unshared pair from the stored pattern alone, then densifies only the
+        # features observed by at least two samples of the block.
+        kept_positions, kept_entries, kept_columns = _collect_observed_columns_sparse(csr, cell_indices)
+        if len(kept_entries) < 2:
+            return
+        pair_shared_count = _count_shared_features_from_columns(kept_columns, csr.shape[1])
+        unshared_pairs = find_unshared_sample_pairs(pair_shared_count)
+        if unshared_pairs:
+            raise UnsharedSamplePairsError([(kept_positions[a], kept_positions[b]) for a, b in unshared_pairs])
+        shared_block = _densify_shared_columns(csr, kept_entries, kept_columns)
+        estimate = estimate_pairwise_median_shifts(shared_block)
+        self.block_diagnostics = {
+            "sample_positions": np.asarray(kept_positions),
+            "pair_median_log2": estimate.pair_median_log2,
+            "pair_shared_count": pair_shared_count,
+        }
+        for entry, shift in zip(kept_entries, estimate.shift_log2):
+            csr.data[entry] = csr.data[entry] - csr.dtype.type(shift)
+
     @property
     def is_sparse_native(self) -> bool:
         """Whether this method can be computed on the sparse block-diagonal without densifying."""
@@ -139,9 +171,11 @@ class Normalisation:
 
     def rescale_sparse_block(self, csr, cell_indices) -> None:
         """Rescale one block's stored cells in place, dispatching to this method's sparse rescaler."""
+        self.block_diagnostics = {}
         getattr(self, f"_{self._method}_sparse")(csr, cell_indices)
 
     def normalise(self, arr) -> np.ndarray:
+        self.block_diagnostics = {}
         na_idx = np.isnan(arr)
         if self._axis == "obs":
             transposed_arr = arr.T
@@ -231,6 +265,130 @@ def normalise_median_center(arr: np.ndarray) -> np.ndarray:
     median_centered_data = raw_arr - median_data
 
     return median_centered_data
+
+
+class UnsharedSamplePairsError(ValueError):
+    """Two samples of a normalisation block observe no feature in common.
+
+    Positions refer to the block as passed to the estimator; ``normalise()`` maps them to obs names.
+    """
+
+    def __init__(self, sample_position_pairs) -> None:
+        self.sample_position_pairs = [(int(first), int(second)) for first, second in sample_position_pairs]
+        listed = ", ".join(f"{first} x {second}" for first, second in self.sample_position_pairs)
+        super().__init__(f"Samples share no observed feature (block positions): {listed}.")
+
+    def map_sample_positions(self, outer_positions) -> "UnsharedSamplePairsError":
+        outer_positions = np.asarray(outer_positions)
+        return UnsharedSamplePairsError([(outer_positions[first], outer_positions[second]) for first, second in self.sample_position_pairs])
+
+    def __reduce__(self):
+        return (UnsharedSamplePairsError, (self.sample_position_pairs,))
+
+
+@dataclass(frozen=True)
+class PairwiseMedianShifts:
+    shift_log2: np.ndarray
+    pair_median_log2: np.ndarray
+    pair_shared_count: np.ndarray
+
+
+def normalise_pairwise_median(arr: np.ndarray) -> np.ndarray:
+    """Pairwise-median normalisation: align samples on the features they observe in common.
+
+    For every pair of samples the median log2 difference over their co-observed features is taken;
+    a sample's shift is the mean of its pairwise medians over all samples (its own pair being 0),
+    i.e. the equal-weight least-squares solution with the shifts summing to zero. ``arr`` is oriented
+    (features x samples). Every pair must observe at least one feature in common, otherwise
+    ``UnsharedSamplePairsError`` is raised.
+    """
+    estimate = estimate_pairwise_median_shifts(np.asarray(arr, dtype=np.float64).T)
+    return arr - estimate.shift_log2[None, :]
+
+
+def estimate_pairwise_median_shifts(log2_matrix: np.ndarray) -> PairwiseMedianShifts:
+    """Per-sample shifts from a (samples x features) log2 matrix with NaN for missing values."""
+    log2_matrix = np.asarray(log2_matrix, dtype=np.float64)
+    sample_count = log2_matrix.shape[0]
+    is_observed = ~np.isnan(log2_matrix)
+    pair_shared_count = count_shared_features(is_observed)
+    unshared_pairs = find_unshared_sample_pairs(pair_shared_count)
+    if unshared_pairs:
+        raise UnsharedSamplePairsError(unshared_pairs)
+    if sample_count < 2:
+        return PairwiseMedianShifts(np.zeros(sample_count), np.zeros((sample_count, sample_count)), pair_shared_count)
+    is_shared_feature = is_observed.sum(axis=0) >= 2
+    pair_median_log2 = compute_pairwise_median_differences(log2_matrix[:, is_shared_feature])
+    return PairwiseMedianShifts(pair_median_log2.mean(axis=1), pair_median_log2, pair_shared_count)
+
+
+def count_shared_features(is_observed: np.ndarray) -> np.ndarray:
+    """(samples x samples) count of features observed by both samples; the diagonal is each sample's depth."""
+    observed_as_float = is_observed.astype(np.float64)
+    return np.rint(observed_as_float @ observed_as_float.T).astype(np.int64)
+
+
+def find_unshared_sample_pairs(pair_shared_count: np.ndarray) -> list[tuple[int, int]]:
+    first_positions, second_positions = np.nonzero(np.triu(pair_shared_count == 0, k=1))
+    return list(zip(first_positions.tolist(), second_positions.tolist()))
+
+
+def compute_pairwise_median_differences(log2_matrix: np.ndarray, chunk_cell_count: int = 20_000_000) -> np.ndarray:
+    """Antisymmetric (samples x samples) matrix of ``median(y_s - y_t)`` over co-observed features,
+    computed in row chunks of at most ``chunk_cell_count`` cells."""
+    sample_count, feature_count = log2_matrix.shape
+    pair_median_log2 = np.zeros((sample_count, sample_count))
+    rows_per_chunk = max(1, chunk_cell_count // max(feature_count, 1))
+    for first_index in range(sample_count - 1):
+        for chunk_start in range(first_index + 1, sample_count, rows_per_chunk):
+            chunk_stop = min(chunk_start + rows_per_chunk, sample_count)
+            differences = log2_matrix[first_index][None, :] - log2_matrix[chunk_start:chunk_stop]
+            chunk_medians = np.nanmedian(differences, axis=1)
+            pair_median_log2[first_index, chunk_start:chunk_stop] = chunk_medians
+            pair_median_log2[chunk_start:chunk_stop, first_index] = -chunk_medians
+    return pair_median_log2
+
+
+def _collect_observed_columns_sparse(csr, cell_indices) -> tuple[list[int], list, list[np.ndarray]]:
+    """Position, ``csr.data`` entry and observed column indices of every block row holding a non-NaN value."""
+    kept_positions: list[int] = []
+    kept_entries: list = []
+    kept_columns: list[np.ndarray] = []
+    for position, entry in enumerate(cell_indices):
+        is_observed_value = ~np.isnan(csr.data[entry])
+        if not is_observed_value.any():
+            continue
+        kept_positions.append(position)
+        kept_entries.append(entry)
+        kept_columns.append(csr.indices[entry][is_observed_value])
+    return kept_positions, kept_entries, kept_columns
+
+
+def _count_shared_features_from_columns(kept_columns: list[np.ndarray], column_count: int) -> np.ndarray:
+    """Shared-feature counts from the stored pattern alone (sparse incidence product, no dense block)."""
+    sample_count = len(kept_columns)
+    row_positions = np.repeat(np.arange(sample_count), [columns.size for columns in kept_columns])
+    incidence = sp.csr_matrix(
+        (np.ones(row_positions.size, dtype=np.float32), (row_positions, np.concatenate(kept_columns))),
+        shape=(sample_count, column_count),
+    )
+    return np.rint((incidence @ incidence.T).toarray()).astype(np.int64)
+
+
+def _densify_shared_columns(csr, kept_entries: list, kept_columns: list[np.ndarray]) -> np.ndarray:
+    """Dense (samples x features) float64 block over the features observed by at least two samples."""
+    all_columns, observation_counts = np.unique(np.concatenate(kept_columns), return_counts=True)
+    shared_columns = all_columns[observation_counts >= 2]
+    shared_block = np.full((len(kept_entries), shared_columns.size), np.nan)
+    if shared_columns.size == 0:
+        return shared_block
+    for row, (entry, columns) in enumerate(zip(kept_entries, kept_columns)):
+        values = csr.data[entry]
+        values = values[~np.isnan(values)]
+        positions = np.minimum(np.searchsorted(shared_columns, columns), shared_columns.size - 1)
+        is_shared = shared_columns[positions] == columns
+        shared_block[row, positions[is_shared]] = values[is_shared]
+    return shared_block
 
 
 def normalise_total_sum(arr: np.ndarray) -> np.ndarray:
