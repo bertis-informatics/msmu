@@ -439,3 +439,16 @@ def test_legacy_merge_name_replays_as_concat(tmp_path, old_name):
     exec(script, namespace)
     assert compute_hash(result) == compute_hash(original)
     assert compute_hash(namespace["mdata"]) == compute_hash(original)
+
+
+
+def test_filter_history_before_optional_name_still_replays(tmp_path):
+    _, original = workflow(tmp_path)
+    history = get_log(original)
+    for event in history["events"]:
+        if event["function"] == "add_filter":
+            del event["parameters"]["name"]
+    assert compute_hash(replay(history, verify=True)) == compute_hash(original)
+    namespace = {}
+    exec(mm.pv.to_script(history, verify=True), namespace)
+    assert compute_hash(namespace["mdata"]) == compute_hash(original)

@@ -21,7 +21,24 @@ Filtering in `msmu` is split into two steps and is implemented in
 The `keep` argument accepts conditional operators such as `eq`, `ne`, `lt`, `le`,
 `gt`, `ge`, `contains`, and `not_contains`.
 
-Stored filter column names follow this pattern:
+Use `name` to give a filter a short, explicit identifier:
+
+```python
+mdata = mm.pp.add_filter(
+    mdata, modality="psm", on="varm", key="qc",
+    column="score", keep="gt", value=0.01, name="qc_score",
+)
+mdata = mm.pp.apply_filter(mdata, modality="psm", columns=["qc_score"])
+```
+
+Names must be nonblank strings without `/` so their definitions can be saved in
+HDF5. Explicit names are shared across the modality's obs and var filters.
+The source, column, operator and value are recorded in
+`adata.uns["filter_conditions"][name]`. Reusing a name with the same condition
+recomputes its mask; a different condition raises an error. An existing mask
+without a recorded definition cannot be overwritten with an explicit name.
+
+When `name` is omitted, stored filter column names follow this pattern:
 `{column}_{keep}_{value}` for `obs` and `var`. For matrix sources, the name
 also includes the source and key, for example `varm['qc'].score_gt_15.0`.
 Use that full name when selecting matrix filters with `columns`.

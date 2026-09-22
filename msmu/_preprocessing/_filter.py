@@ -22,6 +22,8 @@ def add_filter(
     value: str | float | None,
     on: Literal["var", "obs", "varm", "obsm"] = "var",
     key: str | None = None,
+    *,
+    name: str | None = None,
 ) -> MuData:
     """
     Adds a filter to the specified modality in the MuData object based on the given condition.
@@ -38,10 +40,16 @@ def add_filter(
         value: The value to compare against for filtering.
         on: Target table to filter on. One of 'var', 'obs', 'varm', or 'obsm'.
         key: Key to select table from `.varm`/`.obsm` when `on` is 'varm'/'obsm'.
+        name: Optional filter name for selection with ``apply_filter(columns=...)``.
+            Must be nonblank and contain no slash (HDF5 key restriction). An existing
+            name can only be reused with the same recorded condition.
 
     Returns:
         MuData object with the added filter.
     """
+
+    if name is not None and (not isinstance(name, str) or not name.strip() or "/" in name):
+        raise ValueError("name must be a nonblank string without slashes")
 
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
@@ -52,6 +60,8 @@ def add_filter(
     filter_name = f"{column}_{keep}_{value}"
     if on in {"varm", "obsm"}:
         filter_name = f"{on}[{key!r}].{filter_name}"
+    if name is not None:
+        filter_name = name
     adata = get_anndata_mod(mdata, modality)
 
     if on == "var":
@@ -79,6 +89,18 @@ def add_filter(
     column_values = source_df[column]
     if not isinstance(column_values, pd.Series):
         raise ValueError(f"Column '{column}' must identify a single column in {modality}.{on}")
+
+    condition = {"on": on, "key": key if on in {"varm", "obsm"} else None,
+                 "column": column, "keep": keep, "value": value}
+    definitions = adata.uns.get("filter_conditions", {})
+    previous = definitions.get(filter_name)
+    if previous is not None and previous != condition:
+        raise ValueError(f"Filter name {filter_name!r} already identifies a different condition")
+    if name is not None and previous is None and any(
+        "filter" in mapping and filter_name in mapping["filter"].columns
+        for mapping in (adata.varm, adata.obsm)
+    ):
+        raise ValueError(f"Filter name {filter_name!r} already exists without a recorded condition")
 
     mask = _mask_boolean_filter(series_to_mask=column_values, keep=keep, value=value)
 
@@ -110,6 +132,9 @@ def add_filter(
             adata.uns["decoy_filter"] = decoy_mask.to_frame(name=filter_name)
         else:
             adata.uns["decoy_filter"][filter_name] = decoy_mask
+
+    if name is not None:
+        adata.uns.setdefault("filter_conditions", {})[filter_name] = condition
 
     return mdata
 

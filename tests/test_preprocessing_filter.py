@@ -382,7 +382,8 @@ def test_missing_decoy_condition_raises(filter_mdata):
         apply_filter(out, "psm", on="var")
 
 
-def test_updated_filter_workflow_replays_and_generates_script(filter_mdata, tmp_path):
+@pytest.mark.parametrize("filter_name", [None, "qc_score"])
+def test_updated_filter_workflow_replays_and_generates_script(filter_mdata, tmp_path, filter_name):
     import msmu as mm
 
     source = tmp_path / "filters.h5mu"
@@ -395,7 +396,7 @@ def test_updated_filter_workflow_replays_and_generates_script(filter_mdata, tmp_
         out = add_filter(original, "psm", "score", "gt", 15.)
         out = add_filter(out, "psm", "score", "lt", 28.)
         out = add_filter(out, "psm", "name", "not_contains", "blank", on="obs")
-        out = add_filter(out, "psm", "score", "gt", .5, on="obsm", key="qc")
+        out = add_filter(out, "psm", "score", "gt", .5, on="obsm", key="qc", name=filter_name)
         out = apply_filter(out, "psm", on="var", columns=["score_gt_15.0"])
         out = apply_filter(out, "psm")
     assert mm.pv.compute_hash(original) == before_hash
@@ -420,3 +421,54 @@ def test_concat_undefined_masks_remain_unapplied(filter_mdata):
     assert merged["psm"].obsm["filter"].isna().any().any()
     out = apply_filter(merged, "psm", on="obs")
     assert out["psm"].obs_names.tolist() == ["s1", "s2"]
+
+
+def test_named_filter_selection_reuse_and_conflicts(filter_mdata):
+    out = add_filter(filter_mdata, "psm", "score", "gt", 15., name="qc_score")
+    repeated = add_filter(out, "psm", "score", "gt", 15., name="qc_score")
+    assert repeated["psm"].varm["filter"].columns.tolist() == ["qc_score"]
+    selected = apply_filter(repeated, "psm", columns=["qc_score"])
+    assert selected["psm"].var_names.tolist() == ["v2", "v3"]
+    assert selected["psm"].uns["decoy"].index.tolist() == ["v2", "v3"]
+    assert out["psm"].uns["filter_conditions"]["qc_score"]["value"] == 15.
+    before = get_log(out)
+    with pytest.raises(ValueError, match="different condition"):
+        add_filter(out, "psm", "score", "gt", 25., name="qc_score")
+    assert get_log(out) == before
+    pd.testing.assert_frame_equal(out["psm"].varm["filter"], repeated["psm"].varm["filter"])
+    assert "filter_conditions" not in filter_mdata["psm"].uns
+
+
+def test_named_filter_does_not_collide_with_other_axes_or_automatic_names(filter_mdata):
+    out = add_filter(filter_mdata, "psm", "score", "gt", 15., name="score_gt_25.0")
+    with pytest.raises(ValueError, match="different condition"):
+        add_filter(out, "psm", "score", "gt", 25.)
+    out["psm"].obs["score"] = [10., 20.]
+    with pytest.raises(ValueError, match="different condition"):
+        add_filter(out, "psm", "score", "gt", 15., on="obs", name="score_gt_25.0")
+    auto = add_filter(filter_mdata, "psm", "score", "gt", 15.)
+    with pytest.raises(ValueError, match="without a recorded condition"):
+        add_filter(auto, "psm", "score", "gt", 25., name="score_gt_15.0")
+
+
+@pytest.mark.parametrize("name", ["", "  ", 1, "qc/score"])
+def test_named_filter_rejects_invalid_names(filter_mdata, name):
+    with pytest.raises(ValueError, match="name must"):
+        add_filter(filter_mdata, "psm", "score", "gt", 15., name=name)
+
+
+def test_named_matrix_filter_h5mu_roundtrip(filter_mdata, tmp_path):
+    import msmu as mm
+
+    filter_mdata["psm"].obsm["qc"] = pd.DataFrame({"score": [1., 0.]}, index=filter_mdata["psm"].obs_names)
+    out = add_filter(filter_mdata, "psm", "score", "gt", .01, on="obsm", key="qc", name="qc_score")
+    out = add_filter(out, "psm", "score", "gt", 15., name="quality")
+    path = tmp_path / "named.h5mu"
+    out.write_h5mu(path)
+    restored = mm.read_h5mu(path)
+    assert restored["psm"].uns["filter_conditions"] == out["psm"].uns["filter_conditions"]
+    restored = add_filter(restored, "psm", "score", "gt", 15., name="quality")
+    with pytest.raises(ValueError, match="different condition"):
+        add_filter(restored, "psm", "score", "gt", 25., name="quality")
+    selected = apply_filter(restored, "psm", columns=["qc_score", "quality"])
+    assert selected["psm"].shape == (1, 2)
