@@ -1,13 +1,14 @@
+from os import PathLike
+
 import anndata as ad
 import mudata as md
 import numpy as np
-from typing import Literal
 
 from .._utils._mudata import get_anndata_mod
 from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise, to_observed_sparse
 from ..logging_utils import get_logger
-from ._normalisation import Normalisation, NormalisationMethod, PTMProteinAdjuster
+from ._normalisation import Normalisation, NormalisationMethod, PTMAdjustmentMethod, PTMProteinAdjuster
 
 logger = get_logger(__name__)
 
@@ -319,43 +320,93 @@ def _normalise_by_groups(
     return normalised_arr
 
 
+def _read_global_mdata(global_mdata: md.MuData | str | PathLike[str]) -> md.MuData:
+    """Accept the matched global dataset as an object, or as the path of an ``.h5mu`` holding it.
+
+    A path keeps the PTM container's history one chain: the file is recorded as an input with its
+    content hash instead of merging the global dataset's own history into the result. That is what
+    lets ``mm.pv.replay`` and ``mm.pv.to_script`` reproduce a PTM workflow through the adjustment,
+    which they cannot do for a history with two parents.
+    """
+    if isinstance(global_mdata, md.MuData):
+        return global_mdata
+
+    # Lazy import: _reader_registry imports this package, so importing read_h5mu at module top
+    # creates a circular import that fails depending on which subpackage loads first.
+    from .._read_write._reader_registry import read_h5mu
+
+    return read_h5mu(global_mdata)
+
+
 @log_provenance
 def adjust_ptm_by_protein(
     mdata: md.MuData,
-    global_mdata: md.MuData,
+    global_mdata: md.MuData | str | PathLike[str],
     modality: str = "phospho_site",
     layer: str | None = None,
-    method: Literal["ridge", "ratio"] = "ridge",
+    method: PTMAdjustmentMethod = "ratio",
     rescale: bool = True,
+    ridge_alpha: float | None = None,
 ) -> md.MuData:
     """
-    Estimation of PTM stoichiometry by using Global Protein Data.
+    Adjust PTM site intensities by parent protein abundance from a matched global dataset.
+
+    This computes *differential PTM usage* (DPU): the site's log intensity minus the log intensity
+    of its parent protein in the same sample, so that a site's change is read relative to whatever
+    its protein did. It is not occupancy/stoichiometry -- that additionally requires the unmodified
+    counterpart peptide, and is a different estimand with far lower coverage.
+
+    A site's denominator is found through the accessions it was localised on, translated into a
+    global protein group via the global dataset's ``uns['protein_map']``. Nothing is looked up by
+    peptide, so a PTM peptide the global run never observed is still adjustable whenever its protein
+    was quantified there. Sites whose accessions span two or more quantified global groups have no
+    valid denominator and are left unadjusted; ``var['adjustment_status']`` records why for every
+    site.
+
+    The adjusted values replace the quantification that was read -- ``.X``, or ``layers[layer]`` when
+    given -- the same contract as ``log2_transform``, ``normalise`` and ``correct_batch_effect``. A
+    site that could not be adjusted is set to NaN rather than left holding its raw abundance, so
+    residuals and raw abundances never share a matrix. To keep the unadjusted values, copy them into
+    a layer first::
+
+        mdata[modality].layers["unadjusted"] = mdata[modality].X.copy()
 
     Parameters:
-        mdata: MuData object to normalise.
-        global_mdata: MuData object which contains global protein expression, read from its
-            'protein' modality.
-        modality: PTM modality to normalise (e.g. phospho_site, {ptm}_site).
-        layer: Layer to normalise. If None, the default layer (.X) will be used.
-        method: A method for normalisation. Options: ridge, ratio. Default is 'ridge'.
-        rescale: If True, rescale the data after normalisation with median value across dataset. Default is True.
+        mdata: MuData object holding the PTM data.
+        global_mdata: The matched global dataset: a MuData holding global protein expression in its
+            'protein' modality and the protein mapping in uns['protein_map'], or the path of an
+            ``.h5mu`` file holding one. A path keeps this container's provenance a single chain --
+            the file is recorded as an input with its content hash instead of merging the global
+            dataset's own history -- so ``mm.pv.replay`` and ``mm.pv.to_script`` can reproduce the
+            workflow through this step. Pass a ``Path`` rather than a ``str`` for that content hash.
+        modality: PTM modality to adjust (e.g. phospho_site, {ptm}_site).
+        layer: Layer to adjust. If None, the default layer (.X) will be used.
+        method: Estimator to use. 'ratio' subtracts the protein level, assuming the slope-one
+            relationship mass action predicts; 'ridge' instead fits a slope per site. Default is
+            'ratio', which needs no fitting and so stays usable at proteomics sample counts.
+        rescale: If True, shift the adjusted values by the PTM data's overall median so they read on
+            a comparable scale. A single constant, so it cancels in any contrast. Default is True.
+        ridge_alpha: Ridge penalty, used only when method='ridge'. A single-predictor ridge keeps
+            ``Sxx / (Sxx + alpha)`` of the least-squares slope, so a large alpha silently turns the
+            residual into a plain mean-centring. Defaults to DEFAULT_RIDGE_ALPHA.
 
     Returns:
-        Normalised MuData object.
+        MuData object with the adjusted quantification and per-site adjustment annotations.
     """
     mdata = mdata.copy()
-    adata = get_anndata_mod(mdata, modality)
-
-    if layer is not None:
-        adata.X = adata.layers[layer]
 
     ptm_adjuster: PTMProteinAdjuster = PTMProteinAdjuster(
         ptm_mdata=mdata,
-        global_mdata=global_mdata,
+        global_mdata=_read_global_mdata(global_mdata),
         ptm_mod=modality,
         global_mod="protein",
+        layer=layer,
     )
-    adj_ptm_mdata: md.MuData = ptm_adjuster.adjust(method=method, rescale=rescale)
+    adj_ptm_mdata: md.MuData = ptm_adjuster.adjust(
+        method=method,
+        rescale=rescale,
+        alpha=ridge_alpha,
+    )
 
     return adj_ptm_mdata
 

@@ -1,5 +1,7 @@
 import re
 import warnings
+from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -8,15 +10,46 @@ import scipy.sparse as sp
 
 from ..logging_utils import get_logger
 from .._core._blockdiag import aggregate_features_by_group, dense_block, is_sparse, to_dense_df
+from .._utils._anndata import _require_columns
 from .._utils._pandas import split_delimited_strings
+from .._utils.fasta import CANONICAL_CONTAMINANT_PREFIX
+from .._utils.peptide import (
+    MODIFICATION_TAG_CLOSER_BY_OPENER,
+    is_residue_qualified_modification,
+    parse_modified_peptide,
+    residue_carries_modification,
+)
 from ._filter import _mask_boolean_filter
 
 # for type checking only
 import anndata as ad
-from typing import Literal
+from typing import Callable, Literal, get_args
 
 
 logger = get_logger(__name__)
+
+# How many unreadable peptidoforms a notation error quotes, and how many present tags a
+# modification-not-found error lists; enough to diagnose, few enough to read.
+MAX_REPORTED_MISREAD_PEPTIDES: int = 5
+MAX_REPORTED_PRESENT_TAGS: int = 10
+# How many accessions or peptide-accession pairs a FASTA mismatch names before it says "and N more".
+MAX_REPORTED_UNLOCALISABLE_EXAMPLES: int = 5
+
+# "single" is reserved for a single-site table that prefers singly modified peptidoforms and fills the
+# sites seen only on multiply modified ones from the least-modified form (TMT-Integrator, PTM-SEA).
+Multisite = Literal["pool", "combination"]
+_MULTISITE_OPTIONS: tuple[str, ...] = get_args(Multisite)
+# Joins the sites of one peptidoform inside a site-combination label: "P1|S5_S8". An underscore rather
+# than "+": it survives regular expressions, R column names and file names, and it is what MSstatsPTM
+# writes. It only ever follows the label's last "|", so an accession containing "_" stays unambiguous.
+SITE_COMBINATION_SEPARATOR: str = "_"
+
+
+def _format_examples(values: set[str]) -> str:
+    """Render a few sorted examples, saying how many were left out."""
+    shown = sorted(values)[:MAX_REPORTED_UNLOCALISABLE_EXAMPLES]
+    remainder = len(values) - len(shown)
+    return ", ".join(shown) + (f", and {remainder} more" if remainder else "")
 
 
 @dataclass
@@ -138,6 +171,33 @@ def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     return np.asarray(protein_profile, dtype=float)
 
 
+# log2 intensities from real MS data sit well under 64 (2**64 is ~1.8e19, far above any observed
+# linear intensity), so a maximum above it is a reliable sign the matrix is still on a linear scale.
+MAX_PLAUSIBLE_LOG2_INTENSITY: float = 64.0
+
+
+def warn_if_not_log_scale(matrix, context: str) -> None:
+    """Warn when a matrix headed for an additive rollup still looks like linear intensities.
+
+    ``median_polish`` and ``directlfq`` fit an additive feature + sample model, which is only
+    meaningful in log space. Applying them to linear intensities silently produces nonsense rather
+    than failing, so this warns instead of leaving the user with no signal. It is a heuristic, hence
+    a warning and not an error.
+    """
+    values = dense_block(matrix) if is_sparse(matrix) else np.asarray(matrix, dtype=float)
+    if values.size == 0:
+        return
+
+    observed_maximum = np.nanmax(values) if np.any(~np.isnan(values)) else np.nan
+    if np.isfinite(observed_maximum) and observed_maximum > MAX_PLAUSIBLE_LOG2_INTENSITY:
+        logger.warning(
+            "%s: values reach %.3g, which looks like linear intensity rather than log2. "
+            "Additive rollups (median_polish, directlfq) assume log space -- apply log2_transform first.",
+            context,
+            observed_maximum,
+        )
+
+
 def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     """Summarise a feature-by-sample matrix to per-sample estimates via Tukey's median polish.
 
@@ -230,6 +290,16 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     sample_estimates[fully_missing_sample_mask] = np.nan
 
     return sample_estimates
+
+
+# Rollups that consume a group's whole feature-by-sample submatrix rather than reducing each column
+# independently. Both fit an additive model and so require log-space input; keeping the mapping here
+# gives the aggregator and the callers that must warn about scale a single source of truth.
+MATRIX_ROLLUP_FUNCTIONS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
+    "median_polish": _median_polish,
+    "directlfq": _directlfq_rollup,
+}
+MATRIX_ROLLUP_METHODS: tuple[str, ...] = tuple(MATRIX_ROLLUP_FUNCTIONS)
 
 
 class FeatureRanker:
@@ -464,7 +534,7 @@ class Aggregator:
             "count_peptide": ("peptide", "nunique"),
             "count_stripped_peptide": ("stripped_peptide", "nunique"),
             "modified_protein": ("modified_protein", "first"),
-            "protein_group": ("protein_group", "first"),
+            "count_site": ("count_site", "first"),
         }
 
         return aggregator
@@ -483,19 +553,18 @@ class Aggregator:
         if isinstance(self._quant_df, SparseQuant):
             return self._aggregate_quantification_sparse()
 
-        sample_columns = self._quant_df.columns
+        # The PTM path carries its grouping column inside the quantification frame (it is what aligns
+        # quant rows to the exploded site rows), so exclude it explicitly. The column-wise ``.agg``
+        # branch drops the groupby key on its own, but a matrix rollup would try to average a string.
+        sample_columns = [column for column in self._quant_df.columns if column != self._col_to_groupby]
         agg_quant_df: pd.DataFrame = self._quant_df.copy()
         agg_quant_df[self._col_to_groupby] = self._id_df[self._col_to_groupby]
         grouped_quant = agg_quant_df.groupby(self._col_to_groupby, observed=True)
 
         # Matrix rollups operate on each group's full feature-by-sample submatrix, so they cannot
         # be expressed as a column-wise pandas aggregation and are applied per group instead.
-        matrix_rollups = {
-            "median_polish": _median_polish,
-            "directlfq": _directlfq_rollup,
-        }
-        if self._agg_method in matrix_rollups:
-            rollup_function = matrix_rollups[self._agg_method]
+        if self._agg_method in MATRIX_ROLLUP_FUNCTIONS:
+            rollup_function = MATRIX_ROLLUP_FUNCTIONS[self._agg_method]
             agg_quant_df = grouped_quant[sample_columns].apply(
                 lambda group_quant: pd.Series(
                     rollup_function(group_quant.to_numpy(dtype=float)),
@@ -680,21 +749,57 @@ class SummarisationPrep:
         )
 
 
+def normalise_target_modifications(modification: str | Sequence[str]) -> tuple[str, ...]:
+    """Validate ``to_ptm``'s ``modification`` argument and return it as a tuple of tags.
+
+    Each entry must be a tag exactly as the search engine writes it (``[+79.9663]``, ``(UniMod:21)``)
+    or a tag qualified by its residue (``S[167]``). Matching is by equality with a parsed tag, not by
+    substring, so anything that does not look like a tag can never match and is rejected here.
+    """
+    modifications = (modification,) if isinstance(modification, str) else tuple(modification)
+    if not modifications:
+        raise ValueError("modification must name at least one modification tag.")
+
+    for target_modification in modifications:
+        tag_text = _get_modification_tag_text(target_modification) if isinstance(target_modification, str) else ""
+        if tag_text[:1] not in MODIFICATION_TAG_CLOSER_BY_OPENER:
+            raise ValueError(
+                f"Invalid modification {target_modification!r}. Pass the tag exactly as it appears in the "
+                "peptide string, brackets included -- e.g. '[+79.9663]' (Sage), '(UniMod:21)' (DIA-NN) -- "
+                "or qualify it with its residue, e.g. 'S[167]' (FragPipe)."
+            )
+
+    return modifications
+
+
+def _get_modification_tag_text(modification: str) -> str:
+    """The tag part of a target modification: ``S[167]`` -> ``[167]``; a bare tag is returned as is."""
+    return modification[1:] if is_residue_qualified_modification(modification) else modification
+
+
 class PtmSummarisationPrep(SummarisationPrep):
     """
     Preparation steps for PTM site summarisation.
-        1. Filter data with only modified peptides with modi_identifier
-        2. Get modified sites from peptide
-        3. Label peptide site
-        4. Explode data to single protein for labeling protein site
-        5. Label protein site to each single protein
-        6. Wrap up single protein to single protein group
-        7. Group by modified peptide and its peptide site
-        8. Merge data with peptide value indexed by peptide
+        1. Keep the peptidoforms carrying a target modification, labelled with the peptide positions
+           of the residues that carry it
+        2. Explode data to one row per peptide site
+        3. Explode data to the peptide's own accessions for labeling protein site
+        4. Label protein site to each single protein
+        5. Group by modified peptide and its peptide site
+        6. Merge data with peptide value indexed by peptide
     """
 
-    def __init__(self, adata: ad.AnnData, modi_identifier: str, fasta: pd.DataFrame) -> None:
-        self._modi_identifier = modi_identifier
+    def __init__(
+        self,
+        adata: ad.AnnData,
+        modification: str | Sequence[str],
+        fasta: pd.DataFrame,
+        multisite: Multisite = "combination",
+    ) -> None:
+        if multisite not in _MULTISITE_OPTIONS:
+            raise ValueError(f"Unknown multisite option '{multisite}'. Choose from {_MULTISITE_OPTIONS}.")
+        self._multisite: Multisite = multisite
+        self._target_modifications: tuple[str, ...] = normalise_target_modifications(modification)
         self._fasta_dict: dict = fasta["Sequence"].to_dict()
         self._col_to_groupby = "ptm_site"
 
@@ -712,6 +817,11 @@ class PtmSummarisationPrep(SummarisationPrep):
                 columns=quantification_df.sample_names,
             )
         identification_df["peptide"] = identification_df.index
+        _require_columns(
+            identification_df,
+            columns=["proteins", "stripped_peptide"],
+            context="peptide.var (PTM site localisation)",
+        )
         modi_df = self._extract_modi_peptide_df(data=identification_df)
 
         labelled_ptm_df = self.label_ptm_site(
@@ -737,11 +847,93 @@ class PtmSummarisationPrep(SummarisationPrep):
         self,
         data: pd.DataFrame,
     ) -> pd.DataFrame:
-        extracted_df: pd.DataFrame = data.copy()
-        extracted_df = extracted_df.loc[extracted_df["peptide"].str.contains(self._modi_identifier, regex=False)].copy()
+        """Keep the peptidoforms carrying a target modification, labelled with where it sits.
+
+        ``peptide_site`` lists every residue carrying a target modification as ``<residue><1-based
+        position>`` (e.g. ``S7``), counted over residues only, so the letters inside a tag such as
+        ``(UniMod:35)`` never shift it. Each parse is checked against the engine's own
+        ``stripped_peptide``; a disagreement means msmu misread the notation, and every site in that
+        peptide would be misplaced, so it raises instead.
+        """
+        peptide_strings = data["peptide"].astype(str)
+        # A cheap substring pre-filter, so only plausible peptidoforms are parsed -- and a notation
+        # msmu cannot read fails only if it actually carries the modification being summarised.
+        has_target_tag_text = pd.Series(False, index=data.index)
+        for target_modification in self._target_modifications:
+            has_target_tag_text |= peptide_strings.str.contains(
+                _get_modification_tag_text(target_modification), regex=False
+            )
+        candidate_df: pd.DataFrame = data.loc[has_target_tag_text].copy()
+
+        peptide_sites: list[list[str]] = []
+        misread_peptide_descriptions: list[str] = []
+        for peptide, stripped_peptide in zip(
+            candidate_df["peptide"].astype(str), candidate_df["stripped_peptide"].astype(str)
+        ):
+            try:
+                modified_residues = parse_modified_peptide(peptide)
+            except ValueError as parse_error:
+                misread_peptide_descriptions.append(str(parse_error))
+                peptide_sites.append([])
+                continue
+
+            parsed_sequence = "".join(modified_residue.residue for modified_residue in modified_residues)
+            if parsed_sequence != stripped_peptide:
+                misread_peptide_descriptions.append(
+                    f"{peptide!r} parsed as {parsed_sequence!r}, but stripped_peptide is {stripped_peptide!r}"
+                )
+                peptide_sites.append([])
+                continue
+
+            peptide_sites.append(
+                [
+                    f"{modified_residue.residue}{modified_residue.position_in_peptide}"
+                    for modified_residue in modified_residues
+                    if any(
+                        residue_carries_modification(modified_residue, target_modification)
+                        for target_modification in self._target_modifications
+                    )
+                ]
+            )
+
+        if misread_peptide_descriptions:
+            raise ValueError(
+                f"Could not read the modification notation of {len(misread_peptide_descriptions)} "
+                f"peptidoform(s), so their site positions would be wrong. First "
+                f"{min(len(misread_peptide_descriptions), MAX_REPORTED_MISREAD_PEPTIDES)}:\n  "
+                + "\n  ".join(misread_peptide_descriptions[:MAX_REPORTED_MISREAD_PEPTIDES])
+            )
+
+        candidate_df["peptide_site"] = pd.Series(peptide_sites, index=candidate_df.index, dtype=object)
+        has_target_site = np.array([len(sites) > 0 for sites in peptide_sites], dtype=bool)
+        extracted_df = candidate_df.loc[has_target_site].copy()
+        if extracted_df.empty:
+            raise ValueError(self._describe_missing_target_modification(peptide_strings))
+
         logger.debug("Extracted modified peptides: %d / %d", len(extracted_df), len(data))
 
         return extracted_df
+
+    def _describe_missing_target_modification(self, peptide_strings: pd.Series) -> str:
+        """Explain a modification that matched nothing, listing the tags the data does contain."""
+        peptidoform_count_by_tag: Counter[str] = Counter()
+        for peptide in peptide_strings.unique():
+            try:
+                modified_residues = parse_modified_peptide(peptide)
+            except ValueError:
+                continue
+            peptidoform_count_by_tag.update(
+                {tag for modified_residue in modified_residues for tag in modified_residue.tags}
+            )
+
+        present_tags = ", ".join(
+            f"{tag!r} x{count}" for tag, count in peptidoform_count_by_tag.most_common(MAX_REPORTED_PRESENT_TAGS)
+        )
+        return (
+            f"No peptidoform carries the modification {list(self._target_modifications)}. Tags are matched "
+            f"exactly, brackets and case included. Tags present (peptidoform counts): "
+            f"{present_tags or 'none'}. A tag may also be qualified by its residue, e.g. 'S[167]'."
+        )
 
     def label_ptm_site(
         self,
@@ -750,24 +942,36 @@ class PtmSummarisationPrep(SummarisationPrep):
         """
         Label PTM site to each single protein and get data arranged by peptide - peptide site
 
+        Site identity is derived from the peptide's own ``proteins`` accessions rather than from an
+        inferred ``protein_group``. Localisation needs only an accession, a sequence and the FASTA;
+        protein grouping is a judgement made from one dataset's peptide evidence, so folding it into
+        the site name would make the same PTM data yield different site ids depending on which global
+        dataset it was processed alongside. Keeping accessions flat makes the site id a function of
+        (peptide, FASTA) alone. Resolving an accession to a quantifiable protein group is the
+        denominator step's job, not this one's.
+
         Parameters:
-            data (pd.DataFrame): Peptide data from msmu mudata['peptide']
+            data (pd.DataFrame): Peptide data from msmu mudata['peptide'], already reduced to the
+                target peptidoforms and labelled with ``peptide_site`` by ``_extract_modi_peptide_df``
 
         Returns:
             ptm_data (pd.DataFrame): PTM data arranged by peptide - peptide site
         """
         ptm_info: pd.DataFrame = data.copy()
-        ptm_info["peptide_site"] = (
-            ptm_info["peptide"].astype(str).apply(lambda x: self._get_mod_sites(x, self._modi_identifier))
-        )
 
-        # label peptide site
-        ptm_info["peptide_site"] = ptm_info["peptide_site"].apply(lambda x: self._label_peptide_site(x))
+        if self._multisite == "combination":
+            # The peptidoform is assigned to the set of sites it carries, as one unit: a multiply
+            # modified peptide's change cannot be attributed to one of its sites, the way a shared
+            # peptide's cannot be attributed to one protein. Joining the sites here makes the explode
+            # below a no-op, so each peptidoform reaches exactly one feature.
+            ptm_info["count_site"] = ptm_info["peptide_site"].map(len)
+            ptm_info["peptide_site"] = ptm_info["peptide_site"].map(SITE_COMBINATION_SEPARATOR.join)
+        else:
+            ptm_info["count_site"] = 1
 
         # explode data to single protein for label protein site
         ptm_info = self._explode_mod_site(ptm_info)
-        ptm_info = self._explode_protein_groups(ptm_info)
-        ptm_info = self._explode_protein_group(ptm_info)
+        ptm_info = self._explode_proteins(ptm_info)
 
         # label protein site to each single protein
         ptm_info["protein_site"] = ptm_info.apply(
@@ -779,37 +983,89 @@ class PtmSummarisationPrep(SummarisationPrep):
             ),
             axis=1,
         )
+        self._report_unlocalisable_matches(ptm_info)
         ptm_info = ptm_info.loc[ptm_info["protein_site"].str.len() > 0].copy()
-        ptm_info["modified_protein"] = ptm_info["protein_site"].apply(lambda x: x.split("|")[0])
-
-        # wrap up single protein to single protein group
-        ptm_info = self._implode_protein_group(ptm_info)
+        # The accession itself, not protein_site cut at its first "|": accessions such as GENCODE ids
+        # contain "|", and this column is what adjust_ptm_by_protein resolves denominators from.
+        ptm_info["modified_protein"] = ptm_info["_prots"]
 
         # group by modified peptide and its peptide site
         ptm_info = self._implode_peptide_peptide_site(ptm_info)
 
         return ptm_info
 
-    def _get_mod_sites(self, pep: str, modi_identifier: str) -> list:
-        mod_sites: list = pep.split(modi_identifier)
-        mod_sites: list = mod_sites[:-1]
+    def _report_unlocalisable_matches(self, labelled_ptm_info: pd.DataFrame) -> None:
+        """Report the peptide-accession matches the attached FASTA cannot reproduce.
 
-        return mod_sites
+        The search engine found each peptide in that accession's sequence, so an accession the
+        attached FASTA does not hold -- or a sequence of it that does not contain the peptide --
+        means the attached FASTA is not the one the search used. Such matches are dropped, which
+        silently costs sites and can also turn a site that should be ``shared_groups`` into an
+        adjusted one, so they are counted here rather than passed over.
 
-    def _label_peptide_site(self, mod_sites: list) -> list:
-        sites = list()
-        site_pos: int = 0
-        for mod in mod_sites:
-            mod = "".join(filter(str.isalpha, mod))
-            site_pos = site_pos + len(mod)
-            site = f"{mod[-1]}{site_pos}"
-            sites.append(site)
+        Contaminant accessions are reported separately: search engines add contaminant entries of
+        their own, so a user's FASTA routinely lacks them and that alone is not a mismatch.
+        """
+        is_unlocalised = labelled_ptm_info["protein_site"].str.len() == 0
+        absent_accessions: set[str] = set()
+        absent_contaminants: set[str] = set()
+        sequence_mismatches: set[str] = set()
+        unreproducible_match_count = 0
+        for accession, stripped_peptide in zip(
+            labelled_ptm_info.loc[is_unlocalised, "_prots"].astype(str),
+            labelled_ptm_info.loc[is_unlocalised, "stripped_peptide"].astype(str),
+        ):
+            if self._get_uniprot(accession) in self._fasta_dict:
+                sequence_mismatches.add(f"{stripped_peptide} in {accession}")
+            elif CANONICAL_CONTAMINANT_PREFIX in accession:
+                absent_contaminants.add(accession)
+                continue
+            else:
+                absent_accessions.add(accession)
+            unreproducible_match_count += 1
 
-        return sites
+        if absent_contaminants:
+            logger.info(
+                "%d contaminant accessions are not in the attached FASTA (%s). Search engines add "
+                "their own contaminant entries, so this is expected unless the same contaminants "
+                "were part of the search database.",
+                len(absent_contaminants),
+                _format_examples(absent_contaminants),
+            )
+
+        if not absent_accessions and not sequence_mismatches:
+            return
+
+        reasons = []
+        if absent_accessions:
+            reasons.append(
+                f"{len(absent_accessions)} accessions are absent from it ({_format_examples(absent_accessions)})"
+            )
+        if sequence_mismatches:
+            reasons.append(
+                f"{len(sequence_mismatches)} peptides are not in the attached sequence of their "
+                f"accession ({_format_examples(sequence_mismatches)})"
+            )
+
+        has_any_site = labelled_ptm_info.groupby("peptide", observed=True)["protein_site"].apply(
+            lambda protein_sites: bool((protein_sites.str.len() > 0).any())
+        )
+        logger.warning(
+            "The attached FASTA cannot reproduce %d of the search engine's peptide-protein matches: %s. "
+            "%d of %d modified peptidoforms produced no site at all. Attach the FASTA the search used -- "
+            "sites are otherwise lost, and a site whose accessions no longer span two protein groups can "
+            "be adjusted as if it were unambiguous.",
+            unreproducible_match_count,
+            "; ".join(reasons),
+            int((~has_any_site).sum()),
+            len(has_any_site),
+        )
 
     def _label_protein_site(self, protein: str, peptide: str, pep_site: str, fasta_dict: dict) -> str:
-        aa: str = pep_site[0]
-        pos: int = int(pep_site[1:])
+        # One peptide site ("S5") or a site combination ("S5_S8"); each is shifted by the peptide's offset.
+        peptide_sites: list[tuple[str, int]] = [
+            (site[0], int(site[1:])) for site in pep_site.split(SITE_COMBINATION_SEPARATOR)
+        ]
         prot_site: str = ""
 
         res: list = list()
@@ -818,8 +1074,10 @@ class PtmSummarisationPrep(SummarisationPrep):
         if prot_split in fasta_dict.keys():
             refseq: str = fasta_dict[prot_split]
             for match in re.finditer(peptide, refseq):
-                matched = f"{prot_split}|{aa}{pos + match.span()[0]}"
-                res.append(matched)
+                protein_sites = SITE_COMBINATION_SEPARATOR.join(
+                    f"{residue}{position + match.span()[0]}" for residue, position in peptide_sites
+                )
+                res.append(f"{prot_split}|{protein_sites}")
             prot_site = "/".join(res)
 
         return prot_site
@@ -829,45 +1087,29 @@ class PtmSummarisationPrep(SummarisationPrep):
 
         return pep_labed_data
 
-    def _explode_protein_groups(self, pep_labed_data: pd.DataFrame) -> pd.DataFrame:
-        pep_labed_data["_prot_gr"] = split_delimited_strings(pep_labed_data["protein_group"], ";")
-        exploded_data = pep_labed_data.explode("_prot_gr", ignore_index=True)
+    def _explode_proteins(self, pep_labed_data: pd.DataFrame) -> pd.DataFrame:
+        """Explode the peptide's accession list to one row per accession, in canonical order.
+
+        The accessions are sorted so the imploded ``protein_site`` is the same string whichever order
+        the search engine happened to list them in -- otherwise two peptidoforms covering one site
+        could disagree on the site name and split into two features.
+        """
+        accessions = split_delimited_strings(pep_labed_data["proteins"], ";")
+        pep_labed_data["_prots"] = accessions.apply(lambda parts: sorted(parts) if isinstance(parts, list) else parts)
+        exploded_data = pep_labed_data.explode("_prots", ignore_index=True)
 
         return exploded_data
-
-    def _explode_protein_group(self, data) -> pd.DataFrame:
-        data["_prots"] = split_delimited_strings(data["_prot_gr"], ",")
-        exploded_data = data.explode("_prots", ignore_index=True)
-
-        return exploded_data
-
-    def _implode_protein_group(self, data) -> pd.DataFrame:
-        data = (
-            data.groupby(["peptide", "peptide_site", "_prot_gr"], as_index=False, observed=True)
-            .agg(
-                {
-                    "protein_site": ",".join,
-                    "protein_group": "first",
-                    "modified_protein": ",".join,
-                    "stripped_peptide": "first",
-                    "count_psm": "sum",
-                    # "repr_protein": "first",
-                }
-            )
-            .copy()
-        )
-
-        return data
 
     def _implode_peptide_peptide_site(self, data) -> pd.DataFrame:
         data = data.groupby(["peptide", "peptide_site"], as_index=False, observed=True).agg(
             {
                 "protein_site": ";".join,
-                "protein_group": "first",
                 "modified_protein": ";".join,
                 "stripped_peptide": "first",
-                "count_psm": "sum",
-                # "repr_protein": "first",
+                # "first", not "sum": the accession explode duplicated this peptidoform's row, so
+                # summing here would multiply its PSM count by the number of accessions it maps to.
+                "count_psm": "first",
+                "count_site": "first",
             }
         )
 

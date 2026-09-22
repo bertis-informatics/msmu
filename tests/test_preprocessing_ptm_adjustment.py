@@ -1,0 +1,386 @@
+"""Denominator resolution and the output contract for adjust_ptm_by_protein.
+
+The adjustment finds a site's denominator through the accessions it was localised on, translated
+into a global protein group via the global container's own ``protein_map``. These tests pin the
+cases that decide whether a site is adjustable at all, and the promise that nothing is dropped.
+"""
+
+import numpy as np
+import pandas as pd
+import pytest
+from anndata import AnnData
+from mudata import MuData
+
+import msmu as mm
+from msmu._preprocessing._normalisation import (
+    ADJUSTMENT_STATUS_ADJUSTED,
+    ADJUSTMENT_STATUS_NO_GLOBAL_GROUP,
+    ADJUSTMENT_STATUS_NOT_IN_GLOBAL_FASTA,
+    ADJUSTMENT_STATUS_NOT_QUANTIFIED,
+    ADJUSTMENT_STATUS_SHARED_GROUPS,
+    PTMProteinAdjuster,
+)
+
+SAMPLES = ["s1", "s2", "s3", "s4"]
+
+
+def _make_ptm(site_to_accessions: dict[str, str]) -> MuData:
+    """PTM container whose sites carry only the accessions they were localised on."""
+    sites = list(site_to_accessions)
+    values = np.arange(len(SAMPLES) * len(sites), dtype=float).reshape(len(SAMPLES), len(sites))
+    adata = AnnData(
+        X=values,
+        obs=pd.DataFrame(index=SAMPLES),
+        var=pd.DataFrame({"modified_protein": list(site_to_accessions.values())}, index=sites),
+    )
+    return MuData({"phospho_site": adata})
+
+
+def _make_global(
+    quantified_groups: list[str],
+    accession_to_group: dict[str, str],
+    fasta_accessions: list[str] | None = None,
+) -> MuData:
+    """Global container: a protein matrix indexed by group, plus infer_protein's protein_map."""
+    values = np.arange(len(SAMPLES) * len(quantified_groups), dtype=float).reshape(len(SAMPLES), len(quantified_groups))
+    adata = AnnData(
+        X=values,
+        obs=pd.DataFrame(index=SAMPLES),
+        var=pd.DataFrame(index=quantified_groups),
+    )
+    mdata = MuData({"protein": adata})
+    mdata.uns["protein_map"] = pd.DataFrame(
+        {
+            "initial_protein": list(accession_to_group),
+            "protein_group": list(accession_to_group.values()),
+        }
+    )
+    if fasta_accessions is not None:
+        mdata.uns["protein_info"] = pd.DataFrame(index=fasta_accessions)
+    return mdata
+
+
+def _statuses(ptm_mdata: MuData, global_mdata: MuData) -> dict[str, str]:
+    adjuster = PTMProteinAdjuster(ptm_mdata, global_mdata, ptm_mod="phospho_site", global_mod="protein")
+    return adjuster.resolution["adjustment_status"].to_dict()
+
+
+def test_site_is_adjustable_when_its_peptide_was_never_seen_in_global():
+    """The case that motivated the accession route.
+
+    Enrichment means a phospho peptide is routinely absent from the global run, but its protein is
+    usually quantified there from other peptides. Keying on the accession rather than the peptide is
+    what makes that denominator reachable -- and there is no peptide-level lookup left to fail.
+    """
+    ptm = _make_ptm({"P1|S30": "P1"})
+    global_mdata = _make_global(quantified_groups=["P1"], accession_to_group={"P1": "P1"})
+
+    assert _statuses(ptm, global_mdata) == {"P1|S30": ADJUSTMENT_STATUS_ADJUSTED}
+
+
+def test_paralogs_indistinguishable_in_global_resolve_to_their_shared_group():
+    """Accessions that global could not tell apart are one group, so there is no ambiguity."""
+    ptm = _make_ptm({"P2|S30;P7|S45": "P2;P7"})
+    global_mdata = _make_global(
+        quantified_groups=["P2,P7"],
+        accession_to_group={"P2": "P2,P7", "P7": "P2,P7"},
+    )
+
+    adjuster = PTMProteinAdjuster(ptm, global_mdata, ptm_mod="phospho_site", global_mod="protein")
+
+    assert adjuster.resolution["adjustment_status"].tolist() == [ADJUSTMENT_STATUS_ADJUSTED]
+    assert adjuster.resolution["denominator_group"].tolist() == ["P2,P7"]
+
+
+def test_site_spanning_two_quantified_groups_is_left_unadjusted():
+    """No valid denominator exists, so this is a refusal rather than a lookup failure.
+
+    The measured signal is a sum over both groups, and protein rollup values carry a per-protein
+    offset that makes them incomparable across groups -- neither picking one nor summing them is
+    defined.
+    """
+    ptm = _make_ptm({"P3|S30;P9|S45": "P3;P9"})
+    global_mdata = _make_global(
+        quantified_groups=["P3", "P9"],
+        accession_to_group={"P3": "P3", "P9": "P9"},
+    )
+
+    assert _statuses(ptm, global_mdata) == {"P3|S30;P9|S45": ADJUSTMENT_STATUS_SHARED_GROUPS}
+
+
+def test_group_without_quantification_is_reported_separately():
+    """The accession maps to a group, but that group never reached the protein matrix."""
+    ptm = _make_ptm({"P5|S10": "P5"})
+    global_mdata = _make_global(quantified_groups=["P1"], accession_to_group={"P5": "P5"})
+
+    assert _statuses(ptm, global_mdata) == {"P5|S10": ADJUSTMENT_STATUS_NOT_QUANTIFIED}
+
+
+def test_accession_in_global_fasta_but_not_identified_is_not_a_configuration_error():
+    ptm = _make_ptm({"P8|S10": "P8"})
+    global_mdata = _make_global(
+        quantified_groups=["P1"],
+        accession_to_group={"P1": "P1"},
+        fasta_accessions=["P1", "P8"],
+    )
+
+    assert _statuses(ptm, global_mdata) == {"P8|S10": ADJUSTMENT_STATUS_NO_GLOBAL_GROUP}
+
+
+def test_accession_missing_from_global_fasta_is_flagged_as_a_different_database():
+    """Absent-from-results and absent-from-database look alike but mean opposite things.
+
+    The first is enrichment working as intended; the second means the two searches used different
+    FASTAs, which no adjustment policy should paper over.
+    """
+    ptm = _make_ptm({"Q99|S10": "Q99"})
+    global_mdata = _make_global(
+        quantified_groups=["P1"],
+        accession_to_group={"P1": "P1"},
+        fasta_accessions=["P1", "P8"],
+    )
+
+    assert _statuses(ptm, global_mdata) == {"Q99|S10": ADJUSTMENT_STATUS_NOT_IN_GLOBAL_FASTA}
+
+
+def test_without_a_global_fasta_the_two_absences_are_reported_together():
+    ptm = _make_ptm({"Q99|S10": "Q99"})
+    global_mdata = _make_global(quantified_groups=["P1"], accession_to_group={"P1": "P1"})
+
+    assert _statuses(ptm, global_mdata) == {"Q99|S10": ADJUSTMENT_STATUS_NO_GLOBAL_GROUP}
+
+
+def test_unadjustable_sites_survive_as_nan_and_the_adjusted_values_replace_the_matrix():
+    """Adjustment must not truncate features, and must write where downstream tools will read."""
+    ptm = _make_ptm({"P1|S30": "P1", "P3|S30;P9|S45": "P3;P9"})
+    original_x = ptm["phospho_site"].X.copy()
+    global_mdata = _make_global(
+        quantified_groups=["P1", "P3", "P9"],
+        accession_to_group={"P1": "P1", "P3": "P3", "P9": "P9"},
+    )
+
+    adjusted = mm.pp.adjust_ptm_by_protein(ptm, global_mdata, modality="phospho_site", rescale=False)
+    site_adata = adjusted["phospho_site"]
+
+    assert list(site_adata.var_names) == ["P1|S30", "P3|S30;P9|S45"]
+    # The adjusted values replace the matrix that was read, as every other msmu transform does --
+    # leaving them elsewhere would mean run_de, which defaults to .X, silently used the raw data.
+    assert not np.allclose(site_adata.X[:, 0], original_x[:, 0])
+    # The unadjustable site is NaN rather than still holding its raw abundance, so residuals and raw
+    # abundances never share a matrix.
+    assert np.isnan(site_adata.X[:, 1]).all()
+    assert site_adata.var["is_protein_adjusted"].tolist() == [True, False]
+    assert site_adata.var["adjustment_status"].tolist() == [
+        ADJUSTMENT_STATUS_ADJUSTED,
+        ADJUSTMENT_STATUS_SHARED_GROUPS,
+    ]
+
+
+def test_ratio_is_the_default_estimator():
+    """ridge fits a slope from as many points as there are samples and shrinks it toward zero;
+    subtraction assumes the slope-one relationship mass action predicts and needs no fitting."""
+    import inspect
+
+    assert inspect.signature(mm.pp.adjust_ptm_by_protein).parameters["method"].default == "ratio"
+
+
+def _ridge_residuals(alpha: float) -> np.ndarray:
+    """Adjust one site through the public API at a given penalty and return its residuals."""
+    ptm = _make_ptm({"P1|S30": "P1"})
+    ptm["phospho_site"].X = np.array([[10.0], [12.0], [11.0], [15.0]])
+    global_mdata = _make_global(quantified_groups=["P1"], accession_to_group={"P1": "P1"})
+    global_mdata["protein"].X = np.array([[1.0], [3.0], [2.0], [8.0]])
+
+    adjusted = mm.pp.adjust_ptm_by_protein(
+        ptm, global_mdata, modality="phospho_site", method="ridge", ridge_alpha=alpha, rescale=False
+    )
+    return adjusted["phospho_site"].X[:, 0]
+
+
+def test_ridge_alpha_changes_the_answer_and_reaches_the_estimator():
+    """The penalty must actually be plumbed through, and it must matter.
+
+    Asserting only that the residuals are mean-zero would prove nothing: ``Ridge(fit_intercept=True)``
+    gives mean-zero residuals at *every* alpha, so such a test passes even if ridge_alpha is dropped
+    on the floor. These are the two answers pinned to literals instead.
+    """
+    assert _ridge_residuals(1.0) == pytest.approx([-1 / 3, 1 / 3, 0.0, 0.0], abs=1e-6)
+
+    # Sxx = 29.0 here, so alpha=1e6 keeps ~3e-5 of the slope: the protein axis is not removed and the
+    # residual collapses onto the site centred on its own mean, [-2, 0, -1, 3].
+    assert _ridge_residuals(1e6) == pytest.approx([-2.0, 0.0, -1.0, 3.0], abs=1e-3)
+
+
+def test_each_site_is_divided_by_its_own_protein_in_the_right_sample_order():
+    """Pin actual numbers in the layer, not just its NaN pattern.
+
+    Two sites on different proteins, with values chosen so that reversing the sample axis, or pairing
+    a site with the other site's protein, both produce a different matrix. Shape-only assertions let
+    either misalignment through silently, and neither would raise.
+    """
+    ptm = _make_ptm({"A|S1": "PA", "B|S2": "PB"})
+    ptm["phospho_site"].X = np.array([[10.0, 20.0], [11.0, 22.0], [13.0, 25.0], [16.0, 29.0]])
+    global_mdata = _make_global(
+        quantified_groups=["PA", "PB"],
+        accession_to_group={"PA": "PA", "PB": "PB"},
+    )
+    global_mdata["protein"].X = np.array([[1.0, 7.0], [2.0, 7.0], [3.0, 8.0], [4.0, 8.0]])
+
+    adjusted = mm.pp.adjust_ptm_by_protein(ptm, global_mdata, modality="phospho_site", rescale=False)
+    layer = adjusted["phospho_site"].X
+
+    assert layer[:, 0] == pytest.approx([9.0, 9.0, 10.0, 12.0])  # site A minus PA
+    assert layer[:, 1] == pytest.approx([13.0, 15.0, 17.0, 21.0])  # site B minus PB
+
+
+def test_unknown_method_is_rejected():
+    ptm = _make_ptm({"P1|S30": "P1"})
+    global_mdata = _make_global(quantified_groups=["P1"], accession_to_group={"P1": "P1"})
+
+    with pytest.raises(ValueError, match="Unknown PTM adjustment method"):
+        mm.pp.adjust_ptm_by_protein(ptm, global_mdata, modality="phospho_site", method="_rescale")
+
+
+def test_missing_global_sample_is_named_in_the_error():
+    ptm = _make_ptm({"P1|S30": "P1"})
+    global_mdata = _make_global(quantified_groups=["P1"], accession_to_group={"P1": "P1"})
+    global_mdata = MuData({"protein": global_mdata["protein"][:3].copy()})
+    global_mdata.uns["protein_map"] = pd.DataFrame({"initial_protein": ["P1"], "protein_group": ["P1"]})
+
+    with pytest.raises(ValueError, match="missing samples"):
+        PTMProteinAdjuster(ptm, global_mdata, ptm_mod="phospho_site", global_mod="protein")
+
+
+def test_global_without_protein_map_is_rejected_with_a_usable_message():
+    ptm = _make_ptm({"P1|S30": "P1"})
+    global_mdata = _make_global(quantified_groups=["P1"], accession_to_group={"P1": "P1"})
+    del global_mdata.uns["protein_map"]
+
+    with pytest.raises(ValueError, match="protein_map"):
+        PTMProteinAdjuster(ptm, global_mdata, ptm_mod="phospho_site", global_mod="protein")
+
+
+def test_end_to_end_from_real_inference_output_through_site_adjustment():
+    """Full flow on inference output: infer_protein's protein_map feeds the denominator search.
+
+    Covers the three outcomes that matter together, on one container, with the global groups produced
+    by the real parsimony rather than hand-written:
+
+    * a phospho peptide the global run never observed, whose protein it did quantify -> adjusted
+    * a peptide on two paralogs the global run cannot tell apart -> one group, so still adjusted
+    * a peptide on two proteins the global run *can* tell apart -> no valid denominator
+    """
+    from msmu._preprocessing._infer_protein import get_protein_mapping
+
+    # Global evidence: P2/P7 are indistinguishable; P3 and P9 are separable but share one peptide.
+    global_peptides = pd.Series(["AAAK", "BBBK", "AAAK", "BBBK", "CCCK", "SHAREDK", "EEEK", "SHAREDK", "DDDK"])
+    global_proteins = pd.Series(["P2", "P2", "P7", "P7", "P3", "P3", "P9", "P9", "P1"])
+    peptide_map, protein_map = get_protein_mapping(global_peptides, global_proteins)
+
+    # to_protein quantifies unique peptides only, so a group backed solely by a shared peptide never
+    # reaches the protein matrix.
+    unique_groups = sorted({group for group in peptide_map["protein_group"] if ";" not in group})
+    global_values = np.arange(len(SAMPLES) * len(unique_groups), dtype=float).reshape(len(SAMPLES), len(unique_groups))
+    global_mdata = MuData(
+        {
+            "protein": AnnData(
+                X=global_values,
+                obs=pd.DataFrame(index=SAMPLES),
+                var=pd.DataFrame(index=unique_groups),
+            )
+        }
+    )
+    global_mdata.uns["protein_map"] = protein_map
+
+    ptm = _make_ptm(
+        {
+            # never in global's peptide_map -- only reachable through its accession
+            "P1|S30": "P1",
+            "P2|S30;P7|S30": "P2;P7",
+            "P3|S40;P9|S40": "P3;P9",
+        }
+    )
+
+    adjusted = mm.pp.adjust_ptm_by_protein(ptm, global_mdata, modality="phospho_site", rescale=False)
+    site_var = adjusted["phospho_site"].var
+
+    assert site_var["adjustment_status"].tolist() == [
+        ADJUSTMENT_STATUS_ADJUSTED,
+        ADJUSTMENT_STATUS_ADJUSTED,
+        ADJUSTMENT_STATUS_SHARED_GROUPS,
+    ]
+    # The paralog pair resolves to the single group the global parsimony merged them into.
+    assert site_var["denominator_group"].tolist()[1] == "P2,P7"
+    assert site_var["is_protein_adjusted"].tolist() == [True, True, False]
+
+
+def test_status_records_when_the_estimator_declined_to_produce_a_value():
+    """ridge drops a site it cannot fit, which must not leave the status column saying 'adjusted'.
+
+    The denominator search succeeded; it is the estimator that refused, and the two are different
+    reasons a site ends up without a value.
+    """
+    from msmu._preprocessing._normalisation import ADJUSTMENT_STATUS_NO_ESTIMATE
+
+    ptm = _make_ptm({"P1|S30": "P1"})
+    # Only two samples carry a paired observation, one short of what ridge requires.
+    ptm["phospho_site"].X[2:, 0] = np.nan
+    global_mdata = _make_global(quantified_groups=["P1"], accession_to_group={"P1": "P1"})
+
+    adjusted = mm.pp.adjust_ptm_by_protein(ptm, global_mdata, modality="phospho_site", method="ridge", rescale=False)
+    site_var = adjusted["phospho_site"].var
+
+    assert site_var["adjustment_status"].tolist() == [ADJUSTMENT_STATUS_NO_ESTIMATE]
+    assert site_var["is_protein_adjusted"].tolist() == [False]
+    assert site_var["denominator_group"].tolist() == ["P1"]
+
+
+# ---------------------------------------------------------------- the global dataset as a file
+# Passing the matched global dataset as an .h5mu path keeps the PTM container's history one chain:
+# the file is an input with a content hash, not a second MuData whose history merges in. A history
+# with two parents is what mm.pv.replay and mm.pv.to_script refuse.
+
+
+def _write_global(tmp_path, global_mdata: MuData):
+    global_path = tmp_path / "global.h5mu"
+    global_mdata.write_h5mu(global_path)
+    return global_path
+
+
+def test_the_global_dataset_can_be_given_as_a_file_and_yields_the_same_values(tmp_path):
+    ptm_mdata = _make_ptm({"P1|S5": "P1", "P2|S9": "P2"})
+    global_mdata = _make_global(["P1", "P2"], {"P1": "P1", "P2": "P2"})
+    global_path = _write_global(tmp_path, global_mdata)
+
+    from_object = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_mdata)
+    from_path = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_path)
+    from_string = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=str(global_path))
+
+    np.testing.assert_allclose(from_path["phospho_site"].X, from_object["phospho_site"].X, equal_nan=True)
+    np.testing.assert_allclose(from_string["phospho_site"].X, from_object["phospho_site"].X, equal_nan=True)
+    assert from_path["phospho_site"].var["adjustment_status"].tolist() == [ADJUSTMENT_STATUS_ADJUSTED] * 2
+
+
+def test_a_global_file_is_recorded_as_a_hashed_input_and_keeps_the_history_one_chain(tmp_path):
+    ptm_mdata = _make_ptm({"P1|S5": "P1"})
+    global_mdata = _make_global(["P1"], {"P1": "P1"})
+    global_path = _write_global(tmp_path, global_mdata)
+
+    with mm.pv.options(hashing=True):
+        from_path = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_path)
+        from_object = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_mdata)
+
+    # Since BID-315 each parameter carries its own descriptor; the file shows up as a path with a hash.
+    global_input = mm.pv.get_log(from_path)["events"][-1]["parameters"]["global_mdata"]
+    assert global_input["path"] == str(global_path)
+    assert global_input["hash"]["status"] == "completed"
+    # The object carries no history here, so neither call has a parent; what matters is that the file
+    # is a path descriptor rather than a MuData whose history would merge into this one.
+    assert global_input["type"] != "MuData"
+    object_input = mm.pv.get_log(from_object)["events"][-1]["parameters"]["global_mdata"]
+    assert object_input["type"] == "MuData"
+
+
+def test_a_missing_global_file_fails_before_any_adjustment(tmp_path):
+    with pytest.raises((FileNotFoundError, OSError)):
+        mm.pp.adjust_ptm_by_protein(_make_ptm({"P1|S5": "P1"}), global_mdata=tmp_path / "absent.h5mu")

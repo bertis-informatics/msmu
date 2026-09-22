@@ -4,6 +4,118 @@ All notable changes to `msmu` are documented in this file. The format is based o
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Release versions are derived
 from git tags via setuptools-scm.
 
+## [Unreleased]
+
+### Changed
+
+- **A multiply modified peptidoform quantifies its site combination, not each site.** `to_ptm`
+  gave a doubly phosphorylated peptide's value to both of its sites, so a site pooled singly and
+  multiply modified peptidoforms and one measurement reached several sites. A multiply modified
+  peptide's change cannot be attributed to one of its sites — the same problem a shared peptide
+  poses in protein inference, and the same answer: it is reported as the group it belongs to.
+  **Breaking**: by default (`multisite="combination"`) such a peptidoform becomes one feature named
+  for its site set, `"P1|S12_S25"`, and no longer contributes to `"P1|S12"` or `"P1|S25"`. Every
+  peptidoform then feeds exactly one feature; peptidoforms differing only in other modifications or
+  missed cleavages still share one. `var["count_site"]` says how many sites a feature names, so
+  `count_site == 1` selects the site table built from singly modified peptidoforms alone — what
+  site-centric tools such as PTM-SEA read. `multisite="pool"` restores the previous behaviour. On a
+  real TMTpro phospho run, two singly phosphorylated forms of one site agreed on the treatment
+  effect (r = 0.80) where a single and a multiple form did not (r = 0.36), and 6.6% of pooled sites
+  carried values identical to another site's. This is the convention of Spectrum Mill's phosphosite
+  tables (CPTAC), TMT-Integrator's multi-site report and MSstatsPTM.
+- **`adjust_ptm_by_protein` accepts the global dataset as an `.h5mu` path.** Passed as a `MuData`,
+  the global container's own history merges into the result, and `mm.pv.replay` / `mm.pv.to_script`
+  accept a second `MuData` input only for `concat` — so a PTM workflow could be reproduced only up
+  to the adjustment. Passed as a path (`global_mdata=Path("global.h5mu")`), the file is recorded as an
+  input with its content hash, like a reader's source file, and the whole workflow replays. Replay
+  needs the original files either way, so this adds no requirement. Pass a `Path` rather than a
+  `str` for the content hash: provenance treats a string as a file only when the parameter's name
+  says so.
+- **PTM adjustment finds its denominator by accession instead of by peptide.** A site's parent
+  protein is now located by translating the accessions it was localised on through the *global*
+  dataset's `uns["protein_map"]`, rather than by looking the PTM peptide up in the global peptide
+  map. Under enrichment a phospho peptide is routinely absent from the global run while its protein
+  is quantified there from other peptides, so the old lookup failed on the normal case — and failed
+  loudly, aborting the whole run. The PTM container no longer needs `infer_protein` at all; see
+  *Removed* for `propagated_from`.
+- **PTM sites are localised from the peptide's own accessions.** `to_ptm` reads `proteins` instead
+  of an inferred `protein_group`, so site ids no longer depend on which global dataset the PTM data
+  happened to be processed alongside. **Breaking**: site ids are now flat — `"P1|S30;P2|S30;P3|S45"`
+  where they previously nested a comma tier inside the semicolons — and, because the search engine's
+  own accession list is used, a site may list accessions that the global parsimony had removed.
+  Accessions are sorted, so a site's id no longer depends on the order the engine listed them in.
+- **`adjust_ptm_by_protein` defaults to `method="ratio"`.** The previous default, `ridge`, both
+  discarded every site with two or fewer paired observations and shrank its slope by
+  `Sxx / (Sxx + alpha)`; with the hardcoded `alpha=100` and proteomics-scale variance that left a
+  few percent of the slope, so the residual reduced to centring each site and no protein correction
+  happened. `ridge` remains available and `alpha` is now reachable as `ridge_alpha`.
+- **Adjustment no longer drops the sites it could not adjust.** The adjusted values replace the
+  matrix that was read — `.X`, or `layers[layer]` when given — matching `log2_transform`,
+  `normalise` and `correct_batch_effect`, so tools that default to `.X` see the adjusted data. A
+  site without a valid denominator is set to `NaN` rather than left holding its raw abundance, so
+  residuals and raw abundances never share a matrix. Every site gains `var["adjustment_status"]`,
+  `var["denominator_group"]` and `var["is_protein_adjusted"]`, and the per-reason counts are logged
+  — including a distinct status for accessions missing from the global FASTA, which means the two
+  searches used different databases rather than that the protein went undetected.
+- **`to_ptm`'s `modification` is matched as a whole tag and accepts several.** It is the tag exactly
+  as written in `peptide` (`"[+79.9663]"`, `"(UniMod:21)"`), optionally qualified by its residue
+  (`"S[167]"`), or a list of them summarised into one modality — FragPipe writes pS, pT and pY as
+  three different residue masses. **Breaking**: matching is by equality with a whole tag, not by
+  substring, so a fragment such as `"79.97"` is rejected. A modification that matches nothing now
+  raises an error listing the tags the data does contain, instead of an unrelated pandas error.
+- **`to_ptm` reports the peptide–protein matches the attached FASTA cannot reproduce.** An accession
+  the FASTA does not hold, or whose sequence does not contain the peptide, is dropped from the site
+  — silently until now, although it both loses sites and can turn a site whose accessions should
+  span two protein groups into an adjusted one. The counts and examples are now a `WARNING`, with
+  how many modified peptidoforms produced no site at all; missing contaminant accessions (`Cont_`)
+  are reported at `INFO`, since search engines add contaminant entries a user FASTA routinely lacks.
+- **`to_ptm` defaults to `agg_method="median_polish"`.** It models a per-peptidoform effect, so a
+  site's value no longer moves when the set of peptidoforms supporting it changes between samples;
+  for a site backed by a single peptidoform it is identical to `median`. Linear-looking input is
+  warned about, since the additive rollups require log space.
+
+### Fixed
+
+- **`apply_sdrf_to_obs(set_index=...)` carries the obs rename into `obsm`.** The obs filter that
+  `add_filter` records in `obsm["filter"]` kept the old observation labels after the rename, and the
+  next copy of the modality failed with "value.index does not match parent's obs names". That is
+  the ordinary TMT order — blank channels have no sample name to index by, so they are filtered out
+  first and the observations renamed afterwards — so every TMT run that named its samples hit it.
+- **PTM site positions no longer count the letters inside modification tags.** `to_ptm` located a
+  site by counting every letter before the modification, so each tag with letters in it —
+  DIA-NN's `(UniMod:4)`, MaxQuant's `(Oxidation (M))` — pushed every later site further along the
+  protein. Positions were right only for Sage's mass notation. Oxidised and unoxidised forms of one
+  phosphopeptide split into two sites, and two genuinely different sites could merge into one.
+  Peptides are now parsed into residues and tags, and each parse is checked against
+  `stripped_peptide`; a notation msmu cannot read raises instead of producing misplaced sites. A
+  target modification on the peptide N-terminus, which crashed with `IndexError`, is now placed on
+  residue 1.
+- **`modified_protein` keeps accessions that contain `|`.** It was cut from the site label at the
+  first `|`, so a GENCODE or NCBI `gi|…` accession was truncated and its sites could never find a
+  denominator in `adjust_ptm_by_protein`, which resolves from this column.
+- **PSM counts are no longer multiplied by a site's accession count.** `to_ptm` summed `count_psm`
+  after exploding each peptidoform over its accessions, inflating the count by that many times.
+- **Matrix rollups no longer try to aggregate the grouping column.** `median_polish` and `directlfq`
+  received the PTM path's `protein_site` column alongside the sample columns and failed on it.
+
+### Removed
+
+- **`infer_protein(propagated_from=...)`.** It copied another dataset's `peptide_map` and
+  `protein_map` onto the container, and raised if any peptide was missing from the copied map — so it
+  only ever ran when the target held no peptide the source lacked, which in practice meant the same
+  data. Its one documented use, carrying a global dataset's grouping onto PTM data, is gone: PTM
+  denominators are now resolved from the global `protein_map` directly. **Breaking**: passing
+  `propagated_from` raises `TypeError`; drop the argument and pass the global `MuData` to
+  `adjust_ptm_by_protein` instead.
+
+### Notes
+
+- Sites whose accessions span two or more *quantified* global protein groups are reported but left
+  unadjusted. Their measured signal is a sum over those groups, and protein rollup values carry a
+  per-protein offset that makes them incomparable across groups, so neither picking one group nor
+  summing them yields a valid denominator. Accessions that the global dataset could not tell apart
+  are a single group and remain adjustable.
+
 ## [0.3.2] - 2026-09-04
 
 ### Fixed

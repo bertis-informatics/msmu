@@ -7,12 +7,20 @@ from .._utils._mudata import add_modality, get_anndata_mod, get_mudata, get_muda
 from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
-from ._summarisation import SummarisationPrep, PtmSummarisationPrep, Aggregator
+from ._summarisation import (
+    MATRIX_ROLLUP_METHODS,
+    Aggregator,
+    Multisite,
+    PtmSummarisationPrep,
+    SummarisationPrep,
+    warn_if_not_log_scale,
+)
 from .._statistics._target_decoy_q import estimate_q_values
 from .._preprocessing._filter import add_filter, apply_filter
 
 # for type checking only
 import mudata as md
+from collections.abc import Sequence
 from typing import Literal
 
 # ignore warnings in this module
@@ -329,22 +337,47 @@ def to_protein(
 def to_ptm(
     mdata: md.MuData,
     modi_name: str,
-    modification: str,
+    modification: str | Sequence[str],
     layer: str | None = None,
-    agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median",
+    agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median_polish",
     top_n: int | None = None,
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
+    multisite: Multisite = "combination",
 ) -> md.MuData:
     """Summarise peptide-level data to PTM-level data.
+
+    Sites are localised from the peptide's own ``proteins`` accessions and the attached FASTA, so
+    this step does not need an inferred ``protein_group`` and the resulting site ids do not depend on
+    any other dataset.
+
+    A site's position counts residues only -- the text inside a modification tag is never counted --
+    so the same peptidoform yields the same site in every notation. Each peptidoform is parsed and
+    checked against its ``stripped_peptide``; a notation msmu cannot read raises rather than produce
+    misplaced sites.
 
     Parameters:
         mdata: MuData object containing peptide-level data.
         modi_name: Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
-        modification: Modification string (e.g., "[+79.96633]", "(unimod:21)").
+        modification: The modification tag, exactly as it appears in ``peptide`` (brackets and case
+            included), or several of them to summarise into one modality. A tag may be qualified by
+            its residue to match that residue only. Examples: ``"[+79.9663]"`` (Sage; the decimals
+            follow the search settings), ``"(UniMod:21)"`` (DIA-NN), ``"(Phospho (STY))"``
+            (MaxQuant), ``["S[167]", "T[181]", "Y[243]"]`` (FragPipe, which writes the modified
+            residue's total mass). If nothing matches, the error lists the tags the data contains.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply log2_transform first).
+        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median_polish", which models a per-peptidoform effect and so is not perturbed when the set of peptidoforms supporting a site changes between samples; for a site backed by a single peptidoform it is identical to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply log2_transform first).
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
+        multisite: What a peptidoform carrying the target modification on several residues
+            quantifies. ``"combination"`` (default) gives it to the set of sites it carries, as one
+            feature (``"P1|S5_S8"``): a multiply modified peptide's change cannot be attributed to one
+            of its sites, the way a shared peptide's cannot be attributed to one protein, so it is
+            reported as the group it belongs to. Every peptidoform then feeds exactly one feature,
+            and the features with ``var["count_site"] == 1`` are the site table built from singly
+            modified peptidoforms alone. ``"pool"`` gives its whole value to each of its sites
+            instead -- copied, not divided -- so a site pools singly and multiply modified
+            peptidoforms and one measurement can reach several sites. Peptidoforms differing only in
+            other modifications or missed cleavages share a feature either way.
 
     Returns:
         MuData: MuData object containing PTM-level data.
@@ -353,6 +386,9 @@ def to_ptm(
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for PTM summarisation.", layer)
+
+    if agg_method in MATRIX_ROLLUP_METHODS:
+        warn_if_not_log_scale(adata_to_summarise.X, context=f"to_ptm(agg_method='{agg_method}')")
 
     modality_name = f"{modi_name}_site"
     mstatus = MuDataStatus(mdata)
@@ -364,8 +400,9 @@ def to_ptm(
         raise
     summarisation_prep = PtmSummarisationPrep(
         adata_to_summarise,
-        modi_identifier=modification,
+        modification=modification,
         fasta=mdata.uns["protein_info"],
+        multisite=multisite,
     )
 
     # Ranking for top_n features

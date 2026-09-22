@@ -5,6 +5,7 @@ from Bio import SeqIO
 import mudata as md
 
 from .._core._provenance import log_provenance
+from ._anndata import _resolve_accession_column
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -225,8 +226,9 @@ def map_fasta(
                 lambda x: _map_fasta(x, fasta_meta, category)
             )
         else:
+            accession_column = _resolve_accession_column(mdata.mod[modality].var, context=f"{modality}.var")
             mdata.mod[modality].var[category] = (
-                mdata.mod[modality].var["protein_group"].map(lambda x: _map_fasta(x, fasta_meta, category))
+                mdata.mod[modality].var[accession_column].map(lambda x: _map_fasta(x, fasta_meta, category))
             )
 
     return mdata

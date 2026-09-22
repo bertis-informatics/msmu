@@ -36,16 +36,16 @@ Optional arguments:
 - `modality` (default `"peptide"`) — modality holding the peptide-level data.
 - `protein_colname` (default `"proteins"`) — `.var` column with the semicolon-delimited accessions.
 - `peptide_colname` (default `"stripped_peptide"`) — `.var` column with the peptide sequence.
-- `propagated_from` (default `None`) — reuse an existing inference instead of running one.
 
-`propagated_from` takes an already-inferred `MuData`, or a path to an `.h5mu` holding one, and
-applies its `uns["peptide_map"]` / `uns["protein_map"]` as-is (it raises if the source lacks
-them). The usual case is PTM data, which should carry the protein grouping of its matched global
-dataset rather than one inferred from modified peptides alone:
+!!! note "PTM workflows infer proteins on the global dataset only"
 
-```python
-ptm_mdata = mm.pp.infer_protein(ptm_mdata, propagated_from=global_mdata)
-```
+    PTM data does not need `infer_protein`. `to_ptm` localises sites from each peptide's own
+    accessions and the attached FASTA, and `adjust_ptm_by_protein` resolves a site's denominator by
+    translating those accessions through the *global* dataset's `protein_map`, so the global dataset
+    is the one to run `infer_protein` and `to_protein` on. Protein groups are a judgement derived
+    from one dataset's peptide evidence, so keeping them on the side that produced them means a PTM
+    peptide the global run never observed — the normal case under enrichment — is still adjustable
+    whenever its protein was quantified there. See [`adjust_ptm_by_protein`](../../reference/pp/adjust_ptm_by_protein/).
 
 ## Output
 
