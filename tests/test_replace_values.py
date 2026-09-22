@@ -1,3 +1,4 @@
+from msmu._core._provenance import _event_inputs
 import anndata as ad
 import mudata as md
 import numpy as np
@@ -25,8 +26,8 @@ def test_replace_rules_preserve_missing_and_replay(tmp_path, dtype):
     m.write_h5mu(saved)
     history = mm.pv.get_log(md.read_h5mu(saved))
     event = history["events"][-1]
-    assert len(event["inputs"]) == 1
-    assert set(event["parameters"]) == {"target", "columns"}
+    assert len(_event_inputs(event)) == 1
+    assert set(event["parameters"]) == {"mdata", "target", "columns"}
     pd.testing.assert_series_equal(mm.pv.replay(history)["peptide"].var["peptide_type"], values)
     namespace = {}
     exec(mm.pv.to_script(history), namespace)

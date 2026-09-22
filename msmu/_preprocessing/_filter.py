@@ -22,9 +22,15 @@ def add_filter(
     value: str | float | None,
     on: Literal["var", "obs", "varm", "obsm"] = "var",
     key: str | None = None,
+    *,
+    name: str | None = None,
 ) -> MuData:
     """
     Adds a filter to the specified modality in the MuData object based on the given condition.
+
+    Missing source values never pass, including for negated conditions. Matrix
+    filters use names prefixed with ``varm[key].`` or ``obsm[key].`` (key repr)
+    to distinguish their source from ordinary obs/var columns.
 
     Parameters:
         mdata: MuData object to which the filter will be added.
@@ -34,10 +40,16 @@ def add_filter(
         value: The value to compare against for filtering.
         on: Target table to filter on. One of 'var', 'obs', 'varm', or 'obsm'.
         key: Key to select table from `.varm`/`.obsm` when `on` is 'varm'/'obsm'.
+        name: Optional filter name for selection with ``apply_filter(columns=...)``.
+            Must be nonblank and contain no slash (HDF5 key restriction). An existing
+            name can only be reused with the same recorded condition.
 
     Returns:
         MuData object with the added filter.
     """
+
+    if name is not None and (not isinstance(name, str) or not name.strip() or "/" in name):
+        raise ValueError("name must be a nonblank string without slashes")
 
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
@@ -46,6 +58,10 @@ def add_filter(
         raise ValueError("key must be provided when on is 'varm' or 'obsm'.")
 
     filter_name = f"{column}_{keep}_{value}"
+    if on in {"varm", "obsm"}:
+        filter_name = f"{on}[{key!r}].{filter_name}"
+    if name is not None:
+        filter_name = name
     adata = get_anndata_mod(mdata, modality)
 
     if on == "var":
@@ -73,6 +89,18 @@ def add_filter(
     column_values = source_df[column]
     if not isinstance(column_values, pd.Series):
         raise ValueError(f"Column '{column}' must identify a single column in {modality}.{on}")
+
+    condition = {"on": on, "key": key if on in {"varm", "obsm"} else None,
+                 "column": column, "keep": keep, "value": value}
+    definitions = adata.uns.get("filter_conditions", {})
+    previous = definitions.get(filter_name)
+    if previous is not None and previous != condition:
+        raise ValueError(f"Filter name {filter_name!r} already identifies a different condition")
+    if name is not None and previous is None and any(
+        "filter" in mapping and filter_name in mapping["filter"].columns
+        for mapping in (adata.varm, adata.obsm)
+    ):
+        raise ValueError(f"Filter name {filter_name!r} already exists without a recorded condition")
 
     mask = _mask_boolean_filter(series_to_mask=column_values, keep=keep, value=value)
 
@@ -105,28 +133,34 @@ def add_filter(
         else:
             adata.uns["decoy_filter"][filter_name] = decoy_mask
 
+    if name is not None:
+        adata.uns.setdefault("filter_conditions", {})[filter_name] = condition
+
     return mdata
 
 
 def _mask_boolean_filter(series_to_mask: pd.Series, keep, value):
+    # Missing source values never satisfy a condition, including negated conditions.
+    values = series_to_mask
     if keep == "eq":
-        return series_to_mask == value
+        mask = values == value
     elif keep == "ne":
-        return series_to_mask != value
+        mask = values != value
     elif keep == "lt":
-        return series_to_mask < value
+        mask = values < value
     elif keep == "le":
-        return series_to_mask <= value
+        mask = values <= value
     elif keep == "gt":
-        return series_to_mask > value
+        mask = values > value
     elif keep == "ge":
-        return series_to_mask >= value
+        mask = values >= value
     elif keep == "contains":
-        return series_to_mask.str.contains(str(value))
+        mask = values.str.contains(str(value), na=False)
     elif keep == "not_contains":
-        return ~series_to_mask.str.contains(str(value))
+        mask = ~values.str.contains(str(value), na=False)
     else:
         raise ValueError(f"Unknown filter operator: {keep}")
+    return mask.fillna(False) & values.notna()
 
 
 @log_provenance
@@ -147,11 +181,15 @@ def apply_filter(
             - "obs": apply only observation filters from `obsm["filter"]`
             - "all": apply both variable and observation filters
         columns: Optional list of filter column names to apply. When omitted, all
-            available filter columns for the selected axis are applied.
+            available filter columns for the selected axis are applied. Missing
+            requested columns raise ValueError rather than applying a partial set.
 
     Returns:
         MuData object with the filter applied.
     """
+    if on not in {"all", "var", "obs"}:
+        raise ValueError(f"Unknown filter axis: {on}")
+
     mdata = mdata.copy()
     mstatus = MuDataStatus(mdata)
 
@@ -245,6 +283,9 @@ def apply_filter(
             if not selected_filter_columns:
                 raise ValueError(f"No matching filter columns found in {modality}.")
 
+    if missing_filter_columns:
+        raise ValueError(f"Filter columns not found in {modality}: {missing_filter_columns}")
+
     filtered_adata = adata_to_filter[obs_mask, var_mask].copy()
 
     if mstatus.__getattribute__(modality).has_decoy and var_filter_columns:
@@ -252,12 +293,12 @@ def apply_filter(
         if "decoy_filter" not in adata_to_filter.uns:
             raise ValueError("No decoy filter found in the modality's uns.")
         decoy_filter = adata_to_filter.uns["decoy_filter"]
-        decoy_use_columns = [col for col in var_filter_columns if col in decoy_filter.columns]
-        if not decoy_use_columns:
-            raise ValueError("No matching decoy filter columns found in the modality's uns.")
+        missing_decoy_columns = [col for col in var_filter_columns if col not in decoy_filter.columns]
+        if missing_decoy_columns:
+            raise ValueError(f"Decoy filter columns not found: {missing_decoy_columns}")
 
-        decoy_filtered_df = decoy_df[decoy_filter[decoy_use_columns].all(axis=1)].copy()
-        decoy_filter = decoy_filter.loc[decoy_filtered_df.index, decoy_use_columns]
+        decoy_filtered_df = decoy_df[decoy_filter[var_filter_columns].all(axis=1)].copy()
+        decoy_filter = decoy_filter.loc[decoy_filtered_df.index].copy()
 
         filtered_adata.uns["decoy"] = decoy_filtered_df
         filtered_adata.uns["decoy_filter"] = decoy_filter

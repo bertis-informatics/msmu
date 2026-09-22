@@ -69,6 +69,17 @@ def _make_dense() -> MuData:
     return _mdata(_VALUES.copy())
 
 
+@pytest.mark.parametrize("make_mdata", [_make_dense, _make_sparse])
+@pytest.mark.parametrize("method", ["median", "median_center", "total_sum", "quantile"])
+@pytest.mark.parametrize("group_key", ["group_obs", "batch_key"])
+@pytest.mark.parametrize("missing", [np.nan, None, pd.NA])
+def test_normalise_rejects_missing_batch(make_mdata, method, group_key, missing):
+    mdata = make_mdata()
+    mdata["psm"].obs["batch"] = ["a", "a", "b", "b", "b", missing]
+    with pytest.raises(ValueError, match="group_obs 'batch' contains missing values"):
+        normalise(mdata, method=method, modality="psm", layer="raw", **{group_key: "batch"})
+
+
 def _n_absent() -> int:
     return int(np.isnan(_VALUES).sum())
 

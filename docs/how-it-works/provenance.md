@@ -28,15 +28,19 @@ read event. Native `mudata.read_h5mu` preserves the stored history without addin
 ## Recorded information
 
 Each event includes a UUID, function name and qualified path, UTC start/end times, elapsed
-computation time, parameters including defaults, an environment ID, input/output entity descriptors, and parent event IDs.
+computation time, parameters including defaults and input descriptors, an environment ID, output descriptors, and parent event IDs.
 Only successfully completed calls create events. Events have neither `status` nor `error`;
 hash entries retain their separate `status`.
 
 Scalar parameters, strings, mappings and sequences are not truncated. Data objects (including
-MuData, AnnData, pandas objects and arrays) are omitted from parameters, including nested
-data entries and containers containing only data. Other option values and defaults are kept.
-Input/output entities contain IDs, roles, types and optional hashes, without shape, column
-or dimension summaries. File paths remain readable parameter values. Unsupported parameters and callables are described
+MuData, AnnData, pandas objects and arrays) are represented in parameters by their type
+and hash, including nested arguments. MuData references also contain `source_event`,
+identifying the event that produced the input. Equal hashes do not imply equal histories.
+Each input descriptor is stored only in `parameters`; new events have no `inputs` field.
+Hashing runs once per input. Previous logs with a separate `inputs` list remain readable.
+Other option values and defaults are kept.
+Input/output descriptors contain IDs, roles, types and optional hashes, without shape, column
+or dimension summaries. File and URL parameters contain their readable `path`, type and hash. Unsupported parameters and callables are described
 and marked non-replayable. Function objects are not pickled or executed from the log.
 
 Entities have independent UUIDs and argument/return roles. Input descriptors and hashes are
@@ -108,7 +112,7 @@ with mm.pv.options(hashing=True):
     mdata = mm.pp.scale_data(mdata, modality="precursor")
 
 last = mm.pv.get_log(mdata)["events"][-1]
-print(last["inputs"][0]["hash"])
+print(last["parameters"]["mdata"]["hash"])
 
 # Explicitly hash the current state without recording an event:
 current_hash = mm.pv.compute_hash(mdata)
@@ -166,7 +170,7 @@ complete environment reconstruction are not guaranteed.
 ## Coverage and interpretation
 
 Automatic recording covers existing preprocessing and PCA/UMAP/correlation calls, plus
-`split_tmt`, import readers including DELPI/h5mu, `io.add_quant`, `merge_mudata`, `tl.run_de`,
+`split_tmt`, import readers including DELPI/h5mu, `io.add_quant`, `dt.concat`, `tl.run_de`,
 `tl.compute_precursor_isolation_purity`, and the MuData helpers `reindex_obs`, `attach_fasta`,
 `map_fasta`, and `select_repr_protein`. The `normalize` alias uses the `normalise` event.
 Plotting functions (`pl.plot_*`) do not record provenance events or calculate provenance
@@ -290,17 +294,26 @@ partial results are not returned. URL verification and reading share one in-memo
 per call. Source replacements only change paths, not the expected hashes. If a reader stores
 source locations as data metadata, relocating a file can also change its output hash.
 
-Replay validates the whole call chain before executing any processing function. It resolves
-only public, decorated MSMU functions, never imports arbitrary function paths from the log,
-and requires the first call to be a file reader. Each subsequent call must take one direct
-MuData argument and return one MuData. Parent links determine execution order. Known gaps
+Replay validates the complete event graph before executing any processing function. It resolves
+only public, decorated MSMU functions and never imports arbitrary function paths from the log.
+Each root must be a file reader. Other calls take one direct MuData argument, or a
+`dt.concat` dictionary with string dataset names, and return one MuData. Parent links
+determine execution order; parameter references bind inputs to their producing events.
+The deprecated `merge_mudata` alias warns and delegates to `dt.concat`; old logs using
+that name remain replayable and generate `mm.dt.concat` calls.
+Shared ancestors execute once. Inputs used by multiple calls are copied to isolate branches,
+and intermediate results are released after their last consumer. This can require more memory
+than a linear workflow. Known gaps
 between a recorded output hash and the next input hash are rejected even with `verify=False`:
 the missing operation cannot be inferred from the history.
 
 Current limits:
 
-- Branches, merges, intermediate `read_h5mu` calls, non-MuData returns (including `run_de`),
-  and plotting calls are unsupported.
+- Intermediate `read_h5mu` calls, other nested MuData arguments, non-MuData returns
+  (including `run_de`), and plotting calls are unsupported.
+- Older linear histories without parameter references remain supported. Older merged
+  histories require uniquely matching parent-output hashes; ambiguous inputs must be
+  recorded again. A hash identifies content, not a stored copy of the data.
 - Data-valued arguments such as an in-memory SDRF DataFrame are not reconstructible;
   use a file-backed argument when recording a workflow intended for replay.
   `dt.assign` explicitly captures its `values` argument and is an exception.
@@ -332,6 +345,11 @@ script = mm.pv.to_script(
 )
 ```
 
+Generated scripts enable hashing once at startup with `mm.pv.set_options(hashing=True)`,
+including when `verify=False`; that flag only skips comparison with recorded hashes.
+The setting remains enabled in the execution context. Per-call option blocks are
+only emitted when verification requires non-default hash precision.
+
 `to_script` returns Python source text when `filename` is omitted. With `filename`,
 it writes the script, overwrites any existing destination, and returns `None`.
 It does not download inputs or execute the workflow. Original files need not exist until the script runs. The script
@@ -343,10 +361,10 @@ its matching MSMU version when sharing the script.
 At execution, it warns about environment differences, verifies each source before
 reading, and checks each output using the new provenance event's hash. URL downloads
 are shared with readers; output hashes are reused rather than computed twice. A hash
-mismatch raises an exception and stops execution. Hashing options are restored even
+mismatch raises an exception and stops execution. Hashing remains enabled even
 on failure. Editing processing parameters may intentionally cause an output mismatch.
 
-The same linear-workflow restrictions as `replay` apply, including rejection of known
+The same workflow restrictions as `replay` apply, including rejection of known
 unrecorded changes. For histories without hashes, explicitly use `verify=False` to
 generate calls without source/output hash checks. Environment checks still run.
 

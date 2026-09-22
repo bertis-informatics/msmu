@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Any
 import platform
 import re
 import subprocess
@@ -32,10 +33,10 @@ from ..logging_utils import get_logger, prune_closed_package_stream_handlers, pr
 _hashing = ContextVar("msmu_provenance_hashing", default=True)
 _active = ContextVar("msmu_provenance_active", default=False)
 _OMIT = object()
-_significant_digits = ContextVar("msmu_hash_significant_digits", default=12)
+_significant_digits: ContextVar[int | None] = ContextVar("msmu_hash_significant_digits", default=12)
 
 
-def set_options(*, hashing: bool, significant_digits=12) -> None:
+def set_options(*, hashing: bool, significant_digits: int | None = 12) -> None:
     """Enable or disable input/output hashing in this execution context (default True)."""
     if not isinstance(hashing, bool):
         raise TypeError("hashing must be a bool")
@@ -44,13 +45,13 @@ def set_options(*, hashing: bool, significant_digits=12) -> None:
     _significant_digits.set(significant_digits)
 
 
-def get_options() -> dict[str, bool]:
+def get_options() -> dict[str, bool | int | None]:
     """Return a snapshot of the settings in this execution context."""
     return {"hashing": _hashing.get(), "significant_digits": _significant_digits.get()}
 
 
 @contextlib.contextmanager
-def options(*, hashing: bool, significant_digits=12):
+def options(*, hashing: bool, significant_digits: int | None = 12):
     """Temporarily enable/disable hashing, restoring the previous setting on exit."""
     if not isinstance(hashing, bool):
         raise TypeError("hashing must be a bool")
@@ -218,8 +219,10 @@ def _merge_logs(target, source):
             target[group][key] = value
 
 
-def _serialize_parameters(obj, _seen=None, *, store_data=False):
+def _serialize_parameters(obj, _seen=None, *, store_data=False, entities=None, role="arguments"):
     """Serialize options; explicitly captured arguments also retain column data."""
+    if not store_data and entities is not None and role in entities:
+        return entities[role]
     if store_data:
         encode = functools.partial(_serialize_parameters, store_data=True)
         if obj is pd.NA or obj is pd.NaT:
@@ -254,10 +257,12 @@ def _serialize_parameters(obj, _seen=None, *, store_data=False):
         return os.fsdecode(obj)
     if isinstance(obj, (datetime.date, datetime.datetime)):
         return {"type": type(obj).__name__, "value": obj.isoformat()}
+    if isinstance(obj, md.MuData) and not store_data:
+        return {"type": "MuData", "source_event": _read_log(obj)["head"], "hash": None}
     if isinstance(obj, (md.MuData, ad.AnnData, pd.DataFrame, pd.Series, pd.Index, np.ndarray)) or sparse.issparse(obj):
         if store_data:
             raise TypeError(f"Cannot store parameter type {type(obj).__name__}")
-        return _OMIT
+        return {"type": type(obj).__name__, "hash": None}
     if callable(obj):
         if store_data:
             raise TypeError("Cannot store callable column values")
@@ -274,7 +279,7 @@ def _serialize_parameters(obj, _seen=None, *, store_data=False):
     seen.add(id(obj))
     try:
         if isinstance(obj, Mapping):
-            items = [(k, _serialize_parameters(v, seen, store_data=store_data)) for k, v in obj.items()]
+            items = [(k, _serialize_parameters(v, seen, store_data=store_data, entities=entities, role=f"{role}/{k}")) for k, v in obj.items()]
             items = [(k, v) for k, v in items if v is not _OMIT]
             if obj and not items:
                 return _OMIT
@@ -282,7 +287,7 @@ def _serialize_parameters(obj, _seen=None, *, store_data=False):
                 return dict(items)
             return {"type": "mapping", "items": [[_serialize_parameters(k, seen, store_data=store_data), v] for k, v in items]}
         if isinstance(obj, (list, tuple, set, frozenset)):
-            values = [_serialize_parameters(v, seen, store_data=store_data) for v in obj]
+            values = [_serialize_parameters(v, seen, store_data=store_data, entities=entities, role=f"{role}/{i}") for i, v in enumerate(obj)]
             values = [v for v in values if v is not _OMIT]
             if obj and not values:
                 return _OMIT
@@ -385,26 +390,51 @@ def _entities(value, path, seen=None):
 
 
 def _entity(path, value, hashing):
-    entity = {"id": str(uuid4()), "role": path, "type": type(value).__name__, "hash": {"status": "disabled"}}
+    entity: dict[str, Any] = {"id": str(uuid4()), "role": path, "type": type(value).__name__, "hash": {"status": "disabled"}}
+    if isinstance(value, md.MuData) and path.startswith("arguments/"):
+        entity["source_event"] = _read_log(value)["head"]
     if isinstance(value, Path) or is_url(value):
         entity["path"] = str(value)
     if is_url(value):
         entity["type"] = "URL"
     if hashing:
+        hash_info: dict[str, Any]
         started = time.perf_counter()
         try:
             content = get_download_buffer(value) if is_url(value) else value
             if content is None:
                 raise ValueError("URL content was not read through the shared input loader")
             precision = None if isinstance(content, (Path, BytesIO)) else _significant_digits.get()
-            entity["hash"] = {"status": "completed", "algorithm": ALGORITHM,
+            hash_info = {"status": "completed", "algorithm": ALGORITHM,
                               "value": compute_hash(content, significant_digits=precision)}
             if precision is not None:
-                entity["hash"].update(normalization=FLOAT_NORMALIZATION, significant_digits=precision)
+                hash_info.update(normalization=FLOAT_NORMALIZATION, significant_digits=precision)
         except Exception as error:
-            entity["hash"] = {"status": "unavailable", "algorithm": ALGORITHM, "reason": str(error)}
-        entity["hash"]["duration_seconds"] = time.perf_counter() - started
+            hash_info = {"status": "unavailable", "algorithm": ALGORITHM, "reason": str(error)}
+        hash_info["duration_seconds"] = time.perf_counter() - started
+        entity["hash"] = hash_info
     return entity
+
+
+def _parameter_references(value, role="arguments"):
+    """Find complex-argument references without storing their data in parameters."""
+    if isinstance(value, dict):
+        if "type" in value and "hash" in value and set(value) <= {"id", "role", "type", "hash", "source_event", "path"}:
+            yield value.get("role", role), value
+        else:
+            for key, item in value.items():
+                yield from _parameter_references(item, f"{role}/{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _parameter_references(item, f"{role}/{index}")
+
+
+def _event_inputs(event):
+    """Read parameter descriptors, falling back to the previous inputs layout."""
+    if "inputs" in event:
+        return event["inputs"]
+    return [reference for _, reference in _parameter_references(event["parameters"])
+            if "id" in reference and "role" in reference]
 
 
 def log_provenance(func=None, *, capture=()):
@@ -428,6 +458,8 @@ def log_provenance(func=None, *, capture=()):
             if previous["head"]:
                 parents.append(previous["head"])
         hashing = _hashing.get()
+        input_entities = [_entity(path, value, hashing) for path, value in inputs]
+        entities_by_role = {entity["role"]: entity for entity in input_entities}
         event = {
             "id": str(uuid4()),
             "function": func.__name__,
@@ -436,14 +468,13 @@ def log_provenance(func=None, *, capture=()):
             "parents": list(dict.fromkeys(parents)),
             "parameters": {
                 key: value for key, argument in bound.arguments.items()
-                if (value := _serialize_parameters(argument, store_data=key in capture)) is not _OMIT
+                if (value := _serialize_parameters(argument, store_data=key in capture, entities=entities_by_role, role=f"arguments/{key}")) is not _OMIT
             },
-            "inputs": [_entity(path, value, hashing) for path, value in inputs],
             "outputs": [],
             "hashing": hashing,
         }
         if hashing:
-            for entity, (_, value) in zip(event["inputs"], inputs):
+            for entity, (_, value) in zip(input_entities, inputs):
                 if not isinstance(value, md.MuData):
                     continue
                 previous = _read_log(value)
@@ -488,7 +519,7 @@ def log_provenance(func=None, *, capture=()):
         event["ended_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         try:
             if hashing:
-                for entity, (path, value) in zip(event["inputs"], inputs):
+                for entity, (path, value) in zip(input_entities, inputs):
                     if is_url(value):
                         entity["hash"] = _entity(path, value, True)["hash"]
             outputs = list(_entities(result, "return"))
@@ -508,7 +539,7 @@ def log_provenance(func=None, *, capture=()):
             if not any(isinstance(v, md.MuData) for _, v in outputs):
                 event["outputs"].extend(_entity(f"after/{i}", owner, hashing) for i, owner in enumerate(owners))
             event["sequence"] = len(log["events"])
-            log["events"][event["id"]] = _json(event)
+            log["events"][event["id"]] = json.dumps(event, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
             log["head"] = event["id"]
             for target in targets:
                 target.uns["_log"] = deepcopy(log)

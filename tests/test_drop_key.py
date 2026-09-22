@@ -1,3 +1,4 @@
+from msmu._core._provenance import _event_inputs
 import anndata as ad
 import mudata as md
 import numpy as np
@@ -24,8 +25,9 @@ def test_drop_key_saved_replay_and_script(tmp_path, target):
     m.write_h5mu(saved)
     history = mm.pv.get_log(md.read_h5mu(saved))
     event = history["events"][-1]
-    assert event["parameters"] == {"target": target, "key": "decoy"}
-    assert len(event["inputs"]) == 1
+    assert {k: v for k, v in event["parameters"].items() if k != "mdata"} == {"target": target, "key": "decoy"}
+    assert event["parameters"]["mdata"]["type"] == "MuData"
+    assert len(_event_inputs(event)) == 1
     expected = mm.pv.compute_hash(m)
     assert mm.pv.compute_hash(mm.pv.replay(history)) == expected
     namespace = {}

@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 
@@ -7,8 +6,8 @@ def estimate_q_values(identification_df: pd.DataFrame, decoy_df: pd.DataFrame) -
     Estimate q-values for target and decoy identifications using target-decoy competition.
 
     Parameters:
-        identification_df: DataFrame containing target identifications with 'score' column.
-        decoy_df: DataFrame containing decoy identifications with 'score' column.
+        identification_df: DataFrame containing target identifications with 'PEP' column.
+        decoy_df: DataFrame containing decoy identifications with 'PEP' column.
 
     Returns:
         identification_with_q
@@ -47,32 +46,33 @@ def concat_target_decoy(identification_df: pd.DataFrame, decoy_df: pd.DataFrame)
 
 def compute_fdr_q(target_decoy: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute FDR and q-values for the picked target-decoy pairs.
+    Compute q-values at complete, exact-PEP group boundaries.
+
+    Every member of a PEP group receives the same q-value, independent of row
+    order. Missing PEPs form a final group, as in the previous NaN-last sort.
+    Boundaries with no cumulative targets retain an undefined (NaN) q-value.
 
     Parameters:
-        target_decoy: DataFrame with 'score' and 'is_decoy' columns.
+        target_decoy: DataFrame with 'PEP' and 'is_decoy' columns.
 
     Returns:
-        DataFrame with 'is_decoy' and 'q_value' columns.
+        DataFrame with 'is_decoy' and 'q_value' columns in the original row order.
     """
     q_offset = 1
 
-    df = target_decoy.sort_values("PEP", ascending=True)
+    groups = (
+        target_decoy["is_decoy"].astype(bool)
+        .groupby(target_decoy["PEP"], sort=True, dropna=False, observed=True)
+        .agg(["size", "sum"])
+    )
+    cum_target = (groups["size"] - groups["sum"]).cumsum()
+    cum_decoy = groups["sum"].cumsum()
+    fdr = ((cum_decoy + q_offset) / cum_target.where(cum_target > 0)).clip(upper=1.0)
+    group_q = fdr.iloc[::-1].cummin().iloc[::-1]
 
-    # 누적 타겟/데코이 수
-    df["cum_target"] = (~df["is_decoy"].astype(bool)).cumsum()
-    df["cum_decoy"] = (df["is_decoy"].astype(bool)).cumsum()
-
-    # FDR 계산
-    df["fdr"] = np.nan
-    valid = df["cum_target"] > 0
-    df.loc[valid, "fdr"] = (df.loc[valid, "cum_decoy"] + q_offset) / df.loc[valid, "cum_target"]
-
-    # FDR과 q-value는 확률로 clip (0~1)
-    df["fdr"] = df["fdr"].clip(upper=1.0)
-    df["q_value"] = df["fdr"].iloc[::-1].cummin().iloc[::-1].clip(upper=1.0)
-
-    return df[["is_decoy", "q_value"]]
+    result = target_decoy[["is_decoy"]].copy()
+    result["q_value"] = target_decoy["PEP"].map(group_q)
+    return result
 
 
 def retrieve_target_decoy_with_q_values(
