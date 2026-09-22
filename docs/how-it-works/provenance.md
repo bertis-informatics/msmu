@@ -170,7 +170,7 @@ complete environment reconstruction are not guaranteed.
 ## Coverage and interpretation
 
 Automatic recording covers existing preprocessing and PCA/UMAP/correlation calls, plus
-`split_tmt`, import readers including DELPI/h5mu, `io.add_quant`, `concat`, `tl.run_de`,
+`split_tmt`, import readers including DELPI/h5mu, `io.add_quant`, `dt.concat`, `tl.run_de`,
 `tl.compute_precursor_isolation_purity`, and the MuData helpers `reindex_obs`, `attach_fasta`,
 `map_fasta`, and `select_repr_protein`. The `normalize` alias uses the `normalise` event.
 Plotting functions (`pl.plot_*`) do not record provenance events or calculate provenance
@@ -297,10 +297,10 @@ source locations as data metadata, relocating a file can also change its output 
 Replay validates the complete event graph before executing any processing function. It resolves
 only public, decorated MSMU functions and never imports arbitrary function paths from the log.
 Each root must be a file reader. Other calls take one direct MuData argument, or a
-`concat` dictionary with string dataset names, and return one MuData. Parent links
+`dt.concat` dictionary with string dataset names, and return one MuData. Parent links
 determine execution order; parameter references bind inputs to their producing events.
-The deprecated `merge_mudata` alias warns and delegates to `concat`; old logs using
-that name remain replayable and generate `mm.concat` calls.
+The deprecated `merge_mudata` alias warns and delegates to `dt.concat`; old logs using
+that name remain replayable and generate `mm.dt.concat` calls.
 Shared ancestors execute once. Inputs used by multiple calls are copied to isolate branches,
 and intermediate results are released after their last consumer. This can require more memory
 than a linear workflow. Known gaps

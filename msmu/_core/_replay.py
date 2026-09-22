@@ -39,7 +39,8 @@ def _functions():
             "replace_values": "replace", "drop_key": "drop",
         }.items()
     })
-    functions["msmu._read_write._reader_utils.merge_mudata"] = mm.concat
+    for name in ("merge_mudata", "concat"):
+        functions[f"msmu._read_write._reader_utils.{name}"] = mm.dt.concat
     return functions
 
 

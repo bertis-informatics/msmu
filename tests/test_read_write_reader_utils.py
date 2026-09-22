@@ -7,10 +7,10 @@ from scipy import sparse
 import mudata as md
 
 from msmu._provenance import compute_hash
+from msmu._data import concat
 
 from msmu._read_write._reader_utils import (
     add_modality,
-    concat,
     to_categorical,
 )
 
@@ -184,8 +184,11 @@ def test_to_categorical_casts_string_columns_and_preserves_missing_values():
 def test_deprecated_merge_mudata_records_concat(mdata_factory):
     import msmu as mm
 
-    with pytest.warns(DeprecationWarning, match="use msmu.concat"):
+    with pytest.warns(DeprecationWarning, match="use msmu.dt.concat"):
         result = mm.merge_mudata({name: mdata_factory(name) for name in ("a", "b")})
     events = mm.pv.get_log(result)["events"]
     assert len(events) == 1
     assert events[0]["function"] == "concat"
+    assert events[0]["function_path"] == "msmu._data.concat"
+    assert mm.dt.concat is concat
+    assert not hasattr(mm, "concat")

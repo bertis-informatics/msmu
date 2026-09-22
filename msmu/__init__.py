@@ -8,7 +8,6 @@ from . import _plotting as pl
 from . import _preprocessing as pp
 from . import _tools as tl
 from . import _read_write as io
-from ._read_write._reader_utils import concat
 from ._deprecated import merge_mudata
 from ._read_write._reader_registry import (
     read_h5mu,
@@ -56,7 +55,6 @@ __all__ = [
     "read_sdrf",
     "read_delpi",
     # "read_cptac",
-    "concat",
     "merge_mudata",
     "pp",
     "dt",
