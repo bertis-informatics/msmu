@@ -22,7 +22,9 @@ The `keep` argument accepts conditional operators such as `eq`, `ne`, `lt`, `le`
 `gt`, `ge`, `contains`, and `not_contains`.
 
 Stored filter column names follow this pattern:
-`{column}_{keep}_{value}`.
+`{column}_{keep}_{value}` for `obs` and `var`. For matrix sources, the name
+also includes the source and key, for example `varm['qc'].score_gt_15.0`.
+Use that full name when selecting matrix filters with `columns`.
 
 Missing source values never satisfy a filter, including `ne` and
 `not_contains`. Missing masks introduced by concatenating datasets remain
@@ -107,7 +109,12 @@ Applying a subset of filters preserves the other decoy conditions for later call
 `contains` and `not_contains` retain pandas regular-expression semantics:
 `A.B` also matches `AxB`. Escape regex metacharacters for literal matching.
 
-Workflows that relied on missing values passing or requested nonexistent columns
-may no longer replay unchanged. Re-record those workflows with the current API.
+Existing stored filter names are not renamed. Newly recorded matrix filters use
+the source-qualified names above; repeating the same condition replaces its mask.
+Old workflows that regenerate matrix filters using the former names, relied on
+missing values passing, or requested nonexistent columns may no longer replay
+unchanged. Verified replay can report a hash mismatch, and explicit old matrix
+filter names can raise an error. Re-record those workflows with the current API;
+do not disable verification to hide a changed result.
 
 The existing copy behavior is retained in this correctness fix.

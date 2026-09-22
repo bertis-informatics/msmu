@@ -319,6 +319,26 @@ def test_filter_missing_values_in_targets_and_decoys(filter_mdata):
     assert out["psm"].uns["decoy"].index.tolist() == ["v3"]
 
 
+@pytest.mark.parametrize("axis, matrix", [("var", "varm"), ("obs", "obsm")])
+def test_matrix_filters_do_not_overwrite_other_sources(filter_mdata, axis, matrix):
+    mdata = filter_mdata.copy()
+    mdata["psm"].uns.pop("decoy")
+    table = getattr(mdata["psm"], axis)
+    table["score"] = [10.] + [30.] * (len(table) - 1)
+    for key in ("qc", "other"):
+        getattr(mdata["psm"], matrix)[key] = pd.DataFrame(
+            {"score": [30.] + [10.] * (len(table) - 1)}, index=table.index
+        )
+    out = add_filter(mdata, "psm", "score", "gt", 15., on=axis)
+    for key in ("qc", "other"):
+        out = add_filter(out, "psm", "score", "gt", 15., on=matrix, key=key)
+    masks = getattr(out["psm"], matrix)["filter"]
+    assert len(masks.columns) == 3
+    selected = apply_filter(out, "psm", on=axis, columns=[f"{matrix}['qc'].score_gt_15.0"])
+    assert getattr(selected["psm"], axis).index.tolist() == [table.index[0]]
+    assert len(getattr(apply_filter(out, "psm", on=axis)["psm"], axis)) == 0
+
+
 def test_apply_filter_rejects_invalid_axis(filter_mdata):
     with pytest.raises(ValueError, match="Unknown filter axis"):
         apply_filter(filter_mdata, "psm", on="vars")
@@ -360,6 +380,32 @@ def test_missing_decoy_condition_raises(filter_mdata):
     out["psm"].uns["decoy_filter"] = out["psm"].uns["decoy_filter"].drop(columns="score_lt_28.0")
     with pytest.raises(ValueError, match="Decoy filter columns not found"):
         apply_filter(out, "psm", on="var")
+
+
+def test_updated_filter_workflow_replays_and_generates_script(filter_mdata, tmp_path):
+    import msmu as mm
+
+    source = tmp_path / "filters.h5mu"
+    filter_mdata["psm"].obs["name"] = pd.array(["sample", None], dtype="string")
+    filter_mdata["psm"].obsm["qc"] = pd.DataFrame({"score": [1., 0.]}, index=filter_mdata["psm"].obs_names)
+    filter_mdata.write_h5mu(source)
+    with mm.pv.options(hashing=True):
+        original = mm.read_h5mu(source)
+        before_hash, before_log = mm.pv.compute_hash(original), get_log(original)
+        out = add_filter(original, "psm", "score", "gt", 15.)
+        out = add_filter(out, "psm", "score", "lt", 28.)
+        out = add_filter(out, "psm", "name", "not_contains", "blank", on="obs")
+        out = add_filter(out, "psm", "score", "gt", .5, on="obsm", key="qc")
+        out = apply_filter(out, "psm", on="var", columns=["score_gt_15.0"])
+        out = apply_filter(out, "psm")
+    assert mm.pv.compute_hash(original) == before_hash
+    assert get_log(original) == before_log
+    assert out["psm"].shape == (1, 1)
+    assert out["psm"].uns["decoy"].index.tolist() == ["v2"]
+    assert mm.pv.compute_hash(mm.pv.replay(out, verify=True)) == mm.pv.compute_hash(out)
+    namespace = {}
+    exec(mm.pv.to_script(out, verify=True), namespace)
+    assert mm.pv.compute_hash(namespace["mdata"]) == mm.pv.compute_hash(out)
 
 
 def test_concat_undefined_masks_remain_unapplied(filter_mdata):

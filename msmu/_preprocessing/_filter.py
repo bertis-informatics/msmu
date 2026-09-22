@@ -26,7 +26,9 @@ def add_filter(
     """
     Adds a filter to the specified modality in the MuData object based on the given condition.
 
-    Missing source values never pass, including for negated conditions.
+    Missing source values never pass, including for negated conditions. Matrix
+    filters use names prefixed with ``varm[key].`` or ``obsm[key].`` (key repr)
+    to distinguish their source from ordinary obs/var columns.
 
     Parameters:
         mdata: MuData object to which the filter will be added.
@@ -48,6 +50,8 @@ def add_filter(
         raise ValueError("key must be provided when on is 'varm' or 'obsm'.")
 
     filter_name = f"{column}_{keep}_{value}"
+    if on in {"varm", "obsm"}:
+        filter_name = f"{on}[{key!r}].{filter_name}"
     adata = get_anndata_mod(mdata, modality)
 
     if on == "var":
