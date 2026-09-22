@@ -1,4 +1,5 @@
-from functools import reduce
+from copy import deepcopy
+from typing import Any, cast
 
 import anndata as ad
 import mudata as md
@@ -10,213 +11,75 @@ from .._utils._mudata import add_modality as add_modality
 
 # Utility functions for Readers
 @log_provenance
-def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
-    """
-    Merges multiple MuData objects into a single MuData object.
+def concat(mdatas: dict[str, md.MuData]) -> md.MuData:
+    """Concatenate samples, retaining modalities in first-seen order.
 
-    Parameters:
-        mdatas: Dictionary of MuData objects to merge.
-
-    Returns:
-        Merged MuData object.
+    Features and observation annotations use an outer join. Feature metadata
+    and uns use the first available value, without filling metadata nulls or
+    concatenating lists. Provenance joins both input histories separately.
+    At least two flat, sample-aligned (axis=0) MuData inputs are required.
     """
-    mdata_components = dict()
-    adata_components = dict()
-    for name_, mdata in mdatas.items():
+    if len(mdatas) < 2:
+        raise ValueError("At least two MuData objects are required.")
+    modalities: dict[str, ad.AnnData] = {}
+    for name, mdata in mdatas.items():
         if not isinstance(mdata, md.MuData):
-            raise TypeError(
-                f"Expected MuData object, got {type(mdata)} for {name_}. "
-                "Please use read_h5mu or read_sage to read the data."
+            raise TypeError(f"Expected MuData object, got {type(mdata)} for {name}.")
+        if mdata.axis != 0:
+            raise ValueError("concat requires sample-aligned MuData objects (axis=0).")
+        for mod, adata in mdata.mod.items():
+            if not isinstance(adata, ad.AnnData):
+                raise TypeError(f"Expected AnnData modality, got {type(adata)} for {name}/{mod}.")
+            modalities.setdefault(mod, adata)
+    if not modalities:
+        raise ValueError("At least one modality is required.")
+
+    # Lightweight containers own their masks; concat cannot remove input masks.
+    # Empty modalities preserve the union despite md.concat taking an intersection.
+    inputs = {}
+    for name, mdata in mdatas.items():
+        mods = {
+            mod: cast(ad.AnnData, mdata.mod[mod])
+            if mod in mdata.mod
+            else ad.AnnData(
+                X=template.X[:0, :0] if template.X is not None else None,
             )
-        else:
-            mdata_components = _decompose_data(data=mdata, name=name_, parent_dict=mdata_components)
-            for mod in mdata.mod.keys():
-                adata_components = _decompose_data(
-                    data=mdata.mod[mod],
-                    name=name_,
-                    modality=mod,
-                    parent_dict=adata_components,
-                )
+            for mod, template in modalities.items()
+        }
+        inputs[name] = md.MuData(mods, **_container_annotations(mdata))
 
-    # merge adata components
-    merged_adatas = _merge_components(components_dict=adata_components)
-    # merge mdata components
-    merged_mdata = _merge_components(components_dict=mdata_components, adatas=merged_adatas)["mdata"].copy()
-
-    merged_mdata.obs = to_categorical(merged_mdata.obs)
-    merged_mdata.push_obs()
-    merged_mdata.update_var()
-
-    return merged_mdata
-
-
-def _decompose_data(
-    data: md.MuData | ad.AnnData,
-    name: str,
-    parent_dict: dict,
-    modality: str | None = None,
-) -> dict:
-    components = [
-        "adata",
-        "var",
-        "varm",
-        "varp",
-        "obs",
-        "obsm",
-        "obsp",
-        "uns",
-    ]
-
-    if isinstance(data, md.MuData):
-        if modality is not None:
-            raise ValueError("If data is a MuData object, mod should be None.")
-        else:
-            mod: str = "mdata"
-            components = [
-                component for component in components if component not in ["adata", "varm", "varp", "obsm", "obsp"]
-            ]
-
-    elif isinstance(data, ad.AnnData):
-        if modality is None:
-            raise ValueError("If data is an AnnData object, mod should be specified.")
-        else:
-            mod: str = modality
-
-    else:
-        raise TypeError(
-            f"Expected MuData or AnnData object, got {type(data)} for {name}. "
-            "Please use read_h5mu or read_sage to read the data."
-        )
-
-    components_dict = parent_dict.copy()
-    if mod not in components_dict.keys():
-        components_dict[mod] = {}
-    for component in components:
-        if component not in components_dict[mod].keys():
-            components_dict[mod][component] = {}
-        if component == "adata":
-            components_dict[mod][component][name] = data.copy()
-        else:
-            tmp = getattr(data, component, None)
-            if tmp is not None:
-                if component == "var":
-                    tmp = tmp.copy()
-                    if "level" in data.uns:
-                        if data.uns["level"] == "psm":
-                            tmp["dataset"] = name
-                    components_dict[mod][component][name] = tmp
-                elif component == "obs":
-                    tmp = tmp.copy()
-                    tmp["dataset"] = name
-                    components_dict[mod][component][name] = tmp
-                elif component in ["varm", "varp", "obsm", "obsp", "uns"]:
-                    for sub_comp in tmp.keys():
-                        if component == "uns" and sub_comp == "_log":
-                            continue
-                        if sub_comp not in components_dict[mod][component].keys():
-                            components_dict[mod][component][sub_comp] = {}
-                        components_dict[mod][component][sub_comp][name] = tmp[sub_comp]
-
-    return components_dict
+    # MuData 0.4.1 incorrectly annotates concat's input as AnnData.
+    result = md.concat(
+        cast(Any, inputs), join="outer", label="dataset", merge="first", uns_merge="first", pairwise=True
+    )
+    result = md.MuData(
+        {mod: cast(ad.AnnData, result.mod[mod]) for mod in modalities}, **_container_annotations(result)
+    )
+    # First-value metadata may still reference the inputs; do not copy X/layers.
+    for data in [result, *result.mod.values()]:
+        data.uns = deepcopy({key: value for key, value in data.uns.items() if key != "_log"})
+        for attr in ("varm", "varp"):
+            mapping = getattr(data, attr)
+            for key in mapping:
+                mapping[key] = mapping[key].copy()
+    return result
 
 
-def _merge_components(components_dict: dict, adatas: dict | None = None) -> dict:
-    merged_data = dict()
-    if adatas is not None:
-        mods = ["mdata"]
-        type_ = "mdata"
-
-    else:
-        mods = components_dict.keys()
-        type_ = "adata"
-
-    for mod in mods:
-        if type_ == "mdata":
-            merged_data[mod] = md.MuData(adatas)
-        else:
-            merged_data[mod] = ad.concat(components_dict[mod]["adata"].values(), join="outer")
-
-        for component in components_dict[mod].keys():
-            if component != "adata":
-                if component in ["var"]:
-                    setattr(
-                        merged_data[mod],
-                        component,
-                        reduce(
-                            lambda left, right: left.combine_first(right),
-                            components_dict[mod][component].values(),
-                        ),
-                    )
-                elif component == "obs":
-                    merged_data[mod].obs = pd.concat(components_dict[mod][component].values(), axis=0)
-                elif component in ["varm", "varp", "obsm", "obsp"]:
-                    setattr(
-                        merged_data[mod],
-                        component,
-                        {
-                            k: reduce(
-                                lambda left, right: left.combine_first(right),
-                                v.values(),
-                            )
-                            for k, v in components_dict[mod][component].items()
-                        },
-                    )
-                elif component == "uns":
-                    if components_dict[mod][component] == {}:
-                        merged_data[mod].uns = {}
-                    else:
-                        for sub_comp in components_dict[mod][component].keys():
-                            uns_type = set(
-                                [type(v).__name__ for k, v in components_dict[mod][component][sub_comp].items()]
-                            )
-                            if len(uns_type) == 1:
-                                uns_type = uns_type.pop()
-                            else:
-                                raise ValueError(f"Uns type for {sub_comp} in {mod} is not consistent: {uns_type}")
-                            if "DataFrame" in uns_type:
-                                dfs = components_dict[mod][component][sub_comp].values()
-                                merged_data[mod].uns[sub_comp] = pd.concat(
-                                    dfs, axis=0, ignore_index=True
-                                ).drop_duplicates()
-                            elif "dict" in uns_type:
-                                merged_data[mod].uns[sub_comp] = {
-                                    k: v for k, v in components_dict[mod][component][sub_comp].items()
-                                }
-                            elif "list" in uns_type:
-                                merged_data[mod].uns[sub_comp] = reduce(
-                                    lambda left, right: left + right,
-                                    components_dict[mod][component][sub_comp].values(),
-                                )
-                            elif "str" in uns_type:
-                                str_set = set(components_dict[mod][component][sub_comp].values())
-                                if len(str_set) == 1:
-                                    merged_data[mod].uns[sub_comp] = str_set.pop()
-                                else:
-                                    merged_data[mod].uns[sub_comp] = {
-                                        k: v for k, v in components_dict[mod][component][sub_comp].items()
-                                    }
-                            elif "int" in uns_type or "float" in uns_type:
-                                num_set = set(components_dict[mod][component][sub_comp].values())
-                                if len(num_set) == 1:
-                                    merged_data[mod].uns[sub_comp] = num_set.pop()
-                                else:
-                                    merged_data[mod].uns[sub_comp] = {
-                                        k: v for k, v in components_dict[mod][component][sub_comp].items()
-                                    }
-                            elif "NoneType" in uns_type:
-                                none_set = set(components_dict[mod][component][sub_comp].values())
-                                if len(none_set) == 1:
-                                    merged_data[mod].uns[sub_comp] = none_set.pop()
-                                else:
-                                    merged_data[mod].uns[sub_comp] = {
-                                        k: v for k, v in components_dict[mod][component][sub_comp].items()
-                                    }
-                            else:
-                                raise ValueError(
-                                    f"Unsupported uns type for {sub_comp} in {mod}: {uns_type}. "
-                                    "Currently only DataFrame, dict, list, str, int, float, and NoneType are supported."
-                                )
-    return merged_data
+def _container_annotations(mdata: md.MuData) -> dict:
+    """Copy containers, not matrices; modality masks are rebuilt by MuData."""
+    return {
+        "obs": mdata.obs.copy(),
+        "var": mdata.var.copy(),
+        "uns": {key: value for key, value in mdata.uns.items() if key != "_log"},
+        **{
+            attr: {
+                key: value
+                for key, value in getattr(mdata, attr).items()
+                if attr not in ("obsm", "varm") or key not in mdata.mod
+            }
+            for attr in ("obsm", "varm", "obsp", "varp")
+        },
+    }
 
 
 def to_categorical(df: pd.DataFrame) -> pd.DataFrame:

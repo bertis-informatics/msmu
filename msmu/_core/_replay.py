@@ -39,6 +39,7 @@ def _functions():
             "replace_values": "replace", "drop_key": "drop",
         }.items()
     })
+    functions["msmu._read_write._reader_utils.merge_mudata"] = mm.concat
     return functions
 
 
@@ -155,9 +156,9 @@ def _plan(history, sources, verify, *, check_files=True):
         parameters = _decode(event["parameters"])
         mudata_inputs = [entity for entity in _event_inputs(event) if entity["type"] == "MuData"]
         references = dict(_parameter_references(parameters))
-        if func.__name__ == "merge_mudata":
+        if func.__name__ == "concat":
             if any(not isinstance(key, str) for key in parameters.get("mdatas", {})):
-                raise ValueError("Replay requires string dataset names in merge_mudata")
+                raise ValueError("Replay requires string dataset names in concat")
             parameters["mdatas"] = {}  # Input-entity order preserves first-value precedence.
         bindings = {}
         parents = event["parents"]
@@ -170,12 +171,12 @@ def _plan(history, sources, verify, *, check_files=True):
             raise ValueError("Replay does not support intermediate readers without MuData inputs")
         for entity in mudata_inputs:
             role = entity["role"]
-            if func.__name__ == "merge_mudata" and role.startswith("arguments/mdatas/"):
+            if func.__name__ == "concat" and role.startswith("arguments/mdatas/"):
                 parameters.setdefault("mdatas", {})[role.removeprefix("arguments/mdatas/")] = None
             elif role.startswith("arguments/") and role.count("/") == 1 and len(mudata_inputs) == 1:
                 parameters[role.split("/")[1]] = None
             else:
-                raise ValueError(f"Replay requires one direct MuData input or merge_mudata: {event['function']}")
+                raise ValueError(f"Replay requires one direct MuData input or concat: {event['function']}")
             reference = references.get(role)
             producer = reference.get("source_event") if reference is not None else None
             if reference is not None and {key: value for key, value in reference.get("hash", {}).items() if key != "duration_seconds"} != {
@@ -252,7 +253,7 @@ def replay(history: md.MuData | dict, *, sources: dict | None = None, verify: bo
         verify: Require recorded hashes and verify inputs/outputs (default True).
             False reruns without hash verification; known unrecorded edits still fail.
 
-    Branches and merge_mudata are supported. Shared results are copied at forks.
+    Branches and concat are supported. Shared results are copied at forks.
     Other nested MuData inputs and non-MuData returns are unsupported.
     Only public MSMU functions can run. Environment differences are logged as warnings;
     packages are never installed or changed. The supplied object/log is not modified.

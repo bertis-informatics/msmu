@@ -275,7 +275,7 @@ def test_real_merge_preserves_both_histories(mdata_factory):
     left = identity(mdata_factory("a"))
     right = identity(mdata_factory("b"))
     before = (compute_hash(left), compute_hash(right))
-    merged = mm.merge_mudata({"a": left, "b": right})
+    merged = mm.concat({"a": left, "b": right})
     assert (compute_hash(left), compute_hash(right)) == before
     log = get_log(merged)
     assert len(log["events"]) == 3

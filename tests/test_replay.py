@@ -316,7 +316,7 @@ def merged_workflow(tmp_path, hashing=True):
         for key, group in [("G/1", "G1"), ("G'2", "G2")]:
             branch = mm.pp.add_filter(base, "protein", "group", "eq", group, on="obs")
             branches[key] = mm.pp.apply_filter(branch, "protein", on="obs")
-        return mm.merge_mudata(branches)
+        return mm.concat(branches)
 
 
 @pytest.mark.parametrize("hashing", [True, False])
@@ -335,7 +335,7 @@ def test_merge_replay_and_script_share_ancestor_once(tmp_path, monkeypatch, hash
     result = replay(original, verify=hashing)
     namespace = {}
     script = mm.pv.to_script(original, verify=hashing)
-    assert "mm.merge_mudata(" in script
+    assert "mm.concat(" in script
     exec(script, namespace)
     assert len(calls) == 2  # One reader each, despite two branches.
     for output in (result, namespace["mdata"]):
@@ -378,7 +378,7 @@ def test_equal_hash_inputs_keep_distinct_producers(tmp_path):
     assert compute_hash(left) == compute_hash(right)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        original = mm.merge_mudata({"second": left, "first": right})
+        original = mm.concat({"second": left, "first": right})
         history = get_log(original)
         refs = history["events"][-1]["parameters"]["mdatas"]
         assert refs["second"]["hash"]["value"] == refs["first"]["hash"]["value"]
@@ -420,6 +420,21 @@ def test_fork_inputs_are_isolated_from_mutating_calls(tmp_path, monkeypatch):
     for group in ("a", "b"):
         branch = mm.pp.add_filter(base.copy(), "protein", "group", "eq", group, on="obs")
         branches[group] = mm.pp.apply_filter(branch, "protein", on="obs")
-    merged = mm.merge_mudata(branches)
+    merged = mm.concat(branches)
     assert compute_hash(replay(merged)) == compute_hash(merged)
     assert compute_hash(script_result(merged)) == compute_hash(merged)
+
+
+def test_legacy_merge_name_replays_as_concat(tmp_path):
+    original = merged_workflow(tmp_path)
+    history = get_log(original)
+    event = history["events"][-1]
+    event["function"] = "merge_mudata"
+    event["function_path"] = "msmu._read_write._reader_utils.merge_mudata"
+    result = replay(history)
+    script = mm.pv.to_script(history)
+    assert "mm.concat(" in script
+    namespace = {}
+    exec(script, namespace)
+    assert compute_hash(result) == compute_hash(original)
+    assert compute_hash(namespace["mdata"]) == compute_hash(original)
