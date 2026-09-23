@@ -15,7 +15,7 @@ Central to `msmu` is the highly versatile and standardized `MuData` (and `AnnDat
 
 This unique marriage between flexible processing pipeline and `MuData` empowers FAIR principle-aligned downstream analysis for biomarker discovery and systems biology.
 
-<img src="./assets/overview.svg" width="100%" alt="MuData logo"/>
+<img src="./assets/overview.svg" width="100%" alt="msmu workflow from database search and sample metadata through processing, analysis, and visualization"/>
 
 ## Key Features
 
