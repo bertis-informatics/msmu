@@ -1,31 +1,31 @@
-# Visualization Overview
+# Visualization
 
 `msmu._plotting` wraps Plotly to provide ready-made QC and exploratory plots for MuData objects. The module is structured around data preparation helpers and lightweight plot wrappers so you can compose figures with consistent defaults while still passing Plotly kwargs to tweak layout.
 
-## Common parameters and behaviors
+## Choose plot options
 
 - `mdata`: required `MuData` containing the modality to plot.
-- `modality`: required for `plot_id`, `plot_intensity` and `plot_missingness`; elsewhere it defaults to the level the plot is normally read at (`psm` for `plot_var`, `protein` for `plot_pca`, `plot_umap`, `plot_correlation` and `plot_upset`).
+- `modality`: required for [`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md) and [`plot_missingness`](../reference/pl/plot_missingness.md); elsewhere it defaults to the level the plot is normally read at (`psm` for [`plot_var`](../reference/pl/plot_var.md), `protein` for [`plot_pca`](../reference/pl/plot_pca.md), [`plot_umap`](../reference/pl/plot_umap.md), [`plot_correlation`](../reference/pl/plot_correlation.md) and [`plot_upset`](../reference/pl/plot_upset.md)).
 - `groupby`: observation column used to split traces/groups (e.g., `filename`, `condition`). If omitted, falls back to `obs_column`.
 - `obs_column`: observation column used for labeling/group resolution; all elements should be unique. If omitted or no column exists, creates `__obs_idx__` column from the index of `obs`
 - `colorby`: optional obs column for coloring; only applied when `groupby` equals `obs_column`.
 - `ptype`: plot style selector (`hist`, `box`, `vln`, etc.).
-- `layer`: optional; plot a layer instead of `.X` (`plot_id`, `plot_intensity`, `plot_missingness`, `plot_upset`).
-- `template`: optional Plotly template, `"msmu"` by default (`plot_id`, `plot_intensity`, `plot_pca`, `plot_umap`).
+- `layer`: optional; plot a layer instead of `.X` ([`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md), [`plot_missingness`](../reference/pl/plot_missingness.md), [`plot_upset`](../reference/pl/plot_upset.md)).
+- `template`: optional Plotly template, `"msmu"` by default ([`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md), [`plot_pca`](../reference/pl/plot_pca.md), [`plot_umap`](../reference/pl/plot_umap.md)).
 - `**kwargs`: forwarded to `go.Figure.update_layout` for per-plot overrides.
 
 Per-plot optional arguments:
 
-- `bins`: histogram bin count for `plot_intensity` and `plot_var`.
-- `pcs`: which principal components to draw in `plot_pca`, default `(1, 2)`.
+- `bins`: histogram bin count for [`plot_intensity`](../reference/pl/plot_intensity.md) and [`plot_var`](../reference/pl/plot_var.md).
+- `pcs`: which principal components to draw in [`plot_pca`](../reference/pl/plot_pca.md), default `(1, 2)`.
 - `key`: `.obsm` key holding the embedding, default `X_pca` / `X_umap`.
-- `subset`, `subset_column`: restrict `plot_upset` to one group of samples — it keeps the observations whose `subset_column` value in `.obs` equals `subset`.
+- `subset`, `subset_column`: restrict [`plot_upset`](../reference/pl/plot_upset.md) to one group of samples — it keeps the observations whose `subset_column` value in `.obs` equals `subset`.
 
-## Example
+## Plot examples
 
 > Uszkoreit, J., Barkovits, K., Pacharra, S., Pfeiffer, K., Steinbach, S., Marcus, K., & Eisenacher, M. (2022). Dataset containing physiological amounts of spike-in proteins into murine C2C12 background as a ground truth quantitative LC-MS/MS reference. Data in Brief, 43, 108435.
 
-### mdata.obs
+### Sample metadata used below
 
 | set | sample_id  | sample_name | condition | replicate |
 | --- | ---------- | ----------- | --------- | --------- |
@@ -45,7 +45,7 @@ Per-plot optional arguments:
 | S1  | QExHF04052 | G4-3        | G4        | 3         |
 | S1  | QExHF04054 | G5-3        | G5        | 3         |
 
-### `plot_id`
+### [`plot_id`](../reference/pl/plot_id.md)
 
 ```python
 mm.pl.plot_id(mdata, "protein", groupby="sample_name")
@@ -59,7 +59,7 @@ mm.pl.plot_id(mdata, "protein", groupby="condition")
 
 ![](../assets/images/visualization_id_2.png)
 
-### `plot_intensity`
+### [`plot_intensity`](../reference/pl/plot_intensity.md)
 
 ```python
 mm.pl.plot_intensity(mdata, "protein", groupby="sample_name", ptype="hist")
@@ -67,7 +67,7 @@ mm.pl.plot_intensity(mdata, "protein", groupby="sample_name", ptype="hist")
 
 ![](../assets/images/visualization_intensity_1.png)
 
-### `plot_missingness`
+### [`plot_missingness`](../reference/pl/plot_missingness.md)
 
 ```python
 mm.pl.plot_missingness(mdata, "protein")
@@ -75,7 +75,7 @@ mm.pl.plot_missingness(mdata, "protein")
 
 ![](../assets/images/visualization_missingness_1.png)
 
-### `plot_var`
+### [`plot_var`](../reference/pl/plot_var.md)
 
 ```python
 mm.pl.plot_var(mdata, "psm", groupby="sample_name", var_column="charge", ptype="stacked_bar")
@@ -89,22 +89,22 @@ mm.pl.plot_var(mdata, "psm", groupby="sample_name", var_column="peptide_length",
 
 ![](../assets/images/visualization_var_2.png)
 
-### `plot_pca` & `plot_umap`
+### [`plot_pca`](../reference/pl/plot_pca.md) & [`plot_umap`](../reference/pl/plot_umap.md)
 
 ```python
 mm.pl.plot_pca(mdata, "protein", groupby="condition")
 ```
 
-`plot_pca(..., key="X_pca")` expects:
+[`plot_pca(..., key="X_pca")`](../reference/pl/plot_pca.md) expects:
 - coordinates in `mdata[modality].obsm[key]`
 - PCA variance metadata in `mdata[modality].uns[key]["variance_ratio"]`
 
-`plot_umap(..., key="X_umap")` expects:
+[`plot_umap(..., key="X_umap")`](../reference/pl/plot_umap.md) expects:
 - coordinates in `mdata[modality].obsm[key]`
 
 ![](../assets/images/visualization_pca_1.png)
 
-### `plot_correlation`
+### [`plot_correlation`](../reference/pl/plot_correlation.md)
 
 ```python
 mm.pl.plot_correlation(mdata, "protein")
@@ -112,7 +112,7 @@ mm.pl.plot_correlation(mdata, "protein")
 
 ![](../assets/images/visualization_correlation_1.png)
 
-### `plot_upset`
+### [`plot_upset`](../reference/pl/plot_upset.md)
 
 ```python
 mm.pl.plot_upset(mdata, "protein", groupby="condition")

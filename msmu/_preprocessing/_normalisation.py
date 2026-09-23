@@ -270,7 +270,7 @@ def normalise_median_center(arr: np.ndarray) -> np.ndarray:
 class UnsharedSamplePairsError(ValueError):
     """Two samples of a normalisation block observe no feature in common.
 
-    Positions refer to the block as passed to the estimator; ``normalise()`` maps them to obs names.
+    Positions refer to the block as passed to the estimator; [`normalise()`][msmu.pp.normalise] maps them to obs names.
     """
 
     def __init__(self, sample_position_pairs) -> None:
@@ -399,8 +399,8 @@ def normalise_total_sum(arr: np.ndarray) -> np.ndarray:
     ratios unchanged. ``arr`` is oriented (features x samples) here (``Normalisation`` transposes the
     obs axis before calling), so the totals are taken per column.
 
-    The input is assumed log2-transformed, matching the msmu convention that ``normalise`` runs after
-    ``log2_transform``. Summing log values is meaningless (it yields the log of the product, not the
+    The input is assumed log2-transformed, matching the msmu convention that [`normalise`][msmu.pp.normalise] runs after
+    [`log2_transform`][msmu.pp.log2_transform]. Summing log values is meaningless (it yields the log of the product, not the
     total), so each sample total is computed on the linear scale (``2 ** arr``) and the rescale is
     returned to log2. On the log2 scale this reduces to a per-sample additive shift
     ``log2(T) - log2(S_i)``. Structurally-absent cells (NaN) contribute nothing to the total and stay
@@ -669,8 +669,8 @@ class PTMProteinAdjuster:
         """Replace the quantification in place and annotate every site with how it was resolved.
 
         Writes back to whichever matrix was read -- ``.X`` or ``layers[layer]`` -- the same contract
-        as ``log2_transform``, ``normalise``, ``scale_data`` and ``correct_batch_effect``. Leaving the
-        adjusted values somewhere else would mean ``run_de`` and friends, which default to ``.X``,
+        as [`log2_transform`][msmu.pp.log2_transform], [`normalise`][msmu.pp.normalise], [`scale_data`][msmu.pp.scale_data] and [`correct_batch_effect`][msmu.pp.correct_batch_effect]. Leaving the
+        adjusted values somewhere else would mean [`run_de`][msmu.tl.run_de] and friends, which default to ``.X``,
         silently analysed the unadjusted data.
 
         No site is dropped. A site that could not be adjusted is set to NaN rather than left holding

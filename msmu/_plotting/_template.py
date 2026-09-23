@@ -12,8 +12,16 @@ DEFAULT_TEMPLATE = "msmu"
 
 
 def set_templates():
-    """
-    Registers msmu Plotly templates and sets the default template.
+    """Register `msmu` Plotly templates and set the global default.
+
+    Returns:
+        result (None): Updates the process-wide Plotly template registry/default.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mm.pl.set_templates()
+        ```
     """
     add_msmu_template()
     add_msmu_pastel_template()

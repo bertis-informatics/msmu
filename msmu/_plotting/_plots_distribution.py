@@ -30,7 +30,33 @@ def plot_intensity(
     obs_column: str | None = None,
     **kwargs: str,
 ) -> go.Figure:
-    """Visualize intensity distributions for a modality."""
+    """Plot intensity distributions for a modality.
+
+    Parameters:
+        mdata: MuData containing the selected modality and observation metadata.
+        modality: Name of the modality to plot, such as `"protein"` or `"psm"`.
+        layer: Quantification layer; `None` reads `.X`.
+        groupby: Grouping column in observation metadata (or feature metadata where supported). `None` uses the resolved `obs_column`.
+        colorby: Observation column used to assign sample colors when `groupby` resolves to `obs_column`; ignored for other groupings. `None` uses the template palette.
+        ptype: `"hist"`/`"histogram"`, `"box"`/`"boxplot"`/`"simple_box"`/`"simplebox"`, or `"vln"`/`"violin"`.
+        template: Registered Plotly template name, normally `"msmu"`.
+        bins: Number of histogram bins; ignored by box and violin plots.
+        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `uns["plotting"]["default_obs_column"]`, then source name/source_name/sample/filename, then the observation index.
+        kwargs: Additional Plotly layout options, for example `width=800` or `title_text="QC"`.
+
+    Returns:
+        Plotly `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
+
+    Notes:
+        Axes assume log2 intensities. Apply [`log2_transform`][msmu.pp.log2_transform] beforehand when appropriate; this function does not log-transform values. Quantification and embeddings are unchanged. Resolving an existing sample-identifier column can convert that column in `mdata.obs` to categorical; pass a copy to preserve its dtype.
+
+    Examples:
+        ```python
+        import msmu as mm
+        fig = mm.pl.plot_intensity(mdata, modality="protein", ptype="box")
+        fig.show()
+        ```
+    """
     context = PlotContext.grouped(
         mdata,
         modality,
@@ -107,7 +133,28 @@ def plot_missingness(
     obs_column: str | None = None,
     **kwargs: str,
 ) -> go.Figure:
-    """Plot cumulative completeness percentages for a modality."""
+    """Plot the cumulative distribution of feature completeness.
+
+    Parameters:
+        mdata: MuData containing the selected modality and observation metadata.
+        modality: Name of the modality to plot, such as `"protein"` or `"psm"`.
+        layer: Quantification layer; `None` reads `.X`.
+        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `uns["plotting"]["default_obs_column"]`, then source name/source_name/sample/filename, then the observation index.
+        kwargs: Additional Plotly layout options, for example `width=800` or `title_text="QC"`.
+
+    Returns:
+        Plotly `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
+
+    Notes:
+        The x-axis is the percentage of samples with an observed value; the y-axis is the cumulative percentage of features at or below that completeness. Quantification and embeddings are unchanged. Resolving an existing sample-identifier column can convert that column in `mdata.obs` to categorical; pass a copy to preserve its dtype.
+
+    Examples:
+        ```python
+        import msmu as mm
+        fig = mm.pl.plot_missingness(mdata, modality="protein")
+        fig.show()
+        ```
+    """
     context = PlotContext.obs_only(mdata, modality, obs_column=obs_column, layer=layer)
     data = PlotData(
         context.mdata,
@@ -150,7 +197,28 @@ def plot_correlation(
     obs_column: str | None = None,
     **kwargs: str,
 ) -> go.Figure:
-    """Plot a lower-triangular Pearson correlation heatmap of grouped medians."""
+    """Plot a lower-triangular Pearson correlation heatmap of grouped medians.
+
+    Parameters:
+        mdata: MuData containing the selected modality and observation metadata.
+        modality: Name of the modality to plot, such as `"protein"` or `"psm"`.
+        groupby: Grouping column in observation metadata (or feature metadata where supported). `None` uses the resolved `obs_column`.
+        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `uns["plotting"]["default_obs_column"]`, then source name/source_name/sample/filename, then the observation index.
+        kwargs: Additional Plotly layout options, for example `width=800` or `title_text="QC"`.
+
+    Returns:
+        Plotly `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
+
+    Notes:
+        Computes correlations for the plot from `.X`; it does not consume results from [`corr`][msmu.tl.corr]. Quantification and embeddings are unchanged. Resolving an existing sample-identifier column can convert that column in `mdata.obs` to categorical; pass a copy to preserve its dtype.
+
+    Examples:
+        ```python
+        import msmu as mm
+        fig = mm.pl.plot_correlation(mdata, modality="protein")
+        fig.show()
+        ```
+    """
     context = PlotContext.grouped(mdata, modality, groupby=groupby, obs_column=obs_column)
     if context.groupby is None:
         raise ValueError("plot_correlation requires a grouping column.")
@@ -182,7 +250,31 @@ def plot_var(
     bins: int = 30,
     **kwargs: str,
 ) -> go.Figure:
-    """Plot variable annotations using stacked bars, box/violin plots, or histograms."""
+    """Plot a feature annotation by group.
+
+    Parameters:
+        mdata: MuData containing the selected modality and observation metadata.
+        modality: Name of the modality to plot, such as `"protein"` or `"psm"`.
+        groupby: Grouping column in observation metadata (or feature metadata where supported). `None` uses the resolved `obs_column`.
+        var_column: Required column in the selected modality `.var`, such as `"charge"` or `"purity"`.
+        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `uns["plotting"]["default_obs_column"]`, then source name/source_name/sample/filename, then the observation index.
+        ptype: `"stack"` (aliases `"stackd"`, `"stacked_bar"`), `"box"`, `"simple_box"`/`"simplebox"`, `"vln"`/`"violin"`, or `"hist"`/`"histogram"`. `None` selects box for numeric columns with more than 20 distinct values, otherwise stacked bars.
+        bins: Histogram bin count; ignored for other plot types.
+        kwargs: Additional Plotly layout options, for example `width=800` or `title_text="QC"`.
+
+    Returns:
+        Plotly `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
+
+    Notes:
+        The selected feature annotation must exist; numeric plot types require numeric values. Quantification and embeddings are unchanged. Resolving an existing sample-identifier column can convert that column in `mdata.obs` to categorical; pass a copy to preserve its dtype.
+
+    Examples:
+        ```python
+        import msmu as mm
+        fig = mm.pl.plot_var(mdata, modality="psm", var_column="charge")
+        fig.show()
+        ```
+    """
     if var_column is None:
         raise ValueError("var_column must be specified.")
 

@@ -43,8 +43,25 @@ def add_quant(
     quant_tool: str,
     index_name: str | None = None,
 ) -> md.MuData:
-    """
-    Add quantification data to the MuData object as a new modality.
+    """Attach FlashLFQ peptide quantification to MuData.
+
+    Parameters:
+        mdata: MuData with sample metadata in `.obs`; may already contain a peptide modality.
+        quant_data: Tab-separated file path/URL or DataFrame with `Sequence` and `Intensity_<sample>` columns.
+        quant_tool: Only `"flashlfq"` is supported.
+        index_name: Column in global `.obs` used to match intensity sample names; `None` uses the observation index. MS filename extensions are stripped from these names.
+
+    Returns:
+        MuData with updated `peptide.X`, or a newly attached peptide modality. Existing peptide quantification is replaced in place; reassign the return value in either case.
+
+    Notes:
+        All input samples must have intensity columns. Zeros become NaN and values are stored as float32. For an existing peptide modality, its feature/sample axes and annotations are preserved: unmatched identified peptides receive NaN and extra quantified peptides are discarded. Use `mdata.copy()` to preserve the original. See [`write_flashlfq_input`][msmu.io.write_flashlfq_input] to prepare FlashLFQ input.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mdata = mm.io.add_quant(mdata, "QuantifiedPeptides.tsv", quant_tool="flashlfq")
+        ```
     """
     if quant_tool != "flashlfq":
         raise ValueError(f"Unsupported quant_tool '{quant_tool}'. Supported tools: flashlfq.")

@@ -45,14 +45,31 @@ def add_meta(
     validate_sdrf: bool = True,
     skip_ontology: bool = True,
 ) -> MuData:
-    """
-    Attach metadata to MuData observations using one explicit metadata key and one obs key.
+    """Attach metadata by exact matching of one metadata key to one observation key.
 
-    Metadata can be provided as a pandas DataFrame, a local path-like object, or
-    a URL-like string. File and URL inputs are read into a pandas DataFrame for
-    ``csv``, ``tsv``, ``parquet``, and ``sdrf`` formats. Matching is exact only:
-    metadata defaults to its index unless ``metadata_on`` is provided, and obs
-    defaults to its index unless ``obs_columns`` is provided.
+    Parameters:
+        mdata: MuData whose modality and global `.obs` annotations will be updated in a copy.
+        metadata: DataFrame, local file, or URL containing metadata.
+        format: `dataframe`/`df`/`generic`, `csv`, `tsv`, `parquet`, or `sdrf`. `None` accepts a DataFrame or infers the file format from its name.
+        metadata_on: Metadata join column; `None` uses its index. A sequence must contain exactly one key.
+        match_columns: Alias of `metadata_on`; cannot be supplied together with it.
+        obs_columns: Join column in each modality `.obs`; `None` uses each observation index. A sequence must contain exactly one key.
+        validate_sdrf: Validate SDRF input when using SDRF format.
+        skip_ontology: Skip ontology checks during SDRF validation.
+
+    Returns:
+        A new MuData with metadata merged into each modality and global `.obs`; the original is unchanged.
+
+    Notes:
+        Metadata must be nonempty with unique columns and unique non-null join keys. Each modality must have at least one matching row; unmatched rows receive missing metadata. Existing non-null annotations take precedence; only gaps are filled. For separate SDRF storage/application, see [`attach_sdrf`][msmu.pp.attach_sdrf] and [`apply_sdrf_to_obs`][msmu.pp.apply_sdrf_to_obs].
+
+    Examples:
+        ```python
+        import msmu as mm
+        import pandas as pd
+        metadata = pd.DataFrame({"condition": ["control"] * mdata.n_obs}, index=mdata.obs_names)
+        mdata = mm.pp.add_meta(mdata, metadata)
+        ```
     """
     if not isinstance(mdata, md.MuData):
         raise TypeError("mdata must be a MuData object.")
@@ -135,13 +152,13 @@ def attach_sdrf(
 
     The SDRF is stored whole because its rows span both axes -- ``comment[label]`` maps
     to the obs axis (channels) and ``comment[data file]`` to the var axis (runs/fractions) --
-    so it is not reducible to obs alone. ``uns`` is copied through ``split_tmt`` and
-    ``collapse_obs``, making it the durable home for the original table; obs is left
-    untouched here. Use :func:`apply_sdrf_to_obs` to project selected columns onto obs.
+    so it is not reducible to obs alone. ``uns`` is copied through [`split_tmt`][msmu.pp.split_tmt] and
+    [`collapse_obs`][msmu.pp.collapse_obs], making it the durable home for the original table; obs is left
+    untouched here. Use [`apply_sdrf_to_obs`][msmu.pp.apply_sdrf_to_obs] to project selected columns onto obs.
 
     Parameters:
         mdata: MuData to annotate.
-        sdrf: An SDRF as a pandas DataFrame, or a path/URL read via :func:`read_sdrf`.
+        sdrf: An SDRF as a pandas DataFrame, or a path/URL read via [`read_sdrf`][msmu.io.read_sdrf].
         validate: Validate the SDRF with ``sdrf-pipelines`` (if installed). Default True.
         skip_ontology: Skip ontology term checks during validation. Default True.
 
@@ -187,9 +204,9 @@ def apply_sdrf_to_obs(
     silently collapses SDRF data.
 
     Parameters:
-        mdata: MuData with an SDRF attached via :func:`attach_sdrf`.
+        mdata: MuData with an SDRF attached via [`attach_sdrf`][msmu.pp.attach_sdrf].
         on: SDRF column (or list of columns) matched against ``obs.index``. Default None auto-picks:
-            after ``split_tmt`` (which records its ``set_key`` in ``uns``) it builds the composite
+            after [`split_tmt`][msmu.pp.split_tmt] (which records its ``set_key`` in ``uns``) it builds the composite
             ``[comment[label], set_key]`` matching the ``channel_set`` obs automatically; otherwise
             ``comment[label]`` for TMT and ``comment[data file]`` elsewhere. Pass a str or list to
             override (a list forces a "_"-joined composite key).
@@ -266,7 +283,7 @@ def _relabel_obsm_frames(adata) -> None:
     """Carry an obs rename into the DataFrames in obsm, which keep their own copy of the labels.
 
     ``set_index`` replaces ``obs.index`` in place, and AnnData does not propagate that to obsm. The obs
-    filter ``add_filter`` records in ``obsm["filter"]`` then keeps the old labels, and the next copy of
+    filter [`add_filter`][msmu.pp.add_filter] records in ``obsm["filter"]`` then keeps the old labels, and the next copy of
     the modality fails on the mismatch. That is the ordinary TMT order -- blank channels are filtered
     out first, since they have no sample name to index by -- so the rename has to take obsm along.
     obsm is aligned to obs by position: only the labels move.

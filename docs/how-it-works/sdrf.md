@@ -1,26 +1,25 @@
 # Sample Metadata (SDRF)
 
-## Overview
-
 [SDRF-Proteomics](https://github.com/bigbio/proteomics-sample-metadata) is the community format for
 describing what each run and each label in an experiment actually is: the sample, its conditions,
 the instrument, the labelling. `msmu` treats an SDRF as the **source of truth** for sample
 metadata, in two explicit steps:
 
-1. `attach_sdrf()` stores the whole table at `mdata.uns["sdrf"]`, unchanged.
-2. `apply_sdrf_to_obs()` projects the columns you want onto each modality's `.obs`.
+1. [`attach_sdrf()`](../reference/pp/attach_sdrf.md) stores the whole table at `mdata.uns["sdrf"]`, unchanged.
+2. [`apply_sdrf_to_obs()`](../reference/pp/apply_sdrf_to_obs.md) projects the columns you want onto each modality's `.obs`.
+
+## Why storage and projection are separate
 
 The split exists because an SDRF row does not correspond to one observation. Its rows span **both**
 axes — `comment[label]` addresses the obs axis (channels) and `comment[data file]` the var axis
 (runs and fractions) — so a 144-row SDRF of 12 fractions × 12 channels cannot be reduced to 12
 sample rows without discarding the fraction axis. Keeping the original in `.uns`, which is carried
-through `split_tmt()` and `collapse_obs()`, means the full table stays available no matter how the
+through [`split_tmt()`](../reference/pp/split_tmt.md) and [`collapse_obs()`](../reference/pp/collapse_obs.md), means the full table stays available no matter how the
 container is reshaped, while `.obs` holds only what is well-defined per observation.
 
-Metadata that is not in SDRF form — a plain DataFrame, csv, tsv, or parquet — is still supported
-through [`add_meta()`](#add_meta-metadata-without-an-sdrf).
+## Store the original SDRF
 
-## `attach_sdrf()`
+Use [`attach_sdrf()`](../reference/pp/attach_sdrf.md) to store the SDRF on the container:
 
 ```python
 mdata = mm.read_sage(
@@ -38,17 +37,17 @@ mdata = mm.pp.attach_sdrf(
 mdata.uns["sdrf"].shape   # (144, 17)
 ```
 
-The SDRF may be a path, a URL, or a DataFrame. Paths and URLs are read with `mm.read_sdrf()`, and
+The SDRF may be a path, a URL, or a DataFrame. Paths and URLs are read with [`mm.read_sdrf()`](../reference/read_sdrf.md), and
 the table is validated with [`sdrf-pipelines`](https://github.com/bigbio/sdrf-pipelines) unless you
 pass `validate=False`; ontology term lookups are skipped by default (`skip_ontology=True`). To read
-an SDRF into a DataFrame without attaching it, call `mm.read_sdrf(sdrf_file, validate_sdrf=True)`
+an SDRF into a DataFrame without attaching it, call [`mm.read_sdrf(sdrf_file, validate_sdrf=True)`](../reference/read_sdrf.md)
 directly.
 
 `.obs` is untouched by this step, and `uns["sdrf"]` is never rewritten by the steps that follow.
 
-## `apply_sdrf_to_obs()`
+## Project SDRF columns onto observations
 
-Projection reduces the SDRF to the obs axis by a **match key** and copies across the columns that
+[`apply_sdrf_to_obs()`](../reference/pp/apply_sdrf_to_obs.md) reduces the SDRF to the obs axis by a **match key** and copies across the columns that
 are a function of that key:
 
 ```python
@@ -71,7 +70,7 @@ All three arguments are optional, and the call above passes none of them:
 
 - **`on`** (optional, default `None`) — the match key. `None` resolves it per modality, from that
   modality's own `uns["label"]`: `comment[label]` where the label is `tmt` (obs are channels), and
-  `comment[data file]` otherwise (obs are runs). After `split_tmt()` the composite
+  `comment[data file]` otherwise (obs are runs). After [`split_tmt()`](../reference/pp/split_tmt.md) the composite
   `[comment[label], set_key]` is used for the whole container instead. File names are matched
   ignoring the extension, since readers store bare stems (`QExHF03751`) while an SDRF carries
   `QExHF03751.mzML`. Pass a column name to override, or a list of columns to match a composite key.
@@ -136,7 +135,7 @@ mm.pp.apply_sdrf_to_obs(mdata, set_index="comment[data file]")
 # ValueError: set_index 'comment[data file]' is neither a projectable SDRF column nor an obs column
 ```
 
-On a multi-plex experiment, project and rename **after** `split_tmt()`, not before. The split
+On a multi-plex experiment, project and rename **after** [`split_tmt()`](../reference/pp/split_tmt.md), not before. The split
 builds its `channel_set` obs names from the current obs names and starts the new modality with an
 empty `obs`, so renaming first both discards the projected columns and produces names
 (`t0h_set1`) that no longer match the SDRF's `comment[label]`. Keep the channel labels through
@@ -149,14 +148,14 @@ mdata = mm.pp.apply_sdrf_to_obs(mdata, set_index="source name")  # obs: the SDRF
 ```
 
 The projected columns are also merged onto the MuData-level `mdata.obs`, where functions such as
-`correct_batch_effect()` read them.
+[`correct_batch_effect()`](../reference/pp/correct_batch_effect.md) read them.
 
-## TMT: channels, plexes and `split_tmt()`
+## Map TMT channels and split plexes
 
 Readers emit TMT channels in the SDRF spelling — `TMT126`, `TMT127N`, … — so `obs.index` lines up
 with `comment[label]` without a translation table.
 
-For a multi-plex experiment, `split_tmt()` splits each plex into its own set of samples. With an
+For a multi-plex experiment, [`split_tmt()`](../reference/pp/split_tmt.md) splits each plex into its own set of samples. With an
 SDRF attached it derives the file → set map itself:
 
 ```python
@@ -177,14 +176,14 @@ Which columns it reads, by default:
 | MuData | `psm.var["filename"]` | what the SDRF file names are matched against, extension stripped |
 
 SDRF has no dedicated column for the TMT set, which is why the batch column stands in for it.
-`split_tmt()` errors if the column is absent, or if one data file maps to two sets. Any column
+[`split_tmt()`](../reference/pp/split_tmt.md) errors if the column is absent, or if one data file maps to two sets. Any column
 that is constant per data file may be named instead:
 
 ```python
 mdata = mm.pp.split_tmt(mdata, set_key="factor value[plex]")
 ```
 
-`split_tmt()` records the key it used, so the following `apply_sdrf_to_obs()` knows to match on the
+[`split_tmt()`](../reference/pp/split_tmt.md) records the key it used, so the following [`apply_sdrf_to_obs()`](../reference/pp/apply_sdrf_to_obs.md) knows to match on the
 composite `[comment[label], set_key]` that the post-split `channel_set` obs index encodes — no
 manual `on` is needed.
 
@@ -195,9 +194,9 @@ of file name → set:
 mdata = mm.pp.split_tmt(mdata, map={"run_A": "set1", "run_B": "set2"})  # SDRF not consulted
 ```
 
-## `add_meta()` — metadata without an SDRF
+## Add metadata without an SDRF
 
-Not every experiment has an SDRF. `add_meta()` is the generic path: it takes a **DataFrame you
+Not every experiment has an SDRF. [`add_meta()`](../reference/pp/add_meta.md) is the generic path: it takes a **DataFrame you
 already have in memory**, or a `csv`, `tsv`, `parquet`, or `sdrf` file (path or URL), and joins it
 onto `obs` by one metadata key and one obs key.
 
@@ -241,6 +240,6 @@ observation. Observations with no matching row are left as `NaN` rather than rai
 is inferred from the extension (`.sdrf.tsv` / `.sdrf` → SDRF, otherwise `.csv` / `.tsv` /
 `.parquet`) and only needs passing when the name does not say.
 
-Use `attach_sdrf()` + `apply_sdrf_to_obs()` instead when you do have an SDRF: those keep the
+Use [`attach_sdrf()`](../reference/pp/attach_sdrf.md) + [`apply_sdrf_to_obs()`](../reference/pp/apply_sdrf_to_obs.md) instead when you do have an SDRF: those keep the
 original table on the container, understand its two axes, and refuse to collapse a column that is
 not well-defined per observation.

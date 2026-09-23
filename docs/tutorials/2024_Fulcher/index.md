@@ -10,6 +10,15 @@ This tutorial demonstrates the integrated analysis of single-cell RNA-seq and pr
 - [02 Process Proteomics Data](02_process_protein_data.ipynb)
 - [03 Handle Multi-omics Data](03_handle_multi-omics_data.ipynb)
 
+!!! warning "Historical reproduction environment"
+    This case study provides a legacy environment specification for `msmu` **0.2.6**
+    and Python **3.11**. Saved outputs are historical reference material and have
+    not been rerun in that environment as part of this documentation update.
+    It is a historical workflow, not the environment for current `msmu` (Python >=3.12).
+    Use a separate environment with `msmu==0.2.6` to reproduce it. The package list
+    below records the original environment; it is not a guarantee of compatibility
+    with newer versions. For current APIs, start with the [Quick Start](../quick_start.ipynb).
+
 ## Environment Setup
 
 `.python-version`: `3.11`
@@ -27,7 +36,7 @@ dependencies = [
     "ipywidgets>=8.1.8",
     "mofapy2>=0.7.3",
     "mofax>=0.3.7",
-    "msmu>=0.2.6",
+    "msmu==0.2.6",
     "mudata>=0.3.2",
     "muon>=0.1.7",
     "pimms-learn",

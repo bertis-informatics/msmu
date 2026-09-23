@@ -60,7 +60,7 @@ def to_peptide(
     Parameters:
         mdata: MuData object containing PSM-level data.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method for quantification to use. One of "median", "mean", or "sum". Defaults to "median". The matrix rollups "median_polish" and "directlfq" are not offered here; they model per-peptide response factors and belong to the peptide-to-protein step (to_protein).
+        agg_method: Aggregation method for quantification to use. One of "median", "mean", or "sum". Defaults to "median". The matrix rollups "median_polish" and "directlfq" are not offered here; they model per-peptide response factors and belong to the peptide-to-protein step ([`to_protein`][msmu.pp.to_protein]).
         purity_threshold: Purity threshold for TMT data quantification aggregation (does not filter out features). If None, no filtering is applied. Defaults to 0.7.
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
@@ -217,7 +217,7 @@ def to_protein(
     Parameters:
         mdata: MuData object containing Peptide-level data.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median". "median_polish" applies Tukey's median polish per protein group and "directlfq" applies the DirectLFQ rollup per protein group; both assume the quantification is in log2 space (apply log2_transform first).
+        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median". "median_polish" applies Tukey's median polish per protein group and "directlfq" applies the DirectLFQ rollup per protein group; both assume the quantification is in log2 space (apply [`log2_transform`][msmu.pp.log2_transform] first).
         top_n: Number of top peptides to consider for summarisation. If None, all peptides are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
         calculate_q: Whether to calculate q-values. Defaults to True.
@@ -365,7 +365,7 @@ def to_ptm(
             (MaxQuant), ``["S[167]", "T[181]", "Y[243]"]`` (FragPipe, which writes the modified
             residue's total mass). If nothing matches, the error lists the tags the data contains.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median_polish", which models a per-peptidoform effect and so is not perturbed when the set of peptidoforms supporting a site changes between samples; for a site backed by a single peptidoform it is identical to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply log2_transform first).
+        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median_polish", which models a per-peptidoform effect and so is not perturbed when the set of peptidoforms supporting a site changes between samples; for a site backed by a single peptidoform it is identical to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply [`log2_transform`][msmu.pp.log2_transform] first).
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
         multisite: What a peptidoform carrying the target modification on several residues
@@ -381,6 +381,16 @@ def to_ptm(
 
     Returns:
         MuData: MuData object containing PTM-level data.
+
+    Notes:
+        Adds `<modi_name>_site` to the supplied MuData in place. Use a copy to preserve the original. Requires peptide data and FASTA-derived `protein_info`; see [`to_peptide`][msmu.pp.to_peptide] and [`attach_fasta`][msmu.utils.attach_fasta].
+
+    Examples:
+        ```python
+        import msmu as mm
+        # mdata already contains peptide quantification and attached FASTA annotations.
+        mdata = mm.pp.to_ptm(mdata, modi_name="phospho", modification="(unimod:21)")
+        ```
     """
     adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "peptide").copy()
     if layer is not None:

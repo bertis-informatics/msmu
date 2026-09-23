@@ -95,7 +95,7 @@ class StatTestResult:
 
     Methods:
         to_df: Convert the results to a pandas DataFrame.
-        plot_volcano: Plot a volcano plot of the DEA results.
+        [`plot_volcano`][msmu.pl.plot_volcano]: Plot a volcano plot of the DEA results.
     """
 
     stat_method: str

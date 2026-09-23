@@ -132,7 +132,7 @@ def normalise(
         fraction: Deprecated. If True, equivalent to ``group_var="filename"``.
 
     Returns:
-        Normalised MuData object.
+        Normalised copy of the MuData object; the selected `.X` or layer is updated in the copy.
 
     Notes:
         When both ``group_obs`` and ``group_var`` are provided, normalisation is performed
@@ -401,8 +401,15 @@ def normalize(
     fraction_key: str | None = None,
     fraction: bool = False,
 ) -> md.MuData:
-    """
-    Alias for normalise function to support American English spelling.
+    """American-English alias of [`normalise`][msmu.pp.normalise].
+
+    All parameters, return values, grouping rules, and deprecated arguments are identical; see the linked API for the full contract. Returns a normalised copy.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mdata = mm.pp.normalize(mdata, method="median", modality="protein")
+        ```
     """
     return normalise(
         mdata=mdata,
@@ -553,7 +560,7 @@ def _read_global_mdata(global_mdata: md.MuData | str | PathLike[str]) -> md.MuDa
 
     A path keeps the PTM container's history one chain: the file is recorded as an input with its
     content hash instead of merging the global dataset's own history into the result. That is what
-    lets ``mm.pv.replay`` and ``mm.pv.to_script`` reproduce a PTM workflow through the adjustment,
+    lets [`mm.pv.replay`][msmu.pv.replay] and [`mm.pv.to_script`][msmu.pv.to_script] reproduce a PTM workflow through the adjustment,
     which they cannot do for a history with two parents.
     """
     if isinstance(global_mdata, md.MuData):
@@ -592,7 +599,8 @@ def adjust_ptm_by_protein(
     site.
 
     The adjusted values replace the quantification that was read -- ``.X``, or ``layers[layer]`` when
-    given -- the same contract as ``log2_transform``, ``normalise`` and ``correct_batch_effect``. A
+    given -- the same contract as [`log2_transform`][msmu.pp.log2_transform],
+    [`normalise`][msmu.pp.normalise] and [`correct_batch_effect`][msmu.pp.correct_batch_effect]. A
     site that could not be adjusted is set to NaN rather than left holding its raw abundance, so
     residuals and raw abundances never share a matrix. To keep the unadjusted values, copy them into
     a layer first::
@@ -605,7 +613,7 @@ def adjust_ptm_by_protein(
             'protein' modality and the protein mapping in uns['protein_map'], or the path of an
             ``.h5mu`` file holding one. A path keeps this container's provenance a single chain --
             the file is recorded as an input with its content hash instead of merging the global
-            dataset's own history -- so ``mm.pv.replay`` and ``mm.pv.to_script`` can reproduce the
+            dataset's own history -- so [`mm.pv.replay`][msmu.pv.replay] and [`mm.pv.to_script`][msmu.pv.to_script] can reproduce the
             workflow through this step. Pass a ``Path`` rather than a ``str`` for that content hash.
         modality: PTM modality to adjust (e.g. phospho_site, {ptm}_site).
         layer: Layer to adjust. If None, the default layer (.X) will be used.

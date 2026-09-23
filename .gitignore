@@ -158,3 +158,5 @@ uv.lock
 
 # scratch / local analysis outputs
 scratch/
+# Tutorial-generated analysis and figure exports
+msmu_quick_start_output/

@@ -108,7 +108,7 @@ def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
 
     IMPORTANT: like median polish this operates in log space. directlfq's per-protein worker
     consumes log2 intensities and returns a log2-space profile, so the input must be log2
-    (e.g. apply log2_transform first) and the output is log2.
+    (e.g. apply [`log2_transform`][msmu.pp.log2_transform] first) and the output is log2.
 
     NaN handling: missing values propagate as directlfq's own missingness. Features (rows) with
     no observed values are dropped before the call; a sample column with no observed values
@@ -750,7 +750,7 @@ class SummarisationPrep:
 
 
 def normalise_target_modifications(modification: str | Sequence[str]) -> tuple[str, ...]:
-    """Validate ``to_ptm``'s ``modification`` argument and return it as a tuple of tags.
+    """Validate [`to_ptm`][msmu.pp.to_ptm]'s ``modification`` argument and return it as a tuple of tags.
 
     Each entry must be a tag exactly as the search engine writes it (``[+79.9663]``, ``(UniMod:21)``)
     or a tag qualified by its residue (``S[167]``). Matching is by equality with a parsed tag, not by

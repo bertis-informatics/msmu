@@ -17,7 +17,31 @@ def plot_volcano(
     pval_threshold: float = 0.05,
     label_top: int | None = None,
 ) -> go.Figure:
-    """Plot differential-expression analysis results as a volcano plot."""
+    """Plot differential-expression results using raw p-values.
+
+    Parameters:
+        results: DataFrame with `features`, `log2fc`, and `p_value` columns. See [`run_de`][msmu.tl.run_de] for differential-expression analysis.
+        ctrl: Control label shown in the title and downregulated annotation; does not select/filter rows.
+        expr: Experimental label shown in the title and upregulated annotation; does not select/filter rows.
+        log2fc_threshold: Absolute log2 fold-change cutoff. UP/DOWN require strictly greater/smaller fold changes.
+        pval_threshold: Raw p-value cutoff (strictly less than); `q_value` is not used.
+        label_top: Maximum number of feature labels in each significant direction, ranked by fold change; `None` disables labels.
+
+    Returns:
+        Plotly `Figure`; the input DataFrame is copied and remains unchanged.
+
+    Notes:
+        Supply finite log2 fold changes and positive p-values for finite plotted coordinates. The function does not perform multiple-testing correction.
+
+    Examples:
+        ```python
+        import msmu as mm
+        import pandas as pd
+        results = pd.DataFrame({"features": ["P1", "P2"], "log2fc": [2., -2.], "p_value": [.001, .01]})
+        fig = mm.pl.plot_volcano(results, ctrl="control", expr="treated", log2fc_threshold=1.)
+        fig.show()
+        ```
+    """
     df = results.copy()
     df["logp"] = -np.log10(df["p_value"])
     up_cond = df["log2fc"] > log2fc_threshold

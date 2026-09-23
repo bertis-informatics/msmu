@@ -501,7 +501,7 @@ def ensure_msmu_templates_registered() -> None:
     Registering (rather than activating via ``pio.templates.default``) lets a per-figure
     ``template="msmu"`` resolve to the house style while keeping ``import msmu`` free of any
     global Plotly side effect. Users who want msmu as the session-wide default can still opt
-    in explicitly with :func:`msmu.pl.set_templates`.
+    in explicitly with [`msmu.pl.set_templates`][msmu.pl.set_templates].
     """
     if DEFAULT_TEMPLATE not in pio.templates:
         add_msmu_template()
@@ -514,7 +514,7 @@ def apply_msmu_template(fig: go.Figure, template: str | None = None) -> go.Figur
     Every public plot function routes its output through this helper so figures carry the
     msmu house style per-figure, without relying on the global ``pio.templates.default``
     (i.e. without any import-time side effect). Functions that build a figure outside the
-    :func:`finalize_figure` path — e.g. :func:`plot_volcano`, which takes a results frame
+    :func:`finalize_figure` path — e.g. [`plot_volcano`][msmu.pl.plot_volcano], which takes a results frame
     rather than a MuData and therefore has no :class:`PlotContext` — call this directly.
     """
     ensure_msmu_templates_registered()

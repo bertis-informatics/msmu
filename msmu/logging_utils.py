@@ -125,6 +125,18 @@ def setup_logger(
     *,
     propagate: bool = False,
 ) -> logging.Logger:
+    """Configure the `msmu` package logger during import.
+
+    Parameters:
+        level: Integer logging level or `msmu` `LogLevel`; defaults to INFO.
+        propagate: Whether records also propagate to parent loggers. Enable when integrating with application logging; duplicate output can occur if parents also have handlers.
+
+    Returns:
+        The configured `logging.Logger`. Updates the package logger and its managed stream handler in place.
+
+    Notes:
+        This configures console logging, not execution provenance. See [`get_log`][msmu.pv.get_log] for recorded workflow history.
+    """
     logger = get_logger()
     prune_closed_msmu_handlers(logger)
     logger.setLevel(int(level))

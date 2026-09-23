@@ -40,7 +40,7 @@ def add_filter(
         value: The value to compare against for filtering.
         on: Target table to filter on. One of 'var', 'obs', 'varm', or 'obsm'.
         key: Key to select table from `.varm`/`.obsm` when `on` is 'varm'/'obsm'.
-        name: Optional filter name for selection with ``apply_filter(columns=...)``.
+        name: Optional filter name for selection with [`apply_filter(columns=...)`][msmu.pp.apply_filter].
             Must be nonblank and contain no slash (HDF5 key restriction). An existing
             name can only be reused with the same recorded condition.
 

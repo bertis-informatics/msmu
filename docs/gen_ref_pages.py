@@ -16,6 +16,10 @@ def map_alias(name):
         return "plotting: <b><code>pl</code></b>"
     if name == "tl":
         return "tools: <b><code>tl</code></b>"
+    if name == "dt":
+        return "data: <b><code>dt</code></b>"
+    if name == "pv":
+        return "provenance: <b><code>pv</code></b>"
     return name
 
 
@@ -25,21 +29,21 @@ def iterate_modules(parent, parent_alias=[]):
 
     for module_name in parent.__all__:
         child = getattr(parent, module_name)
-        if child.__name__.startswith("_"):
+        if module_name.startswith("_"):
             continue
 
         if inspect.ismodule(child):
             yield from iterate_modules(child, parent_alias + [module_name])
 
         if inspect.isfunction(child) or inspect.isclass(child) or callable(child):
-            parts = parent_alias + [child.__name__]  # ['module', 'function']
+            parts = parent_alias + [module_name]  # ['module', 'function']
             ident = ".".join([PACKAGE] + parts)  # msmu.module.function
 
             doc = Path("reference", *parts).with_suffix(".md")
 
             with mkdocs_gen_files.open(doc, "w") as f:
                 f.write("---\n")
-                f.write(f"title: '{child.__name__}'\n")
+                f.write(f"title: '{module_name}'\n")
                 f.write("hide:\n")
                 f.write("  - toc\n")
                 f.write("---\n\n")
