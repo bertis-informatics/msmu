@@ -28,9 +28,11 @@ def read_sage(
     Reads Sage output and returns a MuData object.
 
     Parameters:
-        identification_file: Path to the results.sage.tsv.
+        identification_file: Path or URL to results.sage.tsv, or a list of input files.
         label: Label for the Sage output ('tmt' or 'label_free').
-        quantification_file: Whether to include quantification data. Default is None.
+        quantification_file: Path or URL to tmt.tsv (required for TMT) or lfq.tsv.
+            Omit for an identification-only label-free import. A list of files is also accepted.
+        drop_search_result: If True, omit the raw search table from varm["search_result"].
 
     Returns:
         A MuData object containing the Sage data.
@@ -108,7 +110,8 @@ def read_diann(
     cells restored as NaN).
 
     Parameters:
-        identification_file: Path to the DIA-NN output file or directory.
+        identification_file: Path or URL to report.tsv/report.parquet, or a list of files.
+        drop_search_result: If True, omit the raw search table from varm["search_result"].
         level: Level of the output to read ('precursor' or 'protein_group').
             Note: 'protein_group' is not yet implemented.
 
@@ -148,7 +151,7 @@ def read_maxquant(
     Reads MaxQuant output and returns a MuData object.
 
     Parameters:
-        identification_file: Path to the MaxQuant output directory.
+        identification_file: Path or URL to evidence.txt, or a list of files.
         label: Label type ('tmt' or 'label_free').
         acquisition: Acquisition method ('dda' or 'dia'). Note: 'dia' is not yet implemented.
         drop_search_result: Whether to drop the raw search result after reading. Default is False.
@@ -207,7 +210,8 @@ def read_fragpipe(
         identification_file: Path to the FragPipe PSM output file(s).
         label: Label type ('tmt' or 'label_free').
         acquisition: Acquisition method ('dda' or 'dia'). Note: 'dia' is not yet implemented.
-        quantification_file: Path to the FragPipe quantification file(s). Required for LFQ.
+        quantification_file: Path to combined_modified_peptide.tsv file(s) for LFQ intensities.
+            Omit for an identification-only LFQ import. TMT intensities are read from the PSM file.
 
     Returns:
         A MuData object containing the FragPipe data.
