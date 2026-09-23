@@ -25,7 +25,7 @@
     
     
       
-        <title>Command Provenance - msmu</title>
+        <title>Provenance - msmu</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#command_provenance_uns_logger" class="md-skip">
+        <a href="#provenance" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Command Provenance
+              Provenance
             
           </span>
         </div>
@@ -1111,7 +1111,7 @@
   <span class="md-ellipsis">
     
   
-    Command Provenance
+    Provenance
   
 
     
@@ -1129,7 +1129,7 @@
   <span class="md-ellipsis">
     
   
-    Command Provenance
+    Provenance
   
 
     
@@ -1155,10 +1155,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#behavior" class="md-nav__link">
+  <a href="#recorded_information" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Behavior
+        Recorded information
       
     </span>
   </a>
@@ -1166,10 +1166,87 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#hashing_policy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        Hashing policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#content_hashes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Content hashes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution_environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution environment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coverage_and_interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coverage and interpretation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replay
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generate_a_replay_script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generate a replay script
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#export_the_recorded_environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export the recorded environment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage
       
     </span>
   </a>
@@ -1200,6 +1277,8 @@
   
     
     
+      
+        
       
         
       
@@ -2079,16 +2158,6 @@
       
         
       
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
     
     
     
@@ -2107,7 +2176,7 @@
   <span class="md-ellipsis">
     
   
-    plotting: <b><code>pl</code></b>
+    data: <b><code>dt</code></b>
   
 
     
@@ -2120,6 +2189,223 @@
         
         <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    data: <b><code>dt</code></b>
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/assign/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    assign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/replace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    replace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/drop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    drop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/concat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    concat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_11" id="__nav_5_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    plotting: <b><code>pl</code></b>
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2450,10 +2736,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_12" >
         
           
-          <label class="md-nav__link" for="__nav_5_11" id="__nav_5_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_12" id="__nav_5_12_label" tabindex="0">
             
   
   
@@ -2471,8 +2757,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2741,10 +3027,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_13" >
         
           
-          <label class="md-nav__link" for="__nav_5_12" id="__nav_5_12_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_13" id="__nav_5_13_label" tabindex="0">
             
   
   
@@ -2762,8 +3048,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_12">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2960,10 +3246,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_14" >
         
           
-          <label class="md-nav__link" for="__nav_5_13" id="__nav_5_13_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_14" id="__nav_5_14_label" tabindex="0">
             
   
   
@@ -2981,8 +3267,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_13_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_13">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_14">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3314,15 +3600,82 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_15" id="__nav_5_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    provenance: <b><code>pv</code></b>
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_15">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    provenance: <b><code>pv</code></b>
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
-      <a href="../../reference/setup_logger/" class="md-nav__link">
+      <a href="../../reference/pv/get_log/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    setup_logger
+    get_log
   
 
     
@@ -3331,6 +3684,238 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pv/get_options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    get_options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pv/options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pv/set_options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    set_options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pv/log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pv/compute_hash/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compute_hash
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pv/replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pv/to_script/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    to_script
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pv/to_env/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    to_env
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -3370,10 +3955,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#behavior" class="md-nav__link">
+  <a href="#recorded_information" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Behavior
+        Recorded information
       
     </span>
   </a>
@@ -3381,10 +3966,87 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#hashing_policy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        Hashing policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#content_hashes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Content hashes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution_environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution environment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coverage_and_interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coverage and interpretation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replay
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generate_a_replay_script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generate a replay script
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#export_the_recorded_environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export the recorded environment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage
       
     </span>
   </a>
@@ -3459,47 +4121,386 @@
   
 
 
-<h1 id="command_provenance_uns_logger">Command Provenance (<code>uns_logger</code>)</h1>
-<p><code>msmu</code> functions decorated with <code>uns_logger</code> automatically append execution logs to
-<code>mdata.uns["_cmd"]</code>.</p>
-<p>At runtime, <code>mdata.uns["_cmd"]</code> is managed as <code>dict[str, dict]</code>, where each entry
-contains:</p>
-<ul>
-<li><code>function</code>: function name</li>
-<li><code>timestamp</code>: execution timestamp</li>
-<li><code>msmu_version</code>: installed <code>msmu</code> version</li>
-<li><code>python_version</code>: runtime Python version</li>
-<li><code>payload</code>: bound function arguments (including default values for omitted args)</li>
-<li><code>stdout</code>: captured printed messages from the function (if any)
-  (both <code>print(...)</code> and <code>logging</code> messages under the <code>msmu</code> logger)</li>
-<li><code>input_dimensions</code>: input MuData dimensions (<code>n_obs</code>, <code>n_vars</code>, per-modality dimensions, <code>layers</code>)</li>
-<li><code>output_dimensions</code>: output MuData dimensions (<code>n_obs</code>, <code>n_vars</code>, per-modality dimensions, <code>layers</code>)</li>
-</ul>
-<h2 id="behavior">Behavior</h2>
-<ul>
-<li><code>print(...)</code> output and <code>logging</code> output (from <code>msmu</code> loggers) are shown on
-  screen and captured into <code>_cmd</code> (<code>stdout</code>).</li>
-<li>Reader functions (<code>read_*</code>, <code>read_h5mu</code>) also append <code>_cmd</code> entries.</li>
-<li><code>mm.read_sdrf(...)</code> and <code>mm.pp.add_meta(..., format="sdrf")</code> share the same
-  SDRF parsing and validation flow.</li>
-<li><code>mm.pp.add_meta(..., format="sdrf")</code> records the SDRF source and matching
-  arguments in <code>_cmd</code> instead of persisting SDRF-specific payloads in <code>.uns</code>.</li>
-<li>When reading <code>.h5mu</code>, <code>_cmd</code> is normalized back to runtime <code>dict[str, dict]</code> format.</li>
-</ul>
-<h2 id="example">Example</h2>
-<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">add_filter</span><span class="p">(</span>
+<h1 id="provenance">Provenance</h1>
+<p><code>msmu</code> records supported public calls in <code>mdata.uns["_log"]</code>. The history travels with the
+MuData object and its <code>.h5mu</code> file; no sidecar files are created. This replaces <code>_cmd</code>.
+Existing <code>_cmd</code> content is neither read nor migrated.</p>
+<p>This page describes the <code>_log</code> / <code>mm.pv</code> / <code>mm.dt</code> API of this source revision.
+Older releases using <code>_cmd</code> do not expose this API. If your installation lacks <code>mm.pv</code>, use the
+<a href="../../installation/#development_checkout">development installation</a> when following these docs.
+Keep old files for reference and rerun their original workflows to create new <code>_log</code> histories.</p>
+<p>Use <code>mm.pv</code> for provenance and <code>mm.dt</code> for recorded data manipulation.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">msmu</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mm</span>
+
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_diann</span><span class="p">(</span><span class="s2">"report.parquet"</span><span class="p">)</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">log2_transform</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">)</span>
+<span class="n">log</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">get_log</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+<span class="n">last</span> <span class="o">=</span> <span class="n">log</span><span class="p">[</span><span class="s2">"events"</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">last</span><span class="p">[</span><span class="s2">"function_path"</span><span class="p">],</span> <span class="n">last</span><span class="p">[</span><span class="s2">"parameters"</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">log</span><span class="p">[</span><span class="s2">"environments"</span><span class="p">][</span><span class="n">last</span><span class="p">[</span><span class="s2">"environment_id"</span><span class="p">]])</span>
+
+<span class="n">mdata</span><span class="o">.</span><span class="n">write_h5mu</span><span class="p">(</span><span class="s2">"analysis.h5mu"</span><span class="p">)</span>
+<span class="n">loaded</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">read_h5mu</span><span class="p">(</span><span class="s2">"analysis.h5mu"</span><span class="p">)</span>
+</code></pre></div>
+<p><a href="../../reference/pv/get_log/"><code>get_log</code></a> returns a detached dictionary. Editing it does not alter the stored history.
+Events are ordered by lineage sequence, then UTC start time (UUID breaks ties); <code>parents</code> and <code>head</code> identify
+branches explicitly. Reading with <a href="../../reference/read_h5mu/"><code>mm.read_h5mu</code></a> preserves the stored history and adds a
+read event. Native <code>mudata.read_h5mu</code> preserves the stored history without adding an event.</p>
+<p><img alt="A recorded function call checks input continuity and stores its event, environment, and optional hashes in MuData." src="../../assets/provenance-function-cycle.svg" width="100%" /></p>
+<p><em>The input and output hash steps apply when hashing is enabled.</em></p>
+<h2 id="recorded_information">Recorded information</h2>
+<p>Each event includes a UUID, function name and qualified path, UTC start/end times, elapsed
+computation time, parameters including defaults and input descriptors, an environment ID, output descriptors, and parent event IDs.
+Only successfully completed calls create events. Events have neither <code>status</code> nor <code>error</code>;
+hash entries retain their separate <code>status</code>.</p>
+<p>Scalar parameters, strings, mappings and sequences are not truncated. Data objects (including
+MuData, AnnData, pandas objects and arrays) are represented in parameters by their type
+and hash, including nested arguments. MuData references also contain <code>source_event</code>,
+identifying the event that produced the input. Equal hashes do not imply equal histories.
+Each input descriptor is stored only in <code>parameters</code>; new events have no <code>inputs</code> field.
+Hashing runs once per input. Previous logs with a separate <code>inputs</code> list remain readable.
+Other option values and defaults are kept.
+Input/output descriptors contain IDs, roles, types and optional hashes, without shape, column
+or dimension summaries. File and URL parameters contain their readable <code>path</code>, type and hash. Unsupported parameters and callables are described
+and marked non-replayable. Function objects are not pickled or executed from the log.</p>
+<p>Entities have independent UUIDs and argument/return roles. Input descriptors and hashes are
+captured <strong>before</strong> computation, including for in-place mutations. A new observation receives
+a new entity ID even when its content hash matches an earlier observation. Parents identify
+inherited history, not proof that no unrecorded edits happened between calls.
+With hashing enabled, the decorator compares each input MuData hash with its head event's
+MuData output hash before executing the function. A mismatch logs an <code>msmu</code> <code>WARNING</code> and execution continues. Python warning filters do not affect this message. This reuses the input hash; no additional full-data hash is calculated. Comparison
+is skipped when hashes are unavailable/disabled, algorithms differ, or the previous event
+has multiple MuData outputs whose ownership cannot be resolved.</p>
+<p>Returned MuData objects receive the history. For <a href="../../reference/tl/run_de/"><code>tl.run_de</code></a>, the history stays on the input
+MuData, with a descriptor and optional hash of the returned <code>DeaResult</code>'s instance fields.
+Failed calls propagate the original exception without adding an event or changing existing
+history. Changes made to data before failure are not rolled back and are not logged.
+Invalid pre-existing <code>_log</code> structures are rejected before computation; a failure while
+saving a completed event emits a warning and preserves the computation's return value.</p>
+<p>Nested decorated calls are represented by one outer public event. This avoids duplicate
+records and repeated full-data hashes for internal implementation steps. Independent branches
+keep separate histories; merging MuData combines histories by event ID without duplicating
+shared ancestors. Logs are copied independently from data, including functions that copy
+<code>.uns</code> shallowly. Console output and Python or <code>msmu</code> logging messages are not captured or
+stored in events. <code>msmu</code> displays <code>INFO</code> and higher messages by default.
+Independent calls are not serialized by a global lock. Concurrent mutation of the same
+MuData object is not supported.</p>
+<h2 id="hashing_policy">Hashing policy</h2>
+<p>The <code>msmu-v1</code> policy normalizes floating-point values to <strong>12 significant digits</strong>
+when computing hashes. Stored values and analysis calculations are unchanged.
+Files, identifiers/axes, strings, integers, booleans and numeric dtypes remain exact.
+Sparse matrices stay sparse; floating-point scratch buffers are processed in chunks.</p>
+<div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">set_options</span><span class="p">(</span><span class="n">hashing</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">digest</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">compute_hash</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+</code></pre></div>
+<p>Completed data hashes record <code>normalization="msmu-v1"</code>. Replay and generated
+scripts use the recorded policy to verify inputs and outputs.</p>
+<p>Floating-point normalization uses quantization: values on opposite sides of a
+rounding boundary can produce different hashes. Hash agreement reflects equality
+under this policy rather than bitwise identity.</p>
+<h2 id="content_hashes">Content hashes</h2>
+<p>Hashing defaults to <strong>on</strong>. Set <code>hashing=False</code> to disable it; environment and execution records remain enabled.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Persistent setting in the current execution context:</span>
+<span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">set_options</span><span class="p">(</span><span class="n">hashing</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">get_options</span><span class="p">())</span>  <span class="c1"># {"hashing": True}</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">log2_transform</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">)</span>
+<span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">set_options</span><span class="p">(</span><span class="n">hashing</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<span class="c1"># Or enable hashing for a block and restore the previous setting afterwards:</span>
+<span class="k">with</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">options</span><span class="p">(</span><span class="n">hashing</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">scale_data</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">)</span>
+
+<span class="n">last</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">get_log</span><span class="p">(</span><span class="n">mdata</span><span class="p">)[</span><span class="s2">"events"</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">last</span><span class="p">[</span><span class="s2">"parameters"</span><span class="p">][</span><span class="s2">"mdata"</span><span class="p">][</span><span class="s2">"hash"</span><span class="p">])</span>
+
+<span class="c1"># Explicitly hash the current state without recording an event:</span>
+<span class="n">current_hash</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">compute_hash</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+</code></pre></div>
+<p>A hash entry has status <code>disabled</code>, <code>completed</code>, or <code>unavailable</code>. Completed entries include
+the algorithm (<code>sha256</code>), digest and hash duration. Unsupported types or
+unreadable inputs produce <code>unavailable</code> with a reason; these must never be interpreted as
+matching content. Explicit <a href="../../reference/pv/compute_hash/"><code>compute_hash</code></a> calls raise an exception for unsupported content.</p>
+<p>The MuData hash covers global and modality <code>obs</code>, <code>var</code>, aligned mappings, <code>uns</code>,
+MuData axis maps, AnnData <code>.X</code>, named layers and <code>.raw</code>. Only each object's <code>_log</code> is excluded.
+Numeric dtype, shape, values, axis labels/order, and metadata affect the digest. Numeric
+arrays use canonical byte order and NaN payloads. Sparse arrays are copied to canonical CSR,
+with sorted/combined entries, without densification. Explicit zero entries remain meaningful;
+sparse and dense representations are distinct. Unordered categorical columns hash by values,
+normalizing h5mu's automatic string-to-category conversion. Unused unordered categories and
+the string storage backend are intentionally ignored; ordered categories retain order metadata.
+When PyArrow is available, pandas string arrays and string categories emit the same framed
+UTF-8 byte stream in batches using Arrow kernels, avoiding per-value Python conversions.
+Chunk boundaries and slice offsets do not affect the digest. The scalar fallback remains
+available without PyArrow; existing hash values and the covered data are unchanged.</p>
+<p>Path objects and strings in <code>file</code>/<code>path</code> arguments are input file entities. Existing files
+are streamed in 1 MiB blocks when hashing is enabled. HTTP(S)/FTP URLs retain their original
+address. Shared tabular readers download each URL once per logged call into <code>BytesIO</code>, then
+give the same seekable buffer to Polars or pandas. With hashing enabled, provenance hashes
+those downloaded bytes, using the same file-content encoding as a local file. No second
+download or disk file is needed. URL input hashes are finalized after the reader has consumed
+the source; URLs not consumed through this shared loader remain <code>unavailable</code>.</p>
+<p>Download buffers are retained until the logged call finishes and are closed on success or
+failure. Peak memory can include all downloaded source bytes plus parsed tables. This is a
+full download, not a remote partial-read optimization. Hashing off skips hash calculation but
+uses the same loading path. Directories and unavailable files are not recursively fetched.
+Other implicit external dependencies are outside
+the captured inputs. Hashing is proportional to covered content and allocates sparse copies
+and any required canonical arrays. It does not create checkpoints or data snapshots.</p>
+<h2 id="execution_environment">Execution environment</h2>
+<p>Identical environment records are stored once and referenced by ID. Records include Python
+version/implementation, OS release and architecture, names and versions of all installed
+Python distributions visible to the running interpreter (including indirect dependencies), an available
+<code>msmu</code> checkout commit/dirty flag, NumPy error settings, numerical threadpool details when
+available, and an allowlist of numerical thread/hash-seed environment variables. Arbitrary
+environment variables, credentials and host/user identifiers are not collected.</p>
+<p>Package/source metadata is a snapshot cached on the first recorded call in a Python process;
+restart Python after changing installed packages or source code. Threadpool and numerical
+settings are sampled on each call. Unavailable metadata is explicitly marked. Seeds supplied
+as function arguments are recorded, but hidden RNG state, GPU state, package binaries and
+complete environment reconstruction are not guaranteed.</p>
+<h2 id="coverage_and_interpretation">Coverage and interpretation</h2>
+<p>Automatic recording covers existing preprocessing and PCA/UMAP/correlation calls, plus
+<a href="../../reference/pp/split_tmt/"><code>split_tmt</code></a>, import readers including DELPI/h5mu, <a href="../../reference/io/add_quant/"><code>io.add_quant</code></a>, <a href="../../reference/dt/concat/"><code>dt.concat</code></a>, <a href="../../reference/tl/run_de/"><code>tl.run_de</code></a>,
+<a href="../../reference/tl/compute_precursor_isolation_purity/"><code>tl.compute_precursor_isolation_purity</code></a>, and the MuData helpers <a href="../../reference/utils/reindex_obs/"><code>reindex_obs</code></a>, <a href="../../reference/utils/attach_fasta/"><code>attach_fasta</code></a>,
+<a href="../../reference/utils/map_fasta/"><code>map_fasta</code></a>, and <a href="../../reference/utils/select_repr_protein/"><code>select_repr_protein</code></a>. The <a href="../../reference/pp/normalize/"><code>normalize</code></a> alias uses the <a href="../../reference/pp/normalise/"><code>normalise</code></a> event.
+Plotting functions (<code>pl.plot_*</code>) do not record provenance events or calculate provenance
+hashes. Analysis operations such as PCA and UMAP remain recorded; rendering their results
+does not add a processing step. Figures and their display settings are not stored in the log.
+Existing logs containing plotting events are not automatically rewritten and remain
+unsupported by replay.</p>
+<p>Export functions (<a href="../../reference/io/to_readable/"><code>io.to_readable</code></a>, <a href="../../reference/io/write_csv/"><code>io.write_csv</code></a>, <a href="../../reference/io/write_flashlfq_input/"><code>io.write_flashlfq_input</code></a>, and
+<a href="../../reference/io/write_pin/"><code>io.write_pin</code></a>) do not log events or calculate hashes. <a href="../../reference/io/write_pin/"><code>write_pin</code></a> requires an output
+filename and returns <code>None</code>.</p>
+<p>Standalone DataFrame readers, <a href="../../reference/pl/plot_volcano/"><code>pl.plot_volcano</code></a>, standalone mzML purity calculation, scalar
+utilities, configuration functions and direct pandas/NumPy/MuData edits are not automatically
+recorded. They either have no MuData storage target or are outside processing history.
+User functions accepting or returning MuData can opt into the
+same boundary using <a href="../../reference/pv/log/"><code>@mm.pv.log</code></a>.</p>
+<p>Use <a href="../../reference/dt/map/"><code>dt.map</code></a> when the values already exist in another table:</p>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
     <span class="n">mdata</span><span class="p">,</span>
-    <span class="n">modality</span><span class="o">=</span><span class="s2">"psm"</span><span class="p">,</span>
-    <span class="n">on</span><span class="o">=</span><span class="s2">"var"</span><span class="p">,</span>
-    <span class="n">column</span><span class="o">=</span><span class="s2">"q_value"</span><span class="p">,</span>
-    <span class="n">keep</span><span class="o">=</span><span class="s2">"lt"</span><span class="p">,</span>
-    <span class="n">value</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+    <span class="n">source</span><span class="o">=</span><span class="s2">"psm.varm.search_result"</span><span class="p">,</span>
+    <span class="n">target</span><span class="o">=</span><span class="s2">"peptide.var"</span><span class="p">,</span>
+    <span class="n">source_index</span><span class="o">=</span><span class="s2">"Modified.Sequence"</span><span class="p">,</span>
+    <span class="n">target_index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s2">"Protein.Group"</span><span class="p">:</span> <span class="s2">"protein_group"</span><span class="p">},</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><code>source_index</code> and <code>target_index</code> select matching columns; <code>None</code> uses the
+corresponding table index. Neither changes the actual index. Table paths accept
+global <code>obs</code>/<code>var</code>, modality <code>obs</code>/<code>var</code>, and DataFrames in modality <code>obsm</code>/<code>varm</code>.
+Identical source key/value rows are collapsed; conflicting values for a key
+raise before assignment. Unmatched targets receive missing values, and existing
+target columns are overwritten. Only the mapping instructions are recorded;
+replay and generated scripts obtain the values from the reconstructed source table.</p>
+<p>Value conversions can also be recorded as compact rules:</p>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+    <span class="n">mdata</span><span class="p">,</span>
+    <span class="n">target</span><span class="o">=</span><span class="s2">"peptide.var"</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s2">"peptide_type"</span><span class="p">:</span> <span class="p">{</span><span class="kc">True</span><span class="p">:</span> <span class="s2">"unique"</span><span class="p">,</span> <span class="kc">False</span><span class="p">:</span> <span class="s2">"shared"</span><span class="p">}},</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>This uses pandas-style replacement dictionaries and the same table paths as
+<a href="../../reference/dt/map/"><code>map</code></a>. Unmatched values and missing values remain unchanged unless
+explicitly included in the rules. Nullable booleans and categorical columns are
+converted to object dtype when needed to hold the replacement values. Replay
+and scripts store the rules, not the resulting columns.</p>
+<p>Delete an unstructured metadata entry with a recorded location:</p>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"psm.uns"</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="s2">"decoy"</span><span class="p">)</span>
+</code></pre></div>
+<p>This is equivalent to <code>del mdata["psm"].uns["decoy"]</code> and returns the same
+MuData. <code>target="uns"</code> addresses global metadata. Missing keys raise <code>KeyError</code>;
+the <code>_log</code> provenance key cannot be deleted through this function. Only the
+target and key are recorded, not the deleted content. Replay reconstructs the
+preceding state and then repeats the deletion.</p>
+<p>Use <a href="../../reference/dt/assign/"><code>dt.assign</code></a> to record an explicit column assignment with supplied values:</p>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">"protein_group"</span><span class="p">,</span> <span class="n">protein_groups</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"peptide"</span><span class="p">)</span>
+<span class="c1"># Equivalent to mdata["peptide"].var["protein_group"] = protein_groups</span>
+</code></pre></div>
+<p>This changes the supplied MuData in place and returns it. <code>on="obs"</code> assigns an
+observation column instead of a feature column. Pandas handles broadcasting and
+index alignment. Scalars, lists, NumPy arrays, pandas Index and Series values are
+stored in full, including Series indices and dtypes, so replay can repeat the
+assignment without repeating the calculation that produced the values. Large
+columns increase the log size. Arbitrary Python objects and MultiIndex values
+are unsupported; AnnData's usual column storage restrictions still apply.</p>
+<p>The model follows the core concepts of <a href="https://www.w3.org/TR/prov-dm/">W3C PROV-DM</a>:</p>
+<table>
+<thead>
+<tr>
+<th><code>msmu</code> log entry</th>
+<th>PROV interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A function execution</td>
+<td>Activity</td>
+</tr>
+<tr>
+<td>An observed input/output state</td>
+<td>Entity</td>
+</tr>
+<tr>
+<td>Execution consuming an input entity</td>
+<td>Usage (<code>used</code>)</td>
+</tr>
+<tr>
+<td>Successful execution producing an output state</td>
+<td>Generation (<code>wasGeneratedBy</code>)</td>
+</tr>
+<tr>
+<td><code>msmu</code> software identity plus environment reference</td>
+<td>Software agent and execution context</td>
+</tr>
+</tbody>
+</table>
+<p>The stored representation is <code>msmu</code>'s versioned JSON schema, not PROV-JSON/RDF interchange,
+and does not claim PROV constraint validation or FAIR certification. History and hashes
+support auditing observations. They do not reconstruct arbitrary pandas edits, store original
+data or prove computational reproducibility. Supported histories can be rerun with
+<a href="../../reference/pv/replay/"><code>mm.pv.replay</code></a> as described below.</p>
+<h2 id="replay">Replay</h2>
+<p><a href="../../reference/pv/replay/"><code>mm.pv.replay</code></a> reruns a single MuData chain from its original input files:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># The original mdata is not modified. The result contains newly recorded events.</span>
+<span class="n">replayed</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">replay</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+
+<span class="c1"># A decoded history is also accepted. Supply new locations if files moved.</span>
+<span class="n">replayed</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">replay</span><span class="p">(</span>
+    <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">get_log</span><span class="p">(</span><span class="n">mdata</span><span class="p">),</span>
+    <span class="n">sources</span><span class="o">=</span><span class="p">{</span><span class="s2">"old/report.parquet"</span><span class="p">:</span> <span class="s2">"data/report.parquet"</span><span class="p">},</span>
 <span class="p">)</span>
 
-<span class="n">last</span> <span class="o">=</span> <span class="n">mdata</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s2">"_cmd"</span><span class="p">][</span><span class="nb">max</span><span class="p">(</span><span class="n">mdata</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="s2">"_cmd"</span><span class="p">],</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">k</span><span class="p">))]</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">last</span><span class="p">[</span><span class="s2">"function"</span><span class="p">])</span>   <span class="c1"># add_filter</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">last</span><span class="p">[</span><span class="s2">"payload"</span><span class="p">])</span>    <span class="c1"># arguments (including defaults)</span>
+<span class="c1"># Explicitly opt out of verification for histories recorded without hashing.</span>
+<span class="n">replayed</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">replay</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">verify</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 </code></pre></div>
+<p>By default, every recorded input/output must have a SHA-256 hash. Replay checks source
+content before each call and checks each returned MuData against its recorded output hash.
+It reuses output hashes produced by the logging decorator. A mismatch stops replay;
+partial results are not returned. URL verification and reading share one in-memory download
+per call. Source replacements only change paths, not the expected hashes. If a reader stores
+source locations as data metadata, relocating a file can also change its output hash.</p>
+<p>Replay validates the complete event graph before executing any processing function. It resolves
+only public, decorated <code>msmu</code> functions and never imports arbitrary function paths from the log.
+Each root must be a file reader. Other calls take one direct MuData argument, or a
+<a href="../../reference/dt/concat/"><code>dt.concat</code></a> dictionary with string dataset names, and return one MuData. Parent links
+determine execution order; parameter references bind inputs to their producing events.
+The deprecated <a href="../../reference/merge_mudata/"><code>merge_mudata</code></a> alias warns and delegates to <a href="../../reference/dt/concat/"><code>dt.concat</code></a>; old logs using
+that name remain replayable and generate <a href="../../reference/dt/concat/"><code>mm.dt.concat</code></a> calls.
+Shared ancestors execute once. Inputs used by multiple calls are copied to isolate branches,
+and intermediate results are released after their last consumer. This can require more memory
+than a linear workflow. Known gaps
+between a recorded output hash and the next input hash are rejected even with <code>verify=False</code>:
+the missing operation cannot be inferred from the history.</p>
+<p>Current limits:</p>
+<ul>
+<li>Intermediate <a href="../../reference/read_h5mu/"><code>read_h5mu</code></a> calls, other nested MuData arguments, non-MuData returns
+  (including <a href="../../reference/tl/run_de/"><code>run_de</code></a>), and plotting calls are unsupported.</li>
+<li>Older linear histories without parameter references remain supported. Older merged
+  histories require uniquely matching parent-output hashes; ambiguous inputs must be
+  recorded again. A hash identifies content, not a stored copy of the data.</li>
+<li>Data-valued arguments such as an in-memory SDRF DataFrame are not reconstructible;
+  use a file-backed argument when recording a workflow intended for replay.
+  <a href="../../reference/dt/assign/"><code>dt.assign</code></a> explicitly captures its <code>values</code> argument and is an exception.</li>
+<li>Basic values, mappings, lists and serialized dates/non-finite floats can be restored.
+  Tuples and sets were normalized to lists by the logger; their original container type
+  cannot be recovered. Callables and parameters marked non-replayable are rejected.</li>
+<li>PCA and UMAP require an explicitly recorded integer <code>random_state</code> (PCA defaults to 0).</li>
+<li>Environment differences are logged as <code>msmu</code> warnings. Packages and source code are not restored;
+  a dirty source snapshot cannot identify the exact original code. Hash agreement checks
+  recorded content, not every aspect of computational reproducibility.</li>
+</ul>
+<p><code>verify=False</code> reruns without hash comparison or fresh hash calculation. It does not make
+unsupported history replayable. Replay stores no sidecar files and restores the caller's
+hashing option after execution or failure.</p>
+<h2 id="generate_a_replay_script">Generate a replay script</h2>
+<div class="highlight"><pre><span></span><code><span class="n">script</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">to_script</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">script</span><span class="p">)</span>
+
+<span class="c1"># Or save directly as a UTF-8 Python file. Returns None.</span>
+<span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">to_script</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s2">"workflow.py"</span><span class="p">)</span>
+
+<span class="c1"># Paths can be replaced when generating the script.</span>
+<span class="n">script</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">to_script</span><span class="p">(</span>
+    <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">get_log</span><span class="p">(</span><span class="n">mdata</span><span class="p">),</span>
+    <span class="n">sources</span><span class="o">=</span><span class="p">{</span><span class="s2">"old/report.parquet"</span><span class="p">:</span> <span class="s2">"data/report.parquet"</span><span class="p">},</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>Generated scripts enable hashing once at startup with <a href="../../reference/pv/set_options/"><code>mm.pv.set_options(hashing=True)</code></a>,
+including when <code>verify=False</code>; that flag only skips comparison with recorded hashes.
+The setting remains enabled in the execution context.</p>
+<p><a href="../../reference/pv/to_script/"><code>to_script</code></a> returns Python source text when <code>filename</code> is omitted. With <code>filename</code>,
+it writes the script, overwrites any existing destination, and returns <code>None</code>.
+It does not download inputs or execute the workflow. Original files need not exist until the script runs. The script
+omits recorded execution timestamps and hash durations. It
+contains explicit public <code>msmu</code> calls with recorded defaults and leaves the final result
+in <code>mdata</code>. It requires <code>msmu</code> and imports its internal replay/source helpers, so retain
+its matching <code>msmu</code> version when sharing the script.</p>
+<p>At execution, it warns about environment differences, verifies each source before
+reading, and checks each output using the new provenance event's hash. URL downloads
+are shared with readers; output hashes are reused rather than computed twice. A hash
+mismatch raises an exception and stops execution. Hashing remains enabled even
+on failure. Editing processing parameters may intentionally cause an output mismatch.</p>
+<p>The same workflow restrictions as <a href="../../reference/pv/replay/"><code>replay</code></a> apply, including rejection of known
+unrecorded changes. For histories without hashes, explicitly use <code>verify=False</code> to
+generate calls without source/output hash checks. Environment checks still run.</p>
+<h2 id="export_the_recorded_environment">Export the recorded environment</h2>
+<p>Export the Python/package versions embedded in a result without inspecting the
+current environment or running the analysis:</p>
+<p><img alt="A MuData history can produce a replay script and environment specification for reproducing an analysis with its inputs." src="../../assets/provenance-reproduction.svg" width="360" /></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># uv-compatible requirements.txt:</span>
+<span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">to_env</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">"requirements.txt"</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"uv"</span><span class="p">)</span>
+
+<span class="c1"># Conda environment.yml (Python and pip from conda-forge, Python packages via pip):</span>
+<span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">to_env</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">"environment.yml"</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"conda"</span><span class="p">)</span>
+
+<span class="c1"># Omit filename to return text, as with to_script(). Decoded logs also work.</span>
+<span class="n">text</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">to_env</span><span class="p">(</span><span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">get_log</span><span class="p">(</span><span class="n">mdata</span><span class="p">),</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"uv"</span><span class="p">)</span>
+</code></pre></div>
+<p>The export supports recorded CPython environments. It pins every recorded Python
+distribution, including indirect dependencies and any unrelated installed tools.
+It does not require recorded hashes, accessible input files, or a replayable workflow.
+With <code>filename</code>, it overwrites that destination and returns <code>None</code>; otherwise it
+returns text. Export does not install anything or change the MuData/history.</p>
+<p>For uv, use the Python version in the generated file's <code>Create</code> comment:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Replace 3.12.8 with the recorded version printed in requirements.txt.</span>
+uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.12.8<span class="w"> </span>.venv-replay
+uv<span class="w"> </span>pip<span class="w"> </span>sync<span class="w"> </span>--python<span class="w"> </span>.venv-replay<span class="w"> </span>requirements.txt
+</code></pre></div>
+<p>For conda:</p>
+<div class="highlight"><pre><span></span><code>conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>--name<span class="w"> </span>msmu-replay<span class="w"> </span>--file<span class="w"> </span>environment.yml
+conda<span class="w"> </span>activate<span class="w"> </span>msmu-replay
+</code></pre></div>
+<p>These use <a href="https://docs.astral.sh/uv/pip/compile/">uv's requirements-file support</a>
+and <a href="https://docs.conda.io/projects/conda/en/stable/user-guide/tasks/manage-environments.html">conda's pip dependencies</a>.</p>
+<p>By default, all environments referenced by the history must agree on Python,
+package versions, OS/architecture, and <code>msmu</code> source. Differences only in numerical
+or thread settings are preserved in comments. If installation environments differ,
+export rejects the ambiguous history and lists IDs for explicit selection:</p>
+<div class="highlight"><pre><span></span><code><span class="n">log</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">get_log</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">log</span><span class="p">[</span><span class="s2">"environments"</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="n">text</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">to_env</span><span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="n">environment_id</span><span class="o">=</span><span class="s2">"&lt;recorded ID&gt;"</span><span class="p">)</span>
+</code></pre></div>
+<p>Selecting one environment does not make it sufficient for every step recorded in
+another environment. Reading with native <code>mudata.read_h5mu</code> avoids adding the current
+machine's environment as a new <code>msmu</code> read event before export.</p>
+<p><strong>These exports are version specifications, not complete environment lockfiles.</strong>
+The log does not capture package-index URLs, VCS/local/editable installation sources,
+wheel hashes, conda channels/builds, or non-Python dependencies. The conda export
+therefore uses pip for recorded Python distributions rather than guessing conda
+package names. Installing a pinned package requires it to be available from your
+configured sources on the target platform. In particular, a development/private
+<code>msmu</code> build may need its matching source or wheel supplied separately.</p>
+<p>Recorded context, including <code>msmu</code> commit/dirty status and runtime settings, is included
+as comments. Uncommitted <code>msmu</code> changes emit a warning because version pins cannot
+restore them. OS, native libraries, NumPy/thread settings and source edits must be
+handled separately. After preparing the environment and original inputs, use verified
+replay to check the recorded outputs; export alone does not establish reproducibility.</p>
+<h2 id="storage">Storage</h2>
+<p><code>_log</code> contains <code>schema_version</code>, <code>head</code>, <code>events</code>, and <code>environments</code>. Events and environments
+are dictionaries from IDs to JSON strings. This avoids h5mu restrictions on heterogeneous
+lists, missing values and user parameter names. <a href="../../reference/pv/get_log/"><code>get_log</code></a> decodes those strings on demand.
+No write/load monkey-patches or additional file formats are required.</p>
 
 
 
@@ -3520,7 +4521,7 @@ contains:</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="June 12, 2026 06:05:18 UTC">June 12, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 23, 2026 02:09:51 UTC">September 23, 2026</span>
   </span>
 
     
