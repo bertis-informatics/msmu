@@ -4,9 +4,9 @@
 
 Batch effects are unwanted variations in the data that arise from differences in experimental conditions, such as different lots, runs, days, or operators. These variations can obscure true biological signals and lead to misleading conclusions. `msmu` corrects them with median centering, GIS/IRS (for TMT), ComBat, and a continuous (lowess) correction for ordered covariates such as run order.
 
-## `correct_batch_effect()`
+## [`correct_batch_effect()`](../reference/pp/correct_batch_effect.md)
 
-The `correct_batch_effect()` function either:
+The [`correct_batch_effect()`](../reference/pp/correct_batch_effect.md) function either:
 
 - Median centering, which removes each batch's per-feature median.
 - GIS/IRS normalization, which corrects batch effect in TMT data using Global Internal Standard (GIS) channels ([Plubell et al., Mol Cell Proteomics, 2017](https://doi.org/10.1074/mcp.M116.065524)).

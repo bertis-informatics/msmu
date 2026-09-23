@@ -1,6 +1,6 @@
 # Protein Inference
 
-This page explains how `msmu` infers proteins from peptide-level features through [`msmu.pp.infer_protein`](../../reference/pp/infer_protein/).
+This page explains how `msmu` infers proteins from peptide-level features through [`msmu.pp.infer_protein`](../reference/pp/infer_protein.md).
 
 ## How proteins are inferred
 
@@ -39,13 +39,13 @@ Optional arguments:
 
 !!! note "PTM workflows infer proteins on the global dataset only"
 
-    PTM data does not need `infer_protein`. `to_ptm` localises sites from each peptide's own
-    accessions and the attached FASTA, and `adjust_ptm_by_protein` resolves a site's denominator by
+    PTM data does not need [`infer_protein`](../reference/pp/infer_protein.md). [`to_ptm`](../reference/pp/to_ptm.md) localises sites from each peptide's own
+    accessions and the attached FASTA, and [`adjust_ptm_by_protein`](../reference/pp/adjust_ptm_by_protein.md) resolves a site's denominator by
     translating those accessions through the *global* dataset's `protein_map`, so the global dataset
-    is the one to run `infer_protein` and `to_protein` on. Protein groups are a judgement derived
+    is the one to run [`infer_protein`](../reference/pp/infer_protein.md) and [`to_protein`](../reference/pp/to_protein.md) on. Protein groups are a judgement derived
     from one dataset's peptide evidence, so keeping them on the side that produced them means a PTM
     peptide the global run never observed — the normal case under enrichment — is still adjustable
-    whenever its protein was quantified there. See [`adjust_ptm_by_protein`](../../reference/pp/adjust_ptm_by_protein/).
+    whenever its protein was quantified there. See [`adjust_ptm_by_protein`](../reference/pp/adjust_ptm_by_protein.md).
 
 ## Output
 
@@ -53,7 +53,7 @@ A `MuData` with:
 
 - `mdata["peptide"].var["protein_group"]`: Newly inferred protein group
 - `mdata["peptide"].var["peptide_type"]`: Peptide type (`unique` or `shared`).
-- Decoys receive the same annotations under `mdata.uns["decoy"]`.
+- Decoys receive the same annotations under `mdata["peptide"].uns["decoy"]`.
 
 Output `MuData` also contains mapping information inside `uns`
 
