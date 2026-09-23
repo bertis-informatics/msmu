@@ -4,11 +4,13 @@ import scipy.sparse as sp
 from anndata import AnnData
 from mudata import MuData
 
+from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block
 from .._utils._filenames import strip_ms_extensions
 from .._utils._mudata import get_anndata_mod
 
 
+@log_provenance
 def split_tmt(
     mdata: MuData,
     map: dict[str, str] | pd.Series | pd.DataFrame | None = None,
@@ -36,7 +38,7 @@ def split_tmt(
         map: A mapping of filenames to set names. If a DataFrame is provided, it should have two
             columns: the first for filenames and the second for set names. If None (the default),
             the map is derived from the attached SDRF (``comment[data file]`` -> ``set_key``, one set
-            per file), which requires attach_sdrf first.
+            per file), which requires [`attach_sdrf`][msmu.pp.attach_sdrf] first.
         set_key: SDRF column naming each file's set/plex when deriving the map (``map=None``).
             Default ``comment[sample preparation batch]``; name another per-file-constant column
             (e.g. a ``factor value[...]``) when the SDRF encodes the set elsewhere.
@@ -64,7 +66,6 @@ def split_tmt(
     if set_labels.isna().any():
         unmapped = psm_adata.var["filename"].map(strip_ms_extensions)[set_labels.isna()].unique()
         raise ValueError(f"split_tmt: no set mapping for filename(s): {list(unmapped)[:5]}")
-    psm_adata.var["set"] = set_labels
 
     channels = list(psm_adata.obs_names)
     set_names = list(pd.unique(set_labels))  # first-occurrence order (matches the legacy .unique())
@@ -76,7 +77,7 @@ def split_tmt(
     new_adata = AnnData(
         X=new_x,
         obs=pd.DataFrame(index=pd.Index(new_obs_names)),
-        var=psm_adata.var.copy(),
+        var=psm_adata.var.assign(set=set_labels),
     )
     new_adata.uns = dict(psm_adata.uns)
 
@@ -126,13 +127,13 @@ _SDRF_DATA_FILE = "comment[data file]"
 
 
 def _map_from_sdrf(mdata: MuData, set_key: str) -> dict[str, str]:
-    """Derive split_tmt's filename->set map from the attached SDRF (``uns['sdrf']``).
+    """Derive [`split_tmt`][msmu.pp.split_tmt]'s filename->set map from the attached SDRF (``uns['sdrf']``).
 
     Maps ``comment[data file]`` -> ``set_key``. The default ``comment[sample preparation batch]`` is
     the standard TERMS.tsv batch column standing in for the TMT plex/set, but SDRF has no dedicated
     set column, so any column constant per data file (e.g. a ``factor value[...]``) may be named
     instead. Requires one set per data file. The data-file extension is stripped to match
-    split_tmt's own ``var["filename"]`` handling.
+    [`split_tmt`][msmu.pp.split_tmt]'s own ``var["filename"]`` handling.
     """
     if "sdrf" not in mdata.uns:
         raise ValueError(

@@ -1,5 +1,4 @@
 from collections import deque
-from pathlib import Path
 from typing import TypedDict
 
 import mudata as md
@@ -7,7 +6,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from .._core._provenance import uns_logger
+from .._core._provenance import log_provenance
 from .._core._status import AnnDataFlags, MuDataStatus
 from .._utils._anndata import _require_columns
 from .._utils._pandas import split_delimited_strings
@@ -21,13 +20,12 @@ class Mapping(TypedDict):
     memb: dict[str, str]
 
 
-@uns_logger
+@log_provenance
 def infer_protein(
     mdata: md.MuData,
     modality: str = "peptide",
     protein_colname: str = "proteins",
     peptide_colname: str = "stripped_peptide",
-    propagated_from: md.MuData | str | Path | None = None,
 ) -> md.MuData:
     """
     Infer protein group mappings and annotate peptides with uniqueness.
@@ -37,7 +35,6 @@ def infer_protein(
         modality: modality holding peptide-level data
         protein_colname: column in var with semicolon-delimited protein accessions
         peptide_colname: column in var with stripped peptide sequences
-        propagated_from: optional MuData or path to reuse existing mappings (e.g., global reference for PTM work)
 
     Returns:
         MuData object with updated protein mappings and peptide annotations
@@ -52,13 +49,12 @@ def infer_protein(
         context=f"{modality}.var",
     )
 
-    peptide_map, protein_map = _resolve_protein_mappings(
+    peptide_map, protein_map = _build_mapping_from_modality(
         mdata=mdata,
         modality=modality,
         modality_status=modality_status,
         peptide_colname=peptide_colname,
         protein_colname=protein_colname,
-        propagated_from=propagated_from,
     )
 
     # Store mapping information in MuData object
@@ -87,69 +83,6 @@ def _get_modality_status(mdata: md.MuData, modality: str) -> AnnDataFlags:
         raise ValueError(f"Could not resolve status flags for modality '{modality}'.")
 
     return modality_status
-
-
-def _resolve_protein_mappings(
-    mdata: md.MuData,
-    modality: str,
-    modality_status: AnnDataFlags,
-    peptide_colname: str,
-    protein_colname: str,
-    propagated_from: md.MuData | str | Path | None,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Resolve peptide/protein group mappings from the current modality or a propagated source."""
-    propagated_mdata = _resolve_mapping_source(propagated_from)
-    if propagated_mdata is not None:
-        return _get_required_mapping_tables(propagated_mdata)
-
-    return _build_mapping_from_modality(
-        mdata=mdata,
-        modality=modality,
-        modality_status=modality_status,
-        peptide_colname=peptide_colname,
-        protein_colname=protein_colname,
-    )
-
-
-def _resolve_mapping_source(
-    propagated_from: md.MuData | str | Path | None,
-) -> md.MuData | None:
-    """Normalize propagated mapping inputs into a MuData source."""
-    if propagated_from is None:
-        return None
-
-    if isinstance(propagated_from, md.MuData):
-        return propagated_from
-
-    if isinstance(propagated_from, (str, Path)):
-        # Lazy import: _reader_registry imports this package (via _preprocessing._meta), so importing
-        # read_h5mu at module top creates a circular import that fails depending on which subpackage
-        # loads first. Importing it here, at call time, breaks the cycle.
-        from .._read_write._reader_registry import read_h5mu
-
-        return read_h5mu(propagated_from)
-
-    raise TypeError("propagated_from must be a MuData object, path string, Path, or None.")
-
-
-def _get_required_mapping_tables(
-    source_mdata: md.MuData,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Read propagated mapping tables with explicit validation."""
-    missing_keys = [key for key in ("peptide_map", "protein_map") if key not in source_mdata.uns]
-    if missing_keys:
-        raise ValueError(f"Propagated MuData is missing required uns mappings: {missing_keys}")
-
-    peptide_map = source_mdata.uns["peptide_map"]
-    protein_map = source_mdata.uns["protein_map"]
-    _require_columns(peptide_map, columns=["peptide", "protein_group"], context="uns['peptide_map']")
-    _require_columns(
-        protein_map,
-        columns=["initial_protein", "protein_group"],
-        context="uns['protein_map']",
-    )
-
-    return peptide_map, protein_map
 
 
 def _build_mapping_from_modality(

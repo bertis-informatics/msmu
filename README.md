@@ -19,7 +19,7 @@ This unique marriage between flexible processing pipeline and `MuData` empowers 
 - **Flexible data ingestion** from Sage, DIA-NN, and other popular DB search tools
 - **MuData/AnnData-compatible** object structure for organizing multi-level MS data
 - **SDRF-native sample metadata**: attach a validated SDRF as the immutable source of truth and project it onto samples
-- **Command provenance**: every processing step records its arguments, versions, log output, and resulting dimensions in the container
+- **Command provenance**: supported processing calls record arguments, execution times, environment versions, lineage, and optional content hashes in the container; console output and dimension summaries are not stored
 - **Protein inference**: infer protein groups from peptide evidence using parsimony rule
 - **Hierarchical summarization**: PSM/precursor → peptide → protein/PTM rollup (median, mean, sum, median polish, DirectLFQ)
 - **Normalization**: median centering, quantile normalization, etc.
@@ -40,6 +40,9 @@ This unique marriage between flexible processing pipeline and `MuData` empowers 
 ## Documentation
 
 Comprehensive documentation, including installation instructions, tutorials, and API references, is available at: [https://bertis-informatics.github.io/msmu/](https://bertis-informatics.github.io/msmu/)
+
+Repository documentation describes the checked-out revision. The published site is built from release tags;
+development APIs may require installing from `dev`.
 
 ## Citation
 

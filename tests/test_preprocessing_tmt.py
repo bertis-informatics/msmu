@@ -1,3 +1,4 @@
+from msmu._core._provenance import _event_inputs
 import numpy as np
 import pandas as pd
 import pytest
@@ -311,3 +312,17 @@ def test_plot_get_data_on_sparse_returns_nan_not_zero():
     b = PlotData(d, "psm")._get_data().to_numpy(dtype=float)
     assert np.array_equal(np.isnan(a), np.isnan(b))  # absent -> NaN, never 0
     assert np.allclose(np.nan_to_num(a), np.nan_to_num(b), rtol=1e-4, atol=1e-3)
+
+
+def test_split_tmt_keeps_source_state_and_history():
+    source = _make_tmt_mdata()
+    source = mm.pv.log(lambda mdata: mdata)(source)
+    before = mm.pv.compute_hash(source)
+    history = mm.pv.get_log(source)
+    with mm.pv.options(hashing=True):
+        result = mm.pp.split_tmt(source, {"runA": "A", "runB": "B"})
+    assert mm.pv.compute_hash(source) == before
+    assert mm.pv.get_log(source) == history
+    event = mm.pv.get_log(result)["events"][-1]
+    assert _event_inputs(event)[0]["hash"]["value"] == before
+    assert event["outputs"][0]["hash"]["value"] == mm.pv.compute_hash(result)

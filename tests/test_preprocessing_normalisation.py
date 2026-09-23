@@ -62,11 +62,19 @@ def test_normalisation_rejects_unknown_method():
         Normalisation(method="not_a_method", axis="obs")
 
 
-def test_ptm_protein_adjuster_ratio(ptm_mdata, global_mdata):
+def test_ptm_protein_adjuster_ratio_subtracts_the_protein_level(ptm_mdata, global_mdata):
+    """The ratio estimator is the site's log intensity minus its protein's, per sample.
+
+    Written against literal expected numbers rather than by re-deriving them from the adjuster's
+    own inputs, so the assertion fails if the arithmetic changes.
+    """
     adjuster = PTMProteinAdjuster(ptm_mdata, global_mdata, ptm_mod="phospho_site", global_mod="protein")
     ratio_df = adjuster._ratio()
-    global_values = adjuster.global_data.loc[adjuster.ptm_data["protein_group"], adjuster.sample_cols].reset_index(
-        drop=True
-    )
-    expected = adjuster.ptm_data[adjuster.sample_cols].to_numpy() - global_values.to_numpy()
-    assert np.allclose(ratio_df[adjuster.sample_cols].to_numpy(), expected)
+
+    # PTM .X is samples x sites [[1, 2], [3, 4]]; protein P1 is [0.5, 1.5] over the same samples.
+    # Both sites are on P1, so each site loses its sample's protein level.
+    expected_by_site = {"site1": [1.0 - 0.5, 3.0 - 1.5], "site2": [2.0 - 0.5, 4.0 - 1.5]}
+    actual_by_site = ratio_df.set_index("ptm_site")[adjuster.sample_cols].to_dict(orient="index")
+
+    for site, expected_values in expected_by_site.items():
+        assert list(actual_by_site[site].values()) == pytest.approx(expected_values)

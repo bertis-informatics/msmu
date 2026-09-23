@@ -2,6 +2,9 @@
 
 **Python toolkit for modular and traceable LC-MS/<u>MS</u> proteomics analysis based on <u>Mu</u>Data**
 
+Start with [Installation](installation.md) and the runnable [Quick Start](tutorials/quick_start.ipynb).
+For development-only APIs, use the source checkout described in the installation guide.
+
 ## Overview
 
 `msmu` is an open-source Python package for modular and traceable post-DB search preprocessing and statistical analysis of bottom-up proteomics data.
@@ -12,14 +15,14 @@ Central to `msmu` is the highly versatile and standardized `MuData` (and `AnnDat
 
 This unique marriage between flexible processing pipeline and `MuData` empowers FAIR principle-aligned downstream analysis for biomarker discovery and systems biology.
 
-<img src="./assets/overview.svg" width="100%" alt="MuData logo"/>
+<img src="./assets/overview.svg" width="100%" alt="msmu workflow from database search and sample metadata through processing, analysis, and visualization"/>
 
 ## Key Features
 
 - **Flexible data ingestion** from Sage, DIA-NN, and other popular DB search tools
 - **MuData/AnnData-compatible** object structure for organizing multi-level MS data
 - **SDRF-native sample metadata**: attach a validated SDRF as the immutable source of truth and project it onto samples
-- **Command provenance**: every processing step records its arguments, versions, log output, and resulting dimensions in the container
+- **Command provenance**: supported processing calls record arguments, execution times, environment versions, lineage, and optional content hashes in the container; console output and dimension summaries are not stored
 - **Protein inference**: infer protein groups from peptide evidence using parsimony rule
 - **Hierarchical summarization**: PSM/precursor → peptide → protein/PTM rollup (median, mean, sum, median polish, DirectLFQ)
 - **Normalization**: median centering, quantile normalization, etc.

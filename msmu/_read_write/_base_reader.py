@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Literal
 from dataclasses import dataclass
 from typing import Callable
@@ -12,6 +13,7 @@ import pandas as pd
 
 from ..logging_utils import get_logger
 from .._core._blockdiag import SparseQuantFrame
+from .._core._sources import is_url, open_source
 from .._utils.peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -136,17 +138,18 @@ class SearchResultDataFrameConverter:
         if isinstance(file_path, pd.DataFrame):
             return None, pl.from_pandas(file_path)
 
-        suffix = Path(file_path).suffix
-        if suffix == ".csv":
-            native_df = pl.read_csv(file_path, infer_schema_length=None, null_values=_PANDAS_NA_VALUES)
-        elif suffix in (".tsv", ".tab", ".psm", ".txt"):
-            native_df = pl.read_csv(
-                file_path, separator="\t", infer_schema_length=None, null_values=_PANDAS_NA_VALUES
-            )
-        elif suffix == ".parquet":
-            native_df = pl.read_parquet(file_path)
-        else:
-            raise ValueError(f"Unknown file type: {suffix}")
+        suffix = Path(urlsplit(file_path).path if is_url(file_path) else file_path).suffix.lower()
+        with open_source(file_path) as source:
+            if suffix == ".csv":
+                native_df = pl.read_csv(source, infer_schema_length=None, null_values=_PANDAS_NA_VALUES)
+            elif suffix in (".tsv", ".tab", ".psm", ".txt"):
+                native_df = pl.read_csv(
+                    source, separator="\t", infer_schema_length=None, null_values=_PANDAS_NA_VALUES
+                )
+            elif suffix == ".parquet":
+                native_df = pl.read_parquet(source)
+            else:
+                raise ValueError(f"Unknown file type: {suffix}")
         return file_path, native_df
 
     def _read_files(self, file_paths: list[Path | pd.DataFrame], max_workers: int):

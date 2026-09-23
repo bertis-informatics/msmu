@@ -1,15 +1,15 @@
 # Filter
 
 Filtering in `msmu` is split into two steps and is implemented in
-[`msmu.pp.add_filter`](../../reference/pp/add_filter/) and
-[`msmu.pp.apply_filter`](../../reference/pp/apply_filter/).
+[`msmu.pp.add_filter`](../reference/pp/add_filter.md) and
+[`msmu.pp.apply_filter`](../reference/pp/apply_filter.md).
 
-1. `add_filter()` creates a boolean mask and stores it as a named filter column.
-2. `apply_filter()` applies one or more stored masks to subset the modality.
+1. [`add_filter()`](../reference/pp/add_filter.md) creates a boolean mask and stores it as a named filter column.
+2. [`apply_filter()`](../reference/pp/apply_filter.md) applies one or more stored masks to subset the modality.
 
-## `add_filter`
+## Define filters
 
-`add_filter` supports multiple sources via `on`:
+[`add_filter()`](../reference/pp/add_filter.md) supports multiple sources via `on`:
 
 - `on="var"`: read `column` from `.var`, store mask in `.varm["filter"]`
 - `on="obs"`: read `column` from `.obs`, store mask in `.obsm["filter"]`
@@ -21,8 +21,31 @@ Filtering in `msmu` is split into two steps and is implemented in
 The `keep` argument accepts conditional operators such as `eq`, `ne`, `lt`, `le`,
 `gt`, `ge`, `contains`, and `not_contains`.
 
-Stored filter column names follow this pattern:
-`{column}_{keep}_{value}`.
+Use `name` to give a filter a short, explicit identifier:
+
+```python
+mdata = mm.pp.add_filter(
+    mdata, modality="psm", on="varm", key="qc",
+    column="score", keep="gt", value=0.01, name="qc_score",
+)
+mdata = mm.pp.apply_filter(mdata, modality="psm", columns=["qc_score"])
+```
+
+Names must be nonblank strings without `/` so their definitions can be saved in
+HDF5. Explicit names are shared across the modality's obs and var filters.
+The source, column, operator and value are recorded in
+`adata.uns["filter_conditions"][name]`. Reusing a name with the same condition
+recomputes its mask; a different condition raises an error. An existing mask
+without a recorded definition cannot be overwritten with an explicit name.
+
+When `name` is omitted, stored filter column names follow this pattern:
+`{column}_{keep}_{value}` for `obs` and `var`. For matrix sources, the name
+also includes the source and key, for example `varm['qc'].score_gt_15.0`.
+Use that full name when selecting matrix filters with `columns`.
+
+Missing source values never satisfy a filter, including `ne` and
+`not_contains`. Missing masks introduced by concatenating datasets remain
+unapplied to rows where that filter was not recorded.
 
 ```python
 # feature-level filter from .var
@@ -46,21 +69,21 @@ mdata = mm.pp.add_filter(
 )
 ```
 
-## `apply_filter`
+## Apply filters
 
-`apply_filter` controls target axis with `on`:
+[`apply_filter()`](../reference/pp/apply_filter.md) controls target axis with `on`:
 
 - `on="all"` (default): apply both `.varm["filter"]` and `.obsm["filter"]`
 - `on="var"`: apply only `.varm["filter"]`
 - `on="obs"`: apply only `.obsm["filter"]`
 - `columns=[...]` (optional): apply only selected filter columns by name
 
-When `on="all"` and one side does not have a stored filter table, a warning is
-printed and that axis is skipped. When `on="var"` or `on="obs"` and the requested
-filter table is missing, an error is raised.
+When `on="all"` and one side does not have a stored filter table, that axis is
+skipped. A warning is printed if neither side has filters. When `on="var"` or `on="obs"` and the requested
+filter table is missing, an error is raised. Invalid `on` values also raise an error.
 
-The function also prints which filter columns are applied, and this printed output
-is captured into `mdata.uns["_cmd"]` by the command logger.
+The function also prints which filter columns are applied. The provenance logger records
+the successful call in `mdata.uns["_log"]`, but does not capture printed output.
 
 ```python
 mdata = mm.pp.apply_filter(mdata, modality="psm", on="all")
@@ -91,3 +114,24 @@ front of them), so the reader normalises every accession to one canonical form
 `[rev_][Cont_]<accession>` and sets the flag from the parse. If you do filter on contaminant
 status, filter on the flag rather than matching a marker on the protein string — a string match
 silently stops matching when the search uses a different contaminant FASTA.
+
+
+## Validation and compatibility
+
+Requested filter names must all exist on the selected axis (either axis for
+`on="all"`). Missing names raise an error; filters are not partially applied.
+Variable filters must also exist in the decoy mask when decoys are present.
+Applying a subset of filters preserves the other decoy conditions for later calls.
+
+`contains` and `not_contains` retain pandas regular-expression semantics:
+`A.B` also matches `AxB`. Escape regex metacharacters for literal matching.
+
+Existing stored filter names are not renamed. Newly recorded matrix filters use
+the source-qualified names above; repeating the same condition replaces its mask.
+Old workflows that regenerate matrix filters using the former names, relied on
+missing values passing, or requested nonexistent columns may no longer replay
+unchanged. Verified replay can report a hash mismatch, and explicit old matrix
+filter names can raise an error. Re-record those workflows with the current API;
+do not disable verification to hide a changed result.
+
+The existing copy behavior is retained in this correctness fix.

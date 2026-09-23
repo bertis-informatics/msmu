@@ -1,7 +1,8 @@
 """Consistent mass-spec filename-stem handling.
 
 Readers build obs/var identifiers from raw run filenames, and SDRF matching
-(``apply_sdrf_to_obs``, ``split_tmt``) matches those identifiers against
+([`apply_sdrf_to_obs`][msmu.pp.apply_sdrf_to_obs],
+[`split_tmt`][msmu.pp.split_tmt]) matches those identifiers against
 ``comment[data file]``. Both sides must reduce a run name to the SAME bare stem,
 so ``x.mzML``, ``x.mzML.gz`` and ``x.d`` all collapse to ``x``. Peeling only
 *known* extensions keeps an in-name dot intact: ``sample.v2.mzML`` -> ``sample.v2``.

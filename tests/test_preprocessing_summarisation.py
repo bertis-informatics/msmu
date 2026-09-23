@@ -283,3 +283,28 @@ def test_summarisation_prep_filters_and_ranks(simple_adata):
     _, quant, _ = prep.prep()
 
     assert np.isnan(quant.loc["f2", "s1"])
+
+
+def test_peptide_and_protein_summarisation_share_tied_pep_policy():
+    import msmu as mm
+    from anndata import AnnData
+    from mudata import MuData
+
+    peptides = ["AA", "BB", "CC", "DD", "EE", "FF"]
+    ident = pd.DataFrame({
+        "peptide": peptides,
+        "stripped_peptide": peptides,
+        "proteins": [f"P{i}" for i in range(6)],
+        "PEP": [0.1] * 6,
+    }, index=[f"psm_{i}" for i in range(6)])
+    psm = AnnData(
+        X=np.ones((1, 5)), obs=pd.DataFrame(index=["sample"]), var=ident.iloc[:5].copy(),
+        uns={"decoy": ident.iloc[5:].copy()},
+    )
+    mdata = mm.pp.to_peptide(MuData({"psm": psm}))
+    np.testing.assert_array_equal(mdata["peptide"].var["q_value"], [0.4] * 5)
+    np.testing.assert_array_equal(mdata["peptide"].uns["decoy"]["q_value"], [0.4])
+
+    mdata = mm.pp.to_protein(mm.pp.infer_protein(mdata))
+    np.testing.assert_array_equal(mdata["protein"].var["q_value"], [0.4] * 5)
+    np.testing.assert_array_equal(mdata["protein"].uns["decoy"]["q_value"], [0.4])

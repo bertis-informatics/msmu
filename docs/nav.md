@@ -23,5 +23,5 @@
     * [Precursor Isolation Purity](how-it-works/purity.md)
     * [DE Analysis](how-it-works/dea.md)
     * [Visualization](how-it-works/visualization.md)
-    * [Command Provenance](how-it-works/provenance.md)
+    * [Provenance](how-it-works/provenance.md)
 * API

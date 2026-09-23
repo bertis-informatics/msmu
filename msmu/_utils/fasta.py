@@ -4,6 +4,8 @@ from Bio import SeqIO
 
 import mudata as md
 
+from .._core._provenance import log_provenance
+from ._anndata import _resolve_accession_column
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -22,6 +24,7 @@ CANONICAL_CONTAMINANT_PREFIX = "Cont_"
 CANONICAL_DECOY_PREFIX = "rev_"
 
 
+@log_provenance
 def attach_fasta(mdata: md.MuData, fasta_file: str | None) -> md.MuData:
     """
     Attach FASTA metadata to the MuData object.
@@ -149,6 +152,25 @@ def parse_uniprot_accession_group(protein_group: str) -> tuple[str, bool]:
 
 def parse_uniprot_accession(proteins: pd.Series) -> list[str]:
     # Keep parsing in a tight Python loop; this avoids expensive explode + row-wise apply.
+    """Extract UniProt accession groups from protein identifiers.
+
+    Parameters:
+        proteins: Pandas Series of strings. Each string may contain semicolon-separated protein entries, including UniProt FASTA-style `sp|accession|name` identifiers.
+
+    Returns:
+        List of accession strings in input order; multiple members remain semicolon-separated. Decoy/contaminant prefixes are preserved in canonical form; no contaminant boolean is returned.
+
+    Notes:
+        The input Series is unchanged. Supply strings rather than missing values.
+
+    Examples:
+        ```python
+        import msmu as mm
+        import pandas as pd
+        accessions = mm.utils.parse_uniprot_accession(pd.Series(["sp|P12345|EXAMPLE"]))
+        assert accessions == ["P12345"]
+        ```
+    """
     return [parse_uniprot_accession_group(protein_group)[0] for protein_group in proteins]
 
 
@@ -193,6 +215,7 @@ def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> s
     return ";".join(transformed_groups)
 
 
+@log_provenance
 def map_fasta(
     mdata: md.MuData,
     modality: str,
@@ -222,8 +245,9 @@ def map_fasta(
                 lambda x: _map_fasta(x, fasta_meta, category)
             )
         else:
+            accession_column = _resolve_accession_column(mdata.mod[modality].var, context=f"{modality}.var")
             mdata.mod[modality].var[category] = (
-                mdata.mod[modality].var["protein_group"].map(lambda x: _map_fasta(x, fasta_meta, category))
+                mdata.mod[modality].var[accession_column].map(lambda x: _map_fasta(x, fasta_meta, category))
             )
 
     return mdata

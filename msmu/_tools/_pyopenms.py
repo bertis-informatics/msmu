@@ -12,6 +12,7 @@ from tqdm import tqdm
 import anndata as ad
 import mudata as md
 
+from .._core._provenance import log_provenance
 from .._utils._anndata import _require_columns
 import plotly.graph_objects as go
 
@@ -252,16 +253,27 @@ class PrecursorPurityCalculator:
 def compute_precursor_isolation_purity_from_mzml(
     mzml_paths: str | Path | list, tolerance: float = 20.0, unit_ppm: bool = True
 ) -> PurityResult:
-    """
-    Calculate precursor isolation purity for all MS2 scans in the given mzML file.
+    """Calculate precursor isolation purity for MS2 scans in local mzML files.
 
     Parameters:
-        mzml_paths: Full path(s) to the mzML file.
-        tolerance: Tolerance for precursor purity calculation.
-        unit_ppm: Whether to use ppm for tolerance.
+        mzml_paths: One local mzML path or a list of paths; files must exist.
+        tolerance: Mass tolerance for matching precursor isotopes; default 20.
+        unit_ppm: True interprets tolerance in ppm; False uses absolute mass tolerance (Da).
 
     Returns:
-        pd.DataFrame: DataFrame with scan numbers and their corresponding purity scores.
+        A `PurityResult` object, not a DataFrame. `.to_df()` returns columns `purity`, `scan_num`, and `filename`; `.hist()` and `.box()` return Plotly figures.
+
+    Notes:
+        Requires pyOpenMS at execution time. Input files are read, not modified. To attach results to PSM data, use [`compute_precursor_isolation_purity`][msmu.tl.compute_precursor_isolation_purity].
+
+    Examples:
+        ```python
+        import msmu as mm
+        result = mm.tl.compute_precursor_isolation_purity_from_mzml("sample.mzML")
+        table = result.to_df()
+        fig = result.hist()
+        fig.show()
+        ```
     """
     if isinstance(mzml_paths, (str, Path)):
         mzml_paths = [mzml_paths]
@@ -292,14 +304,14 @@ def compute_precursor_isolation_purity_from_mzml(
     return purity_result
 
 
+@log_provenance
 def compute_precursor_isolation_purity(
     mdata: md.MuData,
     mzml_paths: str | Path | list,
     tolerance: float = 20.0,
     unit_ppm: bool = True,
 ) -> md.MuData:
-    """
-    Calculate precursor isolation purity for PSMs in the given MuData object and mzML file.
+    """Calculate precursor isolation purity for PSMs in the given MuData object and mzML file.
 
     Parameters:
         mdata: MuData object containing PSM data.
@@ -309,6 +321,15 @@ def compute_precursor_isolation_purity(
 
     Returns:
         md.MuData: MuData object containing purity results.
+
+    Notes:
+        Requires `psm.var` columns `filename` and `scan_num` and matching local mzML files. Returns a copy with scores in `psm.var["purity"]`; the input is unchanged. pyOpenMS is loaded at execution time. For standalone results and plotting, see [`compute_precursor_isolation_purity_from_mzml`][msmu.tl.compute_precursor_isolation_purity_from_mzml].
+
+    Examples:
+        ```python
+        import msmu as mm
+        mdata = mm.tl.compute_precursor_isolation_purity(mdata, ["sample.mzML"])
+        ```
     """
 
     if isinstance(mzml_paths, (str, Path)):

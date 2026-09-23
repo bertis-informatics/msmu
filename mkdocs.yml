@@ -5,6 +5,15 @@ repo_name: "msmu"
 repo_url: https://github.com/bertis-informatics/msmu
 remote_branch: docs
 
+exclude_docs: |
+  gen_ref_pages.py
+
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+
 theme:
   name: "material"
   features:

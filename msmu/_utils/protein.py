@@ -1,7 +1,9 @@
 import re
 
+from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
 from .fasta import CANONICAL_CONTAMINANT_PREFIX
+from ._anndata import _resolve_accession_column
 from ..logging_utils import get_logger
 
 # for type hints
@@ -11,6 +13,7 @@ import mudata as md
 logger = get_logger(__name__)
 
 
+@log_provenance
 def select_repr_protein(mdata: md.MuData, modality: str) -> md.MuData:
     """
     Select canonical protein from protein list based on priority.
@@ -46,8 +49,9 @@ def select_repr_protein(mdata: md.MuData, modality: str) -> md.MuData:
                 lambda x: select_representative(x, protein_info_dict)
             )
         else:
+            accession_column = _resolve_accession_column(mdata.mod[modality].var, context=f"{modality}.var")
             mdata.mod[modality].var["repr_protein"] = (
-                mdata.mod[modality].var["protein_group"].apply(lambda x: select_representative(x, protein_info_dict))
+                mdata.mod[modality].var[accession_column].apply(lambda x: select_representative(x, protein_info_dict))
             )
 
         return mdata

@@ -1,3 +1,4 @@
+from msmu._provenance import get_log
 import numpy as np
 import pandas as pd
 import pytest
@@ -82,19 +83,20 @@ def test_infer_protein_supports_custom_modality_name():
     assert set(out.uns) >= {"peptide_map", "protein_map"}
 
 
-def test_infer_protein_cmd_stdout_records_protein_inference_stats():
+def test_infer_protein_logs_protein_inference_stats(caplog):
+    caplog.set_level("INFO", logger="msmu")
     mdata = _make_peptide_mdata()
 
     out = infer_protein(mdata)
 
-    entry = out.uns["_cmd"]["0"]
+    entry = get_log(out)["events"][0]
     assert entry["function"] == "infer_protein"
-    assert "stdout" in entry
-    stdout = entry["stdout"]
-    assert "INFO - Initial proteins: 2" in stdout
-    assert "INFO - Removed indistinguishable: 0" in stdout
-    assert "INFO - Removed subsettable: 0" in stdout
-    assert "INFO - Removed subsumable: 0" in stdout
+    assert "stdout" not in entry
+    stdout = caplog.text
+    assert "Initial proteins: 2" in stdout
+    assert "Removed indistinguishable: 0" in stdout
+    assert "Removed subsettable: 0" in stdout
+    assert "Removed subsumable: 0" in stdout
 
 
 def test_infer_protein_annotates_decoys():
@@ -105,42 +107,6 @@ def test_infer_protein_annotates_decoys():
     decoy_df = out.mod["peptide"].uns["decoy"]
     assert decoy_df["protein_group"].tolist() == ["DP1"]
     assert decoy_df["peptide_type"].tolist() == ["unique"]
-
-
-def test_infer_protein_uses_propagated_mapping_from_path(monkeypatch):
-    mdata = _make_peptide_mdata()
-    propagated = MuData(
-        {
-            "peptide": AnnData(
-                X=np.array([[1.0]]),
-                obs=pd.DataFrame(index=["s1"]),
-                var=pd.DataFrame(index=["f1"]),
-            )
-        }
-    )
-    propagated.uns["peptide_map"] = pd.DataFrame(
-        {
-            "peptide": ["pep1", "pep2"],
-            "protein_group": ["G1", "G1;G2"],
-        }
-    )
-    propagated.uns["protein_map"] = pd.DataFrame(
-        {
-            "initial_protein": ["P1", "P2"],
-            "protein_group": ["G1", "G1;G2"],
-            "indistinguishable": [False, False],
-            "subsetted": [False, False],
-            "subsumable": [False, False],
-        }
-    )
-
-    monkeypatch.setattr("msmu._read_write._reader_registry.read_h5mu", lambda _: propagated)
-
-    out = infer_protein(mdata, propagated_from="mapping.h5mu")
-
-    assert out.mod["peptide"].var["protein_group"].tolist() == ["G1", "G1;G2"]
-    assert out.mod["peptide"].var["peptide_type"].tolist() == ["unique", "shared"]
-    pd.testing.assert_frame_equal(out.uns["protein_map"], propagated.uns["protein_map"])
 
 
 def test_infer_protein_missing_modality_raises():

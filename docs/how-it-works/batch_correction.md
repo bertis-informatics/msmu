@@ -1,12 +1,10 @@
 # Batch Correction
 
-## Overview
-
 Batch effects are unwanted variations in the data that arise from differences in experimental conditions, such as different lots, runs, days, or operators. These variations can obscure true biological signals and lead to misleading conclusions. `msmu` corrects them with median centering, GIS/IRS (for TMT), ComBat, and a continuous (lowess) correction for ordered covariates such as run order.
 
-## `correct_batch_effect()`
+## Correct batch effects
 
-The `correct_batch_effect()` function either:
+The [`correct_batch_effect()`](../reference/pp/correct_batch_effect.md) function offers four correction methods:
 
 - Median centering, which removes each batch's per-feature median.
 - GIS/IRS normalization, which corrects batch effect in TMT data using Global Internal Standard (GIS) channels ([Plubell et al., Mol Cell Proteomics, 2017](https://doi.org/10.1074/mcp.M116.065524)).
@@ -45,7 +43,7 @@ mdata = mm.pp.correct_batch_effect(
 )
 ```
 
-## Usage notes
+## Choose a method and interpret the output
 
 - **Level.** Correct **after** summarising to peptide/protein, not on the raw PSM matrix. At peptide/protein a feature is shared across batches, so the scale restores to abundance and the matrices are dense and small. A per-plex-split PSM matrix is block-diagonal (each feature lives in one plex): the correction still runs, but the output stays reference-relative — roll up first, then correct.
 - **`gis`** — TMT/IRS. Needs the pooled reference (GIS) channels named in `gis_samples`, present in every plex. Assumes log-transformed input; normalizes each feature to its plex reference and restores the IRS geometric-mean scale.

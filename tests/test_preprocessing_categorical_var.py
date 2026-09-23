@@ -90,16 +90,22 @@ def test_infer_protein_ignores_stale_peptide_categories():
     assert peptide_map["peptide"].tolist() == PEPTIDES
 
 
-def test_ptm_explode_splits_categorical_protein_groups():
+def test_ptm_explode_splits_categorical_proteins():
+    """A categorical accession column must still split into real lists, not their repr.
+
+    ``write_h5mu`` stores var string columns as categorical, so any container that has been through
+    disk arrives here categorical; on pandas 3 a categorical ``.str.split`` yields the repr of the
+    list and the following explode silently becomes a no-op.
+    """
     ptm_info = pd.DataFrame(
-        {"protein_group": pd.Series(["P1,P2;P3", "P4"], dtype="category"), "peptide": ["pep1", "pep2"]},
+        {"proteins": pd.Series(["P3;P1", "P4"], dtype="category"), "peptide": ["pep1", "pep2"]},
     )
 
-    exploded_groups = PtmSummarisationPrep._explode_protein_groups(None, ptm_info)
-    exploded_proteins = PtmSummarisationPrep._explode_protein_group(None, exploded_groups)
+    exploded_proteins = PtmSummarisationPrep._explode_proteins(None, ptm_info)
 
-    assert exploded_groups["_prot_gr"].tolist() == ["P1,P2", "P3", "P4"]
-    assert exploded_proteins["_prots"].tolist() == ["P1", "P2", "P3", "P4"]
+    # Sorted within each peptide so the site id does not depend on the order the search engine
+    # happened to list the accessions in.
+    assert exploded_proteins["_prots"].tolist() == ["P1", "P3", "P4"]
 
 
 def test_aggregator_ignores_stale_feature_categories():

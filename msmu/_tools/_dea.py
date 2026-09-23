@@ -6,6 +6,7 @@ import mudata as md
 import numpy as np
 import pandas as pd
 
+from .._core._provenance import log_provenance
 from .._utils._mudata import get_anndata_mod
 from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
@@ -336,6 +337,7 @@ class LimmaEngine(DeEngine):
         return de_res
 
 
+@log_provenance
 def run_de(
     mdata: md.MuData,
     modality: str,
@@ -353,8 +355,7 @@ def run_de(
     p_adjust: str = "auto",
     _force_resample: bool = False,
 ) -> DeaResult:
-    """
-    Run Differential Expression Analysis (DEA) between two groups in a MuData object.
+    """Run Differential Expression Analysis (DEA) between two groups in a MuData object.
 
     The analysis reads as four stages: (1) data validation — prepare the inputs once and let the
     engine mask the usable features; (2) test — the engine-specific statistic; (3) fold change —
@@ -408,6 +409,17 @@ def run_de(
 
     Returns:
         DeaResult containing DE analysis results.
+
+    Notes:
+        The returned result provides `.to_df()` with `features`, `repr_ctrl`, `repr_expr`, `pct_ctrl`, `pct_expr`, `log2fc`, `statistic`, `p_value`, and `q_value`. `.plot_volcano(...)` delegates to [`plot_volcano`][msmu.pl.plot_volcano], which uses raw p-values. The analysis returns a result object rather than a new MuData; the provenance decorator can update the input history.
+
+    Examples:
+        ```python
+        import msmu as mm
+        result = mm.tl.run_de(mdata, modality="protein", category="condition", ctrl="control", expr="treated", stat_method="welch")
+        table = result.to_df()
+        fig = result.plot_volcano(log2fc_threshold=1.)
+        ```
     """
     # Notify before validating so a migrating expr=None caller (old default "vs all other groups")
     # learns the default engine changed before hitting limma's "explicit expr required" error.
@@ -650,7 +662,8 @@ def _make_dummy_de_result(n_features: int) -> StatTestResult:
     """Significance-free result for a design too small to test.
 
     The statistic / p / q are all NaN at full feature length (not empty) so the fold changes that
-    ``run_de`` still fills in remain aligned with the feature axis and ``to_df`` / ``plot_volcano``
+    [`run_de`][msmu.tl.run_de] still fills in remain aligned with the feature axis and ``to_df`` /
+    [`plot_volcano`][msmu.pl.plot_volcano]
     do not raise.
     """
     nan_per_feature = np.full(n_features, np.nan)
