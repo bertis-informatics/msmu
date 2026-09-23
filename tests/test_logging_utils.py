@@ -105,10 +105,10 @@ def test_setup_logger_handler_recovers_when_stream_closes(monkeypatch) -> None:
         logger.propagate = original_propagate
 
 
-def test_default_console_logging_and_explicit_level():
+def test_default_console_logging_without_public_setup_logger():
     result = subprocess.run(
-        [sys.executable, "-c", "import msmu as mm; mm.logger.info('visible'); "
-         "mm.setup_logger(level=30); mm.logger.info('hidden'); mm.logger.warning('notice')"],
+        [sys.executable, "-c", "import msmu as mm; assert not hasattr(mm, 'setup_logger'); "
+         "mm.logger.info('visible'); mm.logger.debug('hidden'); mm.logger.warning('notice')"],
         capture_output=True, text=True, check=True,
     )
     assert result.stderr.count("INFO - visible") == 1

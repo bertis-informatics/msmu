@@ -2,7 +2,7 @@ import logging
 
 import anndata
 
-from .logging_utils import ensure_null_handler, setup_logger
+from .logging_utils import ensure_null_handler, setup_logger as _setup_logger
 
 from . import _plotting as pl
 from . import _preprocessing as pp
@@ -34,7 +34,7 @@ logger = ensure_null_handler()
 if logger.level == logging.NOTSET and not any(
     not isinstance(handler, logging.NullHandler) for handler in logger.handlers
 ):
-    setup_logger()
+    _setup_logger()
 
 # msmu serialises proteomics MuData to .h5mu. The reader frames (polars -> pandas on the pandas-3
 # stack) carry pandas nullable / Arrow-backed string columns -- including the obs/var index -- which
@@ -63,5 +63,4 @@ __all__ = [
     "utils",
     "io",
     "pv",
-    "setup_logger",
 ]
