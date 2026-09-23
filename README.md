@@ -42,7 +42,7 @@ This unique marriage between flexible processing pipeline and `MuData` empowers 
 Comprehensive documentation, including installation instructions, tutorials, and API references, is available at: [https://bertis-informatics.github.io/msmu/](https://bertis-informatics.github.io/msmu/)
 
 Repository documentation describes the checked-out revision. The published site is built from release tags;
-check its documentation version against `msmu.__version__`. Development APIs may require installing from `dev`.
+development APIs may require installing from `dev`.
 
 ## Citation
 

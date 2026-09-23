@@ -3,7 +3,6 @@ from pathlib import Path
 import mkdocs_gen_files
 import msmu
 import inspect
-import subprocess
 
 PACKAGE = "msmu"  # ./msmu 레이아웃 가정
 src_dir = Path(msmu.__file__).parent  # msmu/ 디렉토리
@@ -71,14 +70,3 @@ api_nav = [format_api(line) for line in nav.build_literate_nav()]
 with mkdocs_gen_files.open("nav.md", "w") as nav_file:
     nav_file.write(nav_template)
     nav_file.writelines(api_nav)
-
-# Show the exact package/source used to generate this documentation.
-revision = subprocess.check_output(["git", "describe", "--always", "--dirty", "--exclude=*"], text=True).strip()
-version_notice = (
-    '!!! info "Documentation version"\n'
-    f'    Built with `msmu` **{msmu.__version__}**, source revision **{revision}**. '
-    'Compare with `mm.__version__` in your environment. '
-    'Repository documentation follows its checkout; the published site follows release tags.\n'
-)
-with mkdocs_gen_files.open("index.md", "w") as index_file:
-    index_file.write(Path("docs/index.md").read_text().replace("<!-- documentation-version -->", version_notice))

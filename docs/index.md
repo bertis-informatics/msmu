@@ -2,8 +2,6 @@
 
 **Python toolkit for modular and traceable LC-MS/<u>MS</u> proteomics analysis based on <u>Mu</u>Data**
 
-<!-- documentation-version -->
-
 Start with [Installation](installation.md) and the runnable [Quick Start](tutorials/quick_start.ipynb).
 For development-only APIs, use the source checkout described in the installation guide.
 
