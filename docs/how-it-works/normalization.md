@@ -1,10 +1,8 @@
 # Normalization
 
-## Overview
-
 Normalization is a crucial step in proteomics data analysis to correct for systematic biases and ensure comparability across samples. `msmu` provides several normalization methods to address different experimental designs and data characteristics.
 
-## [`log2_transform()`](../reference/pp/log2_transform.md)
+## Log-transform intensities
 
 The [`log2_transform()`](../reference/pp/log2_transform.md) function applies a log2 transformation to the quantification data in the specified modality. This transformation helps stabilize variance and make the data more normally distributed, which is beneficial for downstream statistical analyses. `msmu` assumes that [`log2_transform()`](../reference/pp/log2_transform.md) is applied on basal level of data before applying normalization methods.
 
@@ -16,9 +14,9 @@ mdata = mm.pp.log2_transform(
 )
 ```
 
-## [`normalize()`](../reference/pp/normalize.md) (or [`normalise()`](../reference/pp/normalise.md))
+## Normalize sample intensities
 
-The [`normalize()`](../reference/pp/normalize.md) function offers multiple normalization methods: median (`median`), median centering (`median_center`), quantile (`quantile`), total-intensity / constant-sum (`total_sum`, which rescales each sample so its summed intensity equals the median of the per-sample totals), and pairwise median (`pairwise_median`, see below). Users can select the method that best suits their data and experimental design. All methods assume log2-transformed input. Normalization can also be performed independently within groups: pass `group_obs` (an `adata.obs` column, e.g. sample batch or type) and/or `group_var` (an `adata.var` column, e.g. `"filename"` for fractionated runs) to normalize within each group.
+The [`normalize()`](../reference/pp/normalize.md) function (also available as [`normalise()`](../reference/pp/normalise.md)) offers multiple normalization methods: median (`median`), median centering (`median_center`), quantile (`quantile`), total-intensity / constant-sum (`total_sum`, which rescales each sample so its summed intensity equals the median of the per-sample totals), and pairwise median (`pairwise_median`, see below). Users can select the method that best suits their data and experimental design. All methods assume log2-transformed input. Normalization can also be performed independently within groups: pass `group_obs` (an `adata.obs` column, e.g. sample batch or type) and/or `group_var` (an `adata.var` column, e.g. `"filename"` for fractionated runs) to normalize within each group.
 
 ```python
 mdata = mm.pp.normalize(
@@ -31,7 +29,7 @@ mdata = mm.pp.normalize(
 )
 ```
 
-### `pairwise_median`
+### Pairwise median normalization
 
 `median` centres every sample on the median of the values it observed. When missingness depends on intensity and samples differ in detection depth, that median is biased: a deeper run observes more low-abundance features, its median is pulled down, and after centring it is left too high relative to the same features in a shallower run. `pairwise_median` compares samples only on features they both observe.
 
@@ -41,7 +39,7 @@ mdata = mm.pp.normalize(
 - **Limitation.** A true global change between conditions (most features moving in one direction) cannot be told from a loading difference and is removed, as `median` does. Check the loading scheme for secretome, exosome or pull-down designs before relying on either method.
 - **Unshared samples.** Every pair of samples in a block must observe at least one feature in common. Otherwise a `ValueError` names the offending sample pairs; this happens for PSM or precursor matrices across runs or TMT plexes. Normalize within `group_obs`, or after summarizing to a level (peptide, protein) where the samples share features. A pair that shares only a few features is aligned on those few, and a warning names it when it shares far fewer than the typical pair. Blocks holding a single sample are left unchanged. Data with little missingness (e.g. TMT within a plex) gain nothing over `median`.
 
-### What [`normalize()`](../reference/pp/normalize.md) records
+### Inspect the normalization record
 
 Every call writes what it did to each sample of each block to `adata.uns["normalisation"]`:
 
@@ -50,7 +48,7 @@ Every call writes what it did to each sample of each block to `adata.uns["normal
 
 Records for the same layer are replaced on a repeated call; other layers' records are kept.
 
-## [`adjust_ptm_by_protein()`](../reference/pp/adjust_ptm_by_protein.md)
+## Adjust PTM sites by protein abundance
 
 The [`adjust_ptm_by_protein()`](../reference/pp/adjust_ptm_by_protein.md) function reads each PTM site relative to its parent protein's abundance in a matched `global proteome` dataset, so that a site's change is not simply its protein's change.
 

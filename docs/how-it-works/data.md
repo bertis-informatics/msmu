@@ -1,13 +1,13 @@
 # Data in msmu
 
-## Overview
-
 In LC-MS/MS "shotgun" `proteomics`, data analysis typically follows a **hierarchical path**—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a **multi-level** and **multi-dimensional** structure: PSM/precursor, peptide, protein; feature metadata; sample annotations; and QC metrics.
 
 To manage these properties consistently, `msmu` adopts [`MuData`](https://mudata.readthedocs.io/en/latest/) from the `scverse` ecosystem as the fundamental data format. [`MuData`](https://mudata.readthedocs.io/en/latest/), together with its constituent [`AnnData`](https://anndata.readthedocs.io/en/stable/) objects, is widely used in scRNA-seq to manage complex data matrices and their associated metadata. The same structure fits proteomics naturally: identification-level attributes, quantification values, and sample information can all be stored cleanly and explored in an integrated way.
 
 `msmu` works with data formatted as a [`MuData`](https://mudata.readthedocs.io/en/latest/) object composed of multiple [`AnnData`](https://anndata.readthedocs.io/en/stable/) modalities.
 Therefore, understanding the usage of [`MuData`](https://mudata.readthedocs.io/en/latest/) and [`AnnData`](https://anndata.readthedocs.io/en/stable/) helps when working with `msmu`.
+
+## MuData modalities
 
 A `MuData` object used in `msmu` is organized by modalities, each corresponding to a specific processing level such as `psm`, `peptide`, and `protein`:
 
@@ -36,7 +36,7 @@ As a general AnnData object, each individual modality contains `.X`, `.var`, `.v
 
 ![AnnData stores one quantification matrix and its annotations; MuData groups PSM, peptide, and protein modalities.](../assets/anndata-mudata-structure.svg){ width="100%" }
 
-### Processing stages
+## Processing stages
 
 ![Search results become PSM, peptide, and protein modalities as processing progresses.](../assets/mudata-processing-stages.svg){ width="100%" }
 

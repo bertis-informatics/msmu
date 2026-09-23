@@ -1,7 +1,5 @@
 # Sample Metadata (SDRF)
 
-## Overview
-
 [SDRF-Proteomics](https://github.com/bigbio/proteomics-sample-metadata) is the community format for
 describing what each run and each label in an experiment actually is: the sample, its conditions,
 the instrument, the labelling. `msmu` treats an SDRF as the **source of truth** for sample
@@ -10,6 +8,8 @@ metadata, in two explicit steps:
 1. [`attach_sdrf()`](../reference/pp/attach_sdrf.md) stores the whole table at `mdata.uns["sdrf"]`, unchanged.
 2. [`apply_sdrf_to_obs()`](../reference/pp/apply_sdrf_to_obs.md) projects the columns you want onto each modality's `.obs`.
 
+## Why storage and projection are separate
+
 The split exists because an SDRF row does not correspond to one observation. Its rows span **both**
 axes — `comment[label]` addresses the obs axis (channels) and `comment[data file]` the var axis
 (runs and fractions) — so a 144-row SDRF of 12 fractions × 12 channels cannot be reduced to 12
@@ -17,10 +17,9 @@ sample rows without discarding the fraction axis. Keeping the original in `.uns`
 through [`split_tmt()`](../reference/pp/split_tmt.md) and [`collapse_obs()`](../reference/pp/collapse_obs.md), means the full table stays available no matter how the
 container is reshaped, while `.obs` holds only what is well-defined per observation.
 
-Metadata that is not in SDRF form — a plain DataFrame, csv, tsv, or parquet — is still supported
-through [`add_meta()`](../reference/pp/add_meta.md).
+## Store the original SDRF
 
-## [`attach_sdrf()`](../reference/pp/attach_sdrf.md)
+Use [`attach_sdrf()`](../reference/pp/attach_sdrf.md) to store the SDRF on the container:
 
 ```python
 mdata = mm.read_sage(
@@ -46,9 +45,9 @@ directly.
 
 `.obs` is untouched by this step, and `uns["sdrf"]` is never rewritten by the steps that follow.
 
-## [`apply_sdrf_to_obs()`](../reference/pp/apply_sdrf_to_obs.md)
+## Project SDRF columns onto observations
 
-Projection reduces the SDRF to the obs axis by a **match key** and copies across the columns that
+[`apply_sdrf_to_obs()`](../reference/pp/apply_sdrf_to_obs.md) reduces the SDRF to the obs axis by a **match key** and copies across the columns that
 are a function of that key:
 
 ```python
@@ -151,7 +150,7 @@ mdata = mm.pp.apply_sdrf_to_obs(mdata, set_index="source name")  # obs: the SDRF
 The projected columns are also merged onto the MuData-level `mdata.obs`, where functions such as
 [`correct_batch_effect()`](../reference/pp/correct_batch_effect.md) read them.
 
-## TMT: channels, plexes and [`split_tmt()`](../reference/pp/split_tmt.md)
+## Map TMT channels and split plexes
 
 Readers emit TMT channels in the SDRF spelling — `TMT126`, `TMT127N`, … — so `obs.index` lines up
 with `comment[label]` without a translation table.
@@ -195,7 +194,7 @@ of file name → set:
 mdata = mm.pp.split_tmt(mdata, map={"run_A": "set1", "run_B": "set2"})  # SDRF not consulted
 ```
 
-## [`add_meta()`](../reference/pp/add_meta.md) — metadata without an SDRF
+## Add metadata without an SDRF
 
 Not every experiment has an SDRF. [`add_meta()`](../reference/pp/add_meta.md) is the generic path: it takes a **DataFrame you
 already have in memory**, or a `csv`, `tsv`, `parquet`, or `sdrf` file (path or URL), and joins it

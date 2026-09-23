@@ -7,9 +7,9 @@ Filtering in `msmu` is split into two steps and is implemented in
 1. [`add_filter()`](../reference/pp/add_filter.md) creates a boolean mask and stores it as a named filter column.
 2. [`apply_filter()`](../reference/pp/apply_filter.md) applies one or more stored masks to subset the modality.
 
-## [`add_filter`](../reference/pp/add_filter.md)
+## Define filters
 
-[`add_filter`](../reference/pp/add_filter.md) supports multiple sources via `on`:
+[`add_filter()`](../reference/pp/add_filter.md) supports multiple sources via `on`:
 
 - `on="var"`: read `column` from `.var`, store mask in `.varm["filter"]`
 - `on="obs"`: read `column` from `.obs`, store mask in `.obsm["filter"]`
@@ -69,9 +69,9 @@ mdata = mm.pp.add_filter(
 )
 ```
 
-## [`apply_filter`](../reference/pp/apply_filter.md)
+## Apply filters
 
-[`apply_filter`](../reference/pp/apply_filter.md) controls target axis with `on`:
+[`apply_filter()`](../reference/pp/apply_filter.md) controls target axis with `on`:
 
 - `on="all"` (default): apply both `.varm["filter"]` and `.obsm["filter"]`
 - `on="var"`: apply only `.varm["filter"]`

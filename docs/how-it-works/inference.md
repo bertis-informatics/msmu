@@ -17,13 +17,13 @@ Protein inference in `msmu` is performed through a series of incremental refinem
 5. **Finalize protein group assignment**  
    After above steps, all remaining protein groups are distinguishable (i.e., having at least one unique peptide). Mappings explaining peptide-protein relationship and annotations describing how each protein was handled are stored in `mdata.uns`.
 
-## Input
+## Prepare peptide-level input
 
 A `MuData` that has:
 
 - A `peptide` modality containing `var["stripped_peptide"]` and `var["proteins"]` (semicolon-separated accessions per peptide). If decoys exist, they are pulled from `mdata["peptide"].uns["decoy"]`.
 
-## Usage
+## Run protein inference
 
 Only the `MuData` is required; the reader's own column names are the defaults.
 
@@ -47,7 +47,7 @@ Optional arguments:
     peptide the global run never observed — the normal case under enrichment — is still adjustable
     whenever its protein was quantified there. See [`adjust_ptm_by_protein`](../reference/pp/adjust_ptm_by_protein.md).
 
-## Output
+## Inspect inferred protein groups
 
 A `MuData` with:
 

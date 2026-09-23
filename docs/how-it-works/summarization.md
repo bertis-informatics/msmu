@@ -1,10 +1,10 @@
 # Summarization
 
-## Overview
-
 The term `Summarization` refers to aggregating identification features and quantitative values as data move from one hierarchical level to the next (i.e., PSM/precursor -> peptide -> protein).
 
-Summarization functions are provided as `to_*` methods, such as [`to_peptide`](../reference/pp/to_peptide.md), [`to_protein`](../reference/pp/to_protein.md), and [`to_ptm`](../reference/pp/to_ptm.md).
+Summarization functions are provided as `to_*` methods, such as [`to_peptide()`](../reference/pp/to_peptide.md), [`to_protein()`](../reference/pp/to_protein.md), and [`to_ptm()`](../reference/pp/to_ptm.md).
+
+## What summarization does
 
 The `Summarization` process generally involves:
 
@@ -57,7 +57,7 @@ fail strict replay with this policy. Rerun the original workflow from its source
 files with hashing enabled to record a new baseline; keep the old history for
 comparison. Do not overwrite its expected hashes to make verification pass.
 
-## [`to_peptide()`](../reference/pp/to_peptide.md)
+## Summarize PSMs to peptides
 
 [`to_peptide()`](../reference/pp/to_peptide.md) function takes:
 
@@ -88,7 +88,7 @@ mdata = mm.pp.to_peptide(
     )
 ```
 
-## [`to_protein()`](../reference/pp/to_protein.md)
+## Summarize peptides to proteins
 
 [`to_protein()`](../reference/pp/to_protein.md) function takes:
 
@@ -127,7 +127,7 @@ mdata = mm.pp.to_protein(
     )
 ```
 
-## [`to_ptm()`](../reference/pp/to_ptm.md)
+## Summarize modified peptides to PTM sites
 
 To summarize modified peptide into post-translational modification (PTM) sites, [`to_ptm()`](../reference/pp/to_ptm.md) uses the subset of peptides that contain the specified modification and then performs several steps to assign PTM positions at the protein level.
 

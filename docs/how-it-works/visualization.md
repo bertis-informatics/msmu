@@ -1,8 +1,8 @@
-# Visualization Overview
+# Visualization
 
 `msmu._plotting` wraps Plotly to provide ready-made QC and exploratory plots for MuData objects. The module is structured around data preparation helpers and lightweight plot wrappers so you can compose figures with consistent defaults while still passing Plotly kwargs to tweak layout.
 
-## Common parameters and behaviors
+## Choose plot options
 
 - `mdata`: required `MuData` containing the modality to plot.
 - `modality`: required for [`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md) and [`plot_missingness`](../reference/pl/plot_missingness.md); elsewhere it defaults to the level the plot is normally read at (`psm` for [`plot_var`](../reference/pl/plot_var.md), `protein` for [`plot_pca`](../reference/pl/plot_pca.md), [`plot_umap`](../reference/pl/plot_umap.md), [`plot_correlation`](../reference/pl/plot_correlation.md) and [`plot_upset`](../reference/pl/plot_upset.md)).
@@ -21,11 +21,11 @@ Per-plot optional arguments:
 - `key`: `.obsm` key holding the embedding, default `X_pca` / `X_umap`.
 - `subset`, `subset_column`: restrict [`plot_upset`](../reference/pl/plot_upset.md) to one group of samples — it keeps the observations whose `subset_column` value in `.obs` equals `subset`.
 
-## Example
+## Plot examples
 
 > Uszkoreit, J., Barkovits, K., Pacharra, S., Pfeiffer, K., Steinbach, S., Marcus, K., & Eisenacher, M. (2022). Dataset containing physiological amounts of spike-in proteins into murine C2C12 background as a ground truth quantitative LC-MS/MS reference. Data in Brief, 43, 108435.
 
-### mdata.obs
+### Sample metadata used below
 
 | set | sample_id  | sample_name | condition | replicate |
 | --- | ---------- | ----------- | --------- | --------- |
