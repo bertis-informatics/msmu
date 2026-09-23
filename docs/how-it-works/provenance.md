@@ -186,6 +186,8 @@ filename and returns `None`.
 Standalone DataFrame readers, [`pl.plot_volcano`](../reference/pl/plot_volcano.md), standalone mzML purity calculation, scalar
 utilities, configuration functions and direct pandas/NumPy/MuData edits are not automatically
 recorded. They either have no MuData storage target or are outside processing history.
+Use [`dt.save_layer`](../reference/dt/save_layer.md) and [`dt.load_layer`](../reference/dt/load_layer.md)
+to record transfers between a modality's `.X` and a named layer.
 User functions accepting or returning MuData can opt into the
 same boundary using [`@mm.pv.log`](../reference/pv/log.md).
 

@@ -11,7 +11,58 @@ from mudata import MuData
 
 from ._core._provenance import log_provenance
 
-__all__ = ["assign", "map", "replace", "drop", "concat"]
+__all__ = ["assign", "map", "replace", "drop", "concat", "save_layer", "load_layer"]
+
+
+@log_provenance
+def save_layer(
+    mdata: MuData, *, modality: str, layer: str, overwrite: bool = False
+) -> MuData:
+    """Save a copy of a modality's `.X` in a named layer, in place.
+
+    Parameters:
+        mdata: MuData to modify.
+        modality: Modality containing the matrix.
+        layer: Destination layer name.
+        overwrite: Replace an existing layer when True; otherwise raise ValueError.
+
+    Returns:
+        The same MuData with `.X` copied into `layers[layer]`.
+    """
+    if not isinstance(layer, str) or not layer:
+        raise ValueError("layer must be a nonempty string")
+    if not isinstance(overwrite, bool):
+        raise TypeError("overwrite must be a bool")
+    adata = mdata[modality]
+    if adata.isbacked:
+        raise ValueError("save_layer does not support backed modalities; read the .h5mu into memory")
+    if adata.X is None:
+        raise ValueError(f"{modality!r} has no .X to save")
+    if layer in adata.layers and not overwrite:
+        raise ValueError(f"Layer {layer!r} already exists in {modality!r}")
+    adata.layers[layer] = adata.X.copy()
+    return mdata
+
+
+@log_provenance
+def load_layer(mdata: MuData, *, modality: str, layer: str) -> MuData:
+    """Load a named layer into a modality's `.X`, in place; other annotations are unchanged.
+
+    Parameters:
+        mdata: MuData to modify.
+        modality: Modality containing the layer.
+        layer: Source layer name; missing names raise KeyError.
+
+    Returns:
+        The same MuData with `layers[layer]` copied into `.X`.
+    """
+    if not isinstance(layer, str) or not layer:
+        raise ValueError("layer must be a nonempty string")
+    adata = mdata[modality]
+    if adata.isbacked:
+        raise ValueError("load_layer does not support backed modalities; read the .h5mu into memory")
+    adata.X = adata.layers[layer].copy()
+    return mdata
 
 
 def _column_table(mdata: MuData, path: str) -> pd.DataFrame:
