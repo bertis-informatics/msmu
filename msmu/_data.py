@@ -51,6 +51,23 @@ def map(
     Unmatched rows receive missing values. Existing destination columns are
     overwritten. Matching follows pandas, including matching missing keys.
     Provenance records these instructions, not the mapped column contents.
+
+    Parameters:
+        mdata: MuData to modify.
+        source: Source table path: `obs`, `var`, `<modality>.obs`, `<modality>.var`, or `<modality>.obsm.<key>`/`<modality>.varm.<key>` containing a DataFrame.
+        target: Destination table path using the same syntax.
+        columns: Nonempty mapping from source column names to unique destination column names.
+        source_index: Source matching column; `None` uses its index.
+        target_index: Destination matching column; `None` uses its index.
+
+    Returns:
+        The same MuData; destination columns are written in place.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mm.dt.map(mdata, source="obs", target="protein.obs", columns={"condition": "condition"})
+        ```
     """
     if not isinstance(columns, dict) or not columns or not all(
         isinstance(k, str) and isinstance(v, str) for k, v in columns.items()
@@ -87,7 +104,21 @@ def replace(
     (including missing values unless explicitly mapped) remain unchanged.
     Restricted dtypes such as nullable booleans and categories are converted
     to object when needed to accommodate new values. Only rules are recorded.
-    Table paths follow :func:`map`. Returns the same MuData.
+    Table paths follow [`map`][msmu.dt.map]. Returns the same MuData.
+
+    Parameters:
+        mdata: MuData to modify.
+        target: Table path as described by [`map`][msmu.dt.map].
+        columns: Nonempty mapping from each column name to an `{old_value: new_value}` dictionary.
+
+    Returns:
+        The same MuData, modified in place.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mm.dt.replace(mdata, target="protein.obs", columns={"condition": {"ctrl": "control"}})
+        ```
     """
     if not isinstance(columns, dict) or not columns or not all(
         isinstance(name, str) and isinstance(rules, dict) for name, rules in columns.items()
@@ -112,6 +143,21 @@ def drop(mdata: MuData, *, target: str, key: str) -> MuData:
 
     ``target`` is ``uns`` or ``<modality>.uns``. Missing keys raise KeyError,
     just like ``del``. Returns the same MuData; provenance cannot be deleted.
+
+    Parameters:
+        mdata: MuData to modify.
+        target: `"uns"` or `"<modality>.uns"`; table columns are not supported.
+        key: Entry to delete. Missing entries raise KeyError; `_log` is protected.
+
+    Returns:
+        The same MuData, modified in place.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mdata.uns["temporary_note"] = "reviewed"
+        mm.dt.drop(mdata, target="uns", key="temporary_note")
+        ```
     """
     if key == "_log":
         raise ValueError("Cannot delete provenance with drop")
@@ -140,6 +186,22 @@ def assign(
     Pandas handles scalar broadcasting, positional arrays and Series index
     alignment. Returns the same MuData. Values are stored in full in provenance;
     the computation that produced them is not recorded.
+
+    Parameters:
+        mdata: MuData to modify.
+        column: Destination column name; an existing column is overwritten.
+        values (Any): Scalar, positional array, or pandas Series. Series align by index. Values are captured in full for replay.
+        modality: Modality containing the target table.
+        on: `"var"` or `"obs"`.
+
+    Returns:
+        The same MuData, modified in place.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mm.dt.assign(mdata, "reviewed", True, modality="protein")
+        ```
     """
     if on not in ("obs", "var"):
         raise ValueError("on must be 'obs' or 'var'")
@@ -155,6 +217,18 @@ def concat(mdatas: dict[str, md.MuData]) -> md.MuData:
     and uns use the first available value, without filling metadata nulls or
     concatenating lists. Provenance joins both input histories separately.
     At least two flat, sample-aligned (axis=0) MuData inputs are required.
+
+    Parameters:
+        mdatas: Dictionary mapping dataset names to at least two flat, sample-aligned (`axis=0`) MuData objects. Keys become the `dataset` observation annotation.
+
+    Returns:
+        A new MuData containing the union of modalities/features and concatenated samples. Input objects are not modified.
+
+    Examples:
+        ```python
+        import msmu as mm
+        combined = mm.dt.concat({"batch_a": first, "batch_b": second})
+        ```
     """
     if len(mdatas) < 2:
         raise ValueError("At least two MuData objects are required.")

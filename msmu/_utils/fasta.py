@@ -152,6 +152,25 @@ def parse_uniprot_accession_group(protein_group: str) -> tuple[str, bool]:
 
 def parse_uniprot_accession(proteins: pd.Series) -> list[str]:
     # Keep parsing in a tight Python loop; this avoids expensive explode + row-wise apply.
+    """Extract UniProt accession groups from protein identifiers.
+
+    Parameters:
+        proteins: Pandas Series of strings. Each string may contain semicolon-separated protein entries, including UniProt FASTA-style `sp|accession|name` identifiers.
+
+    Returns:
+        List of accession strings in input order; multiple members remain semicolon-separated. Decoy/contaminant prefixes are preserved in canonical form; no contaminant boolean is returned.
+
+    Notes:
+        The input Series is unchanged. Supply strings rather than missing values.
+
+    Examples:
+        ```python
+        import msmu as mm
+        import pandas as pd
+        accessions = mm.utils.parse_uniprot_accession(pd.Series(["sp|P12345|EXAMPLE"]))
+        assert accessions == ["P12345"]
+        ```
+    """
     return [parse_uniprot_accession_group(protein_group)[0] for protein_group in proteins]
 
 

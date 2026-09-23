@@ -118,8 +118,23 @@ def reindex_obs(
     mdata: md.MuData,
     column: str,
 ) -> md.MuData:
-    """
-    Reindex the observation (obs) of the MuData object to ensure consistency across modalities.
+    """Reindex the observation (obs) of the MuData object to ensure consistency across modalities.
+
+    Parameters:
+        mdata: MuData with the requested column in both global `.obs` and every modality `.obs`.
+        column: Column whose string-converted values become observation names.
+
+    Returns:
+        A copied MuData with global and modality observation indices replaced. The old index is retained as a column by reset_index.
+
+    Notes:
+        Missing columns raise KeyError. Use identifiers consistent across modalities; the input is unchanged.
+
+    Examples:
+        ```python
+        import msmu as mm
+        renamed = mm.utils.reindex_obs(mdata, column="sample")
+        ```
     """
     mdata = mdata.copy()
     if column not in mdata.obs.columns:
