@@ -257,11 +257,11 @@ def fit_limma(
 ) -> LimmaResult:
     """Fit a validated limma contrast and assemble per-feature moderated-t results.
 
-    The test step of ``run_de(stat_method="limma")``: the contrast and the estimable-feature mask
+    The test step of [`run_de(stat_method="limma")`][msmu.tl.run_de]: the contrast and the estimable-feature mask
     are built earlier (validation), so this only fits the estimable features and fills the rest
     with NaN. Positive log2 fold change means higher in ``expr``. The model log2 fold change is the
     contrast coefficient (an intrinsic output of the fit), while representative values, detection %
-    and the fold-change guidance line are filled in by ``run_de``'s common post-processing.
+    and the fold-change guidance line are filled in by [`run_de`][msmu.tl.run_de]'s common post-processing.
 
     Parameters:
         fit_matrix: features x samples log2-intensity DataFrame aligned to ``contrast.kept_samples``.
