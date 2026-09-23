@@ -55,7 +55,7 @@ def _rounded_float_bytes(values, significant_digits):
 
 
 def _hash_msmu_v1(value) -> str:
-    """Hash content with MSMU v1: 12-digit floats, exact axes/dtypes, canonical CSR.
+    """Hash content with `msmu` v1: 12-digit floats, exact axes/dtypes, canonical CSR.
 
     Stored values are unchanged. Files are streamed and hashed exactly.
     Unsupported objects raise TypeError.
@@ -70,6 +70,26 @@ def compute_hash(value, *, significant_digits: int | None = 12, normalization: s
     Floats use 12 significant digits by default; None preserves the legacy exact hash.
     Numeric dtypes, axis order/names and ordered categorical metadata are significant.
     Files are streamed; sparse storage is canonical CSR and explicit zeroes are retained.
+
+    Parameters:
+        value (Any): Supported data such as MuData/AnnData, pandas or NumPy objects, sparse matrices, scalar/container values, pathlib.Path files, or BytesIO content. A string is hashed as text, not opened as a file.
+        significant_digits: Compatibility precision for legacy hashes, from 1 to 15 or `None` for exact hashing. Keep 12 for the current policy.
+        normalization: Hash policy, default `"msmu-v1"`; legacy modes are retained for replay compatibility. Keep the default for new workflows.
+
+    Returns:
+        A SHA-256 hexadecimal digest. The input data is not modified.
+
+    Notes:
+        Unsupported objects raise TypeError; invalid precision raises ValueError. Provenance hashing defaults can be changed with [`options`][msmu.pv.options].
+
+    Examples:
+        ```python
+        import msmu as mm
+        from pathlib import Path
+        digest = mm.pv.compute_hash(mdata)
+        # To hash file content rather than its name:
+        # digest = mm.pv.compute_hash(Path("result.h5mu"))
+        ```
     """
     _validate_precision(significant_digits)
     digest = sha256()

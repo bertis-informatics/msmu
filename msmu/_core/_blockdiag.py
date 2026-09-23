@@ -4,7 +4,7 @@ Several msmu quantification matrices are *grouped block-diagonal*: the feature a
 encodes a group (a TMT plex, or a DIA-NN run), and each feature is observed only in the
 samples belonging to its own group. Concretely:
 
-* after :func:`msmu.pp.split_tmt`, ``obs`` is ``channel x plex`` and each PSM feature carries
+* after [`msmu.pp.split_tmt`][msmu.pp.split_tmt], ``obs`` is ``channel x plex`` and each PSM feature carries
   values only in its plex's channels (NaN elsewhere);
 * the DIA-NN reader's precursor matrix has ``var = run.precursor`` and each precursor feature
   carries a value only in its run.

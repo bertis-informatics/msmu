@@ -38,20 +38,67 @@ _significant_digits: ContextVar[int | None] = ContextVar("msmu_hash_significant_
 
 
 def set_options(*, hashing: bool) -> None:
-    """Enable or disable input/output hashing in this execution context (default True)."""
+    """Enable or disable input/output hashing in this execution context (default True).
+
+    Parameters:
+        hashing: Whether recorded calls compute input/output content hashes. Disabling hashing does not disable provenance recording.
+
+    Returns:
+        None. Updates settings for the current execution context.
+
+    Notes:
+        See [`compute_hash`][msmu.pv.compute_hash] for hash semantics and [`get_options`][msmu.pv.get_options] to inspect current settings. Hash verification during [`replay`][msmu.pv.replay] requires recorded hashes.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mm.pv.set_options(hashing=True)
+        ```
+    """
     if not isinstance(hashing, bool):
         raise TypeError("hashing must be a bool")
     _hashing.set(hashing)
 
 
 def get_options() -> dict[str, bool]:
-    """Return a snapshot of the settings in this execution context."""
+    """Return a snapshot of the settings in this execution context.
+
+    Returns:
+        A new dictionary with `hashing` for the current execution context. Mutating it does not change settings.
+
+    Examples:
+        ```python
+        import msmu as mm
+        settings = mm.pv.get_options()
+        ```
+
+    Use [`set_options`][msmu.pv.set_options] or scoped [`options`][msmu.pv.options] to change settings.
+    """
     return {"hashing": _hashing.get()}
 
 
 @contextlib.contextmanager
 def options(*, hashing: bool, significant_digits: int | None = 12, normalization: str | None = HASH_POLICY):
-    """Temporarily enable/disable hashing, restoring the previous setting on exit."""
+    """Temporarily enable/disable hashing, restoring the previous setting on exit.
+
+    Parameters:
+        hashing: Whether recorded calls compute input/output content hashes. Disabling hashing does not disable provenance recording.
+        significant_digits: Compatibility setting for legacy histories (1 to 15, or None for exact hashing). Keep the default for new workflows.
+        normalization: Hash policy; defaults to `"msmu-v1"`. Legacy values are retained for replay compatibility. Keep the default for new workflows.
+
+    Returns:
+        context (ContextManager): A context manager restoring previous settings on exit.
+
+    Notes:
+        See [`compute_hash`][msmu.pv.compute_hash] for hash semantics and [`get_options`][msmu.pv.get_options] to inspect current settings. Hash verification during [`replay`][msmu.pv.replay] requires recorded hashes.
+
+    Examples:
+        ```python
+        import msmu as mm
+        with mm.pv.options(hashing=False):
+            history = mm.pv.get_log(mdata)
+        ```
+    """
     if not isinstance(hashing, bool):
         raise TypeError("hashing must be a bool")
     _validate_precision(significant_digits)
@@ -90,7 +137,25 @@ def _read_log(mdata):
 
 
 def get_log(mdata: md.MuData) -> dict:
-    """Return detached, decoded provenance in lineage order, then execution-start order."""
+    """Return detached, decoded provenance in lineage order, then execution-start order.
+
+    Parameters:
+        mdata: MuData containing recorded history in `.uns["_log"]`.
+
+    Returns:
+        A detached dictionary with `schema_version`, `head`, `events` (decoded event list), and `environments` (ID-to-environment mapping). No history yields an empty event list and empty head.
+
+    Notes:
+        Changing this returned dictionary does not change the original log. Events contain parameters, inputs/outputs, timing, parent IDs, and environment references. See [`replay`][msmu.pv.replay] and [`to_env`][msmu.pv.to_env].
+
+    Examples:
+        ```python
+        import msmu as mm
+        history = mm.pv.get_log(mdata)
+        for event in history["events"]:
+            print(event["function_path"])
+        ```
+    """
     log = _read_log(mdata)
     return {
         "schema_version": int(log["schema_version"]),
@@ -111,16 +176,35 @@ def to_env(
     ``format="uv"`` returns requirements.txt text; ``format="conda"`` returns
     environment.yml text with CPython/pip from conda-forge and Python packages
     in its pip section. With filename, write UTF-8 text (overwriting an existing
-    file) and return None, as to_script does.
+    file) and return None, as [`to_script`][msmu.pv.to_script] does.
 
-    Accepts MuData or get_log() output, independently of replay support or hashes.
+    Accepts MuData or [`get_log()`][msmu.pv.get_log] output, independently of [`replay`][msmu.pv.replay] support or hashes.
     By default, all referenced environments must agree on Python, package pins,
-    platform and MSMU source. Otherwise select a recorded environment_id.
+    platform and `msmu` source. Otherwise select a recorded environment_id.
     Numerical/thread settings may differ and are included as comments only.
 
     These are version pins, not lockfiles: original package sources, conda builds,
     native dependencies and uncommitted code cannot be reconstructed. Only
     recorded CPython environments are supported. The supplied history is unchanged.
+
+    Parameters:
+        history: MuData or decoded history from [`get_log`][msmu.pv.get_log].
+        filename: Optional output file path; an existing file is overwritten.
+        format: `"uv"` for requirements.txt text or `"conda"` for environment.yml text.
+        environment_id: Recorded environment ID to export. If omitted, all referenced environments must agree on the required version/source fields.
+
+    Returns:
+        Environment specification string when no filename is supplied; otherwise None.
+
+    Notes:
+        Use [`get_log`][msmu.pv.get_log] to find environment IDs. This does not install packages or mutate history.
+
+    Examples:
+        ```python
+        import msmu as mm
+        requirements = mm.pv.to_env(mdata, format="uv")
+        print(requirements)
+        ```
     """
     if format not in ("uv", "conda"):
         raise ValueError("format must be 'uv' or 'conda'")
@@ -441,7 +525,27 @@ def _event_inputs(event):
 
 
 def log_provenance(func=None, *, capture=()):
-    """Log one public call. Nested MSMU calls are represented by their outer call."""
+    """Log one public call. Nested `msmu` calls are represented by their outer call.
+
+    Parameters:
+        func (Callable | None): Function to decorate. Omit when using [`@mm.pv.log(capture=(... ,))`][msmu.pv.log].
+        capture (tuple[str, ...]): Tuple of parameter names whose values are stored in full rather than summarized, for example `("values",)`.
+
+    Returns:
+        wrapped (Callable): A wrapped function, or a decorator when `func` is omitted. Successful calls attach history to participating MuData objects.
+
+    Notes:
+        Nested recorded calls are represented by the outer call. Full captures may increase history size. Recording a custom function does not make it replayable: [`replay`][msmu.pv.replay] only executes supported public `msmu` functions. [`assign`][msmu.dt.assign] is the supported operation for recording column values.
+
+    Examples:
+        ```python
+        import msmu as mm
+        @mm.pv.log(capture=("label",))
+        def annotate(mdata, label):
+            mdata.uns["label"] = label
+            return mdata
+        ```
+    """
 
     if func is None:
         return functools.partial(log_provenance, capture=capture)
