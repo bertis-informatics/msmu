@@ -67,7 +67,33 @@ def plot_pca(
     key: str = "X_pca",
     **kwargs: str,
 ) -> go.Figure:
-    """Plot PCA scores for a modality."""
+    """Plot previously computed principal-component scores.
+
+    Parameters:
+        mdata: MuData containing the selected modality and observation metadata.
+        modality: Name of the modality to plot, such as `"protein"` or `"psm"`.
+        groupby: Grouping column in observation metadata (or feature metadata where supported). `None` uses the resolved `obs_column`.
+        colorby: Observation column used to assign sample colors when `groupby` resolves to `obs_column`; ignored for other groupings. `None` uses the template palette.
+        template: Registered Plotly template name, normally `"msmu"`.
+        pcs: Two 1-based component numbers, for example `(1, 2)`.
+        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `uns["plotting"]["default_obs_column"]`, then source name/source_name/sample/filename, then the observation index.
+        key: Key containing PCA scores in modality `.obsm` and `variance_ratio` in `.uns`.
+        kwargs: Additional Plotly layout options, for example `width=800` or `title_text="QC"`.
+
+    Returns:
+        Plotly `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
+
+    Notes:
+        Run [`pca`][msmu.tl.pca] first. Match `key` to its `key_added`; at least the requested components must exist. Quantification and embeddings are unchanged. Resolving an existing sample-identifier column can convert that column in `mdata.obs` to categorical; pass a copy to preserve its dtype.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mdata = mm.tl.pca(mdata, modality="protein", n_components=2)
+        fig = mm.pl.plot_pca(mdata, modality="protein", pcs=(1, 2))
+        fig.show()
+        ```
+    """
     context = PlotContext.grouped(
         mdata,
         modality,
@@ -119,7 +145,32 @@ def plot_umap(
     key: str = "X_umap",
     **kwargs: str,
 ) -> go.Figure:
-    """Plot UMAP embeddings for a modality."""
+    """Plot the first two coordinates of a previously computed UMAP embedding.
+
+    Parameters:
+        mdata: MuData containing the selected modality and observation metadata.
+        modality: Name of the modality to plot, such as `"protein"` or `"psm"`.
+        groupby: Grouping column in observation metadata (or feature metadata where supported). `None` uses the resolved `obs_column`.
+        colorby: Observation column used to assign sample colors when `groupby` resolves to `obs_column`; ignored for other groupings. `None` uses the template palette.
+        template: Registered Plotly template name, normally `"msmu"`.
+        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `uns["plotting"]["default_obs_column"]`, then source name/source_name/sample/filename, then the observation index.
+        key: Key containing embedding coordinates in modality `.obsm`.
+        kwargs: Additional Plotly layout options, for example `width=800` or `title_text="QC"`.
+
+    Returns:
+        Plotly `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
+
+    Notes:
+        Run [`umap`][msmu.tl.umap] first. Match `key` to its `key_added`; at least two embedding dimensions must exist. Quantification and embeddings are unchanged. Resolving an existing sample-identifier column can convert that column in `mdata.obs` to categorical; pass a copy to preserve its dtype.
+
+    Examples:
+        ```python
+        import msmu as mm
+        mdata = mm.tl.umap(mdata, modality="protein", n_components=2)
+        fig = mm.pl.plot_umap(mdata, modality="protein")
+        fig.show()
+        ```
+    """
     context = PlotContext.grouped(
         mdata,
         modality,
