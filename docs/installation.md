@@ -35,8 +35,7 @@ Create and activate an environment, then install the released package:
 
 Use a Python interpreter meeting the requirement above. For a reproducible analysis,
 record the printed version and pin that version in your environment specification.
-The [home page](index.md) shows the version and source revision used to build these docs;
-the published site follows release tags, while repository documentation follows its checkout.
+The published site follows release tags, while repository documentation follows its checkout.
 Development-only APIs can be ahead of the PyPI release.
 
 Next, follow the [Quick Start](tutorials/quick_start.ipynb). To run the notebook

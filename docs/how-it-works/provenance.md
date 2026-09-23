@@ -5,9 +5,8 @@ MuData object and its `.h5mu` file; no sidecar files are created. This replaces 
 Existing `_cmd` content is neither read nor migrated.
 
 This page describes the `_log` / `mm.pv` / `mm.dt` API of this source revision.
-Older releases using `_cmd` do not expose this API. Check the documentation version
-on the [home page](../index.md) and your `mm.__version__`; use the
-[development installation](../installation.md#development_checkout) when following development docs.
+Older releases using `_cmd` do not expose this API. If your installation lacks `mm.pv`, use the
+[development installation](../installation.md#development_checkout) when following these docs.
 Keep old files for reference and rerun their original workflows to create new `_log` histories.
 
 Use `mm.pv` for provenance and `mm.dt` for recorded data manipulation.
