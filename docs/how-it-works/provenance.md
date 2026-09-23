@@ -1,8 +1,14 @@
 # Provenance
 
-MSMU records supported public calls in `mdata.uns["_log"]`. The history travels with the
+`msmu` records supported public calls in `mdata.uns["_log"]`. The history travels with the
 MuData object and its `.h5mu` file; no sidecar files are created. This replaces `_cmd`.
 Existing `_cmd` content is neither read nor migrated.
+
+This page describes the `_log` / `mm.pv` / `mm.dt` API of this source revision.
+Older releases using `_cmd` do not expose this API. Check the documentation version
+on the [home page](../index.md) and your `mm.__version__`; use the
+[development installation](../installation.md#development_checkout) when following development docs.
+Keep old files for reference and rerun their original workflows to create new `_log` histories.
 
 Use `mm.pv` for provenance and `mm.dt` for recorded data manipulation.
 
@@ -10,7 +16,7 @@ Use `mm.pv` for provenance and `mm.dt` for recorded data manipulation.
 import msmu as mm
 
 mdata = mm.read_diann("report.parquet")
-mdata = mm.pp.log2_transform(mdata, modality="precursor")
+mdata = mm.pp.log2_transform(mdata, modality="psm")
 log = mm.pv.get_log(mdata)
 last = log["events"][-1]
 print(last["function_path"], last["parameters"])
@@ -20,9 +26,9 @@ mdata.write_h5mu("analysis.h5mu")
 loaded = mm.read_h5mu("analysis.h5mu")
 ```
 
-`get_log` returns a detached dictionary. Editing it does not alter the stored history.
+[`get_log`](../reference/pv/get_log.md) returns a detached dictionary. Editing it does not alter the stored history.
 Events are ordered by lineage sequence, then UTC start time (UUID breaks ties); `parents` and `head` identify
-branches explicitly. Reading with `mm.read_h5mu` preserves the stored history and adds a
+branches explicitly. Reading with [`mm.read_h5mu`](../reference/read_h5mu.md) preserves the stored history and adds a
 read event. Native `mudata.read_h5mu` preserves the stored history without adding an event.
 
 ## Recorded information
@@ -48,11 +54,11 @@ captured **before** computation, including for in-place mutations. A new observa
 a new entity ID even when its content hash matches an earlier observation. Parents identify
 inherited history, not proof that no unrecorded edits happened between calls.
 With hashing enabled, the decorator compares each input MuData hash with its head event's
-MuData output hash before executing the function. A mismatch logs an MSMU `WARNING` and execution continues. Python warning filters do not affect this message. This reuses the input hash; no additional full-data hash is calculated. Comparison
+MuData output hash before executing the function. A mismatch logs an `msmu` `WARNING` and execution continues. Python warning filters do not affect this message. This reuses the input hash; no additional full-data hash is calculated. Comparison
 is skipped when hashes are unavailable/disabled, algorithms differ, or the previous event
 has multiple MuData outputs whose ownership cannot be resolved.
 
-Returned MuData objects receive the history. For `tl.run_de`, the history stays on the input
+Returned MuData objects receive the history. For [`tl.run_de`](../reference/tl/run_de.md), the history stays on the input
 MuData, with a descriptor and optional hash of the returned `DeaResult`'s instance fields.
 Failed calls propagate the original exception without adding an event or changing existing
 history. Changes made to data before failure are not rolled back and are not logged.
@@ -63,9 +69,8 @@ Nested decorated calls are represented by one outer public event. This avoids du
 records and repeated full-data hashes for internal implementation steps. Independent branches
 keep separate histories; merging MuData combines histories by event ID without duplicating
 shared ancestors. Logs are copied independently from data, including functions that copy
-`.uns` shallowly. Console output and Python/MSMU logging messages are not captured or
-stored in events. MSMU displays `INFO` and higher messages by default.
-Use `mm.setup_logger(level=30)` to show only warnings and errors; explicit logger settings are respected.
+`.uns` shallowly. Console output and Python or `msmu` logging messages are not captured or
+stored in events. `msmu` displays `INFO` and higher messages by default.
 Independent calls are not serialized by a global lock. Concurrent mutation of the same
 MuData object is not supported.
 
@@ -96,12 +101,12 @@ Hashing defaults to **on**. Set `hashing=False` to disable it; environment and e
 # Persistent setting in the current execution context:
 mm.pv.set_options(hashing=True)
 print(mm.pv.get_options())  # {"hashing": True}
-mdata = mm.pp.log2_transform(mdata, modality="precursor")
+mdata = mm.pp.log2_transform(mdata, modality="psm")
 mm.pv.set_options(hashing=False)
 
 # Or enable hashing for a block and restore the previous setting afterwards:
 with mm.pv.options(hashing=True):
-    mdata = mm.pp.scale_data(mdata, modality="precursor")
+    mdata = mm.pp.scale_data(mdata, modality="psm")
 
 last = mm.pv.get_log(mdata)["events"][-1]
 print(last["parameters"]["mdata"]["hash"])
@@ -113,7 +118,7 @@ current_hash = mm.pv.compute_hash(mdata)
 A hash entry has status `disabled`, `completed`, or `unavailable`. Completed entries include
 the algorithm (`sha256`), digest and hash duration. Unsupported types or
 unreadable inputs produce `unavailable` with a reason; these must never be interpreted as
-matching content. Explicit `compute_hash` calls raise an exception for unsupported content.
+matching content. Explicit [`compute_hash`](../reference/pv/compute_hash.md) calls raise an exception for unsupported content.
 
 The MuData hash covers global and modality `obs`, `var`, aligned mappings, `uns`,
 MuData axis maps, AnnData `.X`, named layers and `.raw`. Only each object's `_log` is excluded.
@@ -149,7 +154,7 @@ and any required canonical arrays. It does not create checkpoints or data snapsh
 Identical environment records are stored once and referenced by ID. Records include Python
 version/implementation, OS release and architecture, names and versions of all installed
 Python distributions visible to the running interpreter (including indirect dependencies), an available
-MSMU checkout commit/dirty flag, NumPy error settings, numerical threadpool details when
+`msmu` checkout commit/dirty flag, NumPy error settings, numerical threadpool details when
 available, and an allowlist of numerical thread/hash-seed environment variables. Arbitrary
 environment variables, credentials and host/user identifiers are not collected.
 
@@ -162,26 +167,26 @@ complete environment reconstruction are not guaranteed.
 ## Coverage and interpretation
 
 Automatic recording covers existing preprocessing and PCA/UMAP/correlation calls, plus
-`split_tmt`, import readers including DELPI/h5mu, `io.add_quant`, `dt.concat`, `tl.run_de`,
-`tl.compute_precursor_isolation_purity`, and the MuData helpers `reindex_obs`, `attach_fasta`,
-`map_fasta`, and `select_repr_protein`. The `normalize` alias uses the `normalise` event.
+[`split_tmt`](../reference/pp/split_tmt.md), import readers including DELPI/h5mu, [`io.add_quant`](../reference/io/add_quant.md), [`dt.concat`](../reference/dt/concat.md), [`tl.run_de`](../reference/tl/run_de.md),
+[`tl.compute_precursor_isolation_purity`](../reference/tl/compute_precursor_isolation_purity.md), and the MuData helpers [`reindex_obs`](../reference/utils/reindex_obs.md), [`attach_fasta`](../reference/utils/attach_fasta.md),
+[`map_fasta`](../reference/utils/map_fasta.md), and [`select_repr_protein`](../reference/utils/select_repr_protein.md). The [`normalize`](../reference/pp/normalize.md) alias uses the [`normalise`](../reference/pp/normalise.md) event.
 Plotting functions (`pl.plot_*`) do not record provenance events or calculate provenance
 hashes. Analysis operations such as PCA and UMAP remain recorded; rendering their results
 does not add a processing step. Figures and their display settings are not stored in the log.
 Existing logs containing plotting events are not automatically rewritten and remain
 unsupported by replay.
 
-Export functions (`io.to_readable`, `io.write_csv`, `io.write_flashlfq_input`, and
-`io.write_pin`) do not log events or calculate hashes. `write_pin` requires an output
+Export functions ([`io.to_readable`](../reference/io/to_readable.md), [`io.write_csv`](../reference/io/write_csv.md), [`io.write_flashlfq_input`](../reference/io/write_flashlfq_input.md), and
+[`io.write_pin`](../reference/io/write_pin.md)) do not log events or calculate hashes. [`write_pin`](../reference/io/write_pin.md) requires an output
 filename and returns `None`.
 
-Standalone DataFrame readers, `pl.plot_volcano`, standalone mzML purity calculation, scalar
+Standalone DataFrame readers, [`pl.plot_volcano`](../reference/pl/plot_volcano.md), standalone mzML purity calculation, scalar
 utilities, configuration functions and direct pandas/NumPy/MuData edits are not automatically
 recorded. They either have no MuData storage target or are outside processing history.
 User functions accepting or returning MuData can opt into the
-same boundary using `@mm.pv.log`.
+same boundary using [`@mm.pv.log`](../reference/pv/log.md).
 
-Use `dt.map` when the values already exist in another table:
+Use [`dt.map`](../reference/dt/map.md) when the values already exist in another table:
 
 ```python
 mdata = mm.dt.map(
@@ -213,7 +218,7 @@ mdata = mm.dt.replace(
 ```
 
 This uses pandas-style replacement dictionaries and the same table paths as
-`map`. Unmatched values and missing values remain unchanged unless
+[`map`](../reference/dt/map.md). Unmatched values and missing values remain unchanged unless
 explicitly included in the rules. Nullable booleans and categorical columns are
 converted to object dtype when needed to hold the replacement values. Replay
 and scripts store the rules, not the resulting columns.
@@ -230,7 +235,7 @@ the `_log` provenance key cannot be deleted through this function. Only the
 target and key are recorded, not the deleted content. Replay reconstructs the
 preceding state and then repeats the deletion.
 
-Use `dt.assign` to record an explicit column assignment with supplied values:
+Use [`dt.assign`](../reference/dt/assign.md) to record an explicit column assignment with supplied values:
 
 ```python
 mdata = mm.dt.assign(mdata, "protein_group", protein_groups, modality="peptide")
@@ -247,23 +252,23 @@ are unsupported; AnnData's usual column storage restrictions still apply.
 
 The model follows the core concepts of [W3C PROV-DM](https://www.w3.org/TR/prov-dm/):
 
-| MSMU log entry | PROV interpretation |
+| `msmu` log entry | PROV interpretation |
 | --- | --- |
 | A function execution | Activity |
 | An observed input/output state | Entity |
 | Execution consuming an input entity | Usage (`used`) |
 | Successful execution producing an output state | Generation (`wasGeneratedBy`) |
-| MSMU software identity plus environment reference | Software agent and execution context |
+| `msmu` software identity plus environment reference | Software agent and execution context |
 
-The stored representation is MSMU's versioned JSON schema, not PROV-JSON/RDF interchange,
+The stored representation is `msmu`'s versioned JSON schema, not PROV-JSON/RDF interchange,
 and does not claim PROV constraint validation or FAIR certification. History and hashes
 support auditing observations. They do not reconstruct arbitrary pandas edits, store original
 data or prove computational reproducibility. Supported histories can be rerun with
-`mm.pv.replay` as described below.
+[`mm.pv.replay`](../reference/pv/replay.md) as described below.
 
 ## Replay
 
-`mm.pv.replay` reruns a single MuData chain from its original input files:
+[`mm.pv.replay`](../reference/pv/replay.md) reruns a single MuData chain from its original input files:
 
 ```python
 # The original mdata is not modified. The result contains newly recorded events.
@@ -287,12 +292,12 @@ per call. Source replacements only change paths, not the expected hashes. If a r
 source locations as data metadata, relocating a file can also change its output hash.
 
 Replay validates the complete event graph before executing any processing function. It resolves
-only public, decorated MSMU functions and never imports arbitrary function paths from the log.
+only public, decorated `msmu` functions and never imports arbitrary function paths from the log.
 Each root must be a file reader. Other calls take one direct MuData argument, or a
-`dt.concat` dictionary with string dataset names, and return one MuData. Parent links
+[`dt.concat`](../reference/dt/concat.md) dictionary with string dataset names, and return one MuData. Parent links
 determine execution order; parameter references bind inputs to their producing events.
-The deprecated `merge_mudata` alias warns and delegates to `dt.concat`; old logs using
-that name remain replayable and generate `mm.dt.concat` calls.
+The deprecated [`merge_mudata`](../reference/merge_mudata.md) alias warns and delegates to [`dt.concat`](../reference/dt/concat.md); old logs using
+that name remain replayable and generate [`mm.dt.concat`](../reference/dt/concat.md) calls.
 Shared ancestors execute once. Inputs used by multiple calls are copied to isolate branches,
 and intermediate results are released after their last consumer. This can require more memory
 than a linear workflow. Known gaps
@@ -301,19 +306,19 @@ the missing operation cannot be inferred from the history.
 
 Current limits:
 
-- Intermediate `read_h5mu` calls, other nested MuData arguments, non-MuData returns
-  (including `run_de`), and plotting calls are unsupported.
+- Intermediate [`read_h5mu`](../reference/read_h5mu.md) calls, other nested MuData arguments, non-MuData returns
+  (including [`run_de`](../reference/tl/run_de.md)), and plotting calls are unsupported.
 - Older linear histories without parameter references remain supported. Older merged
   histories require uniquely matching parent-output hashes; ambiguous inputs must be
   recorded again. A hash identifies content, not a stored copy of the data.
 - Data-valued arguments such as an in-memory SDRF DataFrame are not reconstructible;
   use a file-backed argument when recording a workflow intended for replay.
-  `dt.assign` explicitly captures its `values` argument and is an exception.
+  [`dt.assign`](../reference/dt/assign.md) explicitly captures its `values` argument and is an exception.
 - Basic values, mappings, lists and serialized dates/non-finite floats can be restored.
   Tuples and sets were normalized to lists by the logger; their original container type
   cannot be recovered. Callables and parameters marked non-replayable are rejected.
 - PCA and UMAP require an explicitly recorded integer `random_state` (PCA defaults to 0).
-- Environment differences are logged as MSMU warnings. Packages and source code are not restored;
+- Environment differences are logged as `msmu` warnings. Packages and source code are not restored;
   a dirty source snapshot cannot identify the exact original code. Hash agreement checks
   recorded content, not every aspect of computational reproducibility.
 
@@ -337,17 +342,17 @@ script = mm.pv.to_script(
 )
 ```
 
-Generated scripts enable hashing once at startup with `mm.pv.set_options(hashing=True)`,
+Generated scripts enable hashing once at startup with [`mm.pv.set_options(hashing=True)`](../reference/pv/set_options.md),
 including when `verify=False`; that flag only skips comparison with recorded hashes.
 The setting remains enabled in the execution context.
 
-`to_script` returns Python source text when `filename` is omitted. With `filename`,
+[`to_script`](../reference/pv/to_script.md) returns Python source text when `filename` is omitted. With `filename`,
 it writes the script, overwrites any existing destination, and returns `None`.
 It does not download inputs or execute the workflow. Original files need not exist until the script runs. The script
 omits recorded execution timestamps and hash durations. It
-contains explicit public MSMU calls with recorded defaults and leaves the final result
-in `mdata`. It requires MSMU and imports its internal replay/source helpers, so retain
-its matching MSMU version when sharing the script.
+contains explicit public `msmu` calls with recorded defaults and leaves the final result
+in `mdata`. It requires `msmu` and imports its internal replay/source helpers, so retain
+its matching `msmu` version when sharing the script.
 
 At execution, it warns about environment differences, verifies each source before
 reading, and checks each output using the new provenance event's hash. URL downloads
@@ -355,7 +360,7 @@ are shared with readers; output hashes are reused rather than computed twice. A 
 mismatch raises an exception and stops execution. Hashing remains enabled even
 on failure. Editing processing parameters may intentionally cause an output mismatch.
 
-The same workflow restrictions as `replay` apply, including rejection of known
+The same workflow restrictions as [`replay`](../reference/pv/replay.md) apply, including rejection of known
 unrecorded changes. For histories without hashes, explicitly use `verify=False` to
 generate calls without source/output hash checks. Environment checks still run.
 
@@ -400,7 +405,7 @@ These use [uv's requirements-file support](https://docs.astral.sh/uv/pip/compile
 and [conda's pip dependencies](https://docs.conda.io/projects/conda/en/stable/user-guide/tasks/manage-environments.html).
 
 By default, all environments referenced by the history must agree on Python,
-package versions, OS/architecture, and MSMU source. Differences only in numerical
+package versions, OS/architecture, and `msmu` source. Differences only in numerical
 or thread settings are preserved in comments. If installation environments differ,
 export rejects the ambiguous history and lists IDs for explicit selection:
 
@@ -412,7 +417,7 @@ text = mm.pv.to_env(log, environment_id="<recorded ID>")
 
 Selecting one environment does not make it sufficient for every step recorded in
 another environment. Reading with native `mudata.read_h5mu` avoids adding the current
-machine's environment as a new MSMU read event before export.
+machine's environment as a new `msmu` read event before export.
 
 **These exports are version specifications, not complete environment lockfiles.**
 The log does not capture package-index URLs, VCS/local/editable installation sources,
@@ -420,10 +425,10 @@ wheel hashes, conda channels/builds, or non-Python dependencies. The conda expor
 therefore uses pip for recorded Python distributions rather than guessing conda
 package names. Installing a pinned package requires it to be available from your
 configured sources on the target platform. In particular, a development/private
-MSMU build may need its matching source or wheel supplied separately.
+`msmu` build may need its matching source or wheel supplied separately.
 
-Recorded context, including MSMU commit/dirty status and runtime settings, is included
-as comments. Uncommitted MSMU changes emit a warning because version pins cannot
+Recorded context, including `msmu` commit/dirty status and runtime settings, is included
+as comments. Uncommitted `msmu` changes emit a warning because version pins cannot
 restore them. OS, native libraries, NumPy/thread settings and source edits must be
 handled separately. After preparing the environment and original inputs, use verified
 replay to check the recorded outputs; export alone does not establish reproducibility.
@@ -432,5 +437,5 @@ replay to check the recorded outputs; export alone does not establish reproducib
 
 `_log` contains `schema_version`, `head`, `events`, and `environments`. Events and environments
 are dictionaries from IDs to JSON strings. This avoids h5mu restrictions on heterogeneous
-lists, missing values and user parameter names. `get_log` decodes those strings on demand.
+lists, missing values and user parameter names. [`get_log`](../reference/pv/get_log.md) decodes those strings on demand.
 No write/load monkey-patches or additional file formats are required.
