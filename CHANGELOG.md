@@ -112,6 +112,8 @@ from git tags via setuptools-scm.
 
 ### Fixed
 
+- **The wheel contains only the `msmu` package.** Package discovery no longer includes the
+  repository's data, documentation, tests or local scratch files in the installable wheel.
 - **Tied PEPs receive the same target-decoy q-value.** Q-values are calculated at PEP-group
   boundaries, so equal-PEP rows no longer depend on their input order. Existing q-values and
   membership at a q-value cutoff can change.
