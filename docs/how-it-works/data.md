@@ -34,7 +34,13 @@ As a general AnnData object, each individual modality contains `.X`, `.var`, `.v
 - `.uns` is a dictionary-like structure to store unstructured annotations, such as decoy features pulled from search results.
 - `.layers` is a dictionary-like structure to store additional per-feature quantification matrices, such as imputed values. Some functions in `msmu` provide options to read from or write to `.layers`.
 
-![](../assets/fig1b.svg){ width="100%" }
+![AnnData stores one quantification matrix and its annotations; MuData groups PSM, peptide, and protein modalities.](../assets/anndata-mudata-structure.svg){ width="100%" }
+
+### Processing stages
+
+![Search results become PSM, peptide, and protein modalities as processing progresses.](../assets/mudata-processing-stages.svg){ width="100%" }
+
+*The raw, normalized, and batch-corrected layers in this schematic are optional snapshots. [`normalise`](../reference/pp/normalise.md) and [`correct_batch_effect`](../reference/pp/correct_batch_effect.md) update `.X` or a selected existing layer; they do not create those layers automatically.*
 
 ## Data Ingestion from DB search tools
 
