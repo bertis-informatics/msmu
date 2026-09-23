@@ -6,6 +6,8 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-23
+
 ### Added
 
 - **`normalise(method="pairwise_median")`** — between-sample normalisation that aligns
@@ -16,9 +18,32 @@ from git tags via setuptools-scm.
 - **`adata.uns["normalisation"]`** — every `normalise` call now records, per sample and block, the
   observed feature count, the applied shift and the observed-value median before and after; for
   `pairwise_median` also the pairwise median and shared-count matrices.
+- **Structured provenance and replay (`mm.pv`).** Supported calls now record parameters, input
+  lineage, execution environment and optional content hashes (enabled by default) in
+  `mdata.uns["_log"]`. `get_log` inspects the history, `replay` verifies supported file-backed
+  workflows, and `to_script` and `to_env` export scripts and environment version specifications.
+- **Recordable data operations (`mm.dt`).** `assign`, `map`, `replace` and `drop` record
+  table and metadata edits that can be replayed. `concat` combines two or more sample-aligned
+  `MuData` inputs while retaining each input's provenance.
+- **Explicit filter names.** `add_filter(name=...)` stores a stable name for a filter condition
+  and rejects reuse of that name for a different condition.
 
 ### Changed
 
+- **Provenance history uses `mdata.uns["_log"]` instead of `_cmd`.** **Breaking** for consumers
+  of the old history format: existing `_cmd` records are not migrated or replayed by `mm.pv`.
+- **Content hashes follow the fixed `msmu-v1` policy.** Floating-point values use 12
+  significant digits; file bytes, axes and non-floating values are hashed exactly. The public
+  option controls whether hashing is enabled, not the precision policy.
+- **`mm.merge_mudata` delegates to `mm.dt.concat` and warns on use.** The concat contract
+  requires at least two sample-aligned inputs; calls that previously passed one input need updating.
+- **`mm.io.write_pin` now requires a filename.** **Breaking** for callers that omitted it to
+  receive an in-memory DataFrame; the function writes a PIN file instead.
+- **Automatic matrix-filter names include their source and key.** **Breaking** for workflows
+  that select filters by the old generated names; use the new names or set an explicit `name`.
+- **Documentation and validation were rebuilt.** Public API reference links, installation,
+  tutorials and How it works guides now match the current package. PR CI checks a strict MkDocs
+  build and executes Quick Start; other notebooks render from saved outputs.
 - **A multiply modified peptidoform quantifies its site combination, not each site.** `to_ptm`
   gave a doubly phosphorylated peptide's value to both of its sites, so a site pooled singly and
   multiply modified peptidoforms and one measurement reached several sites. A multiply modified
@@ -87,6 +112,14 @@ from git tags via setuptools-scm.
 
 ### Fixed
 
+- **Tied PEPs receive the same target-decoy q-value.** Q-values are calculated at PEP-group
+  boundaries, so equal-PEP rows no longer depend on their input order. Existing q-values and
+  membership at a q-value cutoff can change.
+- **Missing sample-group labels are rejected before normalisation.**
+  `normalise(group_obs=...)` no longer silently processes incomplete groups.
+- **Filter masks and decoys stay consistent.** Missing source values do not pass comparisons;
+  unknown axes, missing requested filters and absent decoy conditions fail explicitly instead of
+  partially filtering the data.
 - **`apply_sdrf_to_obs(set_index=...)` carries the obs rename into `obsm`.** The obs filter that
   `add_filter` records in `obsm["filter"]` kept the old observation labels after the rename, and the
   next copy of the modality failed with "value.index does not match parent's obs names". That is
@@ -113,6 +146,8 @@ from git tags via setuptools-scm.
 
 ### Removed
 
+- **`msmu.setup_logger` is no longer exported from the package root.** **Breaking** for callers
+  importing it directly; default import-time console logging remains configured internally.
 - **`infer_protein(propagated_from=...)`.** It copied another dataset's `peptide_map` and
   `protein_map` onto the container, and raised if any peptide was missing from the copied map — so it
   only ever ran when the target held no peptide the source lacked, which in practice meant the same
@@ -302,6 +337,7 @@ metadata, one canonical accession form across readers, and sparse-in / sparse-ou
 - **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
 - **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
+[0.4.0]: https://github.com/bertis-informatics/msmu/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/bertis-informatics/msmu/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/bertis-informatics/msmu/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/bertis-informatics/msmu/compare/0.2.10...v0.3.0
