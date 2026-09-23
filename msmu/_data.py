@@ -18,6 +18,9 @@ def _column_table(mdata: MuData, path: str) -> pd.DataFrame:
     parts = path.split(".", 2)
     if path in ("obs", "var"):
         table = getattr(mdata, path)
+    elif path.startswith(("obsm.", "varm.")):
+        attribute, key = path.split(".", 1)
+        table = getattr(mdata, attribute)[key]
     elif len(parts) == 2 and parts[1] in ("obs", "var"):
         table = getattr(mdata[parts[0]], parts[1])
     elif len(parts) == 3 and parts[1] in ("obsm", "varm"):
@@ -44,7 +47,7 @@ def map(
     """Map source columns onto a target table in place, returning the same MuData.
 
     Table paths are ``obs``, ``var``, ``<modality>.obs/var``, or
-    ``<modality>.obsm/varm.<key>`` (DataFrames only). Index arguments name
+    ``[<modality>.]obsm/varm.<key>`` (DataFrames only). Index arguments name
     matching columns; None uses the table index without changing it.
     ``columns`` maps source column names to destination column names.
     Identical source key/value rows are collapsed; conflicting keys raise.
@@ -54,7 +57,7 @@ def map(
 
     Parameters:
         mdata: MuData to modify.
-        source: Source table path: `obs`, `var`, `<modality>.obs`, `<modality>.var`, or `<modality>.obsm.<key>`/`<modality>.varm.<key>` containing a DataFrame.
+        source: Source table path: `obs`, `var`, `<modality>.obs`, `<modality>.var`, or `[<modality>.]obsm/varm.<key>` containing a DataFrame.
         target: Destination table path using the same syntax.
         columns: Nonempty mapping from source column names to unique destination column names.
         source_index: Source matching column; `None` uses its index.
@@ -139,15 +142,17 @@ def replace(
 
 @log_provenance
 def drop(mdata: MuData, *, target: str, key: str) -> MuData:
-    """Delete an uns entry in place, recording only its location for replay.
+    """Delete a metadata entry or table column in place, recording its location for replay.
 
-    ``target`` is ``uns`` or ``<modality>.uns``. Missing keys raise KeyError,
-    just like ``del``. Returns the same MuData; provenance cannot be deleted.
+    ``target`` is ``uns``, ``obsm``, ``varm``, a modality-specific equivalent,
+    or a table path accepted by [`map`][msmu.dt.map]. A mapping target deletes
+    its ``key``; a table target deletes a column. Missing keys raise KeyError.
+    Returns the same MuData; provenance and global modality masks cannot be deleted.
 
     Parameters:
         mdata: MuData to modify.
-        target: `"uns"` or `"<modality>.uns"`; table columns are not supported.
-        key: Entry to delete. Missing entries raise KeyError; `_log` is protected.
+        target: Metadata mapping or table path.
+        key: Entry or column to delete. Missing keys raise KeyError; `_log` and global modality masks are protected.
 
     Returns:
         The same MuData, modified in place.
@@ -161,12 +166,15 @@ def drop(mdata: MuData, *, target: str, key: str) -> MuData:
     """
     if key == "_log":
         raise ValueError("Cannot delete provenance with drop")
-    if target == "uns":
-        container = mdata.uns
-    elif target.endswith(".uns"):
-        container = mdata[target[:-4]].uns
+    if target in ("obsm", "varm") and key in mdata.mod:
+        raise ValueError("Cannot delete a modality mask with drop")
+    if target in ("uns", "obsm", "varm"):
+        container = getattr(mdata, target)
+    elif target.endswith((".uns", ".obsm", ".varm")):
+        modality, attribute = target.rsplit(".", 1)
+        container = getattr(mdata[modality], attribute)
     else:
-        raise ValueError("target must be 'uns' or '<modality>.uns'")
+        container = _column_table(mdata, target)
     del container[key]
     return mdata
 

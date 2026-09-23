@@ -226,17 +226,27 @@ explicitly included in the rules. Nullable booleans and categorical columns are
 converted to object dtype when needed to hold the replacement values. Replay
 and scripts store the rules, not the resulting columns.
 
-Delete an unstructured metadata entry with a recorded location:
+Delete a metadata entry or a table column with a recorded location:
 
 ```python
 mdata = mm.dt.drop(mdata, target="psm.uns", key="decoy")
+mdata = mm.dt.drop(mdata, target="psm.var", key="temporary_note")
+mdata = mm.dt.drop(mdata, target="psm.obsm", key="X_umap")
+mdata = mm.dt.drop(mdata, target="psm.varm.search_result", key="temporary_score")
 ```
 
-This is equivalent to `del mdata["psm"].uns["decoy"]` and returns the same
-MuData. `target="uns"` addresses global metadata. Missing keys raise `KeyError`;
-the `_log` provenance key cannot be deleted through this function. Only the
-target and key are recorded, not the deleted content. Replay reconstructs the
-preceding state and then repeats the deletion.
+These calls delete, respectively, an `uns` entry, a `var` column, an `obsm`
+entry, and a column in a DataFrame stored in `varm`. They return the same MuData.
+`uns`, `obsm`, and `varm` address global mappings; `<modality>.uns/obsm/varm`
+address modality mappings. `obs`, `var`, `<modality>.obs/var`, and DataFrame
+paths such as `obsm.metrics` or `<modality>.varm.search_result` address columns.
+Missing keys raise `KeyError`; the `_log` provenance key and the modality masks
+stored in global `obsm`/`varm` cannot be deleted through this function. Only
+the target and key are recorded, not the deleted content. Replay reconstructs
+the preceding state and then repeats the deletion. To remove samples or
+features, use [`pp.apply_filter`](../reference/pp/apply_filter.md), which updates
+the aligned data axes. Deleting a column from an `obsm`/`varm` filter table does
+not remove separately stored filter definitions in `uns`.
 
 Use [`dt.assign`](../reference/dt/assign.md) to record an explicit column assignment with supplied values:
 
