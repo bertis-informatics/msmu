@@ -2,13 +2,13 @@
 
 ## Overview
 
-Differential Expression (DE) Analysis identifies proteins or peptides with significant abundance changes between experimental conditions. `msmu` exposes DE analysis through a single function, `mm.tl.run_de()`, with two complementary engines selected by `stat_method`: **limma moderated-t** (the default) — a parametric empirical-Bayes method that keeps power at the small sample sizes typical of proteomics and supports interactions and covariates — and an opt-in non-parametric **label-permutation test**. Both control the false discovery rate (FDR).
+Differential Expression (DE) Analysis identifies proteins or peptides with significant abundance changes between experimental conditions. `msmu` exposes DE analysis through a single function, [`mm.tl.run_de()`](../reference/tl/run_de.md), with two complementary engines selected by `stat_method`: **limma moderated-t** (the default) — a parametric empirical-Bayes method that keeps power at the small sample sizes typical of proteomics and supports interactions and covariates — and an opt-in non-parametric **label-permutation test**. Both control the false discovery rate (FDR).
 
-## `mm.tl.run_de()`
+## [`mm.tl.run_de()`](../reference/tl/run_de.md)
 
 The `stat_method` argument selects the engine. It defaults to **`limma`** — the moderated-t test described in [limma moderated-t](#limma_moderated-t) below — because at the small sample sizes common in proteomics a permutation null is degenerate (see the q-value floor note below). Passing `welch`, `student`, or `wilcoxon` instead runs a non-parametric **label-permutation test**, where p-values come from the distribution of test statistics obtained by permuting the group labels.
 
-> **The default engine changed.** `stat_method` previously defaulted to `welch` (permutation); it now defaults to `limma`. `run_de()` emits a one-time notice when limma runs — pass `stat_method` explicitly to state your choice.
+> **The default engine changed.** `stat_method` previously defaulted to `welch` (permutation); it now defaults to `limma`. [`run_de()`](../reference/tl/run_de.md) emits a one-time notice when limma runs — pass `stat_method` explicitly to state your choice.
 
 The engine sets the defaults for two things that used to be manual knobs:
 
@@ -19,7 +19,7 @@ The engine sets the defaults for two things that used to be manual knobs:
 
 Features below the threshold are **not dropped from the result** — they stay as rows with their descriptive columns filled (`repr_ctrl` / `repr_expr`, `pct_ctrl` / `pct_expr`) but with `p_value` and `q_value` set to `NaN`, since no test was run. In particular, **on/off features — present in one group and absent in the other — are reported this way rather than receiving a p-value**: workflows that test them do so by imputing the missing group, which `msmu` does not. Read them off the detection percentages `pct_ctrl` / `pct_expr` (e.g. `pct_ctrl == 0` with `pct_expr == 100`). Note that sorting or filtering the result by `p_value` / `q_value` moves these `NaN` rows to the end.
 
-See more details in the [`msmu.tl.run_de`](../../reference/tl/run_de/) and usage examples in the tutorial [`DE Analysis`](../../tutorials/dea/).
+See more details in the [`msmu.tl.run_de`](../reference/tl/run_de.md) and usage examples in the tutorial [`DE Analysis`](../tutorials/dea.ipynb).
 
 ```python
 de_res = mm.tl.run_de(
@@ -91,7 +91,7 @@ If the design has fewer distinct label splits than `n_resamples`, every split is
 
 `q-value` with `empirical` FDR is calculated by `E[FDR] = pi0 * E[FP] / E[TP]` referred to [Yang Xie et al., Bioinformatics, 2011.](https://academic.oup.com/bioinformatics/article/21/23/4280/194680) and [Storey et al., 2003](https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100).
 
-With very small groups the permutation null has few distinct label splits — only 20 for a 3-vs-3 comparison — and because the observed labelling is itself one of them, the empirical/BH q-value is floored (around `0.068` for 3-vs-3) regardless of effect size. **This is why `limma` is the default.** `run_de()` warns when a permutation design cannot reach `q < 0.05`; the floor drops below 0.05 by roughly 4-vs-4.
+With very small groups the permutation null has few distinct label splits — only 20 for a 3-vs-3 comparison — and because the observed labelling is itself one of them, the empirical/BH q-value is floored (around `0.068` for 3-vs-3) regardless of effect size. **This is why `limma` is the default.** [`run_de()`](../reference/tl/run_de.md) warns when a permutation design cannot reach `q < 0.05`; the floor drops below 0.05 by roughly 4-vs-4.
 
 ```python
 de_res = mm.tl.run_de(
