@@ -42,6 +42,16 @@ As a general AnnData object, each individual modality contains `.X`, `.var`, `.v
 
 *The raw, normalized, and batch-corrected layers in this schematic are optional snapshots. [`normalise`](../reference/pp/normalise.md) and [`correct_batch_effect`](../reference/pp/correct_batch_effect.md) update `.X` or a selected existing layer; they do not create those layers automatically.*
 
+Save the current `.X` before processing and restore it later from the named layer:
+
+```python
+mdata = mm.dt.save_layer(mdata, modality="peptide", layer="raw")
+mdata = mm.pp.log2_transform(mdata, modality="peptide")
+mdata = mm.dt.load_layer(mdata, modality="peptide", layer="raw")
+```
+
+`save_layer` copies `.X` into the layer without changing `.X`. An existing layer raises an error unless `overwrite=True` is passed. `load_layer` copies the layer into `.X` without changing the layer or reverting other annotations. Both work in place, preserve dense or sparse storage, and record provenance. Backed MuData is unsupported; reopen it in memory with `mm.read_h5mu(path)` first.
+
 ## Data Ingestion from DB search tools
 
 Although different search tools return result files with heterogenous formats, their contents can typically be organized into two main conceptual parts to construct peptide- and protein-level data.
@@ -191,7 +201,9 @@ all functions have the same mutation behavior. In particular, [`pp.to_ptm`](../r
 new PTM modality to the supplied MuData in place; copy first to preserve an
 unmodified input.
 
-[`dt.assign`](../reference/dt/assign.md), [`dt.map`](../reference/dt/map.md), [`dt.replace`](../reference/dt/replace.md), and [`dt.drop`](../reference/dt/drop.md) modify the supplied MuData **in place**
+[`dt.assign`](../reference/dt/assign.md), [`dt.map`](../reference/dt/map.md), [`dt.replace`](../reference/dt/replace.md),
+[`dt.drop`](../reference/dt/drop.md), [`dt.save_layer`](../reference/dt/save_layer.md), and
+[`dt.load_layer`](../reference/dt/load_layer.md) modify the supplied MuData **in place**
 and return that same object. Copy first when you need an independent branch:
 
 ```python
