@@ -30,6 +30,10 @@ Events are ordered by lineage sequence, then UTC start time (UUID breaks ties); 
 branches explicitly. Reading with [`mm.read_h5mu`](../reference/read_h5mu.md) preserves the stored history and adds a
 read event. Native `mudata.read_h5mu` preserves the stored history without adding an event.
 
+![A recorded function call checks input continuity and stores its event, environment, and optional hashes in MuData.](../assets/provenance-function-cycle.svg){ width="100%" }
+
+*The input and output hash steps apply when hashing is enabled.*
+
 ## Recorded information
 
 Each event includes a UUID, function name and qualified path, UTC start/end times, elapsed
@@ -367,6 +371,8 @@ generate calls without source/output hash checks. Environment checks still run.
 
 Export the Python/package versions embedded in a result without inspecting the
 current environment or running the analysis:
+
+![A MuData history can produce a replay script and environment specification for reproducing an analysis with its inputs.](../assets/provenance-reproduction.svg){ width="360" }
 
 ```python
 # uv-compatible requirements.txt:
