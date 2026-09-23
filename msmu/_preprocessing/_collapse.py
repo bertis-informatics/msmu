@@ -72,16 +72,16 @@ def collapse_obs(
     - When ``var`` rows are file-specific (e.g. DIA-NN psm where the var index is
       ``filename.Precursor.Id``), each ``(sample, var)`` cell still holds at most
       one non-NaN value, so this function only reduces the obs dimension; the actual
-      cross-fraction precursor aggregation happens later in ``to_peptide``.
+      cross-fraction precursor aggregation happens later in [`to_peptide`][msmu.pp.to_peptide].
     - When ``var`` rows are identity-based (e.g. DDA-LFQ peptide modality where the
       var index is the peptide identity), a single ``(sample, var)`` cell may collect
       values from multiple obs rows, and ``agg_method`` performs the real rollup.
 
     Workflow contexts:
         - DIA-NN fractionated: read → psm/precursor → ``collapse_obs`` →
-          ``to_peptide`` → ``to_protein``.
+          [`to_peptide`][msmu.pp.to_peptide] → [`to_protein`][msmu.pp.to_protein].
         - DDA-LFQ fractionated: read → psm + peptide → ``collapse_obs``
-          (peptide gets real sum) → ``to_protein``.
+          (peptide gets real sum) → [`to_protein`][msmu.pp.to_protein].
         - Any workflow with technical replicates: ``collapse_obs(agg_method="median")``
           early in the pipeline (typically before normalisation).
 
@@ -97,7 +97,7 @@ def collapse_obs(
         layer: Layer to aggregate. If None, ``.X`` is used.
         log_transformed: Whether the input quantification is in log2-space.
             Defaults to ``False`` because ``collapse_obs`` is typically called before
-            ``log2_transform`` (read → collapse → log2 → normalise → ...). When
+            [`log2_transform`][msmu.pp.log2_transform] (read → collapse → log2 → normalise → ...). When
             ``log_transformed=True`` is combined with ``agg_method="sum"``, the function
             internally converts back to linear space, sums, and re-applies log2
             (i.e. ``log2(sum(2^x))``) — the correct LFQ rollup for log2 input. Other
