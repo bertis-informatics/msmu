@@ -207,12 +207,12 @@ def to_protein(
     mdata: md.MuData,
     layer: str | None = None,
     agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = "median",
-    top_n: int | None = 3,
+    top_n: int | None = None,
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
     calculate_q: bool = True,
     _shared_peptide: Literal["discard"] = "discard",
 ) -> md.MuData:
-    """Summarise peptide-level data to protein-level data. By default, uses `top 3` peptides in their `median_intensity` and `unique` (_shared_peptide = "discard") per protein_group for quantification aggregation with median.
+    """Summarise peptide-level data to protein-level data. By default, uses every `unique` peptide (_shared_peptide = "discard") per protein_group for quantification aggregation with median; `top_n` with `rank_method` restricts the rollup to the top-ranked peptides.
 
     Parameters:
         mdata: MuData object containing Peptide-level data.
@@ -365,7 +365,7 @@ def to_ptm(
             (MaxQuant), ``["S[167]", "T[181]", "Y[243]"]`` (FragPipe, which writes the modified
             residue's total mass). If nothing matches, the error lists the tags the data contains.
         layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median_polish", which models a per-peptidoform effect and so is not perturbed when the set of peptidoforms supporting a site changes between samples; for a site backed by a single peptidoform it is identical to "median". "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply [`log2_transform`][msmu.pp.log2_transform] first).
+        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median_polish", which models a per-peptidoform effect and so is not perturbed when the set of peptidoforms supporting a site changes between samples; for a site backed by a single peptidoform it is identical to "median". A sample whose peptidoforms are all observed in that sample alone cannot be compared with the others and is left NaN. "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply [`log2_transform`][msmu.pp.log2_transform] first).
         top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
         rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
         multisite: What a peptidoform carrying the target modification on several residues
