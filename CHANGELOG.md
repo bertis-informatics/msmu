@@ -8,6 +8,12 @@ from git tags via setuptools-scm.
 
 ### Changed
 
+- **`import msmu` takes about a third of the time.** `umap-learn` and `inmoose` are imported when
+  `tl.umap`, `pp.correct_batch_effect(method="combat")` or the limma engine run, not when the package
+  is imported; on a laptop `import msmu` drops from about 5.7 s to 1.7 s. `polars`, a required
+  dependency, is imported at module level in the readers instead of inside each function, and SDRF
+  validation no longer describes `sdrf-pipelines` as an optional package -- it is a required
+  dependency, so the `ImportError` branch is gone.
 - **Median polish returns `NaN` where samples cannot be compared.** **Breaking** for values:
   `to_protein(agg_method="median_polish")` and `to_ptm` (its default rollup) now leave a sample
   `NaN` when none of the group's features observed in that sample is observed in at least one

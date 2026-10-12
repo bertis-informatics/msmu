@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from importlib import metadata
 from pathlib import Path
 
 import pandas as pd
@@ -23,13 +22,7 @@ def validate_sdrf_dataframe(
     if not isinstance(sdrf, pd.DataFrame):
         raise TypeError("sdrf must be a pandas DataFrame.")
 
-    try:
-        metadata.version("sdrf-pipelines")
-    except metadata.PackageNotFoundError as exc:
-        raise ImportError(
-            "SDRF validation requires the optional 'sdrf-pipelines' package. Install it to use validate_sdrf=True."
-        ) from exc
-
+    # Imported on use: sdrf-pipelines takes ~0.3 s to import and only validation needs it.
     from sdrf_pipelines.sdrf.schemas import SchemaRegistry, SchemaValidator
     from sdrf_pipelines.sdrf.sdrf import SDRFDataFrame
 

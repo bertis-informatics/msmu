@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 import pandas as pd
+import polars as pl
 
 from . import label_info
 from ._base_reader import SearchResultReader, SearchResultSettings
@@ -116,8 +117,6 @@ class FragPipeReader(SearchResultReader):
         column must first become ``"nan"`` (``fill_null("nan")``) to match. scan_num goes through
         int (``00123`` -> ``123``).
         """
-        import polars as pl
-
         # Fail loud on a Spectrum from which no scan number can be parsed (null, or not the expected
         # "file.scan.scan.charge" shape), the way the old pandas int(x.split(".")[1]) did -- otherwise
         # the polars split nulls filename/scan, the index float-promotes, and features are silently
@@ -192,7 +191,6 @@ class TmtFragPipeReader(FragPipeReader):
         # still carry their descriptor names -- avoids the old split's leak of renamed
         # identification cols (rt/calcmass/expmass/score) into quant. Re-indexed via
         # _make_unique_index (filename.scan_num) to align with the fresh feature frame.
-        import polars as pl
 
         non_quant_cols = set(self.desc_cols) | set(self._feature_rename_dict.keys())
         quant_cols = [c for c in raw_identification_df.columns if c not in non_quant_cols]

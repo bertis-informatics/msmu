@@ -123,6 +123,7 @@ def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     """
     global _directlfq_runtime_configured
 
+    # Imported on use: directlfq takes ~0.4 s to import and only this rollup needs it.
     import directlfq.config as directlfq_config
     import directlfq.protein_intensity_estimation as directlfq_estimation
 

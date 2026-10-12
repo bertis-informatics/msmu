@@ -279,7 +279,6 @@ def test_tools_validate_sdrf_dataframe_uses_schema_validator(monkeypatch):
             calls["skip_ontology"] = skip_ontology
             return []
 
-    monkeypatch.setattr(sdrf_tools.metadata, "version", lambda package: "0.0")
     monkeypatch.setattr(schemas, "SchemaRegistry", lambda: "registry")
     monkeypatch.setattr(schemas, "SchemaValidator", FakeValidator)
 
@@ -309,7 +308,6 @@ def test_tools_validate_sdrf_dataframe_raises_for_pipeline_errors(monkeypatch):
                 _FakeValidationError("warning only", logging.WARNING),
             ]
 
-    monkeypatch.setattr(sdrf_tools.metadata, "version", lambda package: "0.0")
     monkeypatch.setattr(schemas, "SchemaRegistry", lambda: object())
     monkeypatch.setattr(schemas, "SchemaValidator", FakeValidator)
 

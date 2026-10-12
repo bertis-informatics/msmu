@@ -4,6 +4,8 @@ import warnings
 
 import mudata as md
 
+from ._data import concat
+
 
 def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     """Deprecated alias of [`msmu.dt.concat`][msmu.dt.concat].
@@ -23,8 +25,6 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
         combined = mm.dt.concat({"batch_a": first, "batch_b": second})
         ```
     """
-    from ._data import concat
-
     warnings.warn(
         "merge_mudata is deprecated; use msmu.dt.concat instead.",
         DeprecationWarning,

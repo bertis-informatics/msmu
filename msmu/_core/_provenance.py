@@ -6,6 +6,7 @@ from copy import deepcopy
 import contextlib
 import datetime
 import functools
+from hashlib import sha256
 import inspect
 import json
 import logging
@@ -28,6 +29,11 @@ from scipy import sparse
 
 from ._hashing import ALGORITHM, HASH_POLICY, _validate_precision, compute_hash
 from ._sources import get_download_buffer, is_url, source_scope
+
+try:
+    from .._version import __commit_id__ as _SOURCE_COMMIT_ID
+except ImportError:  # _version.py is written by setuptools-scm at build time
+    _SOURCE_COMMIT_ID = None
 from ..logging_utils import get_logger, prune_closed_package_stream_handlers, prune_closed_stream_handlers
 
 _hashing = ContextVar("msmu_provenance_hashing", default=True)
@@ -396,11 +402,7 @@ def _base_environment():
         for dist in distributions()
         if dist.metadata["Name"]
     }
-    try:
-        from .._version import __commit_id__
-    except ImportError:
-        __commit_id__ = None
-    source = {"commit": __commit_id__ or "unavailable", "dirty": None}
+    source = {"commit": _SOURCE_COMMIT_ID or "unavailable", "dirty": None}
     root = Path(__file__).resolve().parents[2]
     if (root / ".git").exists():
         try:
@@ -609,8 +611,6 @@ def log_provenance(func=None, *, capture=()):
                     )
         environment = _environment()
         environment_json = _json(environment)
-        from hashlib import sha256
-
         env_id = sha256(environment_json.encode()).hexdigest()
         log["environments"][env_id] = environment_json
         event["environment_id"] = env_id

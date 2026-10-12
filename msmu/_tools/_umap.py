@@ -5,7 +5,6 @@ Module for performing UMAP dimensionality reduction on MuData objects, based on 
 import numpy as np
 import pandas as pd
 from mudata import MuData
-from umap import UMAP
 from typing import Any
 
 from .._utils._mudata import get_anndata_mod
@@ -138,7 +137,9 @@ def umap(
     if n_neighbors is None:
         n_neighbors = data.shape[0] - 1
 
-    # Calculate UMAP
+    # Imported on use: umap-learn takes ~3 s to import (numba compilation) and nothing else needs it.
+    from umap import UMAP
+
     umap = UMAP(
         n_neighbors=n_neighbors,
         n_components=n_components,
