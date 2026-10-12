@@ -140,6 +140,37 @@ def test_median_polish_is_the_default_rollup():
     assert inspect.signature(mm.pp.to_ptm).parameters["agg_method"].default == "median_polish"
 
 
+# Two peptidoforms of the same site P1|S5: the tryptic form and its missed-cleavage form.
+SITE_PEPTIDOFORMS = [
+    {"peptide": f"S{PHOSPHO}PGSPVLR", "stripped_peptide": "SPGSPVLR", "proteins": "P1", "count_psm": 5},
+    {"peptide": f"S{PHOSPHO}PGSPVLRK", "stripped_peptide": "SPGSPVLRK", "proteins": "P1", "count_psm": 2},
+]
+
+
+def test_site_value_follows_the_peptidoform_seen_in_both_samples():
+    """A peptidoform seen in one sample only sets no between-sample difference: the site's change
+    is the change of the peptidoform observed in both, as the default rollup promises."""
+    mdata = _make_peptide_mdata(SITE_PEPTIDOFORMS)
+    mdata["peptide"].X = np.array([[22.0, np.nan], [20.0, 19.0]])  # rows: s1, s2; cols: tryptic, missed
+
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+
+    site_values = result["phospho_site"][:, "P1|S5"].X.ravel()
+    assert not np.any(np.isnan(site_values))
+    np.testing.assert_allclose(site_values[1] - site_values[0], -2.0, atol=1e-8)
+
+
+def test_site_supported_by_different_peptidoforms_in_each_sample_is_not_compared():
+    """One peptidoform in s1 only, the other in s2 only: no peptidoform links the samples, so the
+    site cannot say whether it changed, and both values are NaN rather than a fabricated equality."""
+    mdata = _make_peptide_mdata(SITE_PEPTIDOFORMS)
+    mdata["peptide"].X = np.array([[20.0, np.nan], [np.nan, 19.0]])
+
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+
+    assert np.all(np.isnan(result["phospho_site"][:, "P1|S5"].X))
+
+
 def _captured_msmu_warnings() -> tuple[logging.Handler, list[logging.LogRecord]]:
     """msmu's package logger sets propagate=False, so pytest's caplog (a root handler) sees nothing.
 

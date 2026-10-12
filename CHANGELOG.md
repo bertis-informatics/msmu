@@ -6,6 +6,30 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+### Changed
+
+- **Median polish returns `NaN` where samples cannot be compared.** **Breaking** for values:
+  `to_protein(agg_method="median_polish")` and `to_ptm` (its default rollup) now leave a sample
+  `NaN` when none of the group's features observed in that sample is observed in at least one
+  other sample, and leave every sample `NaN` when the observed samples split into groups that
+  share no feature. Any two non-`NaN` values of a feature are therefore on one common scale;
+  previously such samples were placed on the group's overall level, which reads as "unchanged".
+  Groups whose every feature is observed in at least two samples are unaffected.
+- **`to_protein` uses every unique peptide by default.** **Breaking** for callers that relied on
+  the implicit `top_n=3`: pass `top_n=3` to keep the cut. The docstring already stated `None`;
+  the default now matches it. A top-N cut ranks on a `NaN`-skipping median and so favours
+  peptides observed in few samples, which are the ones median polish cannot compare.
+
+### Fixed
+
+- **Median polish no longer flattens the difference between samples when most peptides are
+  observed in one sample.** A peptide observed in a single sample has a zero residual by
+  construction and used to vote "no difference" in that sample's column median; with such
+  peptides in the majority (e.g. 1 vs 1 LFQ without match-between-runs) both samples collapsed
+  onto the overall level and the protein reported a log2 fold change of exactly 0. Those
+  peptides now set the protein level only; the between-sample difference comes from the peptides
+  observed in more than one sample.
+
 ## [0.4.0] - 2026-09-23
 
 ### Added
