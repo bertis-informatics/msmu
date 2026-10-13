@@ -45,7 +45,10 @@ from git tags via setuptools-scm.
   between samples are unchanged, so differential expression is unaffected; within a sample the values
   of different proteins are now on one scale. Before, a protein's level was that of its median
   peptide and did not grow with the number of peptides: on real data a protein with 20-49 peptides
-  sat about 5 log2 units below its summed intensity while a one-peptide protein sat on it.
+  sat about 5 log2 units below its summed intensity while a one-peptide protein sat on it. Because
+  the shift differs between proteins and the proteins quantified differ between samples, a
+  normalisation applied at the protein level after the rollup gives different sample offsets than
+  before; normalising at the peptide level before the rollup, as recommended, is unaffected.
 - **`to_protein` uses every unique peptide by default.** **Breaking** for callers that relied on
   the implicit `top_n=3`: pass `top_n=3` to keep the cut. The docstring already stated `None`;
   the default now matches it. A top-N cut ranks on a `NaN`-skipping median and so favours
