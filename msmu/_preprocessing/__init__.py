@@ -1,5 +1,6 @@
 from ._filter import add_filter, apply_filter
 from ._infer_protein import infer_protein
+from ._missingness import calculate_missingness
 from ._summarise import to_peptide, to_protein, to_ptm
 from ._normalise import (
     log2_transform,
@@ -16,6 +17,7 @@ from ._tmt import split_tmt
 __all__ = [
     "add_filter",
     "apply_filter",
+    "calculate_missingness",
     "add_meta",
     "apply_sdrf_to_obs",
     "attach_sdrf",
