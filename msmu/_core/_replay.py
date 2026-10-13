@@ -403,7 +403,7 @@ def to_script(
         print(script)
         ```
     """
-    import msmu as mm
+    import msmu as mm  # the public namespace; at module top this would import the package into itself
 
     if not isinstance(verify, bool):
         raise TypeError("verify must be a bool")

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import polars as pl
 
 from ._base_reader import SearchResultReader, SearchResultSettings
 from .._utils.fasta import parse_uniprot_accession_group
@@ -75,8 +76,6 @@ class SageReader(SearchResultReader):
           accession parse   per-group fn via ``replace_strict`` over UNIQUE groups (dedup)
           filename strip    ``Path(x).name.rsplit(".",1)[0]`` == ``split("/").list.last().replace(r"\\.[^.]*$", "")``
         """
-        import polars as pl
-
         # Fail loud on a scannr with no "scan=<number>" token (e.g. a non-Thermo instrument), the
         # way the old pandas int(...) did -- otherwise the polars extract nulls the scan, the index
         # float-promotes, and every feature is silently dropped at the ident/quant intersection.
@@ -148,8 +147,6 @@ class TmtSageReader(SageReader):
         so the downstream obs rename / replace(0, NaN) / build_mudata are unchanged) and keep the
         tmt columns.
         """
-        import polars as pl
-
         tmt_cols = [col for col in quantification_df.columns if col.startswith("tmt_")]
         return (
             quantification_df.select(

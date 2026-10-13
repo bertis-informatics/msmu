@@ -190,6 +190,7 @@ class DeaResult:
                 logger.error(message)
                 raise ValueError(message)
 
+        # Plotting goes through the public facade, imported on use because the package root imports this module.
         from .. import pl
 
         return pl.plot_volcano(

@@ -8,6 +8,7 @@ import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
+import polars as pl
 
 # from pyteomics import mzid
 
@@ -133,8 +134,6 @@ class SearchResultDataFrameConverter:
 
         Returns a tuple of the file path (``None`` for a DataFrame input) and the polars frame.
         """
-        import polars as pl
-
         if isinstance(file_path, pd.DataFrame):
             return None, pl.from_pandas(file_path)
 
@@ -164,8 +163,6 @@ class SearchResultDataFrameConverter:
         concat: multi-file inputs with an optional column (e.g. DIA-NN with/without Decoy) merge
         instead of raising the schema-mismatch error ``vertical_relaxed`` would.
         """
-        import polars as pl
-
         results = [self.__class__._read_file(fp) for fp in file_paths]
         frames = [result[1] for result in results]
         merged_df = pl.concat(frames, how="diagonal_relaxed") if len(frames) > 1 else frames[0]

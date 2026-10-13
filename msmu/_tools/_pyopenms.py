@@ -20,6 +20,13 @@ if TYPE_CHECKING:
     import pyopenms as oms
 
 
+def _load_pyopenms():
+    """Import pyopenms on use: it takes ~2.5 s to import and only the purity tools need it."""
+    import pyopenms as oms
+
+    return oms
+
+
 class PurityResult:
     def __init__(self, purity: float, scan_num: int, filename: str):
         self.filename: list[str] = filename
@@ -57,6 +64,7 @@ class PurityResult:
         return purity_mdata
 
     def hist(self) -> go.Figure:
+        # Plotting goes through the public facade, imported on use because the package root imports this module.
         from .. import pl
 
         return pl.plot_var(
@@ -99,7 +107,7 @@ class PrecursorPurityCalculator:
     """
 
     def __init__(self, tolerance: float = 20, unit_ppm: bool = True):
-        import pyopenms as oms
+        oms = _load_pyopenms()
 
         self._tolerance = tolerance
         self._unit_ppm = unit_ppm
@@ -189,7 +197,7 @@ class PrecursorPurityCalculator:
 
     @staticmethod
     def _import_mzml(mzml_path: str | Path) -> "oms.MSExperiment":
-        import pyopenms as oms
+        oms = _load_pyopenms()
 
         exp: oms.MSExperiment = oms.MSExperiment()
         oms.MzMLFile().load(str(mzml_path), exp)
@@ -225,7 +233,7 @@ class PrecursorPurityCalculator:
         return ms1_spectrum
 
     def _calculate_precursor_isolation_purity(self, ms2_index) -> float:
-        import pyopenms as oms
+        oms = _load_pyopenms()
 
         precursor = self.exp[ms2_index].getPrecursors()[0]
 

@@ -1,5 +1,6 @@
 from pathlib import Path
 import pandas as pd
+import polars as pl
 
 from ._base_reader import (
     SearchResultReader,
@@ -16,8 +17,6 @@ class MaxQuantDataFrameConverter(SearchResultDataFrameConverter):
 
     @staticmethod
     def _read_file(file_path):
-        import polars as pl
-
         # The base reader is polars-only (files -> native polars, a DataFrame input -> from_pandas).
         # fill_null(False) keeps a row whose Type is null: polars ~is_in(...) yields null for a null
         # Type and filter would drop it, where pandas ~isin keeps NaN rows.
@@ -92,8 +91,6 @@ class MaxQuantReader(SearchResultReader):
         engine annotation outranks re-deriving one from the accession string -- so the parser is
         used here only to bring accessions onto the canonical form the other readers emit.
         """
-        import polars as pl
-
         is_decoy = (pl.col("Reverse") == "+").fill_null(False)
         # Accessions are parsed off the resolved column (decoy rows take a different source), so
         # the dedup that every other reader does over distinct groups needs it materialised first.
@@ -131,7 +128,6 @@ class MaxTmtReader(MaxQuantReader):
         # Same "Reporter intensity corrected *" channels as the old split, but sourced from
         # the raw frame and re-indexed via _make_unique_index (filename.scan_num) so it
         # aligns with the fresh feature frame.
-        import polars as pl
 
         reporter_cols = [c for c in raw_identification_df.columns if c.startswith("Reporter intensity corrected")]
         # Build the index through the SAME _make_unique_index the identification frame uses
@@ -181,7 +177,6 @@ class MaxLfqReader(MaxQuantReader):
         # to peptide x filename. Sourced from the raw frame -- "Modified sequence"/"Raw file"
         # are the raw names of the feature frame's "peptide"/"filename", so the result matches
         # the old split (which pivoted the normalised frame).
-        import polars as pl
 
         pivoted = (
             # Drop null group keys before the pivot: pandas pivot_table silently drops rows whose

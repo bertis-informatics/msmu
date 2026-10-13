@@ -1,5 +1,6 @@
 from pathlib import Path
 import pandas as pd
+import polars as pl
 import numpy as np
 import scipy.sparse as sp
 
@@ -118,8 +119,6 @@ class DiannReader(SearchResultReader):
         equivalent ``count("[KR]") - count("[KR]P")``; accession parsing is deduplicated via
         ``replace_strict`` over unique protein-id strings.
         """
-        import polars as pl
-
         # mbr / decoy flags computed on the polars frame (they select the q-value column to rename).
         # Cast Lib.Q.Value before summing: a non-MBR run can leave it entirely empty, which polars
         # types as String (nothing to infer) and would crash .sum(); cast-to-float sums all-null to
