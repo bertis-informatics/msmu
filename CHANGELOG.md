@@ -38,6 +38,14 @@ from git tags via setuptools-scm.
   those of `medpolish` on the features observed in more than one sample; previously such samples
   were placed on the group's overall level, which reads as "unchanged". Groups whose every
   feature is observed in at least two samples are unaffected.
+- **Median polish anchors the protein level to the summed peptide intensity.** **Breaking** for
+  values: the profile of a protein (or PTM site) from `agg_method="median_polish"` is shifted by one
+  constant so that the sum of its linear values equals the sum of its peptides' linear values -- the
+  level convention of MaxLFQ and DirectLFQ (`agg_method="directlfq"` already followed it). Differences
+  between samples are unchanged, so differential expression is unaffected; within a sample the values
+  of different proteins are now on one scale. Before, a protein's level was that of its median
+  peptide and did not grow with the number of peptides: on real data a protein with 20-49 peptides
+  sat about 5 log2 units below its summed intensity while a one-peptide protein sat on it.
 - **`to_protein` uses every unique peptide by default.** **Breaking** for callers that relied on
   the implicit `top_n=3`: pass `top_n=3` to keep the cut. The docstring already stated `None`;
   the default now matches it. A top-N cut ranks on a `NaN`-skipping median and so favours
