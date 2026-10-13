@@ -38,14 +38,16 @@ from git tags via setuptools-scm.
   those of `medpolish` on the features observed in more than one sample; previously such samples
   were placed on the group's overall level, which reads as "unchanged". Groups whose every
   feature is observed in at least two samples are unaffected.
-- **Median polish anchors the protein level to the summed peptide intensity.** **Breaking** for
-  values: the profile of a protein (or PTM site) from `agg_method="median_polish"` is shifted by one
-  constant so that the sum of its linear values equals the sum of its peptides' linear values -- the
-  level convention of MaxLFQ and DirectLFQ (`agg_method="directlfq"` already followed it). Differences
-  between samples are unchanged, so differential expression is unaffected; within a sample the values
-  of different proteins are now on one scale. Before, a protein's level was that of its median
-  peptide and did not grow with the number of peptides: on real data a protein with 20-49 peptides
-  sat about 5 log2 units below its summed intensity while a one-peptide protein sat on it. Because
+- **Median polish anchors the protein level to the fitted total peptide intensity.** **Breaking**
+  for values: the profile of a protein (or PTM site) from `agg_method="median_polish"` is shifted by
+  one constant so that each value is the log2 of the sum, over the protein's peptides, of the
+  intensities the additive model fits in that sample -- the total-intensity level convention of
+  MaxLFQ and DirectLFQ (`agg_method="directlfq"` already followed it), computed from the model so
+  that it does not depend on which cells are missing. Differences between samples are unchanged, so
+  differential expression is unaffected. Before, the level was Tukey's `overall`, the median
+  peptide's level, which does not grow with the number of peptides. The level is a scale convention
+  for comparing samples, not a molar ranking: within a sample a protein's value grows with its
+  number of peptides, so ranking proteins by amount needs a size correction such as iBAQ. Because
   the shift differs between proteins and the proteins quantified differ between samples, a
   normalisation applied at the protein level after the rollup gives different sample offsets than
   before; normalising at the peptide level before the rollup, as recommended, is unaffected.

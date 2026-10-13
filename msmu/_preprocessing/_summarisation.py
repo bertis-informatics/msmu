@@ -264,35 +264,37 @@ def _comparable_sample_mask(comparable_observed_mask: np.ndarray) -> np.ndarray:
     return linked_sample_mask & (sample_components == largest_component)
 
 
-def _anchor_profile_to_summed_intensity(profile: np.ndarray, feature_by_sample_matrix: np.ndarray) -> np.ndarray:
-    """Shift a log2 profile by one constant so that its summed linear intensity equals the block's.
+def _anchor_profile_to_fitted_total_intensity(profile: np.ndarray, row_effects: np.ndarray) -> np.ndarray:
+    """Shift a log2 profile so that each value is the log2 of the group's fitted total intensity.
 
-    Median polish fixes the level of a profile by convention (the median row effect is zero), so
-    the level is that of the group's median feature and does not grow with the number of
-    features: within a sample, a protein quantified by twenty peptides sits several log2 units
-    below its summed intensity while a one-peptide protein sits on it. The summed-intensity
-    convention of MaxLFQ (Cox et al. 2014) and DirectLFQ (Ammar et al. 2023) puts the levels of
-    different groups on one scale: ``sum(2 ** profile) == nansum(2 ** feature_by_sample_matrix)``.
-    The shift is one constant per group, so the differences between samples are unchanged.
+    ``profile[j]`` is ``overall + col_effect[j]``, and the additive model places feature ``i`` at
+    ``profile[j] + row_effect[i]`` in sample ``j``; the group's fitted total in that sample is
+    therefore ``sum_i 2 ** (profile[j] + row_effect[i])`` and the shift is
+    ``log2(sum_i 2 ** row_effect[i])``, one constant per group. Fitted rather than observed
+    intensities, so the level does not depend on which cells happen to be missing (a sum over the
+    observed cells falls by about log2 of the observed fraction, which penalises sparse groups).
+    Tukey's convention (median row effect zero) would put the level at the median feature's, which
+    does not grow with the number of features; this is the total-intensity convention of MaxLFQ
+    (Cox et al. 2014) and DirectLFQ (Ammar et al. 2023), computed from the model. The shift is one
+    constant per group, so the differences between samples are unchanged. The level serves the
+    comparison between samples: within a sample it scales with the number of features, so ranking
+    groups by molar amount needs a size correction (iBAQ, or a mean in place of the sum).
 
     Args:
-        profile (np.ndarray): 1D log2 estimates, one per sample column of the block.
-        feature_by_sample_matrix (np.ndarray): 2D log2 block ``(n_features, n_samples)`` the
-            profile was fitted to; NaN marks missing values.
+        profile (np.ndarray): 1D log2 estimates ``overall + col_effect``, one per sample.
+        row_effects (np.ndarray): 1D fitted feature (row) effects of every feature of the group.
 
     Returns:
-        np.ndarray: the shifted profile. A profile with no finite value is returned unchanged.
+        np.ndarray: the shifted profile.
     """
-    if not np.isfinite(profile).any():
-        return profile
-    return profile + (_log2_of_summed_exp2(feature_by_sample_matrix) - _log2_of_summed_exp2(profile))
+    return profile + _log2_of_summed_exp2(row_effects)
 
 
 def _log2_of_summed_exp2(log2_values: np.ndarray) -> float:
     """``log2(nansum(2 ** log2_values))`` computed around the maximum so that ``2 ** x`` cannot overflow.
 
     Linear intensities mistakenly passed to an additive rollup are warned about elsewhere; here they
-    must not turn the anchor into ``inf / inf``.
+    must not turn the anchor into ``inf``.
     """
     finite_values = log2_values[np.isfinite(log2_values)]
     if finite_values.size == 0:
@@ -306,9 +308,11 @@ def _polish_comparable_samples(feature_by_sample_matrix: np.ndarray) -> np.ndarr
 
     Every sample has at least one observation in a comparable feature and every feature is observed
     somewhere, so no median is taken over an empty slice. The sweeps run on the comparable features
-    alone, so the between-sample differences are those of a polish of those features. The level is
-    then anchored to the summed intensity of every observed cell, so a feature observed in a single
-    sample contributes to the level without a vote in the column medians.
+    alone, so the between-sample differences are those of a polish of those features. A feature
+    observed in a single sample is then fitted exactly -- its row effect is what remains of its value
+    once the level and its sample's effect are removed -- and the level is anchored to the fitted
+    total intensity over all features, so such a feature contributes to the level without a vote in
+    the column medians.
     """
     comparable_feature_mask = _comparable_feature_mask(~np.isnan(feature_by_sample_matrix))
     # Boolean indexing returns a fresh writable copy, so the sweeps mutate in place safely.
@@ -347,7 +351,12 @@ def _polish_comparable_samples(feature_by_sample_matrix: np.ndarray) -> np.ndarr
             break
         previous_residual_sum = current_residual_sum
 
-    return _anchor_profile_to_summed_intensity(overall_effect + col_effects, feature_by_sample_matrix)
+    # Each single-sample feature holds exactly one observation, so its row effect is that value less
+    # the fitted level and sample effect; ``nansum`` over the row picks out that one term.
+    single_sample_values = feature_by_sample_matrix[~comparable_feature_mask]
+    single_sample_row_effects = np.nansum(single_sample_values - (overall_effect + col_effects), axis=1)
+    all_row_effects = np.concatenate([row_effects, single_sample_row_effects])
+    return _anchor_profile_to_fitted_total_intensity(overall_effect + col_effects, all_row_effects)
 
 
 def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
@@ -356,10 +365,12 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     Median polish fits the additive model ``value[feature, sample] = overall +
     row_effect[feature] + col_effect[sample] + residual`` by iteratively sweeping row
     and column medians out of the matrix. The rollup estimate for each sample is
-    ``overall + col_effect[sample]`` shifted by one constant per group so that the summed linear
-    intensity of the estimates equals that of the observed cells -- the level convention of MaxLFQ
-    and DirectLFQ, which puts the levels of different groups on one scale (Tukey's ``overall`` is
-    the median feature's level and does not grow with the number of features).
+    ``overall + col_effect[sample]`` shifted by one constant per group so that each estimate is the
+    log2 of the group's fitted total intensity, the sum over features of the intensities the
+    additive model fits in that sample -- the total-intensity level convention of MaxLFQ and
+    DirectLFQ, computed from the model so that it does not depend on which cells are missing
+    (Tukey's ``overall`` is the median feature's level and does not grow with the number of
+    features). The level is a scale convention for comparing samples, not a molar ranking of groups.
 
     Convergence follows R's ``stats::medpolish`` (MSstats' summarisation): iterate until the
     relative change in the sum of absolute residuals falls below
@@ -379,8 +390,8 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
 
     Comparability: an estimate is returned only where it is on the same scale as the other
     returned estimates, so that any two non-NaN values of the result can be compared directly.
-    A feature observed in a single sample still contributes to the group level through the
-    summed intensity, but it is left out of the column medians: its residual is zero by
+    A feature observed in a single sample still contributes to the group level through its
+    fitted row effect, but it is left out of the column medians: its residual is zero by
     construction and would vote "no difference" for that sample, which with enough such features
     pins every sample to the same value. A sample with no feature observed in at least ``MIN_COMPARABLE_OBSERVATION_COUNT``
     samples has nothing to compare it with and yields ``NaN``; when the remaining samples split
@@ -390,8 +401,8 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     their between-sample differences equal those of ``medpolish`` on the features observed in more
     than one sample. A group observed in one sample only keeps that sample's summed intensity as
     its level. On a matrix where every feature is observed in at least two samples the
-    between-sample differences match ``medpolish``; the level is the summed intensity rather than
-    ``medpolish``'s ``overall``.
+    between-sample differences match ``medpolish``; the level is the fitted total intensity rather
+    than ``medpolish``'s ``overall``.
 
     Args:
         feature_by_sample_matrix (np.ndarray): 2D array of log-space intensities with

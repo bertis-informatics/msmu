@@ -66,8 +66,10 @@ def test_median_polish_additive_matrix_recovers_column_effects():
 
     estimates = _median_polish(matrix)
 
-    # The profile is the column effects up to one constant, which the summed intensity fixes.
-    np.testing.assert_allclose(estimates - estimates[0], col_effects - col_effects[0], atol=1e-8)
+    # The profile is the column effects up to one constant: the log2 fitted total over the features,
+    # which on an exactly additive matrix is the observed total.
+    expected = overall + col_effects + np.log2(np.sum(2.0**row_effects))
+    np.testing.assert_allclose(estimates, expected, atol=1e-8)
     np.testing.assert_allclose(np.sum(2.0**estimates), np.sum(2.0**matrix), rtol=1e-10)
 
 
@@ -162,13 +164,12 @@ def test_median_polish_all_missing_matrix_is_all_nan():
 def test_median_polish_matches_r_medpolish_when_every_feature_is_shared():
     # R: medpolish(m, eps=1e-4, maxiter=10, na.rm=TRUE); overall + col. Every row is observed in at
     # least two samples and every sample is linked, so the comparability rules change nothing. The
-    # between-sample differences are medpolish's; the level is anchored to the summed intensity
+    # between-sample differences are medpolish's; the level is anchored to the fitted total intensity
     # instead of medpolish's overall (BID-334), so the two are compared up to one constant.
     complete = np.array([[20, 21, 22], [23, 25, 24], [19, 20, 22], [24, 22, 21]], dtype=float)
     r_complete = np.array([20.5, 21.5, 22.0])
     estimates = _median_polish(complete)
     np.testing.assert_allclose(estimates - estimates[0], r_complete - r_complete[0], atol=1e-10)
-    np.testing.assert_allclose(np.sum(2.0**estimates), np.sum(2.0**complete), rtol=1e-10)
 
     with_gaps = np.array(
         [[20, 21, np.nan], [23, np.nan, 24], [np.nan, 20, 22], [24, 22, 21]],
@@ -177,7 +178,6 @@ def test_median_polish_matches_r_medpolish_when_every_feature_is_shared():
     r_with_gaps = np.array([20.875, 21.375, 21.875])
     estimates = _median_polish(with_gaps)
     np.testing.assert_allclose(estimates - estimates[0], r_with_gaps - r_with_gaps[0], atol=1e-10)
-    np.testing.assert_allclose(np.sum(2.0**estimates), np.nansum(2.0**with_gaps), rtol=1e-10)
 
 
 def test_median_polish_features_seen_in_one_sample_do_not_vote_on_the_difference():
@@ -185,15 +185,14 @@ def test_median_polish_features_seen_in_one_sample_do_not_vote_on_the_difference
     # and used to vote "no difference" in that sample's column median. With such peptides in the
     # majority, both samples collapsed onto the overall level and the protein read as unchanged.
     # The difference must come from the shared peptides alone; the single-sample peptides enter the
-    # level (the summed intensity) only.
+    # level only. Every peptide here sits exactly on its sample's level (row effect 0), so the fitted
+    # total is nine peptides at the level: [22, 18] + log2(9).
     shared = [[22.0, 18.0]] * 3
     wt_only = [[22.0, np.nan]] * 5
     ko_only = [[np.nan, 18.0]]
-    matrix = np.array(shared + wt_only + ko_only)
-    estimates = _median_polish(matrix)
+    estimates = _median_polish(np.array(shared + wt_only + ko_only))
 
-    np.testing.assert_allclose(estimates[0] - estimates[1], 4.0, atol=1e-8)
-    np.testing.assert_allclose(np.sum(2.0**estimates), np.nansum(2.0**matrix), rtol=1e-10)
+    np.testing.assert_allclose(estimates, np.array([22.0, 18.0]) + np.log2(9), atol=1e-8)
 
 
 def test_median_polish_difference_is_the_median_shared_peptide_ratio():
@@ -294,15 +293,23 @@ def test_median_polish_groups_tied_for_largest_are_all_nan():
     assert np.all(np.isnan(_median_polish(matrix)))
 
 
-def test_median_polish_level_is_the_summed_intensity_of_the_observed_cells():
+def test_median_polish_level_is_the_fitted_total_and_does_not_depend_on_missing_cells():
     # Regression (BID-334): the level used to be Tukey's ``overall`` -- the median peptide -- which
-    # does not grow with the number of peptides, so within a sample a peptide-rich protein sat
-    # several log2 units below its summed intensity while a one-peptide protein sat on it. The level
-    # is now the summed intensity, as in MaxLFQ and DirectLFQ.
-    block = np.array([[20.0, 21.0, 22.0], [23.0, 24.0, 25.0], [19.0, np.nan, 21.0]])
-    estimates = _median_polish(block)
+    # does not grow with the number of peptides. A first fix summed the *observed* cells, which falls
+    # by about log2 of the observed fraction and so penalised sparse proteins. The level is the sum of
+    # the *fitted* peptide intensities: on an exactly additive block it equals the observed total, and
+    # blanking cells does not move it.
+    # Column effects symmetric around 0 so that the sweeps converge exactly with a gap per row (the
+    # median of any three of them is still 0); a sum over the observed 12 of 16 cells would sit
+    # log2(16 / 12) = 0.415 lower.
+    overall, row_effects, col_effects = 20.0, np.array([0.0, 1.5, -1.0, 2.0]), np.array([-1.0, 0.0, 0.0, 1.0])
+    complete = overall + row_effects[:, None] + col_effects[None, :]
+    with_gaps = complete.copy()
+    with_gaps[[0, 1, 2, 3], [1, 3, 0, 2]] = np.nan
 
-    np.testing.assert_allclose(np.sum(2.0**estimates), np.nansum(2.0**block), rtol=1e-10)
+    complete_estimates = _median_polish(complete)
+    np.testing.assert_allclose(np.sum(2.0**complete_estimates), np.sum(2.0**complete), rtol=1e-10)
+    np.testing.assert_allclose(_median_polish(with_gaps), complete_estimates, atol=1e-8)
 
 
 def test_median_polish_level_grows_with_the_number_of_peptides():
@@ -322,22 +329,13 @@ def test_median_polish_single_sample_peptides_move_the_level_but_not_the_differe
     assert np.all(extended > base)
 
 
-def test_median_polish_anchor_ignores_the_samples_left_nan():
-    # The isolated sample's only peptide is not part of the comparable block, so it must not inflate
-    # the level of the samples that are.
-    linked = np.array([[22.0, 20.0, np.nan], [23.0, 21.0, np.nan]])
-    isolated = np.array([[np.nan, np.nan, 30.0]])
-    estimates = _median_polish(np.vstack([linked, isolated]))
-
-    assert np.isnan(estimates[2])
-    np.testing.assert_allclose(np.nansum(2.0**estimates), np.nansum(2.0**linked), rtol=1e-10)
-
-
-def test_median_polish_and_directlfq_share_the_summed_intensity_level():
+def test_median_polish_and_directlfq_share_the_total_intensity_level():
+    # Both follow the total-intensity convention; on an exactly additive block (no residuals) the
+    # fitted total of median polish and the observed total directlfq rescales to are the same number.
     pytest.importorskip("directlfq")
-    block = np.array([[20.0, 21.0, 22.0], [23.0, 24.0, 25.0], [19.0, 20.5, 21.0]])
+    block = 20.0 + np.array([0.0, 1.5, -1.0])[:, None] + np.array([0.0, 0.5, 1.0])[None, :]
 
-    np.testing.assert_allclose(np.sum(2.0 ** _median_polish(block)), np.sum(2.0 ** _directlfq_rollup(block)), rtol=1e-6)
+    np.testing.assert_allclose(_median_polish(block), _directlfq_rollup(block), atol=1e-6)
 
 
 def test_aggregator_quantification_median_polish():
