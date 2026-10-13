@@ -90,6 +90,14 @@ def add_filter(
     if not isinstance(column_values, pd.Series):
         raise ValueError(f"Column '{column}' must identify a single column in {modality}.{on}")
 
+    has_decoy = mstatus.__getattribute__(modality).has_decoy
+    if on == "var" and has_decoy and column not in adata.uns["decoy"].columns:
+        raise ValueError(
+            f"Column '{column}' is missing from {modality}.uns['decoy']; variable filters apply to "
+            f"decoys too. Add it with mm.dt.assign(..., modality='{modality}', on='decoy') or "
+            f"mm.dt.map(..., target='{modality}.decoy') before adding the filter."
+        )
+
     condition = {"on": on, "key": key if on in {"varm", "obsm"} else None,
                  "column": column, "keep": keep, "value": value}
     definitions = adata.uns.get("filter_conditions", {})
@@ -121,7 +129,7 @@ def add_filter(
         adata.uns["filter"] = list(dict.fromkeys([*adata.uns["filter"], filter_name]))
 
     # add filter for decoy (only supported for variable-level filters)
-    if store_axis == "varm" and mstatus.__getattribute__(modality).has_decoy:
+    if store_axis == "varm" and has_decoy:
         decoy_df = adata.uns["decoy"]
         if on == "var":
             decoy_mask = _mask_boolean_filter(series_to_mask=decoy_df[column], keep=keep, value=value)

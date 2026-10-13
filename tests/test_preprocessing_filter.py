@@ -5,6 +5,7 @@ import logging
 import pandas as pd
 import pytest
 
+import msmu as mm
 from msmu.logging_utils import get_logger
 from msmu._preprocessing._filter import _mask_boolean_filter, add_filter, apply_filter
 
@@ -37,6 +38,20 @@ def test_add_filter_and_apply_filter_with_decoy(filter_mdata):
     applied = apply_filter(filtered, modality="psm")
     assert applied["psm"].var_names.tolist() == ["v2", "v3"]
     assert applied["psm"].uns["decoy"].index.tolist() == ["v2", "v3"]
+
+
+def test_add_filter_requires_var_column_in_decoy_table(filter_mdata):
+    mdata = filter_mdata.copy()
+    mdata["psm"].var["cell"] = ["a", "b", "a"]
+    with pytest.raises(ValueError, match=r"missing from psm.uns\['decoy'\].*dt\.assign"):
+        add_filter(mdata, modality="psm", column="cell", keep="eq", value="a")
+    assert "filter" not in mdata["psm"].varm
+
+    # The recorded fix: give decoys the column, then the filter applies to both tables.
+    fixed = mm.dt.assign(mdata, "cell", "a", modality="psm", on="decoy")
+    filtered = add_filter(fixed, modality="psm", column="cell", keep="eq", value="a")
+    assert filtered["psm"].varm["filter"]["cell_eq_a"].tolist() == [True, False, True]
+    assert filtered["psm"].uns["decoy_filter"]["cell_eq_a"].tolist() == [True, True, True]
 
 
 def test_add_filter_on_obs_stores_in_obsm(filter_mdata):

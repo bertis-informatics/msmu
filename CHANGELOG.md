@@ -20,6 +20,11 @@ from git tags via setuptools-scm.
   modality `obsm`/`varm` mappings, recording only the target and key for replay. `_log` and the
   global modality masks are protected; removing samples or features remains the job of
   `pp.apply_filter`, which keeps the aligned axes consistent.
+- **`mm.dt` edits the decoy table.** `dt.assign` accepts `on="decoy"`, and the table path
+  `<modality>.decoy` addresses `uns["decoy"]` in `dt.map`, `dt.replace` and `dt.drop`, so the
+  columns a variable filter needs on both targets and decoys are recorded in provenance instead
+  of being written by hand. `pp.add_filter` now refuses a variable filter whose column is missing
+  from the decoy table with a message that names these calls, instead of a bare `KeyError`.
 
 ### Changed
 
