@@ -17,10 +17,12 @@ from git tags via setuptools-scm.
 - **Median polish returns `NaN` where samples cannot be compared.** **Breaking** for values:
   `to_protein(agg_method="median_polish")` and `to_ptm` (its default rollup) now leave a sample
   `NaN` when none of the group's features observed in that sample is observed in at least one
-  other sample, and leave every sample `NaN` when the observed samples split into groups that
-  share no feature. Any two non-`NaN` values of a feature are therefore on one common scale;
-  previously such samples were placed on the group's overall level, which reads as "unchanged".
-  Groups whose every feature is observed in at least two samples are unaffected.
+  other sample and, when the observed samples split into groups that share no feature, keep the
+  largest group and leave the others `NaN` (every sample when groups tie for largest). Any two
+  non-`NaN` values of a feature are therefore on one common scale, and their differences are
+  those of `medpolish` on the features observed in more than one sample; previously such samples
+  were placed on the group's overall level, which reads as "unchanged". Groups whose every
+  feature is observed in at least two samples are unaffected.
 - **`to_protein` uses every unique peptide by default.** **Breaking** for callers that relied on
   the implicit `top_n=3`: pass `top_n=3` to keep the cut. The docstring already stated `None`;
   the default now matches it. A top-N cut ranks on a `NaN`-skipping median and so favours

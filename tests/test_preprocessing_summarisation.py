@@ -229,9 +229,48 @@ def test_median_polish_isolated_sample_is_nan_and_the_linked_samples_keep_their_
     assert np.isnan(estimates[3])
 
 
-def test_median_polish_samples_split_into_unlinked_groups_are_all_nan():
-    # Samples 0-1 and 2-3 share no feature: their relative level is undefined, and returning one
-    # would fabricate the between-group comparison the matrix cannot support.
+def test_median_polish_keeps_the_largest_linked_group():
+    # Samples 0-2 are linked by two features and samples 3-4 by another; nothing links the two
+    # groups, so only the larger one is placed on a scale, exactly as if polished on its own.
+    larger = np.array([[20.0, 21.0, 22.0], [21.0, 22.0, 23.0]])
+    split = np.array(
+        [
+            [20.0, 21.0, 22.0, np.nan, np.nan],
+            [21.0, 22.0, 23.0, np.nan, np.nan],
+            [np.nan, np.nan, np.nan, 24.0, 25.0],
+        ]
+    )
+    estimates = _median_polish(split)
+
+    np.testing.assert_allclose(estimates[:3], _median_polish(larger), atol=1e-8)
+    assert np.all(np.isnan(estimates[3:]))
+    # Sample order must not matter: with the smaller group first the answer is the same, reversed.
+    np.testing.assert_allclose(_median_polish(split[:, ::-1]), estimates[::-1], atol=1e-8)
+
+
+def test_median_polish_differences_equal_a_polish_of_the_shared_features():
+    # Features seen in one sample set the level only. The between-sample differences must be those
+    # of a polish of the shared features alone -- including where the iteration stops, which the
+    # single-sample rows must not influence (their residual is just the last column median).
+    with_singletons = np.array(
+        [
+            [20.6, 20.6, np.nan],
+            [19.6, np.nan, np.nan],
+            [np.nan, 22.3, 20.2],
+            [17.9, np.nan, np.nan],
+        ]
+    )
+    shared_only = with_singletons[[0, 2]]
+    estimates = _median_polish(with_singletons)
+    reference = _median_polish(shared_only)
+
+    np.testing.assert_allclose(estimates - estimates[0], reference - reference[0], atol=1e-10)
+
+
+def test_median_polish_groups_tied_for_largest_are_all_nan():
+    # Samples 0-1 and 2-3 share no feature and are the same size: nothing singles out either
+    # group, and returning one would fabricate the between-group comparison the matrix cannot
+    # support.
     matrix = np.array(
         [
             [20.0, 21.0, np.nan, np.nan],
