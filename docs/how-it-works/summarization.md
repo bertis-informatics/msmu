@@ -48,7 +48,7 @@ In each column sweep, every peptide casts a vote on how far a sample sits from i
 
 `medpolish` gives WT = KO = 21: pep2-pep5 outvote pep1. msmu gives WT 23, KO 21: the difference is pep1's, and pep2-pep5 inform only the level. Without pep1 both samples would be `NaN`.
 
-Any two non-`NaN` values of a protein are therefore on one scale, and their differences are those of `medpolish` on the peptides quantified in more than one sample -- in a 1 vs 1 run, the median log2 ratio of the shared peptides, as in MaxLFQ. A block in which every peptide is quantified in at least two samples gives exactly the `medpolish` result. As in MaxLFQ and DirectLFQ, a difference carried by a single shared peptide is kept (noisy, but estimable), and a peptide's absence from a sample is not used as information.
+Any two non-`NaN` values of a protein are therefore on one scale, and their differences are those of `medpolish` on the peptides quantified in more than one sample -- in a 1 vs 1 run, the median log2 ratio of the shared peptides, as in MaxLFQ. A block in which every peptide is quantified in at least two samples gives exactly the `medpolish` result. The level of a protein follows Tukey's convention (the median peptide effect is zero), so it is the level of the protein's typical peptide: it compares a protein across samples, not proteins within a sample -- that needs a level corrected for protein size, which this rollup does not provide. As in MaxLFQ and DirectLFQ, a difference carried by a single shared peptide is kept (noisy, but estimable), and a peptide's absence from a sample is not used as information.
 
 ## Identification q-values and tied PEPs
 
