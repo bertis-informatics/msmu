@@ -6,6 +6,21 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-13
+
+### Added
+
+- **`mm.dt.save_layer` and `mm.dt.load_layer`.** `save_layer` copies a modality's `.X` into a
+  named layer and `load_layer` copies a layer back into `.X`. Both are recorded in provenance,
+  keep dense and sparse matrices as they are, and leave the source and destination independent.
+  An existing layer is not overwritten unless `overwrite=True`, and a backed `MuData` is rejected
+  with a clear error. The PTM tutorial takes its unadjusted snapshot with `save_layer`.
+- **`mm.dt.drop` deletes table columns and mapping entries.** Besides `uns` entries, `drop` now
+  removes `obs`/`var` columns, DataFrame columns inside `obsm`/`varm`, and entries of global or
+  modality `obsm`/`varm` mappings, recording only the target and key for replay. `_log` and the
+  global modality masks are protected; removing samples or features remains the job of
+  `pp.apply_filter`, which keeps the aligned axes consistent.
+
 ### Changed
 
 - **`import msmu` takes about a third of the time.** `umap-learn` and `inmoose` are imported when
@@ -23,6 +38,19 @@ from git tags via setuptools-scm.
   those of `medpolish` on the features observed in more than one sample; previously such samples
   were placed on the group's overall level, which reads as "unchanged". Groups whose every
   feature is observed in at least two samples are unaffected.
+- **Median polish anchors the protein level to the fitted total peptide intensity.** **Breaking**
+  for values: the profile of a protein (or PTM site) from `agg_method="median_polish"` is shifted by
+  one constant so that each value is the log2 of the sum, over the protein's peptides, of the
+  intensities the additive model fits in that sample -- the total-intensity level convention of
+  MaxLFQ and DirectLFQ (`agg_method="directlfq"` already followed it), computed from the model so
+  that it does not depend on which cells are missing. Differences between samples are unchanged, so
+  differential expression is unaffected. Before, the level was Tukey's `overall`, the median
+  peptide's level, which does not grow with the number of peptides. The level is a scale convention
+  for comparing samples, not a molar ranking: within a sample a protein's value grows with its
+  number of peptides, so ranking proteins by amount needs a size correction such as iBAQ. Because
+  the shift differs between proteins and the proteins quantified differ between samples, a
+  normalisation applied at the protein level after the rollup gives different sample offsets than
+  before; normalising at the peptide level before the rollup, as recommended, is unaffected.
 - **`to_protein` uses every unique peptide by default.** **Breaking** for callers that relied on
   the implicit `top_n=3`: pass `top_n=3` to keep the cut. The docstring already stated `None`;
   the default now matches it. A top-N cut ranks on a `NaN`-skipping median and so favours
@@ -371,6 +399,7 @@ metadata, one canonical accession form across readers, and sparse-in / sparse-ou
 - **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
 - **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
+[0.4.1]: https://github.com/bertis-informatics/msmu/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/bertis-informatics/msmu/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/bertis-informatics/msmu/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/bertis-informatics/msmu/compare/v0.3.0...v0.3.1
