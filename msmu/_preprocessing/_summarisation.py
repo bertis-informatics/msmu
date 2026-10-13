@@ -227,8 +227,10 @@ def _comparable_sample_mask(comparable_observed_mask: np.ndarray) -> np.ndarray:
 
     Two samples are comparable when a comparable feature is observed in both, and by extension
     when a chain of such features links them. A sample with no comparable observation is not
-    linked to anything. When the linked samples fall into more than one group, no feature says how
-    the groups' levels relate, so no estimate is comparable and every sample is marked ``False``.
+    linked to anything. When the linked samples fall into several groups, no feature says how the
+    groups' levels relate: the largest group is kept, since its samples are comparable among
+    themselves, and the others are marked ``False``. Groups tied for largest give no reason to
+    prefer one, so every sample is marked ``False``.
 
     Args:
         comparable_observed_mask: boolean ``(n_comparable_features, n_samples)`` observation mask.
@@ -252,25 +254,34 @@ def _comparable_sample_mask(comparable_observed_mask: np.ndarray) -> np.ndarray:
         shape=(number_of_nodes, number_of_nodes),
     )
     _, component_labels = connected_components(observation_graph, directed=False)
-    linked_sample_components = component_labels[number_of_features:][linked_sample_mask]
-    if len(np.unique(linked_sample_components)) > 1:
+    sample_components = component_labels[number_of_features:]
+    component_ids, component_sizes = np.unique(sample_components[linked_sample_mask], return_counts=True)
+    if len(component_ids) == 1:
+        return linked_sample_mask
+    if (component_sizes == component_sizes.max()).sum() > 1:
         return np.zeros(number_of_samples, dtype=bool)
-    return linked_sample_mask
+    largest_component = component_ids[component_sizes.argmax()]
+    return linked_sample_mask & (sample_components == largest_component)
 
 
 def _polish_comparable_samples(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     """Run the median polish sweeps on a matrix whose samples are already known to be comparable.
 
     Every sample has at least one observation in a comparable feature and every feature is observed
-    somewhere, so no median is taken over an empty slice. Features observed in a single sample take
-    part in the row sweeps, and so in the group level, but not in the column medians.
+    somewhere, so no median is taken over an empty slice. The sweeps run on the comparable features
+    alone, so the between-sample differences are those of a polish of those features. A feature
+    observed in a single sample is then fitted exactly: its row effect is what remains of its value
+    once the level and its sample's effect are removed, and the level is re-aligned on the median
+    row effect over all features -- the fixed point the sweeps would reach if such a feature took
+    part in them without a vote in the column medians.
     """
-    residual_matrix = feature_by_sample_matrix.copy()
-    number_of_features, number_of_samples = residual_matrix.shape
-    comparable_feature_mask = _comparable_feature_mask(~np.isnan(residual_matrix))
+    comparable_feature_mask = _comparable_feature_mask(~np.isnan(feature_by_sample_matrix))
+    # Boolean indexing returns a fresh writable copy, so the sweeps mutate in place safely.
+    residual_matrix = feature_by_sample_matrix[comparable_feature_mask]
+    number_of_comparable_features, number_of_samples = residual_matrix.shape
 
     overall_effect: float = 0.0
-    row_effects = np.zeros(number_of_features, dtype=float)
+    row_effects = np.zeros(number_of_comparable_features, dtype=float)
     col_effects = np.zeros(number_of_samples, dtype=float)
     previous_residual_sum: float = np.inf
 
@@ -283,11 +294,8 @@ def _polish_comparable_samples(feature_by_sample_matrix: np.ndarray) -> np.ndarr
         col_effects -= col_alignment
         overall_effect += col_alignment
 
-        # Column sweep: remove the median of each sample (column) across the comparable features
-        # only. The sweep itself still reaches every row, so the non-comparable rows keep their
-        # row effects aligned with the rest.
-        column_votes = np.where(comparable_feature_mask[:, np.newaxis], residual_matrix, np.nan)
-        col_medians = np.nan_to_num(np.nanmedian(column_votes, axis=0))
+        # Column sweep: remove the median of each sample (column) across features.
+        col_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=0))
         residual_matrix -= col_medians[np.newaxis, :]
         col_effects += col_medians
         row_alignment = np.nan_to_num(np.nanmedian(row_effects))
@@ -303,6 +311,13 @@ def _polish_comparable_samples(feature_by_sample_matrix: np.ndarray) -> np.ndarr
         ):
             break
         previous_residual_sum = current_residual_sum
+
+    # Each single-sample feature holds exactly one observation, so its row effect is that value less
+    # the fitted level and sample effect; ``nansum`` over the row picks out that one term.
+    single_sample_values = feature_by_sample_matrix[~comparable_feature_mask]
+    if single_sample_values.shape[0]:
+        single_sample_row_effects = np.nansum(single_sample_values - (overall_effect + col_effects), axis=1)
+        overall_effect += float(np.median(np.concatenate([row_effects, single_sample_row_effects])))
 
     return overall_effect + col_effects
 
@@ -338,10 +353,12 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     "no difference" for that sample, which with enough such features pins every sample to the
     same value. A sample with no feature observed in at least ``MIN_COMPARABLE_OBSERVATION_COUNT``
     samples has nothing to compare it with and yields ``NaN``; when the remaining samples split
-    into groups that share no feature, the groups' relative levels are undefined and every sample
-    yields ``NaN``. The comparable samples are polished on their own, as if the others had not been
-    measured. A group observed in one sample only keeps that sample's level. On a matrix where
-    every feature is observed in at least two samples the result matches ``medpolish``.
+    into groups that share no feature, the groups' relative levels are undefined, so the largest
+    group is kept and the others yield ``NaN`` (every sample does when groups tie for largest).
+    The comparable samples are polished on their own, as if the others had not been measured, and
+    their between-sample differences equal those of ``medpolish`` on the features observed in more
+    than one sample. A group observed in one sample only keeps that sample's level. On a matrix
+    where every feature is observed in at least two samples the result matches ``medpolish``.
 
     Args:
         feature_by_sample_matrix (np.ndarray): 2D array of log-space intensities with
