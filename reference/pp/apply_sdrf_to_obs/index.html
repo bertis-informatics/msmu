@@ -4077,6 +4077,9 @@ Columns that vary within a key (e.g. <code>comment[fraction identifier]</code> u
 cannot be represented on the obs axis; they are left untouched in <code>uns["sdrf"]</code> and
 skipped with a warning -- or, if named explicitly in <code>columns</code>, raise. obs never
 silently collapses SDRF data.</p>
+<p>By default the observations are also reordered to follow the SDRF rows, so an order written
+into the SDRF (plate wells, acquisition sequence) carries into obs and into the category
+order every plot derives from it. Readers order obs by file name or quant-table column.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4160,6 +4163,26 @@ Must be projectable and unique across obs. Default None keeps the index.</p>
                   <code>None</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>order_obs</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Reorder every modality's obs, and the global obs, to the SDRF row order: each
+observation takes the position of the first SDRF row carrying its match key, and
+observations absent from the SDRF follow the matched ones in their current order
+(none is dropped; removing samples stays with <a class="autorefs autorefs-internal" href="../apply_filter/#msmu.pp.apply_filter"><code>apply_filter</code></a>).
+Default True; False keeps the reader's order.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -4179,7 +4202,7 @@ Must be projectable and unique across obs. Default None keeps the index.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A copy of <code>mdata</code> with projected SDRF columns merged into each modality's obs;</p>
+                <p>A copy of <code>mdata</code> with projected SDRF columns merged into each modality's obs and, by</p>
               </div>
             </td>
           </tr>
@@ -4189,7 +4212,7 @@ Must be projectable and unique across obs. Default None keeps the index.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>uns["sdrf"]</code> is left unchanged as the source of truth.</p>
+                <p>default, obs in SDRF row order; <code>uns["sdrf"]</code> is left unchanged as the source of truth.</p>
               </div>
             </td>
           </tr>
@@ -4220,7 +4243,7 @@ Must be projectable and unique across obs. Default None keeps the index.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 01:51:23 UTC">October 14, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 11:22:59 UTC">October 14, 2026</span>
   </span>
 
     

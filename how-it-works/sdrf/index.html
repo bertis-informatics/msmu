@@ -937,6 +937,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#observation_order_follows_the_sdrf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation order follows the SDRF
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#naming_samples_with_set_index" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4052,6 +4063,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#observation_order_follows_the_sdrf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation order follows the SDRF
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#naming_samples_with_set_index" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4209,7 +4231,7 @@ are a function of that key:</p>
 TMT126          t0h               Homo sapiens  ...                       t0                       t0h
 TMT127          t1h               Homo sapiens  ...                       t1                       t1h
 </code></pre></div></p>
-<p>All three arguments are optional, and the call above passes none of them:</p>
+<p>All four arguments are optional, and the call above passes none of them:</p>
 <ul>
 <li>
 <p><strong><code>on</code></strong> (optional, default <code>None</code>) — the match key. <code>None</code> resolves it per modality, from that
@@ -4225,7 +4247,9 @@ explicitly.
 - <strong><code>columns</code></strong> (optional, default <code>None</code>) — which columns to project. <code>None</code> projects every
   projectable column; pass a name or list to project a subset.
 - <strong><code>set_index</code></strong> (optional, default <code>None</code>) — <code>None</code> keeps the existing <code>obs.index</code>; pass a
-  column to rename samples by it (see below).</p>
+  column to rename samples by it (see below).
+- <strong><code>order_obs</code></strong> (optional, default <code>True</code>) — put the observations in SDRF row order (see below);
+  <code>False</code> keeps the reader's order.</p>
 </li>
 </ul>
 <p><strong>Projectable columns only.</strong> A column that takes more than one value within a key group cannot be
@@ -4233,6 +4257,18 @@ represented per observation. Above, each channel spans 12 fractions, so <code>co
 <code>comment[fraction identifier]</code> are skipped with a warning and stay in <code>uns["sdrf"]</code>. Naming such a
 column explicitly in <code>columns=[...]</code> raises instead of skipping, so <code>.obs</code> never silently collapses
 SDRF data.</p>
+<h3 id="observation_order_follows_the_sdrf">Observation order follows the SDRF</h3>
+<p>Readers order obs by whatever they were handed: DIA-NN runs come out alphabetically, so
+<code>11cells_A10</code> sorts before <code>1cell_A3</code>, and Sage or FragPipe keep their quant-table column order.
+Plots turn the first appearance of each obs value into its category order, so that incidental
+order ends up on every axis and legend. By default <code>apply_sdrf_to_obs()</code> reorders the observations
+to follow the SDRF rows instead: each observation takes the position of the first SDRF row carrying
+its match key (a channel that spans 12 fraction rows takes its first), and every modality, the
+MuData-level <code>obs</code>, <code>.X</code>, layers and <code>obsm</code> move together.</p>
+<p>Observations absent from the SDRF — blank or reference channels, typically — are not dropped. They
+follow the matched ones in their original order with <code>NaN</code> metadata, and leave through
+<a href="../../reference/pp/add_filter/"><code>add_filter()</code></a> / <a href="../../reference/pp/apply_filter/"><code>apply_filter()</code></a>
+as before. Pass <code>order_obs=False</code> to keep the reader's order.</p>
 <h3 id="naming_samples_with_set_index">Naming samples with <code>set_index</code></h3>
 <p>Straight from a reader, samples are named by whatever the instrument produced — TMT channels or
 run file names. <code>set_index</code> renames them to the SDRF's own sample identifier, so every plot,
@@ -4243,6 +4279,7 @@ run file names. <code>set_index</code> renames them to the SDRF's own sample ide
                                                          <span class="c1">#   (comment[label] for TMT, comment[data file] otherwise)</span>
     <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">"source name"</span><span class="p">,</span> <span class="s2">"factor value[condition]"</span><span class="p">],</span>  <span class="c1"># optional, default None: project every projectable column</span>
     <span class="n">set_index</span><span class="o">=</span><span class="s2">"source name"</span><span class="p">,</span>                             <span class="c1"># optional, default None: keep obs.index unchanged</span>
+    <span class="n">order_obs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                                      <span class="c1"># optional, default True: obs in SDRF row order</span>
 <span class="p">)</span>
 
 <span class="n">mdata</span><span class="p">[</span><span class="s2">"psm"</span><span class="p">]</span><span class="o">.</span><span class="n">obs</span>
@@ -4395,7 +4432,7 @@ not well-defined per observation.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 23, 2026 02:09:51 UTC">September 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 10:18:58 UTC">October 14, 2026</span>
   </span>
 
     
