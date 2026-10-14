@@ -6,6 +6,18 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-14
+
+### Changed
+
+- **`mm.pp.apply_sdrf_to_obs` puts obs in SDRF row order.** By default (`order_obs=True`) each
+  observation takes the position of the first SDRF row carrying its match key, and every modality,
+  the global `obs`, `.X`, layers and `obsm` move together. Observations absent from the SDRF keep
+  their relative order after the matched ones and are still removed through `apply_filter`, not
+  here. Readers used to decide the order (alphabetical for DIA-NN, quant-table columns for Sage and
+  FragPipe) and plots turned it into their category order. `order_obs=False` keeps the reader's
+  order.
+
 ## [0.4.1] - 2026-10-13
 
 ### Added
@@ -398,6 +410,7 @@ metadata, one canonical accession form across readers, and sparse-in / sparse-ou
 - **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
 - **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
+[0.4.2]: https://github.com/bertis-informatics/msmu/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/bertis-informatics/msmu/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/bertis-informatics/msmu/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/bertis-informatics/msmu/compare/v0.3.1...v0.3.2
