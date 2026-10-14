@@ -24,7 +24,8 @@ from git tags via setuptools-scm.
   `<modality>.decoy` addresses `uns["decoy"]` in `dt.map`, `dt.replace` and `dt.drop`, so the
   columns a variable filter needs on both targets and decoys are recorded in provenance instead
   of being written by hand. `pp.add_filter` now refuses a variable filter whose column is missing
-  from the decoy table with a message that names these calls, instead of a bare `KeyError`.
+  from the decoy table with a message that names these calls, instead of a bare `KeyError`. The
+  processing tutorial carries the cell annotation onto the PSM `var` and decoy table with `dt.map`.
 
 ### Changed
 
