@@ -10,6 +10,12 @@ from git tags via setuptools-scm.
 
 ### Added
 
+- **`mm.pp.calculate_missingness`.** Records, per feature, the number and ratio of samples
+  without a value (`var["n_missing"]`, `var["missing_ratio"]`) and, with `group_obs`, a
+  `missing_ratio_<level>` per group, counting absent and stored-NaN cells of a sparse `.X` alike.
+  Decoys receive `0` / `0.0`, so a "missing at most" filter keeps them and the q-value counts stay
+  intact. This replaces the hand-written `to_df().isna().sum()` and `dropna(how="all")` steps, which
+  provenance could not record; the processing tutorial now drops empty features through it.
 - **`mm.dt.save_layer` and `mm.dt.load_layer`.** `save_layer` copies a modality's `.X` into a
   named layer and `load_layer` copies a layer back into `.X`. Both are recorded in provenance,
   keep dense and sparse matrices as they are, and leave the source and destination independent.
