@@ -1571,6 +1571,8 @@
       
         
       
+        
+      
     
     
     
@@ -1654,6 +1656,34 @@
     
   
     apply_filter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pp/calculate_missingness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    calculate_missingness
   
 
     
@@ -2114,6 +2144,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -2281,6 +2315,62 @@
     
   
     concat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/save_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    save_layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/load_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    load_layer
   
 
     
@@ -4063,6 +4153,12 @@ Therefore, understanding the usage of <a href="https://mudata.readthedocs.io/en/
 <h2 id="processing_stages">Processing stages</h2>
 <p><img alt="Search results become PSM, peptide, and protein modalities as processing progresses." src="../../assets/mudata-processing-stages.svg" width="100%" /></p>
 <p><em>The raw, normalized, and batch-corrected layers in this schematic are optional snapshots. <a href="../../reference/pp/normalise/"><code>normalise</code></a> and <a href="../../reference/pp/correct_batch_effect/"><code>correct_batch_effect</code></a> update <code>.X</code> or a selected existing layer; they do not create those layers automatically.</em></p>
+<p>Save the current <code>.X</code> before processing and restore it later from the named layer:</p>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">save_layer</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"peptide"</span><span class="p">,</span> <span class="n">layer</span><span class="o">=</span><span class="s2">"raw"</span><span class="p">)</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">log2_transform</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"peptide"</span><span class="p">)</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">load_layer</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"peptide"</span><span class="p">,</span> <span class="n">layer</span><span class="o">=</span><span class="s2">"raw"</span><span class="p">)</span>
+</code></pre></div>
+<p><code>save_layer</code> copies <code>.X</code> into the layer without changing <code>.X</code>. An existing layer raises an error unless <code>overwrite=True</code> is passed. <code>load_layer</code> copies the layer into <code>.X</code> without changing the layer or reverting other annotations. Both work in place, preserve dense or sparse storage, and record provenance. Backed MuData is unsupported; reopen it in memory with <code>mm.read_h5mu(path)</code> first.</p>
 <h2 id="data_ingestion_from_db_search_tools">Data Ingestion from DB search tools</h2>
 <p>Although different search tools return result files with heterogenous formats, their contents can typically be organized into two main conceptual parts to construct peptide- and protein-level data.</p>
 <ul>
@@ -4272,7 +4368,9 @@ processed copy. Consult the API reference for other operations rather than assum
 all functions have the same mutation behavior. In particular, <a href="../../reference/pp/to_ptm/"><code>pp.to_ptm</code></a> adds its
 new PTM modality to the supplied MuData in place; copy first to preserve an
 unmodified input.</p>
-<p><a href="../../reference/dt/assign/"><code>dt.assign</code></a>, <a href="../../reference/dt/map/"><code>dt.map</code></a>, <a href="../../reference/dt/replace/"><code>dt.replace</code></a>, and <a href="../../reference/dt/drop/"><code>dt.drop</code></a> modify the supplied MuData <strong>in place</strong>
+<p><a href="../../reference/dt/assign/"><code>dt.assign</code></a>, <a href="../../reference/dt/map/"><code>dt.map</code></a>, <a href="../../reference/dt/replace/"><code>dt.replace</code></a>,
+<a href="../../reference/dt/drop/"><code>dt.drop</code></a>, <a href="../../reference/dt/save_layer/"><code>dt.save_layer</code></a>, and
+<a href="../../reference/dt/load_layer/"><code>dt.load_layer</code></a> modify the supplied MuData <strong>in place</strong>
 and return that same object. Copy first when you need an independent branch:</p>
 <div class="highlight"><pre><span></span><code><span class="n">branch</span> <span class="o">=</span> <span class="n">mdata</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 <span class="n">branch</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">branch</span><span class="p">,</span> <span class="s2">"reviewed"</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">)</span>
@@ -4301,7 +4399,7 @@ not automatically recorded; see <a href="../provenance/">Provenance</a> for the 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 23, 2026 02:09:51 UTC">September 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 23, 2026 05:55:52 UTC">September 23, 2026</span>
   </span>
 
     

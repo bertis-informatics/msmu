@@ -1471,6 +1471,8 @@
       
         
       
+        
+      
     
     
     
@@ -1554,6 +1556,34 @@
     
   
     apply_filter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pp/calculate_missingness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    calculate_missingness
   
 
     
@@ -2016,6 +2046,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -2241,6 +2275,62 @@
     
   
     concat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../save_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    save_layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../load_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    load_layer
   
 
     
@@ -3981,7 +4071,8 @@
     <div class="doc doc-contents first">
 
         <p>Assign a column in place and record its values for replay.</p>
-<p>Equivalent to <code>mdata[modality].var[column] = values</code> (or <code>obs</code>).
+<p>Equivalent to <code>mdata[modality].var[column] = values</code> (or <code>obs</code>), or to
+<code>mdata[modality].uns["decoy"][column] = values</code> with <code>on="decoy"</code>.
 Pandas handles scalar broadcasting, positional arrays and Series index
 alignment. Returns the same MuData. Values are stored in full in provenance;
 the computation that produced them is not recorded.</p>
@@ -4067,11 +4158,12 @@ the computation that produced them is not recorded.</p>
                 <code>on</code>
             </td>
             <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;obs&#39;, &#39;var&#39;]</code>
+                  <code><span title="typing.Literal">Literal</span>[&#39;obs&#39;, &#39;var&#39;, &#39;decoy&#39;]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>"var"</code> or <code>"obs"</code>.</p>
+                <p><code>"var"</code>, <code>"obs"</code>, or <code>"decoy"</code> for the decoy table in <code>uns["decoy"]</code>, which
+<a class="autorefs autorefs-internal" href="../../pp/add_filter/#msmu.pp.add_filter"><code>add_filter</code></a> requires to carry every column a variable filter uses.</p>
               </div>
             </td>
             <td>
@@ -4108,6 +4200,7 @@ the computation that produced them is not recorded.</p>
 <p><span class="doc-section-title">Examples:</span></p>
     <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">msmu</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mm</span>
 <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">"reviewed"</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">)</span>
+<span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">"n_missing"</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">"decoy"</span><span class="p">)</span>
 </code></pre></div>
 
 
@@ -4134,7 +4227,7 @@ the computation that produced them is not recorded.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 23, 2026 04:19:58 UTC">September 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 01:51:22 UTC">October 14, 2026</span>
   </span>
 
     

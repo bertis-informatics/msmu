@@ -1471,6 +1471,8 @@
       
         
       
+        
+      
     
     
     
@@ -1554,6 +1556,34 @@
     
   
     apply_filter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pp/calculate_missingness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    calculate_missingness
   
 
     
@@ -2016,6 +2046,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -2241,6 +2275,62 @@
     
   
     concat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../save_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    save_layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../load_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    load_layer
   
 
     
@@ -3980,9 +4070,13 @@
 <a id="msmu.dt.drop"></a>
     <div class="doc doc-contents first">
 
-        <p>Delete an uns entry in place, recording only its location for replay.</p>
-<p><code>target</code> is <code>uns</code> or <code>&lt;modality&gt;.uns</code>. Missing keys raise KeyError,
-just like <code>del</code>. Returns the same MuData; provenance cannot be deleted.</p>
+        <p>Delete a metadata entry or table column in place, recording its location for replay.</p>
+<p><code>target</code> is <code>uns</code>, <code>obsm</code>, <code>varm</code>, a modality-specific equivalent,
+or a table path accepted by <a class="autorefs autorefs-internal" href="../map/#msmu.dt.map"><code>map</code></a>. A mapping target deletes
+its <code>key</code>; a table target deletes a column, so <code>&lt;modality&gt;.decoy</code> removes
+a decoy-table column while <code>&lt;modality&gt;.uns</code> with <code>key="decoy"</code> removes the
+whole table. Missing keys raise KeyError.
+Returns the same MuData; provenance and global modality masks cannot be deleted.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4021,7 +4115,7 @@ just like <code>del</code>. Returns the same MuData; provenance cannot be delete
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>"uns"</code> or <code>"&lt;modality&gt;.uns"</code>; table columns are not supported.</p>
+                <p>Metadata mapping or table path.</p>
               </div>
             </td>
             <td>
@@ -4037,7 +4131,7 @@ just like <code>del</code>. Returns the same MuData; provenance cannot be delete
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Entry to delete. Missing entries raise KeyError; <code>_log</code> is protected.</p>
+                <p>Entry or column to delete. Missing keys raise KeyError; <code>_log</code> and global modality masks are protected.</p>
               </div>
             </td>
             <td>
@@ -4101,7 +4195,7 @@ just like <code>del</code>. Returns the same MuData; provenance cannot be delete
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 23, 2026 04:19:58 UTC">September 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 01:51:22 UTC">October 14, 2026</span>
   </span>
 
     

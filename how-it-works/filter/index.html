@@ -953,6 +953,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#missingness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Missingness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#contaminants_and_decoys" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1560,6 +1571,8 @@
       
         
       
+        
+      
     
     
     
@@ -1643,6 +1656,34 @@
     
   
     apply_filter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pp/calculate_missingness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    calculate_missingness
   
 
     
@@ -2103,6 +2144,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -2270,6 +2315,62 @@
     
   
     concat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/save_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    save_layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/load_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    load_layer
   
 
     
@@ -3922,6 +4023,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#missingness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Missingness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#contaminants_and_decoys" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4093,6 +4205,19 @@ the successful call in <code>mdata.uns["_log"]</code>, but does not capture prin
     <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">"q_value_lt_0.01"</span><span class="p">],</span>
 <span class="p">)</span>
 </code></pre></div>
+<h2 id="missingness">Missingness</h2>
+<p>A quantification filter needs the missing counts on <code>var</code> first.
+<a href="../../reference/pp/calculate_missingness/"><code>pp.calculate_missingness</code></a> records <code>n_missing</code> and
+<code>missing_ratio</code> per feature and, given an obs column, <code>missing_ratio_&lt;level&gt;</code> per group, so the
+usual filter calls apply:</p>
+<div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">calculate_missingness</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span> <span class="n">group_obs</span><span class="o">=</span><span class="s2">"condition"</span><span class="p">)</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">add_filter</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="s2">"missing_ratio"</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="s2">"lt"</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pp</span><span class="o">.</span><span class="n">apply_filter</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"protein"</span><span class="p">)</span>
+</code></pre></div>
+<p>Decoys carry no quantification, so they receive <code>n_missing = 0</code> and <code>missing_ratio = 0.0</code>: a
+"missing at most" filter keeps every decoy and the target/decoy counts behind the q-values stay
+intact, while a filter in the other direction (<code>ge</code>/<code>gt</code> on missingness) would drop them. The
+columns are a snapshot — recompute after removing samples, since <code>apply_filter</code> does not update them.</p>
 <h2 id="contaminants_and_decoys">Contaminants and decoys</h2>
 <p>Readers record identification status rather than acting on it:</p>
 <ul>
@@ -4112,7 +4237,12 @@ silently stops matching when the search uses a different contaminant FASTA.</p>
 <h2 id="validation_and_compatibility">Validation and compatibility</h2>
 <p>Requested filter names must all exist on the selected axis (either axis for
 <code>on="all"</code>). Missing names raise an error; filters are not partially applied.
-Variable filters must also exist in the decoy mask when decoys are present.
+Variable filters must also exist in the decoy mask when decoys are present, so the
+column a variable filter uses must exist in <code>.uns["decoy"]</code> as well; <code>add_filter</code>
+refuses otherwise. Give decoys the column with a recorded edit rather than by hand —
+<a href="../../reference/dt/assign/"><code>dt.assign</code></a> with <code>on="decoy"</code> for a constant, or
+<a href="../../reference/dt/map/"><code>dt.map</code></a> with <code>target="&lt;modality&gt;.decoy"</code> to carry a sample
+annotation over by filename — so the step stays in provenance.
 Applying a subset of filters preserves the other decoy conditions for later calls.</p>
 <p><code>contains</code> and <code>not_contains</code> retain pandas regular-expression semantics:
 <code>A.B</code> also matches <code>AxB</code>. Escape regex metacharacters for literal matching.</p>
@@ -4144,7 +4274,7 @@ do not disable verification to hide a changed result.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 23, 2026 02:09:51 UTC">September 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 01:32:45 UTC">October 14, 2026</span>
   </span>
 
     

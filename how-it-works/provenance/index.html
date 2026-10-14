@@ -1615,6 +1615,8 @@
       
         
       
+        
+      
     
     
     
@@ -1698,6 +1700,34 @@
     
   
     apply_filter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pp/calculate_missingness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    calculate_missingness
   
 
     
@@ -2158,6 +2188,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -2325,6 +2359,62 @@
     
   
     concat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/save_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    save_layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/load_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    load_layer
   
 
     
@@ -4274,6 +4364,8 @@ filename and returns <code>None</code>.</p>
 <p>Standalone DataFrame readers, <a href="../../reference/pl/plot_volcano/"><code>pl.plot_volcano</code></a>, standalone mzML purity calculation, scalar
 utilities, configuration functions and direct pandas/NumPy/MuData edits are not automatically
 recorded. They either have no MuData storage target or are outside processing history.
+Use <a href="../../reference/dt/save_layer/"><code>dt.save_layer</code></a> and <a href="../../reference/dt/load_layer/"><code>dt.load_layer</code></a>
+to record transfers between a modality's <code>.X</code> and a named layer.
 User functions accepting or returning MuData can opt into the
 same boundary using <a href="../../reference/pv/log/"><code>@mm.pv.log</code></a>.</p>
 <p>Use <a href="../../reference/dt/map/"><code>dt.map</code></a> when the values already exist in another table:</p>
@@ -4288,7 +4380,8 @@ same boundary using <a href="../../reference/pv/log/"><code>@mm.pv.log</code></a
 </code></pre></div>
 <p><code>source_index</code> and <code>target_index</code> select matching columns; <code>None</code> uses the
 corresponding table index. Neither changes the actual index. Table paths accept
-global <code>obs</code>/<code>var</code>, modality <code>obs</code>/<code>var</code>, and DataFrames in modality <code>obsm</code>/<code>varm</code>.
+global <code>obs</code>/<code>var</code>, modality <code>obs</code>/<code>var</code>, the decoy table as <code>&lt;modality&gt;.decoy</code>,
+and DataFrames in modality <code>obsm</code>/<code>varm</code>.
 Identical source key/value rows are collapsed; conflicting values for a key
 raise before assignment. Unmatched targets receive missing values, and existing
 target columns are overwritten. Only the mapping instructions are recorded;
@@ -4305,20 +4398,33 @@ replay and generated scripts obtain the values from the reconstructed source tab
 explicitly included in the rules. Nullable booleans and categorical columns are
 converted to object dtype when needed to hold the replacement values. Replay
 and scripts store the rules, not the resulting columns.</p>
-<p>Delete an unstructured metadata entry with a recorded location:</p>
+<p>Delete a metadata entry or a table column with a recorded location:</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"psm.uns"</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="s2">"decoy"</span><span class="p">)</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"psm.var"</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="s2">"temporary_note"</span><span class="p">)</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"psm.obsm"</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="s2">"X_umap"</span><span class="p">)</span>
+<span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"psm.varm.search_result"</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="s2">"temporary_score"</span><span class="p">)</span>
 </code></pre></div>
-<p>This is equivalent to <code>del mdata["psm"].uns["decoy"]</code> and returns the same
-MuData. <code>target="uns"</code> addresses global metadata. Missing keys raise <code>KeyError</code>;
-the <code>_log</code> provenance key cannot be deleted through this function. Only the
-target and key are recorded, not the deleted content. Replay reconstructs the
-preceding state and then repeats the deletion.</p>
+<p>These calls delete, respectively, an <code>uns</code> entry, a <code>var</code> column, an <code>obsm</code>
+entry, and a column in a DataFrame stored in <code>varm</code>. They return the same MuData.
+<code>uns</code>, <code>obsm</code>, and <code>varm</code> address global mappings; <code>&lt;modality&gt;.uns/obsm/varm</code>
+address modality mappings. <code>obs</code>, <code>var</code>, <code>&lt;modality&gt;.obs/var</code>, <code>&lt;modality&gt;.decoy</code>,
+and DataFrame paths such as <code>obsm.metrics</code> or <code>&lt;modality&gt;.varm.search_result</code>
+address columns.
+Missing keys raise <code>KeyError</code>; the <code>_log</code> provenance key and the modality masks
+stored in global <code>obsm</code>/<code>varm</code> cannot be deleted through this function. Only
+the target and key are recorded, not the deleted content. Replay reconstructs
+the preceding state and then repeats the deletion. To remove samples or
+features, use <a href="../../reference/pp/apply_filter/"><code>pp.apply_filter</code></a>, which updates
+the aligned data axes. Deleting a column from an <code>obsm</code>/<code>varm</code> filter table does
+not remove separately stored filter definitions in <code>uns</code>.</p>
 <p>Use <a href="../../reference/dt/assign/"><code>dt.assign</code></a> to record an explicit column assignment with supplied values:</p>
 <div class="highlight"><pre><span></span><code><span class="n">mdata</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="s2">"protein_group"</span><span class="p">,</span> <span class="n">protein_groups</span><span class="p">,</span> <span class="n">modality</span><span class="o">=</span><span class="s2">"peptide"</span><span class="p">)</span>
 <span class="c1"># Equivalent to mdata["peptide"].var["protein_group"] = protein_groups</span>
 </code></pre></div>
 <p>This changes the supplied MuData in place and returns it. <code>on="obs"</code> assigns an
-observation column instead of a feature column. Pandas handles broadcasting and
+observation column instead of a feature column, and <code>on="decoy"</code> writes to the
+decoy table in <code>uns["decoy"]</code>, which must carry every column a variable filter
+uses (see <a href="../filter/#validation_and_compatibility">Filter</a>). Pandas handles broadcasting and
 index alignment. Scalars, lists, NumPy arrays, pandas Index and Series values are
 stored in full, including Series indices and dtypes, so replay can repeat the
 assignment without repeating the calculation that produced the values. Large
@@ -4521,7 +4627,7 @@ No write/load monkey-patches or additional file formats are required.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 23, 2026 02:09:51 UTC">September 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 01:32:33 UTC">October 14, 2026</span>
   </span>
 
     

@@ -1755,6 +1755,8 @@
       
         
       
+        
+      
     
     
     
@@ -1838,6 +1840,34 @@
     
   
     apply_filter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/pp/calculate_missingness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    calculate_missingness
   
 
     
@@ -2298,6 +2328,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -2465,6 +2499,62 @@
     
   
     concat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/save_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    save_layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dt/load_layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    load_layer
   
 
     
@@ -5896,7 +5986,7 @@ mdata = mm.pp.normalize(mdata, modality="peptide", method="median")</div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h2 id="handling-protein-level">Handling protein level<a class="anchor-link" href="#handling-protein-level">¶</a></h2><h3 id="summarization-protein">Summarization - protein<a class="anchor-link" href="#summarization-protein">¶</a></h3><p>You can summarize peptide-level data to protein-level data using the <a href="../../reference/pp/to_protein/"><code>mm.pp.to_protein()</code></a> function.</p>
-<p>As default, top 3 peptides within protein group can be used for protein group quantification aggregation. If top_n is None, all peptides will be used.</p>
+<p>By default, all peptides within a protein group are used for protein group quantification aggregation. Set top_n (e.g. 3) to use only the top-ranked peptides.</p>
 </div>
 </div>
 </div>
@@ -6214,7 +6304,7 @@ This allows you to easily reload the processed data in future sessions without r
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 23, 2026 02:09:51 UTC">September 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 12, 2026 08:39:02 UTC">October 12, 2026</span>
   </span>
 
     
