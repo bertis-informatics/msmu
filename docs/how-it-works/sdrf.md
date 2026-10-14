@@ -66,7 +66,7 @@ TMT126          t0h               Homo sapiens  ...                       t0    
 TMT127          t1h               Homo sapiens  ...                       t1                       t1h
 ```
 
-All three arguments are optional, and the call above passes none of them:
+All four arguments are optional, and the call above passes none of them:
 
 - **`on`** (optional, default `None`) — the match key. `None` resolves it per modality, from that
   modality's own `uns["label"]`: `comment[label]` where the label is `tmt` (obs are channels), and
@@ -83,12 +83,29 @@ All three arguments are optional, and the call above passes none of them:
   projectable column; pass a name or list to project a subset.
 - **`set_index`** (optional, default `None`) — `None` keeps the existing `obs.index`; pass a
   column to rename samples by it (see below).
+- **`order_obs`** (optional, default `True`) — put the observations in SDRF row order (see below);
+  `False` keeps the reader's order.
 
 **Projectable columns only.** A column that takes more than one value within a key group cannot be
 represented per observation. Above, each channel spans 12 fractions, so `comment[data file]` and
 `comment[fraction identifier]` are skipped with a warning and stay in `uns["sdrf"]`. Naming such a
 column explicitly in `columns=[...]` raises instead of skipping, so `.obs` never silently collapses
 SDRF data.
+
+### Observation order follows the SDRF
+
+Readers order obs by whatever they were handed: DIA-NN runs come out alphabetically, so
+`11cells_A10` sorts before `1cell_A3`, and Sage or FragPipe keep their quant-table column order.
+Plots turn the first appearance of each obs value into its category order, so that incidental
+order ends up on every axis and legend. By default `apply_sdrf_to_obs()` reorders the observations
+to follow the SDRF rows instead: each observation takes the position of the first SDRF row carrying
+its match key (a channel that spans 12 fraction rows takes its first), and every modality, the
+MuData-level `obs`, `.X`, layers and `obsm` move together.
+
+Observations absent from the SDRF — blank or reference channels, typically — are not dropped. They
+follow the matched ones in their original order with `NaN` metadata, and leave through
+[`add_filter()`](../reference/pp/add_filter.md) / [`apply_filter()`](../reference/pp/apply_filter.md)
+as before. Pass `order_obs=False` to keep the reader's order.
 
 ### Naming samples with `set_index`
 
@@ -103,6 +120,7 @@ mdata = mm.pp.apply_sdrf_to_obs(
                                                          #   (comment[label] for TMT, comment[data file] otherwise)
     columns=["source name", "factor value[condition]"],  # optional, default None: project every projectable column
     set_index="source name",                             # optional, default None: keep obs.index unchanged
+    order_obs=True,                                      # optional, default True: obs in SDRF row order
 )
 
 mdata["psm"].obs

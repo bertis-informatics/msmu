@@ -563,3 +563,123 @@ def test_apply_sdrf_matches_filename_ignoring_extension():
     assert list(out.mod["psm"].obs["source name"]) == ["a", "b"]
     # uns keeps the original filenames (with extension) -- only matching is normalised
     assert list(out.uns["sdrf"]["comment[data file]"]) == ["QExHF03751.mzML", "QExHF03753.mzML"]
+
+
+# --- obs order ----------------------------------------------------------------------------------
+
+
+def _label_free_sdrf(file_order: list[str]) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "comment[data file]": [f"{name}.raw" for name in file_order],
+            "source name": [f"sample_{name}" for name in file_order],
+        }
+    )
+
+
+def test_apply_sdrf_orders_obs_by_sdrf_rows_by_default():
+    # readers order obs alphabetically (DIA-NN) or by quant column; the SDRF carries the plate order
+    mdata = _make_mdata(["cell_A3", "cells_A10", "ctrl_A1"])
+    psm = mdata.mod["psm"]
+    psm.X = np.array([[3.0], [10.0], [1.0]])
+    psm.layers["raw"] = psm.X.copy()
+    psm.obsm["filter"] = pd.DataFrame({"keep": [True, False, True]}, index=psm.obs_names)
+    mdata = mm.pp.attach_sdrf(mdata, _label_free_sdrf(["ctrl_A1", "cell_A3", "cells_A10"]), validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)
+
+    psm = out.mod["psm"]
+    assert list(psm.obs_names) == ["ctrl_A1", "cell_A3", "cells_A10"]
+    assert list(out.obs_names) == ["ctrl_A1", "cell_A3", "cells_A10"]
+    # rows travel with their names: X, layers and obsm stay aligned to obs
+    assert psm.X[:, 0].tolist() == [1.0, 3.0, 10.0]
+    assert psm.layers["raw"][:, 0].tolist() == [1.0, 3.0, 10.0]
+    assert psm.obsm["filter"]["keep"].tolist() == [True, True, False]
+    assert list(psm.obs["source name"]) == ["sample_ctrl_A1", "sample_cell_A3", "sample_cells_A10"]
+    assert list(out.obs["source name"]) == ["sample_ctrl_A1", "sample_cell_A3", "sample_cells_A10"]
+    assert list(out.uns["sdrf"]["comment[data file]"]) == ["ctrl_A1.raw", "cell_A3.raw", "cells_A10.raw"]
+
+
+def test_apply_sdrf_orders_every_modality_together():
+    obs = pd.DataFrame(index=["b", "a"])
+    mdata = MuData(
+        {
+            "psm": AnnData(X=np.array([[2.0], [1.0]]), obs=obs.copy(), var=pd.DataFrame(index=["psm_1"])),
+            "peptide": AnnData(X=np.array([[20.0], [10.0]]), obs=obs.copy(), var=pd.DataFrame(index=["peptide_1"])),
+        }
+    )
+    mdata = mm.pp.attach_sdrf(mdata, _label_free_sdrf(["a", "b"]), validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)
+
+    assert list(out.obs_names) == ["a", "b"]
+    assert list(out.mod["psm"].obs_names) == ["a", "b"]
+    assert list(out.mod["peptide"].obs_names) == ["a", "b"]
+    assert out.mod["psm"].X[:, 0].tolist() == [1.0, 2.0]
+    assert out.mod["peptide"].X[:, 0].tolist() == [10.0, 20.0]
+
+
+def test_apply_sdrf_keeps_unmatched_obs_after_matched_ones_in_their_own_order():
+    # blank/reference channels absent from the SDRF are not dropped (that is apply_filter's job)
+    mdata = _make_mdata(["blank_2", "a", "blank_1", "b"])
+    mdata = mm.pp.attach_sdrf(mdata, _label_free_sdrf(["b", "a"]), validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)
+
+    assert list(out.mod["psm"].obs_names) == ["b", "a", "blank_2", "blank_1"]
+    assert out.mod["psm"].obs["source name"].isna().tolist() == [False, False, True, True]
+
+
+def test_apply_sdrf_order_obs_false_keeps_reader_order():
+    mdata = mm.pp.attach_sdrf(_make_mdata(["a", "b"]), _label_free_sdrf(["b", "a"]), validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata, order_obs=False)
+
+    assert list(out.mod["psm"].obs_names) == ["a", "b"]
+    assert list(out.mod["psm"].obs["source name"]) == ["sample_a", "sample_b"]
+
+
+def test_apply_sdrf_orders_by_first_sdrf_row_of_each_key():
+    # fractionated TMT: each channel appears once per fraction; its first row decides the position
+    mdata = _make_mdata(["TMT127", "TMT126"])
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, _SDRF_TMT_FRAC, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata)
+
+    assert list(out.mod["psm"].obs_names) == ["TMT126", "TMT127"]
+    assert list(out.mod["psm"].obs["source name"]) == ["t0h", "t1h"]
+
+
+def test_apply_sdrf_set_index_renames_the_reordered_obs():
+    mdata = _make_mdata(["a", "b"])
+    mdata.mod["psm"].X = np.array([[1.0], [2.0]])
+    mdata.mod["psm"].obsm["filter"] = pd.DataFrame({"keep": [True, False]}, index=["a", "b"])
+    mdata = mm.pp.attach_sdrf(mdata, _label_free_sdrf(["b", "a"]), validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata, set_index="source name")
+
+    psm = out.mod["psm"]
+    assert list(psm.obs_names) == ["sample_b", "sample_a"]
+    assert list(out.obs_names) == ["sample_b", "sample_a"]
+    assert psm.X[:, 0].tolist() == [2.0, 1.0]
+    assert list(psm.obsm["filter"].index) == ["sample_b", "sample_a"]
+    assert psm.obsm["filter"]["keep"].tolist() == [False, True]
+
+
+def test_apply_sdrf_composite_key_orders_channel_set_obs():
+    sdrf = pd.DataFrame(
+        {
+            "comment[label]": ["TMT126", "TMT127", "TMT126", "TMT127"],
+            "comment[sample preparation batch]": ["set2", "set2", "set1", "set1"],
+            "source name": ["a", "b", "c", "d"],
+        }
+    )
+    mdata = _make_mdata(["TMT126_set1", "TMT127_set1", "TMT126_set2", "TMT127_set2"])
+    mdata.mod["psm"].uns["label"] = "tmt"
+    mdata = mm.pp.attach_sdrf(mdata, sdrf, validate=False)
+
+    out = mm.pp.apply_sdrf_to_obs(mdata, on=["comment[label]", "comment[sample preparation batch]"])
+
+    assert list(out.mod["psm"].obs_names) == ["TMT126_set2", "TMT127_set2", "TMT126_set1", "TMT127_set1"]
+    assert list(out.mod["psm"].obs["source name"]) == ["a", "b", "c", "d"]

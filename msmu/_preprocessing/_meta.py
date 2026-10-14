@@ -192,6 +192,7 @@ def apply_sdrf_to_obs(
     on: str | Sequence[str] | None = None,
     columns: str | Sequence[str] | None = None,
     set_index: str | None = None,
+    order_obs: bool = True,
 ) -> MuData:
     """
     Project columns of the attached SDRF (``uns["sdrf"]``) onto each modality's obs.
@@ -202,6 +203,10 @@ def apply_sdrf_to_obs(
     cannot be represented on the obs axis; they are left untouched in ``uns["sdrf"]`` and
     skipped with a warning -- or, if named explicitly in ``columns``, raise. obs never
     silently collapses SDRF data.
+
+    By default the observations are also reordered to follow the SDRF rows, so an order written
+    into the SDRF (plate wells, acquisition sequence) carries into obs and into the category
+    order every plot derives from it. Readers order obs by file name or quant-table column.
 
     Parameters:
         mdata: MuData with an SDRF attached via [`attach_sdrf`][msmu.pp.attach_sdrf].
@@ -214,10 +219,15 @@ def apply_sdrf_to_obs(
             naming a non-projectable column raises instead of skipping it.
         set_index: After projection, replace ``obs.index`` with this SDRF column's values.
             Must be projectable and unique across obs. Default None keeps the index.
+        order_obs: Reorder every modality's obs, and the global obs, to the SDRF row order: each
+            observation takes the position of the first SDRF row carrying its match key, and
+            observations absent from the SDRF follow the matched ones in their current order
+            (none is dropped; removing samples stays with [`apply_filter`][msmu.pp.apply_filter]).
+            Default True; False keeps the reader's order.
 
     Returns:
-        A copy of ``mdata`` with projected SDRF columns merged into each modality's obs;
-        ``uns["sdrf"]`` is left unchanged as the source of truth.
+        A copy of ``mdata`` with projected SDRF columns merged into each modality's obs and, by
+        default, obs in SDRF row order; ``uns["sdrf"]`` is left unchanged as the source of truth.
     """
     if not isinstance(mdata, md.MuData):
         raise TypeError("mdata must be a MuData object.")
@@ -243,7 +253,7 @@ def apply_sdrf_to_obs(
     on, sdrf, composite_parts = _resolve_match_on(on, sdrf)
     requested_columns = _normalise_sdrf_columns(columns)
 
-    out = mdata.copy()
+    out = _copy_in_sdrf_order(mdata, sdrf, on=on) if order_obs else mdata.copy()
     projected_columns: list[str] = []  # preserve SDRF column order, deduped across modalities
     for mod_name in out.mod.keys():
         adata = out.mod[mod_name]
@@ -299,6 +309,45 @@ def _relabel_obsm_frames(adata) -> None:
 def _default_sdrf_match_key(adata) -> str:
     """TMT obs are channels (``comment[label]``); label-free/DIA obs are files (``comment[data file]``)."""
     return "comment[label]" if adata.uns.get("label") == "tmt" else "comment[data file]"
+
+
+def _copy_in_sdrf_order(mdata: MuData, sdrf: pd.DataFrame, *, on: str | None) -> MuData:
+    """Copy ``mdata`` with its observations in SDRF row order.
+
+    Slicing the MuData by the reordered obs names moves every modality's obs, ``X``, layers and obsm
+    together and rebuilds the global obs, so the order changes in exactly one place. A MuData whose
+    obs already follow the SDRF is copied as is.
+    """
+    ordered_obs_names = _obs_names_in_sdrf_order(mdata, sdrf, on=on)
+    if ordered_obs_names == list(mdata.obs_names):
+        return mdata.copy()
+    return mdata[ordered_obs_names, :].copy()
+
+
+def _obs_names_in_sdrf_order(mdata: MuData, sdrf: pd.DataFrame, *, on: str | None) -> list[str]:
+    """Global obs names sorted by the SDRF row in which each observation's match key first appears.
+
+    A key spanning several SDRF rows (fractions, technical replicates) takes its first row.
+    Observations absent from the SDRF keep their relative order after every matched one; they are
+    not dropped, since removing samples is ``apply_filter``'s job. The match key is resolved per
+    modality exactly as the projection does, and a key missing from the SDRF is left for the
+    projection to report.
+    """
+    unmatched_rank = len(sdrf)
+    rank_by_obs_name: dict[str, int] = {}
+    for adata in mdata.mod.values():
+        match_key = on if on is not None else _default_sdrf_match_key(adata)
+        if match_key not in sdrf.columns:
+            continue
+        rank_by_key: dict[object, int] = {}
+        for row_position, key in enumerate(sdrf[match_key]):
+            rank_by_key.setdefault(key, row_position)
+        for obs_name in adata.obs_names:
+            rank = rank_by_key.get(obs_name)
+            if rank is not None:
+                rank_by_obs_name[obs_name] = min(rank, rank_by_obs_name.get(obs_name, rank))
+    # sorted() is stable: ties and unmatched observations keep their current relative order
+    return sorted(mdata.obs_names, key=lambda obs_name: rank_by_obs_name.get(obs_name, unmatched_rank))
 
 
 def _resolve_match_on(
