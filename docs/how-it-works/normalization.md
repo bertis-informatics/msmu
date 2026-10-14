@@ -96,7 +96,7 @@ The adjusted values **replace the matrix that was read** — `.X`, or `layers[la
 To keep the unadjusted values for a side-by-side comparison, copy them into a layer first:
 
 ```python
-mdata["phospho_site"].layers["unadjusted"] = mdata["phospho_site"].X.copy()
+mdata = mm.dt.save_layer(mdata, modality="phospho_site", layer="unadjusted")
 mdata = mm.pp.adjust_ptm_by_protein(mdata, global_mdata=global_mdata)
 ```
 

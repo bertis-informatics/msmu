@@ -11,15 +11,77 @@ from mudata import MuData
 
 from ._core._provenance import log_provenance
 
-__all__ = ["assign", "map", "replace", "drop", "concat"]
+__all__ = ["assign", "map", "replace", "drop", "concat", "save_layer", "load_layer"]
+
+
+@log_provenance
+def save_layer(
+    mdata: MuData, *, modality: str, layer: str, overwrite: bool = False
+) -> MuData:
+    """Save a copy of a modality's `.X` in a named layer, in place.
+
+    Parameters:
+        mdata: MuData to modify.
+        modality: Modality containing the matrix.
+        layer: Destination layer name.
+        overwrite: Replace an existing layer when True; otherwise raise ValueError.
+
+    Returns:
+        The same MuData with `.X` copied into `layers[layer]`.
+    """
+    if not isinstance(layer, str) or not layer:
+        raise ValueError("layer must be a nonempty string")
+    if not isinstance(overwrite, bool):
+        raise TypeError("overwrite must be a bool")
+    adata = mdata[modality]
+    if adata.isbacked:
+        raise ValueError("save_layer does not support backed modalities; read the .h5mu into memory")
+    if adata.X is None:
+        raise ValueError(f"{modality!r} has no .X to save")
+    if layer in adata.layers and not overwrite:
+        raise ValueError(f"Layer {layer!r} already exists in {modality!r}")
+    adata.layers[layer] = adata.X.copy()
+    return mdata
+
+
+@log_provenance
+def load_layer(mdata: MuData, *, modality: str, layer: str) -> MuData:
+    """Load a named layer into a modality's `.X`, in place; other annotations are unchanged.
+
+    Parameters:
+        mdata: MuData to modify.
+        modality: Modality containing the layer.
+        layer: Source layer name; missing names raise KeyError.
+
+    Returns:
+        The same MuData with `layers[layer]` copied into `.X`.
+    """
+    if not isinstance(layer, str) or not layer:
+        raise ValueError("layer must be a nonempty string")
+    adata = mdata[modality]
+    if adata.isbacked:
+        raise ValueError("load_layer does not support backed modalities; read the .h5mu into memory")
+    adata.X = adata.layers[layer].copy()
+    return mdata
+
+
+def _decoy_table(mdata: MuData, modality: str) -> pd.DataFrame:
+    if "decoy" not in mdata[modality].uns:
+        raise ValueError(f"{modality!r} has no decoy table in uns['decoy']")
+    return mdata[modality].uns["decoy"]
 
 
 def _column_table(mdata: MuData, path: str) -> pd.DataFrame:
     parts = path.split(".", 2)
     if path in ("obs", "var"):
         table = getattr(mdata, path)
+    elif path.startswith(("obsm.", "varm.")):
+        attribute, key = path.split(".", 1)
+        table = getattr(mdata, attribute)[key]
     elif len(parts) == 2 and parts[1] in ("obs", "var"):
         table = getattr(mdata[parts[0]], parts[1])
+    elif len(parts) == 2 and parts[1] == "decoy":
+        table = _decoy_table(mdata, parts[0])
     elif len(parts) == 3 and parts[1] in ("obsm", "varm"):
         table = getattr(mdata[parts[0]], parts[1])[parts[2]]
     else:
@@ -43,8 +105,9 @@ def map(
 ) -> MuData:
     """Map source columns onto a target table in place, returning the same MuData.
 
-    Table paths are ``obs``, ``var``, ``<modality>.obs/var``, or
-    ``<modality>.obsm/varm.<key>`` (DataFrames only). Index arguments name
+    Table paths are ``obs``, ``var``, ``<modality>.obs/var``, ``<modality>.decoy``
+    (the decoy table in ``uns["decoy"]``), or ``[<modality>.]obsm/varm.<key>``
+    (DataFrames only). Index arguments name
     matching columns; None uses the table index without changing it.
     ``columns`` maps source column names to destination column names.
     Identical source key/value rows are collapsed; conflicting keys raise.
@@ -54,7 +117,7 @@ def map(
 
     Parameters:
         mdata: MuData to modify.
-        source: Source table path: `obs`, `var`, `<modality>.obs`, `<modality>.var`, or `<modality>.obsm.<key>`/`<modality>.varm.<key>` containing a DataFrame.
+        source: Source table path: `obs`, `var`, `<modality>.obs`, `<modality>.var`, `<modality>.decoy`, or `[<modality>.]obsm/varm.<key>` containing a DataFrame.
         target: Destination table path using the same syntax.
         columns: Nonempty mapping from source column names to unique destination column names.
         source_index: Source matching column; `None` uses its index.
@@ -139,15 +202,19 @@ def replace(
 
 @log_provenance
 def drop(mdata: MuData, *, target: str, key: str) -> MuData:
-    """Delete an uns entry in place, recording only its location for replay.
+    """Delete a metadata entry or table column in place, recording its location for replay.
 
-    ``target`` is ``uns`` or ``<modality>.uns``. Missing keys raise KeyError,
-    just like ``del``. Returns the same MuData; provenance cannot be deleted.
+    ``target`` is ``uns``, ``obsm``, ``varm``, a modality-specific equivalent,
+    or a table path accepted by [`map`][msmu.dt.map]. A mapping target deletes
+    its ``key``; a table target deletes a column, so ``<modality>.decoy`` removes
+    a decoy-table column while ``<modality>.uns`` with ``key="decoy"`` removes the
+    whole table. Missing keys raise KeyError.
+    Returns the same MuData; provenance and global modality masks cannot be deleted.
 
     Parameters:
         mdata: MuData to modify.
-        target: `"uns"` or `"<modality>.uns"`; table columns are not supported.
-        key: Entry to delete. Missing entries raise KeyError; `_log` is protected.
+        target: Metadata mapping or table path.
+        key: Entry or column to delete. Missing keys raise KeyError; `_log` and global modality masks are protected.
 
     Returns:
         The same MuData, modified in place.
@@ -161,12 +228,15 @@ def drop(mdata: MuData, *, target: str, key: str) -> MuData:
     """
     if key == "_log":
         raise ValueError("Cannot delete provenance with drop")
-    if target == "uns":
-        container = mdata.uns
-    elif target.endswith(".uns"):
-        container = mdata[target[:-4]].uns
+    if target in ("obsm", "varm") and key in mdata.mod:
+        raise ValueError("Cannot delete a modality mask with drop")
+    if target in ("uns", "obsm", "varm"):
+        container = getattr(mdata, target)
+    elif target.endswith((".uns", ".obsm", ".varm")):
+        modality, attribute = target.rsplit(".", 1)
+        container = getattr(mdata[modality], attribute)
     else:
-        raise ValueError("target must be 'uns' or '<modality>.uns'")
+        container = _column_table(mdata, target)
     del container[key]
     return mdata
 
@@ -178,11 +248,12 @@ def assign(
     values,
     *,
     modality: str,
-    on: Literal["obs", "var"] = "var",
+    on: Literal["obs", "var", "decoy"] = "var",
 ) -> MuData:
     """Assign a column in place and record its values for replay.
 
-    Equivalent to ``mdata[modality].var[column] = values`` (or ``obs``).
+    Equivalent to ``mdata[modality].var[column] = values`` (or ``obs``), or to
+    ``mdata[modality].uns["decoy"][column] = values`` with ``on="decoy"``.
     Pandas handles scalar broadcasting, positional arrays and Series index
     alignment. Returns the same MuData. Values are stored in full in provenance;
     the computation that produced them is not recorded.
@@ -192,7 +263,8 @@ def assign(
         column: Destination column name; an existing column is overwritten.
         values (Any): Scalar, positional array, or pandas Series. Series align by index. Values are captured in full for replay.
         modality: Modality containing the target table.
-        on: `"var"` or `"obs"`.
+        on: `"var"`, `"obs"`, or `"decoy"` for the decoy table in `uns["decoy"]`, which
+            [`add_filter`][msmu.pp.add_filter] requires to carry every column a variable filter uses.
 
     Returns:
         The same MuData, modified in place.
@@ -201,11 +273,13 @@ def assign(
         ```python
         import msmu as mm
         mm.dt.assign(mdata, "reviewed", True, modality="protein")
+        mm.dt.assign(mdata, "n_missing", 0, modality="protein", on="decoy")
         ```
     """
-    if on not in ("obs", "var"):
-        raise ValueError("on must be 'obs' or 'var'")
-    getattr(mdata[modality], on)[column] = values
+    if on not in ("obs", "var", "decoy"):
+        raise ValueError("on must be 'obs', 'var' or 'decoy'")
+    table = _decoy_table(mdata, modality) if on == "decoy" else getattr(mdata[modality], on)
+    table[column] = values
     return mdata
 
 

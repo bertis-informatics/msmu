@@ -23,12 +23,32 @@ The `agg_method` argument selects how quantification values are combined. Two fa
 
 **Matrix rollups** — `median_polish` and `directlfq` treat the feature-by-sample block of a protein group as a whole matrix and estimate a per-sample protein profile while accounting for the fact that different peptides ionize with different efficiencies (per-peptide "response factors"):
 
-- `median_polish` fits Tukey's additive model `value = overall + peptide_effect + sample_effect + residual` by iteratively sweeping out row and column medians; the per-sample estimate is `overall + sample_effect`. This follows R's `stats::medpolish`, the protein summarization used by MSstats ([Choi et al., Bioinformatics, 2014](https://doi.org/10.1093/bioinformatics/btu305)).
+- `median_polish` fits Tukey's additive model `value = overall + peptide_effect + sample_effect + residual` by iteratively sweeping out row and column medians; the per-sample estimate is `overall + sample_effect`. This follows R's `stats::medpolish`, the protein summarization used by MSstats ([Choi et al., Bioinformatics, 2014](https://doi.org/10.1093/bioinformatics/btu305)), except in how peptides missing from some samples are treated; see [Missing values in median polish](#missing_values_in_median_polish) below.
 - `directlfq` applies the DirectLFQ rollup ([Ammar et al., 2023](https://doi.org/10.1016/j.mcpro.2023.100581)): it aligns each peptide's intensity trace onto a common within-group scale and takes the per-sample median of the aligned traces. DirectLFQ is MaxLFQ-inspired but a *distinct* algorithm from the classical MaxLFQ pairwise-ratio least-squares, so the two are correlated, not identical.
 
 Because they model per-peptide response factors — meaningful when combining *distinct* peptides into a protein, but not when combining replicate PSMs of the *same* peptide — the matrix rollups are offered only at the peptide-to-protein step ([`to_protein`](../reference/pp/to_protein.md) and [`to_ptm`](../reference/pp/to_ptm.md)). [`to_peptide`](../reference/pp/to_peptide.md) accepts only the column-wise reductions.
 
 **Important:** `median_polish` and `directlfq` are additive / log-space methods and must be applied to log2-transformed data. Call [`mm.pp.log2_transform()`](../reference/pp/log2_transform.md) before summarizing with them.
+
+### Missing values in median polish
+
+In each column sweep, every peptide casts a vote on how far a sample sits from its own level. A peptide quantified in a single sample has nothing to compare against: its residual is exactly zero, which R's `medpolish` counts as a vote for "no difference". Where such peptides are the majority -- half of all peptides in a 1 vs 1 label-free run without match-between-runs -- both samples collapse onto the overall level and the protein reports a log2 fold change of exactly 0. msmu therefore applies three rules:
+
+1. **A peptide quantified in one sample sets the protein level but does not vote on between-sample differences.**
+2. **A sample that shares no peptide with the others is `NaN`.** No difference can be estimated, and a value there would read as "unchanged".
+3. **When the samples split into groups that share no peptide, only the largest group is kept.** Differences inside a group are real; differences between groups are undefined. Groups tied for largest are all `NaN` -- the case of a 1 vs 1 run whose samples share no peptide.
+
+| | WT | KO |
+|---|---|---|
+| pep1 | 22 | 20 |
+| pep2 | 23 | -- |
+| pep3 | 24 | -- |
+| pep4 | -- | 19 |
+| pep5 | -- | 21 |
+
+`medpolish` gives WT = KO = 21: pep2-pep5 outvote pep1. msmu gives WT 23, KO 21: the difference is pep1's, and pep2-pep5 inform only the level. Without pep1 both samples would be `NaN`.
+
+Any two non-`NaN` values of a protein are therefore on one scale, and their differences are those of `medpolish` on the peptides quantified in more than one sample -- in a 1 vs 1 run, the median log2 ratio of the shared peptides, as in MaxLFQ. A block in which every peptide is quantified in at least two samples gives exactly the `medpolish` result. The level of a protein follows Tukey's convention (the median peptide effect is zero), so it is the level of the protein's typical peptide: it compares a protein across samples, not proteins within a sample -- that needs a level corrected for protein size, which this rollup does not provide. As in MaxLFQ and DirectLFQ, a difference carried by a single shared peptide is kept (noisy, but estimable), and a peptide's absence from a sample is not used as information.
 
 ## Identification q-values and tied PEPs
 
@@ -108,9 +128,9 @@ Only "unique" peptides are used for protein group intensity aggregation; "shared
 
 As in peptide-level aggregation, protein group level `PEP` and `q-value` are computed when possible.
 
-The default settings use `top_n=3` with ranking by `median_intensity`, so only the top three peptides per protein group contribute to quantification.
+By default every unique peptide of a protein group contributes to quantification. Set `top_n` (e.g. `top_n=3`, ranked by `median_intensity`) to restrict the rollup to the top-ranked peptides; note that the ranking skips missing values, so it favours peptides observed in few samples.
 
-Beyond the column-wise reductions, [`to_protein`](../reference/pp/to_protein.md) also accepts the matrix rollups `median_polish` and `directlfq`, which estimate a per-sample protein profile from the whole peptide-by-sample block while accounting for per-peptide response factors (see [Aggregation methods](#aggregation_methods)). Both require log2-transformed input, so run [`mm.pp.log2_transform()`](../reference/pp/log2_transform.md) first. They are typically combined with `top_n=None` so that all peptides inform the estimate.
+Beyond the column-wise reductions, [`to_protein`](../reference/pp/to_protein.md) also accepts the matrix rollups `median_polish` and `directlfq`, which estimate a per-sample protein profile from the whole peptide-by-sample block while accounting for per-peptide response factors (see [Aggregation methods](#aggregation_methods)). Both require log2-transformed input, so run [`mm.pp.log2_transform()`](../reference/pp/log2_transform.md) first. Leave `top_n=None` with them so that all peptides inform the estimate.
 
 ```python
 # Infer protein group from mdata (containing peptide modality)
@@ -120,7 +140,7 @@ mdata = mm.pp.infer_protein(mdata)
 mdata = mm.pp.to_protein(
     mdata,
     agg_method="median",            # "median" (default), "mean", "sum", "median_polish", "directlfq"
-    top_n=3,                        # default; use None with the matrix rollups
+    top_n=None,                     # default; e.g. 3 to keep the top three peptides
     rank_method="median_intensity",  # default
     layer=None,                     # default; read from .X, or name a layer to summarise instead
     calculate_q=True,               # default; set False to skip protein-level PEP/q-value
@@ -215,7 +235,7 @@ its sites, so a site pools singly and multiply modified forms — the interpreta
 Spectronaut's site tables make, and the previous default. The combination convention is that of
 Spectrum Mill's phosphosite tables, TMT-Integrator's multi-site report and MSstatsPTM.
 
-`agg_method` can be selected among the methods described in [Aggregation methods](#aggregation_methods); the matrix rollups `median_polish` and `directlfq` are available here as well (on log2-transformed data).
+`agg_method` can be selected among the methods described in [Aggregation methods](#aggregation_methods); the matrix rollups `median_polish` and `directlfq` are available here as well (on log2-transformed data). With the default `median_polish`, a site's change between two samples comes from the peptidoforms quantified in both; a sample whose peptidoforms for that site were all quantified in that sample alone is left `NaN` rather than reported as unchanged.
 
 ```python
 mdata = mm.utils.attach_fasta(mdata, fasta_file="fasta/file/path.fasta")

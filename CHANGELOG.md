@@ -6,6 +6,65 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-13
+
+### Added
+
+- **`mm.pp.calculate_missingness`.** Records, per feature, the number and ratio of samples
+  without a value (`var["n_missing"]`, `var["missing_ratio"]`) and, with `group_obs`, a
+  `missing_ratio_<level>` per group, counting absent and stored-NaN cells of a sparse `.X` alike.
+  Decoys receive `0` / `0.0`, so a "missing at most" filter keeps them and the q-value counts stay
+  intact. This replaces the hand-written `to_df().isna().sum()` and `dropna(how="all")` steps, which
+  provenance could not record; the processing tutorial now drops empty features through it.
+- **`mm.dt.save_layer` and `mm.dt.load_layer`.** `save_layer` copies a modality's `.X` into a
+  named layer and `load_layer` copies a layer back into `.X`. Both are recorded in provenance,
+  keep dense and sparse matrices as they are, and leave the source and destination independent.
+  An existing layer is not overwritten unless `overwrite=True`, and a backed `MuData` is rejected
+  with a clear error. The PTM tutorial takes its unadjusted snapshot with `save_layer`.
+- **`mm.dt.drop` deletes table columns and mapping entries.** Besides `uns` entries, `drop` now
+  removes `obs`/`var` columns, DataFrame columns inside `obsm`/`varm`, and entries of global or
+  modality `obsm`/`varm` mappings, recording only the target and key for replay. `_log` and the
+  global modality masks are protected; removing samples or features remains the job of
+  `pp.apply_filter`, which keeps the aligned axes consistent.
+- **`mm.dt` edits the decoy table.** `dt.assign` accepts `on="decoy"`, and the table path
+  `<modality>.decoy` addresses `uns["decoy"]` in `dt.map`, `dt.replace` and `dt.drop`, so the
+  columns a variable filter needs on both targets and decoys are recorded in provenance instead
+  of being written by hand. `pp.add_filter` now refuses a variable filter whose column is missing
+  from the decoy table with a message that names these calls, instead of a bare `KeyError`. The
+  processing tutorial carries the cell annotation onto the PSM `var` and decoy table with `dt.map`.
+
+### Changed
+
+- **`import msmu` takes about a third of the time.** `umap-learn` and `inmoose` are imported when
+  `tl.umap`, `pp.correct_batch_effect(method="combat")` or the limma engine run, not when the package
+  is imported; on a laptop `import msmu` drops from about 5.7 s to 1.7 s. `polars`, a required
+  dependency, is imported at module level in the readers instead of inside each function, and SDRF
+  validation no longer describes `sdrf-pipelines` as an optional package -- it is a required
+  dependency, so the `ImportError` branch is gone.
+- **Median polish returns `NaN` where samples cannot be compared.** **Breaking** for values:
+  `to_protein(agg_method="median_polish")` and `to_ptm` (its default rollup) now leave a sample
+  `NaN` when none of the group's features observed in that sample is observed in at least one
+  other sample and, when the observed samples split into groups that share no feature, keep the
+  largest group and leave the others `NaN` (every sample when groups tie for largest). Any two
+  non-`NaN` values of a feature are therefore on one common scale, and their differences are
+  those of `medpolish` on the features observed in more than one sample; previously such samples
+  were placed on the group's overall level, which reads as "unchanged". Groups whose every
+  feature is observed in at least two samples are unaffected.
+- **`to_protein` uses every unique peptide by default.** **Breaking** for callers that relied on
+  the implicit `top_n=3`: pass `top_n=3` to keep the cut. The docstring already stated `None`;
+  the default now matches it. A top-N cut ranks on a `NaN`-skipping median and so favours
+  peptides observed in few samples, which are the ones median polish cannot compare.
+
+### Fixed
+
+- **Median polish no longer flattens the difference between samples when most peptides are
+  observed in one sample.** A peptide observed in a single sample has a zero residual by
+  construction and used to vote "no difference" in that sample's column median; with such
+  peptides in the majority (e.g. 1 vs 1 LFQ without match-between-runs) both samples collapsed
+  onto the overall level and the protein reported a log2 fold change of exactly 0. Those
+  peptides now set the protein level only; the between-sample difference comes from the peptides
+  observed in more than one sample.
+
 ## [0.4.0] - 2026-09-23
 
 ### Added
@@ -339,6 +398,7 @@ metadata, one canonical accession form across readers, and sparse-in / sparse-ou
 - **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
 - **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
+[0.4.1]: https://github.com/bertis-informatics/msmu/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/bertis-informatics/msmu/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/bertis-informatics/msmu/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/bertis-informatics/msmu/compare/v0.3.0...v0.3.1

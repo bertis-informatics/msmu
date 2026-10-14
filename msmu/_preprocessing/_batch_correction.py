@@ -4,7 +4,6 @@ import mudata as md
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
-from inmoose.pycombat import pycombat_norm
 
 from .._utils._mudata import get_anndata_mod, get_mudata
 from .._core._provenance import log_provenance
@@ -244,6 +243,9 @@ class BatchCorrector:
 
         df_sorted = df.iloc[:, sorted_idx]
         batch_idx_sorted = batch_idx[sorted_idx]
+
+        # Imported on use: inmoose takes ~2 s to import and only the ComBat method needs it.
+        from inmoose.pycombat import pycombat_norm
 
         df_corrected_sorted = pycombat_norm(counts=df_sorted, batch=batch_idx_sorted)
 

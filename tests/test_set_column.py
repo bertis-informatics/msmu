@@ -7,6 +7,10 @@ import pytest
 import msmu as mm
 
 
+def _table(adata, on):
+    return adata.uns["decoy"] if on == "decoy" else getattr(adata, on)
+
+
 @pytest.mark.parametrize("values", [
     "shared",
     ["group1", "group2"],
@@ -20,29 +24,30 @@ import msmu as mm
               index=["p2", "p1"]),
     pd.Series(["group1"], index=["p1"]),
 ])
-@pytest.mark.parametrize("on", ["var", "obs"])
+@pytest.mark.parametrize("on", ["var", "obs", "decoy"])
 def test_set_column_matches_pandas_and_replays_after_save(tmp_path, values, on):
     source = tmp_path / "source.h5mu"
     md.MuData({"peptide": ad.AnnData(
         X=np.ones((2, 2)),
         obs=pd.DataFrame(index=["p1", "p2"]),
         var=pd.DataFrame(index=["p1", "p2"]),
+        uns={"decoy": pd.DataFrame({"score": [0.5, 0.9]}, index=["p1", "p2"])},
     )}).write_h5mu(source)
     with mm.pv.options(hashing=True):
         mdata = mm.read_h5mu(source)
-        expected = getattr(mdata["peptide"], on).copy()
+        expected = _table(mdata["peptide"], on).copy()
         expected["annotation"] = values
         result = mm.dt.assign(mdata, "annotation", values, modality="peptide", on=on)
     assert result is mdata
-    pd.testing.assert_frame_equal(getattr(result["peptide"], on), expected)
+    pd.testing.assert_frame_equal(_table(result["peptide"], on), expected)
     saved = tmp_path / "result.h5mu"
     result.write_h5mu(saved)
     history = mm.pv.get_log(md.read_h5mu(saved))
     replayed = mm.pv.replay(history)
-    pd.testing.assert_series_equal(getattr(replayed["peptide"], on)["annotation"], expected["annotation"])
+    pd.testing.assert_series_equal(_table(replayed["peptide"], on)["annotation"], expected["annotation"])
     namespace = {}
     exec(mm.pv.to_script(history), namespace)
-    pd.testing.assert_series_equal(getattr(namespace["mdata"]["peptide"], on)["annotation"], expected["annotation"])
+    pd.testing.assert_series_equal(_table(namespace["mdata"]["peptide"], on)["annotation"], expected["annotation"])
 
 
 def test_set_column_errors_leave_data_unchanged():
@@ -51,6 +56,7 @@ def test_set_column_errors_leave_data_unchanged():
     for kwargs, error in [
         ({"values": [1], "on": "var"}, ValueError),
         ({"values": 1, "on": "uns"}, ValueError),
+        ({"values": 1, "on": "decoy"}, ValueError),  # no decoy table in this modality
         ({"values": object(), "on": "var"}, TypeError),
     ]:
         with pytest.raises(error):

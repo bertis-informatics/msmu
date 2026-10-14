@@ -1,5 +1,6 @@
 from pathlib import Path
 import pandas as pd
+import polars as pl
 
 from ._base_reader import SearchResultReader, SearchResultSettings
 from .._utils.fasta import parse_uniprot_accession_group
@@ -96,8 +97,6 @@ class DelpiReader(SearchResultReader):
         -- ``strip_chars("<>._")`` would over-strip (e.g. ``._<AB>_.`` -> ``AB`` instead of
         ``<AB>``). Accession parsing is deduplicated via ``replace_strict``.
         """
-        import polars as pl
-
         uniq = identification_df.select("fasta_id").unique().to_series().to_list()
         parsed_by_group = {value: parse_uniprot_accession_group(value) for value in uniq}
         accession_map = {group: accession for group, (accession, _) in parsed_by_group.items()}

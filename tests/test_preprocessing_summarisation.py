@@ -157,6 +157,130 @@ def test_median_polish_all_missing_matrix_is_all_nan():
     assert np.all(np.isnan(estimates))
 
 
+def test_median_polish_matches_r_medpolish_when_every_feature_is_shared():
+    # R: medpolish(m, eps=1e-4, maxiter=10, na.rm=TRUE); overall + col. Every row is observed in at
+    # least two samples and every sample is linked, so the comparability rules change nothing.
+    complete = np.array([[20, 21, 22], [23, 25, 24], [19, 20, 22], [24, 22, 21]], dtype=float)
+    np.testing.assert_allclose(_median_polish(complete), [20.5, 21.5, 22.0], atol=1e-10)
+
+    with_gaps = np.array(
+        [[20, 21, np.nan], [23, np.nan, 24], [np.nan, 20, 22], [24, 22, 21]],
+        dtype=float,
+    )
+    np.testing.assert_allclose(_median_polish(with_gaps), [20.875, 21.375, 21.875], atol=1e-10)
+
+
+def test_median_polish_features_seen_in_one_sample_do_not_vote_on_the_difference():
+    # Regression (BID-330): a peptide observed in one sample has a zero residual by construction
+    # and used to vote "no difference" in that sample's column median. With such peptides in the
+    # majority, both samples collapsed onto the overall level and the protein read as unchanged.
+    # The difference must come from the shared peptides alone, and the level must stay put.
+    shared = [[22.0, 18.0]] * 3
+    wt_only = [[22.0, np.nan]] * 5
+    ko_only = [[np.nan, 18.0]]
+    estimates = _median_polish(np.array(shared + wt_only + ko_only))
+
+    np.testing.assert_allclose(estimates, [22.0, 18.0], atol=1e-8)
+
+
+def test_median_polish_difference_is_the_median_shared_peptide_ratio():
+    matrix = np.array(
+        [
+            [22.0, 20.0],  # the only shared peptide: difference 2
+            [23.0, np.nan],
+            [24.0, np.nan],
+            [np.nan, 19.0],
+            [np.nan, 21.0],
+        ]
+    )
+    estimates = _median_polish(matrix)
+
+    np.testing.assert_allclose(estimates[0] - estimates[1], 2.0, atol=1e-8)
+
+
+def test_median_polish_two_samples_without_a_shared_feature_are_nan():
+    matrix = np.array([[23.0, np.nan], [24.0, np.nan], [np.nan, 19.0], [np.nan, 21.0]])
+    assert np.all(np.isnan(_median_polish(matrix)))
+
+
+def test_median_polish_single_sample_protein_keeps_its_level():
+    # Nothing to compare against, so every feature counts and the level is simply their median.
+    matrix = np.array([[22.0, np.nan, np.nan], [21.0, np.nan, np.nan]])
+    estimates = _median_polish(matrix)
+
+    np.testing.assert_allclose(estimates[0], 21.5, atol=1e-8)
+    assert np.all(np.isnan(estimates[1:]))
+
+
+def test_median_polish_isolated_sample_is_nan_and_the_linked_samples_keep_their_estimates():
+    # Sample 3 is observed through a feature nobody else sees; it is dropped on its own, and the
+    # three linked samples are summarised exactly as if it had never been there.
+    linked = np.array([[20.0, 21.0, 22.0], [21.0, 22.0, 23.0]])
+    with_isolated = np.array(
+        [
+            [20.0, 21.0, 22.0, np.nan],
+            [21.0, 22.0, 23.0, np.nan],
+            [np.nan, np.nan, np.nan, 25.0],
+        ]
+    )
+    estimates = _median_polish(with_isolated)
+
+    np.testing.assert_allclose(estimates[:3], _median_polish(linked), atol=1e-8)
+    assert np.isnan(estimates[3])
+
+
+def test_median_polish_keeps_the_largest_linked_group():
+    # Samples 0-2 are linked by two features and samples 3-4 by another; nothing links the two
+    # groups, so only the larger one is placed on a scale, exactly as if polished on its own.
+    larger = np.array([[20.0, 21.0, 22.0], [21.0, 22.0, 23.0]])
+    split = np.array(
+        [
+            [20.0, 21.0, 22.0, np.nan, np.nan],
+            [21.0, 22.0, 23.0, np.nan, np.nan],
+            [np.nan, np.nan, np.nan, 24.0, 25.0],
+        ]
+    )
+    estimates = _median_polish(split)
+
+    np.testing.assert_allclose(estimates[:3], _median_polish(larger), atol=1e-8)
+    assert np.all(np.isnan(estimates[3:]))
+    # Sample order must not matter: with the smaller group first the answer is the same, reversed.
+    np.testing.assert_allclose(_median_polish(split[:, ::-1]), estimates[::-1], atol=1e-8)
+
+
+def test_median_polish_differences_equal_a_polish_of_the_shared_features():
+    # Features seen in one sample set the level only. The between-sample differences must be those
+    # of a polish of the shared features alone -- including where the iteration stops, which the
+    # single-sample rows must not influence (their residual is just the last column median).
+    with_singletons = np.array(
+        [
+            [20.6, 20.6, np.nan],
+            [19.6, np.nan, np.nan],
+            [np.nan, 22.3, 20.2],
+            [17.9, np.nan, np.nan],
+        ]
+    )
+    shared_only = with_singletons[[0, 2]]
+    estimates = _median_polish(with_singletons)
+    reference = _median_polish(shared_only)
+
+    np.testing.assert_allclose(estimates - estimates[0], reference - reference[0], atol=1e-10)
+
+
+def test_median_polish_groups_tied_for_largest_are_all_nan():
+    # Samples 0-1 and 2-3 share no feature and are the same size: nothing singles out either
+    # group, and returning one would fabricate the between-group comparison the matrix cannot
+    # support.
+    matrix = np.array(
+        [
+            [20.0, 21.0, np.nan, np.nan],
+            [22.0, 23.0, np.nan, np.nan],
+            [np.nan, np.nan, 24.0, 25.0],
+        ]
+    )
+    assert np.all(np.isnan(_median_polish(matrix)))
+
+
 def test_aggregator_quantification_median_polish():
     id_df = pd.DataFrame(
         {
@@ -283,6 +407,16 @@ def test_summarisation_prep_filters_and_ranks(simple_adata):
     _, quant, _ = prep.prep()
 
     assert np.isnan(quant.loc["f2", "s1"])
+
+
+def test_to_protein_uses_every_peptide_by_default():
+    # A top-N cut ranks on a NaN-skipping median, which favours peptides seen in few samples --
+    # exactly the ones that cannot compare samples under median polish -- so no cut is the default.
+    import inspect
+
+    import msmu as mm
+
+    assert inspect.signature(mm.pp.to_protein).parameters["top_n"].default is None
 
 
 def test_peptide_and_protein_summarisation_share_tied_pep_policy():

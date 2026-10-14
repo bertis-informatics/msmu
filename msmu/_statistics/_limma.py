@@ -216,6 +216,7 @@ def _fit_contrast(expr_matrix: pd.DataFrame, contrast: LimmaContrast) -> tuple[n
     Moderated statistics are computed from ``squeezeVar`` directly to avoid inmoose
     0.9.1's eBayes lods bug; this reproduces R limma's moderated t exactly.
     """
+    # Imported on use: inmoose takes ~2 s to import and only the limma engine needs it.
     from inmoose.limma import lmFit, contrasts_fit, squeezeVar
 
     design = contrast.design

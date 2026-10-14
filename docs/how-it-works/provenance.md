@@ -186,6 +186,8 @@ filename and returns `None`.
 Standalone DataFrame readers, [`pl.plot_volcano`](../reference/pl/plot_volcano.md), standalone mzML purity calculation, scalar
 utilities, configuration functions and direct pandas/NumPy/MuData edits are not automatically
 recorded. They either have no MuData storage target or are outside processing history.
+Use [`dt.save_layer`](../reference/dt/save_layer.md) and [`dt.load_layer`](../reference/dt/load_layer.md)
+to record transfers between a modality's `.X` and a named layer.
 User functions accepting or returning MuData can opt into the
 same boundary using [`@mm.pv.log`](../reference/pv/log.md).
 
@@ -204,7 +206,8 @@ mdata = mm.dt.map(
 
 `source_index` and `target_index` select matching columns; `None` uses the
 corresponding table index. Neither changes the actual index. Table paths accept
-global `obs`/`var`, modality `obs`/`var`, and DataFrames in modality `obsm`/`varm`.
+global `obs`/`var`, modality `obs`/`var`, the decoy table as `<modality>.decoy`,
+and DataFrames in modality `obsm`/`varm`.
 Identical source key/value rows are collapsed; conflicting values for a key
 raise before assignment. Unmatched targets receive missing values, and existing
 target columns are overwritten. Only the mapping instructions are recorded;
@@ -226,17 +229,28 @@ explicitly included in the rules. Nullable booleans and categorical columns are
 converted to object dtype when needed to hold the replacement values. Replay
 and scripts store the rules, not the resulting columns.
 
-Delete an unstructured metadata entry with a recorded location:
+Delete a metadata entry or a table column with a recorded location:
 
 ```python
 mdata = mm.dt.drop(mdata, target="psm.uns", key="decoy")
+mdata = mm.dt.drop(mdata, target="psm.var", key="temporary_note")
+mdata = mm.dt.drop(mdata, target="psm.obsm", key="X_umap")
+mdata = mm.dt.drop(mdata, target="psm.varm.search_result", key="temporary_score")
 ```
 
-This is equivalent to `del mdata["psm"].uns["decoy"]` and returns the same
-MuData. `target="uns"` addresses global metadata. Missing keys raise `KeyError`;
-the `_log` provenance key cannot be deleted through this function. Only the
-target and key are recorded, not the deleted content. Replay reconstructs the
-preceding state and then repeats the deletion.
+These calls delete, respectively, an `uns` entry, a `var` column, an `obsm`
+entry, and a column in a DataFrame stored in `varm`. They return the same MuData.
+`uns`, `obsm`, and `varm` address global mappings; `<modality>.uns/obsm/varm`
+address modality mappings. `obs`, `var`, `<modality>.obs/var`, `<modality>.decoy`,
+and DataFrame paths such as `obsm.metrics` or `<modality>.varm.search_result`
+address columns.
+Missing keys raise `KeyError`; the `_log` provenance key and the modality masks
+stored in global `obsm`/`varm` cannot be deleted through this function. Only
+the target and key are recorded, not the deleted content. Replay reconstructs
+the preceding state and then repeats the deletion. To remove samples or
+features, use [`pp.apply_filter`](../reference/pp/apply_filter.md), which updates
+the aligned data axes. Deleting a column from an `obsm`/`varm` filter table does
+not remove separately stored filter definitions in `uns`.
 
 Use [`dt.assign`](../reference/dt/assign.md) to record an explicit column assignment with supplied values:
 
@@ -246,7 +260,9 @@ mdata = mm.dt.assign(mdata, "protein_group", protein_groups, modality="peptide")
 ```
 
 This changes the supplied MuData in place and returns it. `on="obs"` assigns an
-observation column instead of a feature column. Pandas handles broadcasting and
+observation column instead of a feature column, and `on="decoy"` writes to the
+decoy table in `uns["decoy"]`, which must carry every column a variable filter
+uses (see [Filter](filter.md#validation_and_compatibility)). Pandas handles broadcasting and
 index alignment. Scalars, lists, NumPy arrays, pandas Index and Series values are
 stored in full, including Series indices and dtypes, so replay can repeat the
 assignment without repeating the calculation that produced the values. Large

@@ -97,6 +97,24 @@ mdata = mm.pp.apply_filter(
 )
 ```
 
+## Missingness
+
+A quantification filter needs the missing counts on `var` first.
+[`pp.calculate_missingness`](../reference/pp/calculate_missingness.md) records `n_missing` and
+`missing_ratio` per feature and, given an obs column, `missing_ratio_<level>` per group, so the
+usual filter calls apply:
+
+```python
+mdata = mm.pp.calculate_missingness(mdata, modality="protein", group_obs="condition")
+mdata = mm.pp.add_filter(mdata, modality="protein", column="missing_ratio", keep="lt", value=0.5)
+mdata = mm.pp.apply_filter(mdata, modality="protein")
+```
+
+Decoys carry no quantification, so they receive `n_missing = 0` and `missing_ratio = 0.0`: a
+"missing at most" filter keeps every decoy and the target/decoy counts behind the q-values stay
+intact, while a filter in the other direction (`ge`/`gt` on missingness) would drop them. The
+columns are a snapshot — recompute after removing samples, since `apply_filter` does not update them.
+
 ## Contaminants and decoys
 
 Readers record identification status rather than acting on it:
@@ -120,7 +138,12 @@ silently stops matching when the search uses a different contaminant FASTA.
 
 Requested filter names must all exist on the selected axis (either axis for
 `on="all"`). Missing names raise an error; filters are not partially applied.
-Variable filters must also exist in the decoy mask when decoys are present.
+Variable filters must also exist in the decoy mask when decoys are present, so the
+column a variable filter uses must exist in `.uns["decoy"]` as well; `add_filter`
+refuses otherwise. Give decoys the column with a recorded edit rather than by hand —
+[`dt.assign`](../reference/dt/assign.md) with `on="decoy"` for a constant, or
+[`dt.map`](../reference/dt/map.md) with `target="<modality>.decoy"` to carry a sample
+annotation over by filename — so the step stays in provenance.
 Applying a subset of filters preserves the other decoy conditions for later calls.
 
 `contains` and `not_contains` retain pandas regular-expression semantics:

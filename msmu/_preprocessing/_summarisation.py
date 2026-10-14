@@ -1,5 +1,4 @@
 import re
-import warnings
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -7,6 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+from scipy.sparse.csgraph import connected_components
 
 from ..logging_utils import get_logger
 from .._core._blockdiag import aggregate_features_by_group, dense_block, is_sparse, to_dense_df
@@ -123,6 +123,7 @@ def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     """
     global _directlfq_runtime_configured
 
+    # Imported on use: directlfq takes ~0.4 s to import and only this rollup needs it.
     import directlfq.config as directlfq_config
     import directlfq.protein_intensity_estimation as directlfq_estimation
 
@@ -175,6 +176,11 @@ def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
 # linear intensity), so a maximum above it is a reliable sign the matrix is still on a linear scale.
 MAX_PLAUSIBLE_LOG2_INTENSITY: float = 64.0
 
+# A feature says something about the difference between samples only when it is observed in at
+# least two of them; observed once, its residual is zero by construction (the row median is its own
+# value) and would cast a "no difference" vote in every column median.
+MIN_COMPARABLE_OBSERVATION_COUNT: int = 2
+
 
 def warn_if_not_log_scale(matrix, context: str) -> None:
     """Warn when a matrix headed for an additive rollup still looks like linear intensities.
@@ -196,6 +202,124 @@ def warn_if_not_log_scale(matrix, context: str) -> None:
             context,
             observed_maximum,
         )
+
+
+def _comparable_feature_mask(observed_cell_mask: np.ndarray) -> np.ndarray:
+    """Mark the features that can say something about the difference between samples.
+
+    A feature needs ``MIN_COMPARABLE_OBSERVATION_COUNT`` observations to compare samples. When the
+    group is observed in one sample only there is no difference to estimate, so every observed
+    feature counts towards that sample's level.
+
+    Args:
+        observed_cell_mask: boolean ``(n_features, n_samples)`` observation mask.
+
+    Returns:
+        boolean ``(n_features,)`` mask of the comparable features.
+    """
+    number_of_detected_samples = int(observed_cell_mask.any(axis=0).sum())
+    required_observation_count = min(MIN_COMPARABLE_OBSERVATION_COUNT, number_of_detected_samples)
+    return observed_cell_mask.sum(axis=1) >= required_observation_count
+
+
+def _comparable_sample_mask(comparable_observed_mask: np.ndarray) -> np.ndarray:
+    """Mark the samples whose estimates sit on one common scale.
+
+    Two samples are comparable when a comparable feature is observed in both, and by extension
+    when a chain of such features links them. A sample with no comparable observation is not
+    linked to anything. When the linked samples fall into several groups, no feature says how the
+    groups' levels relate: the largest group is kept, since its samples are comparable among
+    themselves, and the others are marked ``False``. Groups tied for largest give no reason to
+    prefer one, so every sample is marked ``False``.
+
+    Args:
+        comparable_observed_mask: boolean ``(n_comparable_features, n_samples)`` observation mask.
+
+    Returns:
+        boolean ``(n_samples,)`` mask of the samples whose estimates are comparable to each other.
+    """
+    number_of_features, number_of_samples = comparable_observed_mask.shape
+    feature_indices, sample_indices = np.nonzero(comparable_observed_mask)
+
+    linked_sample_mask = np.zeros(number_of_samples, dtype=bool)
+    linked_sample_mask[sample_indices] = True
+    if not linked_sample_mask.any():
+        return linked_sample_mask
+
+    # Bipartite graph over feature nodes ``0..n_features-1`` and sample nodes after them; one edge
+    # per observed cell, so the cost is linear in the observed cells rather than quadratic in samples.
+    number_of_nodes = number_of_features + number_of_samples
+    observation_graph = sp.coo_matrix(
+        (np.ones(len(feature_indices)), (feature_indices, number_of_features + sample_indices)),
+        shape=(number_of_nodes, number_of_nodes),
+    )
+    _, component_labels = connected_components(observation_graph, directed=False)
+    sample_components = component_labels[number_of_features:]
+    component_ids, component_sizes = np.unique(sample_components[linked_sample_mask], return_counts=True)
+    if len(component_ids) == 1:
+        return linked_sample_mask
+    if (component_sizes == component_sizes.max()).sum() > 1:
+        return np.zeros(number_of_samples, dtype=bool)
+    largest_component = component_ids[component_sizes.argmax()]
+    return linked_sample_mask & (sample_components == largest_component)
+
+
+def _polish_comparable_samples(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
+    """Run the median polish sweeps on a matrix whose samples are already known to be comparable.
+
+    Every sample has at least one observation in a comparable feature and every feature is observed
+    somewhere, so no median is taken over an empty slice. The sweeps run on the comparable features
+    alone, so the between-sample differences are those of a polish of those features. A feature
+    observed in a single sample is then fitted exactly: its row effect is what remains of its value
+    once the level and its sample's effect are removed, and the level is re-aligned on the median
+    row effect over all features -- the fixed point the sweeps would reach if such a feature took
+    part in them without a vote in the column medians.
+    """
+    comparable_feature_mask = _comparable_feature_mask(~np.isnan(feature_by_sample_matrix))
+    # Boolean indexing returns a fresh writable copy, so the sweeps mutate in place safely.
+    residual_matrix = feature_by_sample_matrix[comparable_feature_mask]
+    number_of_comparable_features, number_of_samples = residual_matrix.shape
+
+    overall_effect: float = 0.0
+    row_effects = np.zeros(number_of_comparable_features, dtype=float)
+    col_effects = np.zeros(number_of_samples, dtype=float)
+    previous_residual_sum: float = np.inf
+
+    for iteration in range(MEDIAN_POLISH_MAX_ITERATIONS):
+        # Row sweep: remove the median of each feature (row) across samples.
+        row_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=1))
+        residual_matrix -= row_medians[:, np.newaxis]
+        row_effects += row_medians
+        col_alignment = np.nan_to_num(np.nanmedian(col_effects))
+        col_effects -= col_alignment
+        overall_effect += col_alignment
+
+        # Column sweep: remove the median of each sample (column) across features.
+        col_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=0))
+        residual_matrix -= col_medians[np.newaxis, :]
+        col_effects += col_medians
+        row_alignment = np.nan_to_num(np.nanmedian(row_effects))
+        row_effects -= row_alignment
+        overall_effect += row_alignment
+
+        # Convergence on the sum of absolute residuals (R medpolish criterion).
+        current_residual_sum = float(np.nansum(np.abs(residual_matrix)))
+        if current_residual_sum == 0.0:
+            break
+        if iteration > 0 and abs(previous_residual_sum - current_residual_sum) < (
+            MEDIAN_POLISH_CONVERGENCE_TOLERANCE * current_residual_sum
+        ):
+            break
+        previous_residual_sum = current_residual_sum
+
+    # Each single-sample feature holds exactly one observation, so its row effect is that value less
+    # the fitted level and sample effect; ``nansum`` over the row picks out that one term.
+    single_sample_values = feature_by_sample_matrix[~comparable_feature_mask]
+    if single_sample_values.shape[0]:
+        single_sample_row_effects = np.nansum(single_sample_values - (overall_effect + col_effects), axis=1)
+        overall_effect += float(np.median(np.concatenate([row_effects, single_sample_row_effects])))
+
+    return overall_effect + col_effects
 
 
 def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
@@ -222,6 +346,20 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     shared ones). Remaining missing values are ignored via ``nanmedian``. A sample column
     with no observed values across every feature yields ``NaN`` (there is nothing to summarise).
 
+    Comparability: an estimate is returned only where it is on the same scale as the other
+    returned estimates, so that any two non-NaN values of the result can be compared directly.
+    A feature observed in a single sample still sets the group level through its row effect,
+    but it is left out of the column medians: its residual is zero by construction and would vote
+    "no difference" for that sample, which with enough such features pins every sample to the
+    same value. A sample with no feature observed in at least ``MIN_COMPARABLE_OBSERVATION_COUNT``
+    samples has nothing to compare it with and yields ``NaN``; when the remaining samples split
+    into groups that share no feature, the groups' relative levels are undefined, so the largest
+    group is kept and the others yield ``NaN`` (every sample does when groups tie for largest).
+    The comparable samples are polished on their own, as if the others had not been measured, and
+    their between-sample differences equal those of ``medpolish`` on the features observed in more
+    than one sample. A group observed in one sample only keeps that sample's level. On a matrix
+    where every feature is observed in at least two samples the result matches ``medpolish``.
+
     Args:
         feature_by_sample_matrix (np.ndarray): 2D array of log-space intensities with
             shape ``(n_features, n_samples)``. May contain NaN for missing values.
@@ -235,59 +373,30 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
         raise ValueError("median polish expects a 2D feature-by-sample matrix.")
 
     number_of_samples = input_matrix.shape[1]
-    fully_missing_sample_mask = np.all(np.isnan(input_matrix), axis=0)
+    sample_estimates = np.full(number_of_samples, np.nan, dtype=float)
 
     # Drop fully-missing features before polishing (symmetric with ``_directlfq_rollup``). An
     # all-NaN row carries no information, yet ``nanmedian`` still yields a placeholder row effect
     # that, folded back through the row-effect alignment median, drags ``overall`` -- and therefore
     # every sample estimate -- toward zero. When such rows are the majority of a protein group
     # (e.g. a few unique peptides among many masked shared ones) they collapse the whole protein
-    # to ~0. Boolean indexing returns a fresh writable copy, so the sweeps mutate in place safely.
+    # to ~0.
     observed_feature_mask = ~np.all(np.isnan(input_matrix), axis=1)
     if not observed_feature_mask.any():
-        return np.full(number_of_samples, np.nan, dtype=float)
-    residual_matrix = input_matrix[observed_feature_mask]
+        return sample_estimates
+    observed_matrix = input_matrix[observed_feature_mask]
 
-    number_of_features = residual_matrix.shape[0]
+    observed_cell_mask = ~np.isnan(observed_matrix)
+    comparable_feature_mask = _comparable_feature_mask(observed_cell_mask)
+    comparable_sample_mask = _comparable_sample_mask(observed_cell_mask[comparable_feature_mask])
+    if not comparable_sample_mask.any():
+        return sample_estimates
 
-    overall_effect: float = 0.0
-    row_effects = np.zeros(number_of_features, dtype=float)
-    col_effects = np.zeros(number_of_samples, dtype=float)
-    previous_residual_sum: float = np.inf
-
-    with warnings.catch_warnings():
-        # nanmedian legitimately hits all-NaN columns for fully-missing samples (all-NaN rows
-        # were dropped above), so silence the resulting empty-slice warning.
-        warnings.filterwarnings(action="ignore", message="All-NaN slice encountered")
-        for iteration in range(MEDIAN_POLISH_MAX_ITERATIONS):
-            # Row sweep: remove the median of each feature (row) across samples.
-            row_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=1))
-            residual_matrix -= row_medians[:, np.newaxis]
-            row_effects += row_medians
-            col_alignment = np.nan_to_num(np.nanmedian(col_effects))
-            col_effects -= col_alignment
-            overall_effect += col_alignment
-
-            # Column sweep: remove the median of each sample (column) across features.
-            col_medians = np.nan_to_num(np.nanmedian(residual_matrix, axis=0))
-            residual_matrix -= col_medians[np.newaxis, :]
-            col_effects += col_medians
-            row_alignment = np.nan_to_num(np.nanmedian(row_effects))
-            row_effects -= row_alignment
-            overall_effect += row_alignment
-
-            # Convergence on the sum of absolute residuals (R medpolish criterion).
-            current_residual_sum = float(np.nansum(np.abs(residual_matrix)))
-            if current_residual_sum == 0.0:
-                break
-            if iteration > 0 and abs(previous_residual_sum - current_residual_sum) < (
-                MEDIAN_POLISH_CONVERGENCE_TOLERANCE * current_residual_sum
-            ):
-                break
-            previous_residual_sum = current_residual_sum
-
-    sample_estimates = overall_effect + col_effects
-    sample_estimates[fully_missing_sample_mask] = np.nan
+    # Restricting to the comparable samples can leave features with no observation (those seen
+    # only in the dropped samples); they are dropped for the same reason as above.
+    comparable_matrix = observed_matrix[:, comparable_sample_mask]
+    comparable_matrix = comparable_matrix[~np.all(np.isnan(comparable_matrix), axis=1)]
+    sample_estimates[comparable_sample_mask] = _polish_comparable_samples(comparable_matrix)
 
     return sample_estimates
 
