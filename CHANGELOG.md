@@ -6,6 +6,8 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-15
+
 ### Fixed
 
 - **CSV/TSV parsing uses Polars consistently.** FlashLFQ `io.add_quant`, metadata and SDRF
@@ -421,6 +423,7 @@ metadata, one canonical accession form across readers, and sparse-in / sparse-ou
 - **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
 - **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
+[0.4.3]: https://github.com/bertis-informatics/msmu/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/bertis-informatics/msmu/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/bertis-informatics/msmu/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/bertis-informatics/msmu/compare/v0.3.2...v0.4.0
