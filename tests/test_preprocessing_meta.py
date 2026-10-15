@@ -8,9 +8,6 @@ from anndata import AnnData
 from mudata import MuData
 
 import msmu as mm
-from msmu._preprocessing import _meta as meta_module
-
-_PANDAS_READ_CSV = pd.read_csv
 
 
 def _make_mdata(obs_index: list[str]) -> MuData:
@@ -89,25 +86,59 @@ def test_add_meta_loads_path_like_tabular_sources(tmp_path, suffix, writer):
 def test_add_meta_loads_url_like_tsv_source(monkeypatch):
     mdata = _make_mdata(["run_1"])
     url = "https://example.test/metadata.tsv"
-    opened: list[dict[str, object]] = []
+    opened: list[str] = []
 
-    def fake_read_csv(source, *args, **kwargs):
-        opened.append({"source": source, "kwargs": kwargs})
-        return _PANDAS_READ_CSV(source, *args, **kwargs)
+    def fake_urlopen(source, **kwargs):
+        opened.append(source)
+        return io.BytesIO(b"run\tcondition\nrun_1\tcase\n")
 
     from msmu._core import _sources
 
-    monkeypatch.setattr(
-        _sources, "urlopen", lambda *args, **kwargs: io.BytesIO(b"run\tcondition\nrun_1\tcase\n")
-    )
-    monkeypatch.setattr(meta_module.pd, "read_csv", fake_read_csv)
+    monkeypatch.setattr(_sources, "urlopen", fake_urlopen)
 
     out = mm.pp.add_meta(mdata, url, metadata_on="run")
 
     assert out.obs["condition"].tolist() == ["case"]
-    assert isinstance(opened[0]["source"], io.BytesIO)
-    assert opened[0]["kwargs"]["sep"] == "\t"
+    assert opened == [url]
     assert "meta" not in out.uns
+
+
+@pytest.mark.parametrize(("suffix", "separator"), [(".csv", ","), (".tsv", "\t")])
+def test_add_meta_preserves_decimal_precision_from_text(tmp_path, suffix, separator):
+    path = tmp_path / f"metadata{suffix}"
+    path.write_text(
+        f"run{separator}value\n"
+        f"run_1{separator}3726.3721923828125\n"
+        f"run_2{separator}2927.7894287109375\n"
+    )
+
+    out = mm.pp.add_meta(_make_mdata(["run_1", "run_2"]), path, metadata_on="run")
+
+    values = out.obs["value"].to_numpy()
+    assert values.dtype == np.dtype("float64")
+    np.testing.assert_array_equal(values, [3726.3721923828125, 2927.7894287109375])
+
+
+@pytest.mark.parametrize(("suffix", "separator"), [(".csv", ","), (".tsv", "\t")])
+def test_add_meta_preserves_default_missing_value_tokens(tmp_path, suffix, separator):
+    path = tmp_path / f"metadata{suffix}"
+    path.write_text(
+        f"run{separator}value\n"
+        + "".join(f"run_{i}{separator}{value}\n" for i, value in enumerate(["NA", "NaN", "null", ""]))
+    )
+
+    out = mm.pp.add_meta(_make_mdata([f"run_{i}" for i in range(4)]), path, metadata_on="run")
+
+    assert out.obs["value"].isna().all()
+
+
+@pytest.mark.parametrize("suffix", [".csv", ".tsv"])
+def test_add_meta_reports_empty_tabular_source(tmp_path, suffix):
+    path = tmp_path / f"metadata{suffix}"
+    path.write_text("")
+
+    with pytest.raises(ValueError, match="is empty"):
+        mm.pp.add_meta(_make_mdata(["run_1"]), path, metadata_on="run")
 
 
 def test_add_meta_loads_parquet_sources(tmp_path):

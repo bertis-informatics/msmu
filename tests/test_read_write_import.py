@@ -1,4 +1,5 @@
 from pathlib import Path
+from io import BytesIO
 
 import anndata as ad
 import mudata as md
@@ -38,6 +39,42 @@ def test_add_quant_flashlfq_file_adds_peptide_modality(labeled_mdata):
     assert list(out["peptide"].var_names) == ["AA", "BB"]
     assert np.isnan(out["peptide"].to_df().loc["gis1", "AA"])
     assert out["peptide"].to_df().loc["gis1", "BB"] == pytest.approx(4.0)
+
+
+@pytest.mark.parametrize("from_url", [False, True])
+@pytest.mark.parametrize("existing_peptide", [False, True])
+def test_add_quant_parses_rounding_midpoints_exactly(
+    tmp_path, monkeypatch, labeled_mdata, from_url, existing_peptide
+):
+    # These TSV decimals exposed platform-dependent pandas parsing before the float32 cast.
+    content = (
+        "Sequence\tIntensity_s1\tIntensity_s2\tIntensity_gis1\n"
+        "AA\t2927.7894287109375\t3726.3721923828125\t0\n"
+        "BB\t1\t2\t3\n"
+    ).encode()
+    if from_url:
+        quant_file = "https://example.org/quant.tsv"
+        downloads = []
+
+        def download(url, timeout):
+            downloads.append(url)
+            return BytesIO(content)
+
+        monkeypatch.setattr("msmu._core._sources.urlopen", download)
+    else:
+        quant_file = tmp_path / "quant.tsv"
+        quant_file.write_bytes(content)
+    mdata = _identification_only_peptide_mdata() if existing_peptide else labeled_mdata
+
+    peptide = msmu_io.add_quant(mdata, quant_data=quant_file, quant_tool="flashlfq")["peptide"]
+
+    assert peptide.X.dtype == np.float32
+    expected = np.array([[2927.78955078125, 1], [3726.3720703125, 2], [np.nan, 3]], dtype=np.float32)
+    np.testing.assert_array_equal(peptide[:, ["AA", "BB"]].X, expected)
+    if existing_peptide:
+        assert np.isnan(peptide[:, "CC"].X).all()
+    if from_url:
+        assert downloads == [quant_file]
 
 
 def test_add_quant_is_not_exported_from_utils():
