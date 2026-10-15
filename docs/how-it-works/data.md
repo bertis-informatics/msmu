@@ -75,18 +75,6 @@ Supply files, not output-directory placeholders. MaxQuant/FragPipe DIA and DIA-N
 supply peptide intensities: add quantification with [`io.add_quant`](../reference/io/add_quant.md) as shown in the
 [FlashLFQ tutorial](../tutorials/flashlfq.ipynb) before quantitative analysis.
 
-CSV/TSV search results, FlashLFQ quantification, and metadata files are parsed with Polars.
-This includes file URLs. Matrix storage dtypes are unchanged: for example, `io.add_quant`
-still stores peptide intensities as `float32`. SDRF fields remain strings, with only empty
-fields treated as missing; duplicate and unnamed metadata headers retain pandas-style names.
-General metadata uses Polars type inference, so whitespace-padded numbers can remain strings,
-and blank lines within a table can produce empty rows. Existing pandas DataFrame inputs keep
-their separate copy-based path. Parquet and `.h5mu` ingestion are unchanged.
-
-Changing the text parser can correct the last bits of parsed values. Existing provenance
-hashes may therefore differ when replaying an older import, even with identical source bytes;
-regenerate the reference output with the same parser before checking exact equivalence.
-
 - Inputs
     - `identification_file`: A file path to identification data
     - `quantification_file`: A file path to quantification data (if applicable) (for tools outputting separate quantification files like Sage)
