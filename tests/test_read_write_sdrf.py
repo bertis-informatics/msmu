@@ -14,8 +14,6 @@ from msmu._preprocessing import add_meta
 from msmu._read_write import _reader_registry as rr
 from msmu._tools import _sdrf_pipelines as sdrf_tools
 
-_PANDAS_READ_CSV = pd.read_csv
-
 
 def _make_mdata(obs_index: list[str]) -> MuData:
     obs = pd.DataFrame(index=obs_index)
@@ -97,6 +95,42 @@ def test_registry_read_sdrf_exposes_public_parser(tmp_path):
     assert metadata.loc[0, "assay name"] == "assay_1"
 
 
+def test_read_sdrf_preserves_empty_and_colliding_header_names(tmp_path):
+    path = _write_sdrf(tmp_path, "source name\t\tcomment[x]\tcomment[x]\tcomment[x].1\n001\ta\tb\tc\td\n")
+
+    metadata = mm.read_sdrf(path, validate_sdrf=False)
+
+    assert metadata.columns.tolist() == ["source name", "Unnamed: 1", "comment[x]", "comment[x].2", "comment[x].1"]
+    assert metadata.iloc[0].tolist() == ["001", "a", "b", "c", "d"]
+
+
+def test_read_sdrf_preserves_literal_na_tokens_and_zero_padded_identifiers(tmp_path):
+    path = _write_sdrf(
+        tmp_path,
+        "source name\tassay name\tfactor value[condition]\n"
+        "001\t0001\tNA\n"
+        "002\t0002\tNaN\n"
+        "003\t0003\tnull\n"
+        "004\t0004\t\n"
+        '005\t0005\t""\n',
+    )
+
+    metadata = mm.read_sdrf(path, validate_sdrf=False)
+
+    assert metadata["source name"].tolist() == ["001", "002", "003", "004", "005"]
+    assert metadata["assay name"].tolist() == ["0001", "0002", "0003", "0004", "0005"]
+    assert metadata["factor value[condition]"].iloc[:3].tolist() == ["NA", "NaN", "null"]
+    assert metadata["factor value[condition]"].iloc[3:].isna().all()
+    assert metadata.attrs["sdrf_file"] == str(path)
+
+
+def test_read_sdrf_reports_empty_source(tmp_path):
+    path = _write_sdrf(tmp_path, "")
+
+    with pytest.raises(ValueError, match="is empty"):
+        mm.read_sdrf(path, validate_sdrf=False)
+
+
 def test_read_sdrf_reads_url_like_sources_via_tabular_ingestion(monkeypatch):
     url = "https://example.test/sample.sdrf.tsv"
     content = (
@@ -105,25 +139,20 @@ def test_read_sdrf_reads_url_like_sources_via_tabular_ingestion(monkeypatch):
         + "\t".join(["sample_1", "assay_1", "mass spectrometry"])
         + "\n"
     )
-    opened: list[dict[str, object]] = []
+    opened: list[str] = []
 
-    def fake_read_csv(source, *args, **kwargs):
-        opened.append({"source": source, "kwargs": kwargs})
-        if source == url:
-            return _PANDAS_READ_CSV(io.StringIO(content), *args, **kwargs)
-        return _PANDAS_READ_CSV(source, *args, **kwargs)
+    def fake_urlopen(source, **kwargs):
+        opened.append(source)
+        return io.BytesIO(content.encode())
 
-    monkeypatch.setattr(meta_module.pd, "read_csv", fake_read_csv)
     from msmu._core import _sources
-    monkeypatch.setattr(_sources, "urlopen", lambda *args, **kwargs: io.BytesIO(content.encode()))
+    monkeypatch.setattr(_sources, "urlopen", fake_urlopen)
 
     metadata = mm.read_sdrf(url, validate_sdrf=False)
 
     assert metadata.loc[0, "source name"] == "sample_1"
     assert metadata.attrs["sdrf_file"] == url
-    assert isinstance(opened[0]["source"], io.BytesIO)
-    assert opened[0]["kwargs"]["sep"] == "\t"
-    assert "header" not in opened[0]["kwargs"]
+    assert opened == [url]
 
 
 def test_add_meta_sdrf_validates_through_pipeline_and_only_logs_validation_result(monkeypatch, tmp_path):

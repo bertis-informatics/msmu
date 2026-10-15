@@ -6,6 +6,17 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+### Fixed
+
+- **CSV/TSV parsing uses Polars consistently.** FlashLFQ `io.add_quant`, metadata and SDRF
+  now share the search-result readers' text parser, avoiding the pandas decimal-parsing
+  differences observed between macOS and Linux before `add_quant` casts to float32. Matrix
+  storage dtypes, provenance schema and the `msmu-v1` hash policy are unchanged. Corrected
+  numeric values can produce different output hashes when replaying an older import; use
+  the recorded original environment or regenerate the reference with the new parser.
+  SDRF strings, empty values and duplicate/unnamed headers are preserved. General metadata
+  follows Polars inference, including its handling of whitespace-padded numbers and blank rows.
+
 ## [0.4.2] - 2026-10-14
 
 ### Changed
