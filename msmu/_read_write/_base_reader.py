@@ -15,6 +15,7 @@ import polars as pl
 from ..logging_utils import get_logger
 from .._core._blockdiag import SparseQuantFrame
 from .._core._sources import is_url, open_source
+from .._core._tabular import read_delimited
 from .._utils.peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -30,17 +31,6 @@ logger = get_logger(__name__)
 # the AnnData boundary. Every reader (Sage, DIA-NN, MaxQuant, FragPipe, DELPI) implements the polars
 # transforms. The converter coerces a DataFrame passed directly (the ``read_*`` DataFrame-input API)
 # to polars at the read boundary (see ``_read_file``), so the transforms always receive polars.
-
-
-# pandas' default NA sentinels (pandas.io.parsers.STR_NA_VALUES), hard-coded to avoid a private
-# import. polars only treats an empty field as null by default, so without this a "NA"/"#N/A"/"null"
-# in a numeric column keeps the whole column as String (silently -> string values land in var, or a
-# later numeric op crashes) instead of pandas' float-with-NaN. Passed to pl.read_csv so the two
-# engines agree on which tokens are missing.
-_PANDAS_NA_VALUES: list[str] = [
-    "", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan",
-    "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA", "NULL", "NaN", "None", "n/a", "nan", "null",
-]
 
 
 @dataclass
@@ -130,7 +120,7 @@ class SearchResultDataFrameConverter:
         polars -- receive a polars frame. ``infer_schema_length=None`` scans every row for dtype
         inference (matching pandas' whole-file scan) so a column that only widens past the first
         100 rows -- e.g. integer scans then a float -- does not hard-fail; ``null_values`` aligns
-        the missing-token set with pandas (see ``_PANDAS_NA_VALUES``).
+        the missing-token set with pandas through the shared text reader.
 
         Returns a tuple of the file path (``None`` for a DataFrame input) and the polars frame.
         """
@@ -140,11 +130,9 @@ class SearchResultDataFrameConverter:
         suffix = Path(urlsplit(file_path).path if is_url(file_path) else file_path).suffix.lower()
         with open_source(file_path) as source:
             if suffix == ".csv":
-                native_df = pl.read_csv(source, infer_schema_length=None, null_values=_PANDAS_NA_VALUES)
+                native_df = read_delimited(source, separator=",")
             elif suffix in (".tsv", ".tab", ".psm", ".txt"):
-                native_df = pl.read_csv(
-                    source, separator="\t", infer_schema_length=None, null_values=_PANDAS_NA_VALUES
-                )
+                native_df = read_delimited(source, separator="\t")
             elif suffix == ".parquet":
                 native_df = pl.read_parquet(source)
             else:

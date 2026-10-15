@@ -9,10 +9,12 @@ from typing import Literal
 
 import mudata as md
 import pandas as pd
+import polars as pl
 from mudata import MuData
 
 from .._core._provenance import log_provenance
 from .._core._sources import open_source
+from .._core._tabular import read_delimited
 from .._tools import _sdrf_pipelines as sdrf_tools
 from .._utils._filenames import strip_ms_extensions
 from ..logging_utils import get_logger
@@ -101,14 +103,12 @@ def read_sdrf(
     skip_ontology: bool = True,
 ) -> pd.DataFrame:
     """
-    Read an SDRF file with pandas while preserving the header text exactly as read.
+    Read an SDRF file with Polars while preserving pandas-compatible header names.
     """
     metadata = _read_delimited_dataframe(
         sdrf_file,
         sep="\t",
-        dtype=str,
-        keep_default_na=False,
-        na_values=[""],
+        strings_only=True,
     )
     metadata.attrs["sdrf_file"] = str(sdrf_file)
     if validate:
@@ -593,11 +593,12 @@ def _source_path_for_detection(source: str | Path) -> Path:
     return Path(source)
 
 
-def _read_delimited_dataframe(source: str | Path, *, sep: str, **kwargs) -> pd.DataFrame:
+def _read_delimited_dataframe(source: str | Path, *, sep: str, strings_only: bool = False) -> pd.DataFrame:
     try:
-        with open_source(source) as buffer:
-            return pd.read_csv(buffer, sep=sep, **kwargs)
-    except pd.errors.EmptyDataError as exc:
+        return read_delimited(
+            source, separator=sep, strings_only=strings_only, pandas_headers=True
+        ).to_pandas()
+    except pl.exceptions.NoDataError as exc:
         raise ValueError(f"{source} is empty.") from exc
 
 

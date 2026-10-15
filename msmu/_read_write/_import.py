@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from .._core._provenance import log_provenance
-from .._core._sources import open_source
+from .._core._tabular import read_delimited
 from .._utils._filenames import strip_ms_extensions
 from .._utils._mudata import add_modality, get_anndata_mod
 from ..logging_utils import get_logger
@@ -16,8 +16,7 @@ logger = get_logger(__name__)
 
 def _read_quant_data(quant_data: str | PathLike[str] | pd.DataFrame) -> pd.DataFrame:
     if isinstance(quant_data, (str, PathLike)):
-        with open_source(quant_data) as source:
-            return pd.read_csv(source, sep="\t")
+        return read_delimited(quant_data, separator="\t", pandas_headers=True).to_pandas()
     if isinstance(quant_data, pd.DataFrame):
         return quant_data.copy()
 
