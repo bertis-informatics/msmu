@@ -389,6 +389,12 @@ The setting remains enabled in the execution context.
 
 [`to_script`](../reference/pv/to_script.md) returns Python source text when `filename` is omitted. With `filename`,
 it writes the script, overwrites any existing destination, and returns `None`.
+With `verify=True`, passing a MuData also compares its current content hash with
+the output hash of the log's head event, using that event's recorded hash policy.
+A hash mismatch raises an error before creating or overwriting the script.
+Passing a decoded log cannot check the current data because it contains only
+the recorded history. `verify=False` skips this current-data comparison while
+retaining the existing history validation.
 It does not download inputs or execute the workflow. Original files need not exist until the script runs. The script
 omits recorded execution timestamps and hash durations. It
 contains explicit public `msmu` calls with recorded defaults and leaves the final result

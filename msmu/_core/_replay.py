@@ -394,13 +394,16 @@ def to_script(
         history: MuData or decoded history from [`get_log`][msmu.pv.get_log]; supported workflows are described by [`replay`][msmu.pv.replay].
         filename: Optional output path; an existing file is overwritten.
         sources: Mapping from recorded file paths/URLs to replacements, as in [`replay`][msmu.pv.replay].
-        verify: Include input/output hash verification. Requires recorded hashes when True.
+        verify: Include input/output hash verification. Requires recorded hashes when True
+            and checks the current MuData against the last recorded output before export.
 
     Returns:
         Python source string when `filename` is omitted; otherwise None after writing the file.
 
     Notes:
         Export does not execute the workflow or modify the supplied history.
+        Decoded histories have no current MuData to compare. A failed validation
+        leaves the destination file unchanged.
 
     Examples:
         ```python
@@ -413,8 +416,16 @@ def to_script(
 
     if not isinstance(verify, bool):
         raise TypeError("verify must be a bool")
-    history = get_log(history) if isinstance(history, md.MuData) else deepcopy(history)
+    mdata = history if isinstance(history, md.MuData) else None
+    history = get_log(mdata) if mdata is not None else deepcopy(history)
     plan = _plan(history, dict(sources or {}), verify, check_files=False)
+    if verify and mdata is not None:
+        event = next(event for event, *_ in plan if event["id"] == history["head"])
+        output = event["outputs"][0]
+        _check_digest(
+            compute_hash(mdata, significant_digits=_precision(event), normalization=output["hash"].get("normalization")),
+            output, event,
+        )
     names = {}
     for prefix, module in (("mm", mm), ("mm.io", mm.io), ("mm.pp", mm.pp), ("mm.dt", mm.dt), ("mm.tl", mm.tl), ("mm.utils", mm.utils)):
         for name in module.__all__:
