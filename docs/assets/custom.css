@@ -30,6 +30,7 @@
 .jp-OutputArea-output pre {
   color: var(--md-default-fg-color) !important;
   font-size: 13px !important;
+  white-space: pre !important;
 }
 
 .md-path__item {
