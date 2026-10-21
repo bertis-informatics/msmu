@@ -6,7 +6,12 @@ repo_url: https://github.com/bertis-informatics/msmu
 remote_branch: docs
 
 exclude_docs: |
+  .*
   gen_ref_pages.py
+  notebook_links.py
+
+hooks:
+  - docs/notebook_links.py
 
 validation:
   links:
@@ -48,8 +53,9 @@ plugins:
       scripts:
         - "docs/gen_ref_pages.py"
   - mkdocs-jupyter:
-      execute: false 
-      include_source: true 
+      include: ["*.ipynb"]
+      execute: false
+      include_source: true
       kernel_name: python3
       theme: dark
       ignore_h1_titles: true

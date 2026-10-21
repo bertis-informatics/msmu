@@ -1,0 +1,13 @@
+# Local environments
+.venv*
+
+# Datasets and checkpoints
+*.tar.gz
+GSE*
+MSV*
+*.h5mu
+
+# Outputs
+logs
+runs
+*.svg

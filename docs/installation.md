@@ -91,8 +91,9 @@ Some longer tutorials use the PNG renderer. PNG/SVG/PDF export through Kaleido r
 a compatible Chrome installation; if needed, run `plotly_get_chrome` in your environment.
 Switching to an interactive renderer avoids that requirement for notebook display.
 
-## Historical tutorials
+## Case-study environments
 
-The [Fulcher case study](tutorials/2024_Fulcher/index.md) documents a separate,
-older Python 3.11 / `msmu` 0.2.6 environment with additional multi-omics dependencies.
-Follow its versioned environment for historical reproduction, not for current `msmu` APIs.
+The [Fulcher case study](tutorials/2024_Fulcher/index.md#environment_setup) uses
+additional RNA, imputation and multi-omics dependencies. Its environment setup
+provides the Python version and a downloadable `requirements.txt` with pinned
+package versions.

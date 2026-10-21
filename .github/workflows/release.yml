@@ -84,8 +84,8 @@ jobs:
       - name: Build documentation
         run: python -m mkdocs build --strict
 
-      - name: Run Quick Start
-        run: python -m pytest --nbval-lax docs/tutorials/quick_start.ipynb
+      - name: Test documentation links and Quick Start
+        run: python -m pytest --nbval-lax tests/test_docs_notebook_links.py docs/tutorials/quick_start.ipynb
 
   build:
     name: Build

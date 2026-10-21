@@ -20,7 +20,7 @@ except ImportError:
     pa = None
 
 ALGORITHM = "sha256"
-HASH_POLICY = "msmu-v1"
+HASH_POLICY = "msmu-v2"
 FLOAT_NORMALIZATION = "significant-digits-v1"
 _POWERS_OF_TEN = np.array([float(f"1e{exponent}") for exponent in range(-308, 309)])
 _FLOAT_RECORD = np.dtype([("mantissa", "<i8"), ("exponent", "<i2"), ("special", "u1")])
@@ -54,8 +54,8 @@ def _rounded_float_bytes(values, significant_digits):
     return result.tobytes()
 
 
-def _hash_msmu_v1(value) -> str:
-    """Hash content with `msmu` v1: 12-digit floats, exact axes/dtypes, canonical CSR.
+def _hash_msmu(value) -> str:
+    """Hash content with `msmu` v2: 12-digit floats and H5MU-stable list metadata.
 
     Stored values are unchanged. Files are streamed and hashed exactly.
     Unsupported objects raise TypeError.
@@ -69,12 +69,13 @@ def compute_hash(value, *, significant_digits: int | None = 12, normalization: s
     Unordered categories hash by values, allowing h5mu's string-to-category conversion.
     Floats use 12 significant digits by default; None preserves the legacy exact hash.
     Numeric dtypes, axis order/names and ordered categorical metadata are significant.
+    Lists in MuData/AnnData.uns hash as their H5MU array representation.
     Files are streamed; sparse storage is canonical CSR and explicit zeroes are retained.
 
     Parameters:
         value (Any): Supported data such as MuData/AnnData, pandas or NumPy objects, sparse matrices, scalar/container values, pathlib.Path files, or BytesIO content. A string is hashed as text, not opened as a file.
         significant_digits: Compatibility precision for legacy hashes, from 1 to 15 or `None` for exact hashing. Keep 12 for the current policy.
-        normalization: Hash policy, default `"msmu-v1"`; legacy modes are retained for replay compatibility. Keep the default for new workflows.
+        normalization: Hash policy, default `"msmu-v2"`; legacy modes are retained for replay compatibility. Keep the default for new workflows.
 
     Returns:
         A SHA-256 hexadecimal digest. The input data is not modified.
@@ -124,7 +125,7 @@ def compute_hash(value, *, significant_digits: int | None = 12, normalization: s
                                         offset=encoded.offset * 8)
                 digest.update(memoryview(encoded.buffers()[2])[offsets[0]:offsets[-1]])
 
-    def visit(obj):
+    def visit(obj, *, in_uns=False):
         nonlocal significant_digits
         if obj is None or obj is pd.NA or obj is pd.NaT:
             token("null")
@@ -260,7 +261,7 @@ def compute_hash(value, *, significant_digits: int | None = 12, normalization: s
                 token(attr)
                 visit(getattr(obj, attr))
             token("uns")
-            visit({k: v for k, v in obj.uns.items() if k != "_log"})
+            visit({k: v for k, v in obj.uns.items() if k != "_log"}, in_uns=True)
             if isinstance(obj, md.MuData):
                 token("mod")
                 visit(obj.mod)
@@ -287,12 +288,21 @@ def compute_hash(value, *, significant_digits: int | None = 12, normalization: s
                 raise TypeError("Fingerprint mapping keys must be strings")
             for key in sorted(obj):
                 token(key)
-                visit(obj[key])
+                visit(obj[key], in_uns=in_uns)
         elif isinstance(obj, (list, tuple)):
+            if in_uns and normalization == HASH_POLICY:
+                try:
+                    array = np.asarray(obj)
+                except ValueError:
+                    array = None
+                # AnnData writes lists as arrays; retain sequence semantics for non-array metadata.
+                if array is not None and array.dtype.kind in "biufcUS":
+                    visit(array)
+                    return
             token("sequence")
             token(len(obj))
             for item in obj:
-                visit(item)
+                visit(item, in_uns=in_uns)
         else:
             raise TypeError(f"Unsupported hash input type: {type(obj).__module__}.{type(obj).__qualname__}")
 

@@ -57,7 +57,7 @@ captured **before** computation, including for in-place mutations. A new observa
 a new entity ID even when its content hash matches an earlier observation. Parents identify
 inherited history, not proof that no unrecorded edits happened between calls.
 With hashing enabled, the decorator compares each input MuData hash with its head event's
-MuData output hash before executing the function. A mismatch logs an `msmu` `WARNING` and execution continues. Python warning filters do not affect this message. This reuses the input hash; no additional full-data hash is calculated. Comparison
+MuData output hash before executing the function. A mismatch logs an `msmu` `WARNING` and execution continues. Python warning filters do not affect this message. This reuses the input hash; a policy transition additionally hashes the input under the previous policy. Comparison
 is skipped when hashes are unavailable/disabled, algorithms differ, or the previous event
 has multiple MuData outputs whose ownership cannot be resolved.
 
@@ -79,7 +79,7 @@ MuData object is not supported.
 
 ## Hashing policy
 
-The `msmu-v1` policy normalizes floating-point values to **12 significant digits**
+The `msmu-v2` policy normalizes floating-point values to **12 significant digits**
 when computing hashes. Stored values and analysis calculations are unchanged.
 Files, identifiers/axes, strings, integers, booleans and numeric dtypes remain exact.
 Sparse matrices stay sparse; floating-point scratch buffers are processed in chunks.
@@ -89,8 +89,30 @@ mm.pv.set_options(hashing=True)
 digest = mm.pv.compute_hash(mdata)
 ```
 
-Completed data hashes record `normalization="msmu-v1"`. Replay and generated
+Completed data hashes record `normalization="msmu-v2"`. Replay and generated
 scripts use the recorded policy to verify inputs and outputs.
+
+Within global and modality `uns`, rectangular lists hash as the NumPy arrays that
+AnnData writes to H5MU. Filter-name lists and nested normalization sample lists
+therefore keep the same hash after saving and reading. Shape, order and values
+remain significant; no metadata is removed and stored numerical values are unchanged.
+List dtype inference follows NumPy/H5MU, including numeric promotion and conversion
+of mixed string/numeric lists to strings. Type distinctions erased by that conversion
+are not significant. Ragged and object-valued lists retain sequence hashing; this
+does not make them H5MU-serializable. Lists outside `uns` keep their original semantics.
+
+Historical `msmu-v1`, `significant-digits-v1` and exact hashes retain their original
+definitions for replay and generated scripts. Existing digests are never relabeled
+or rewritten. Continuing an old workflow checks its input under the old policy
+before recording the new step with `msmu-v2`. Mixed `msmu-v1`/`msmu-v2` histories
+require `verify=True` for replay and script export so each step can be checked under
+its own policy. Other changes of hash precision remain unsupported between steps.
+
+An old `msmu-v1` checkpoint whose lists have already become arrays can still fail
+its historical check: the original container types are no longer available. Rerun
+the original workflow with the current policy to establish a round-trip-stable
+history. This change does not repair old checkpoints or normalize other H5MU type
+changes, such as zero-dimensional arrays becoming scalars.
 
 Floating-point normalization uses quantization: values on opposite sides of a
 rounding boundary can produce different hashes. Hash agreement reflects equality
@@ -367,6 +389,12 @@ The setting remains enabled in the execution context.
 
 [`to_script`](../reference/pv/to_script.md) returns Python source text when `filename` is omitted. With `filename`,
 it writes the script, overwrites any existing destination, and returns `None`.
+With `verify=True`, passing a MuData also compares its current content hash with
+the output hash of the log's head event, using that event's recorded hash policy.
+A hash mismatch raises an error before creating or overwriting the script.
+Passing a decoded log cannot check the current data because it contains only
+the recorded history. `verify=False` skips this current-data comparison while
+retaining the existing history validation.
 It does not download inputs or execute the workflow. Original files need not exist until the script runs. The script
 omits recorded execution timestamps and hash durations. It
 contains explicit public `msmu` calls with recorded defaults and leaves the final result
