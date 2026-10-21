@@ -2,6 +2,7 @@ from msmu._core._provenance import _event_inputs
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
+import json
 import warnings
 
 import anndata as ad
@@ -12,6 +13,7 @@ import pytest
 
 import msmu as mm
 from msmu._core import _sources
+from msmu._core._provenance import options as legacy_options
 from msmu._provenance import compute_hash, get_log, options, replay
 
 pytestmark = pytest.mark.filterwarnings("ignore:Replay environment may differ:UserWarning")
@@ -291,6 +293,92 @@ def test_script_file_export(tmp_path):
     with pytest.raises(ValueError, match="does not support function"):
         mm.pv.to_script(invalid, filename=target)
     assert target.read_text(encoding="utf-8") == expected
+
+
+@pytest.mark.parametrize("field", ["X", "obs", "var", "uns.de"])
+@pytest.mark.parametrize("output", [None, "new", "existing"])
+def test_script_rejects_current_unrecorded_changes_without_side_effects(tmp_path, field, output):
+    _, original = workflow(tmp_path)
+    protein = original["protein"]
+    if field == "X":
+        protein.X[0, 0] += 1
+    elif field in ("obs", "var"):
+        getattr(protein, field)["unrecorded"] = "changed"
+    else:
+        protein.uns["de"] = {"contrast": pd.DataFrame({"pvalue": [0.1]}, index=protein.var_names)}
+    before_hash, before_log = compute_hash(original), deepcopy(original.uns["_log"])
+    target = None if output is None else tmp_path / "workflow.py"
+    if output == "existing":
+        target.write_text("existing script\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="hash mismatch"):
+        mm.pv.to_script(original, filename=target)
+    assert compute_hash(original) == before_hash
+    assert original.uns["_log"] == before_log
+    if output == "new":
+        assert not target.exists()
+    elif output == "existing":
+        assert target.read_text(encoding="utf-8") == "existing script\n"
+
+
+@pytest.mark.parametrize("decoded", [False, True])
+def test_script_current_changes_can_be_skipped_explicitly_or_with_decoded_log(tmp_path, decoded):
+    _, original = workflow(tmp_path)
+    history = get_log(original)
+    original["protein"].X[0, 0] += 1
+    script = mm.pv.to_script(history if decoded else original, verify=decoded)
+    assert script == mm.pv.to_script(history, verify=decoded)
+    compile(script, "generated_workflow.py", "exec")
+
+
+def test_script_verify_false_still_validates_recorded_history(tmp_path):
+    _, original = workflow(tmp_path)
+    head = original.uns["_log"]["head"]
+    event = json.loads(original.uns["_log"]["events"][head])
+    event["function_path"] = "os.system"
+    original.uns["_log"]["events"][head] = json.dumps(event)
+    with pytest.raises(ValueError, match="does not support function"):
+        mm.pv.to_script(original, verify=False)
+
+
+def test_script_verifies_history_head_instead_of_last_list_entry(tmp_path):
+    _, original = workflow(tmp_path)
+    head = original.uns["_log"]["head"]
+    event = json.loads(original.uns["_log"]["events"][head])
+    event["sequence"] = -1
+    original.uns["_log"]["events"][head] = json.dumps(event)
+    assert get_log(original)["events"][-1]["id"] != head
+    compile(mm.pv.to_script(original), "generated_workflow.py", "exec")
+    original["protein"].X[0, 0] += 1
+    with pytest.raises(ValueError, match="hash mismatch"):
+        mm.pv.to_script(original)
+
+
+def test_script_verifies_current_data_after_h5mu_roundtrip(tmp_path):
+    _, original = workflow(tmp_path)
+    checkpoint = tmp_path / "checkpoint.h5mu"
+    original.write_h5mu(checkpoint)
+    loaded = md.read_h5mu(checkpoint)
+    assert mm.pv.to_script(loaded) == mm.pv.to_script(original)
+    loaded["protein"].X[0, 0] += 1
+    with pytest.raises(ValueError, match="hash mismatch"):
+        mm.pv.to_script(loaded)
+
+
+@pytest.mark.parametrize("normalization,precision", [
+    (None, None), ("significant-digits-v1", 6),
+    ("significant-digits-v1", 12), ("msmu-v1", 12), ("msmu-v2", 12),
+])
+def test_script_checks_current_data_using_recorded_hash_policy(tmp_path, normalization, precision):
+    source, _ = workflow(tmp_path)
+    with legacy_options(hashing=True, significant_digits=precision, normalization=normalization):
+        original = mm.pp.log2_transform(mm.read_h5mu(source), modality="protein")
+    with options(hashing=False):
+        compile(mm.pv.to_script(original), "generated_workflow.py", "exec")
+        assert mm.pv.get_options() == {"hashing": False}
+        original["protein"].X[0, 0] += 1
+        with pytest.raises(ValueError, match="hash mismatch"):
+            mm.pv.to_script(original)
+        assert mm.pv.get_options() == {"hashing": False}
 
 
 def test_plotting_leaves_verified_replay_intact(tmp_path):

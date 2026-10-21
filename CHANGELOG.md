@@ -16,6 +16,10 @@ from git tags via setuptools-scm.
   and script export. Old checkpoints already affected by list conversions still
   require rerunning the original workflow; existing hashes are not rewritten.
 
+- **Verify the current MuData before exporting a replay script.** `pv.to_script(mdata, verify=True)`
+  rejects a content-hash mismatch with the last recorded output before creating or overwriting the script.
+  The comparison uses the recorded hash policy; decoded logs and `verify=False` keep their existing behavior.
+
 ## [0.4.3] - 2026-10-15
 
 ### Fixed
