@@ -6,6 +6,16 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-10-21
+
+### Changed
+
+- **The Fulcher tutorial is organized into reproducible analysis steps.** Separate
+  notebooks cover protein processing, imputation, RNA processing, multi-omics,
+  export/validation and figures, with pinned requirements and a recorded workflow
+  script. Tutorial pages provide notebook source links, and CI checks the strict
+  documentation build and Quick Start.
+
 ### Fixed
 
 - **Provenance hashes survive H5MU list-to-array conversions.** The new `msmu-v2`
@@ -437,6 +447,7 @@ metadata, one canonical accession form across readers, and sparse-in / sparse-ou
 - **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
 - **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
+[0.4.4]: https://github.com/bertis-informatics/msmu/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/bertis-informatics/msmu/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/bertis-informatics/msmu/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/bertis-informatics/msmu/compare/v0.4.0...v0.4.1
