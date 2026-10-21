@@ -6,6 +6,16 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Provenance hashes survive H5MU list-to-array conversions.** The new `msmu-v2`
+  policy hashes global and modality `uns` lists as their H5MU array representation,
+  including filter names and nested normalization sample lists. Metadata order,
+  values and numeric array dtypes remain significant; stored data are unchanged.
+  Historical hash policies retain their original definitions for verified replay
+  and script export. Old checkpoints already affected by list conversions still
+  require rerunning the original workflow; existing hashes are not rewritten.
+
 ## [0.4.3] - 2026-10-15
 
 ### Fixed
