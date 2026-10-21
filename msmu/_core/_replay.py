@@ -100,9 +100,9 @@ def _digest(entity):
 def _precision(event):
     info = event["outputs"][0].get("hash", {})
     normalization = info.get("normalization")
-    if normalization == HASH_POLICY:
+    if normalization in ("msmu-v1", "msmu-v2"):
         if "significant_digits" in info:
-            raise ValueError("msmu-v1 has fixed precision; significant_digits is not supported")
+            raise ValueError(f"{normalization} has fixed precision; significant_digits is not supported")
         return 12
     if normalization is None:
         if "significant_digits" in info:
@@ -205,8 +205,14 @@ def _plan(history, sources, verify, *, check_files=True):
             if _digest(previous) and _digest(entity) and any(
                 previous_info.get(key) != input_info.get(key) for key in ("normalization", "significant_digits")
             ):
-                raise ValueError("Replay cannot verify a change of hash precision between consecutive steps")
-            if _digest(previous) and _digest(entity) and _digest(previous) != _digest(entity):
+                if not (
+                    verify
+                    and {previous_info.get("normalization"), input_info.get("normalization")} == {"msmu-v1", "msmu-v2"}
+                    and all("significant_digits" not in info for info in (previous_info, input_info))
+                ):
+                    raise ValueError("Replay cannot verify a change of hash precision between consecutive steps")
+                # Different policies have different digests; verify the input content at execution.
+            elif _digest(previous) and _digest(entity) and _digest(previous) != _digest(entity):
                 raise ValueError(f"Unrecorded data changes before {event['function']} cannot be replayed")
         if set(bindings.values()) != set(parents):
             raise ValueError("MuData input producers do not match event parents")
