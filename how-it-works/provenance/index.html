@@ -587,6 +587,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -643,14 +649,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tutorials/2024_Fulcher/01_process_rna_data/" class="md-nav__link">
+      <a href="../../tutorials/2024_Fulcher/01_process_protein_data/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    01 Process scRNAseq Data
+    01 Process Proteomics Data
   
 
     
@@ -671,14 +677,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tutorials/2024_Fulcher/02_process_protein_data/" class="md-nav__link">
+      <a href="../../tutorials/2024_Fulcher/02_impute_protein_data/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02 Process Proteomics Data
+    02 Impute Protein Data
   
 
     
@@ -699,14 +705,98 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tutorials/2024_Fulcher/03_handle_multi-omics_data/" class="md-nav__link">
+      <a href="../../tutorials/2024_Fulcher/03_process_rna_data/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    03 Handle Multi-omics Data
+    03 Process scRNA-seq Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/2024_Fulcher/04_handle_multi-omics_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 Integrate Multi-omics Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/2024_Fulcher/A_export_and_validate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix A: Export and Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/2024_Fulcher/B_figures/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix B: Generate Publication Figures
   
 
     
@@ -4258,7 +4348,7 @@ captured <strong>before</strong> computation, including for in-place mutations. 
 a new entity ID even when its content hash matches an earlier observation. Parents identify
 inherited history, not proof that no unrecorded edits happened between calls.
 With hashing enabled, the decorator compares each input MuData hash with its head event's
-MuData output hash before executing the function. A mismatch logs an <code>msmu</code> <code>WARNING</code> and execution continues. Python warning filters do not affect this message. This reuses the input hash; no additional full-data hash is calculated. Comparison
+MuData output hash before executing the function. A mismatch logs an <code>msmu</code> <code>WARNING</code> and execution continues. Python warning filters do not affect this message. This reuses the input hash; a policy transition additionally hashes the input under the previous policy. Comparison
 is skipped when hashes are unavailable/disabled, algorithms differ, or the previous event
 has multiple MuData outputs whose ownership cannot be resolved.</p>
 <p>Returned MuData objects receive the history. For <a href="../../reference/tl/run_de/"><code>tl.run_de</code></a>, the history stays on the input
@@ -4276,15 +4366,34 @@ stored in events. <code>msmu</code> displays <code>INFO</code> and higher messag
 Independent calls are not serialized by a global lock. Concurrent mutation of the same
 MuData object is not supported.</p>
 <h2 id="hashing_policy">Hashing policy</h2>
-<p>The <code>msmu-v1</code> policy normalizes floating-point values to <strong>12 significant digits</strong>
+<p>The <code>msmu-v2</code> policy normalizes floating-point values to <strong>12 significant digits</strong>
 when computing hashes. Stored values and analysis calculations are unchanged.
 Files, identifiers/axes, strings, integers, booleans and numeric dtypes remain exact.
 Sparse matrices stay sparse; floating-point scratch buffers are processed in chunks.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">set_options</span><span class="p">(</span><span class="n">hashing</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="n">digest</span> <span class="o">=</span> <span class="n">mm</span><span class="o">.</span><span class="n">pv</span><span class="o">.</span><span class="n">compute_hash</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
 </code></pre></div>
-<p>Completed data hashes record <code>normalization="msmu-v1"</code>. Replay and generated
+<p>Completed data hashes record <code>normalization="msmu-v2"</code>. Replay and generated
 scripts use the recorded policy to verify inputs and outputs.</p>
+<p>Within global and modality <code>uns</code>, rectangular lists hash as the NumPy arrays that
+AnnData writes to H5MU. Filter-name lists and nested normalization sample lists
+therefore keep the same hash after saving and reading. Shape, order and values
+remain significant; no metadata is removed and stored numerical values are unchanged.
+List dtype inference follows NumPy/H5MU, including numeric promotion and conversion
+of mixed string/numeric lists to strings. Type distinctions erased by that conversion
+are not significant. Ragged and object-valued lists retain sequence hashing; this
+does not make them H5MU-serializable. Lists outside <code>uns</code> keep their original semantics.</p>
+<p>Historical <code>msmu-v1</code>, <code>significant-digits-v1</code> and exact hashes retain their original
+definitions for replay and generated scripts. Existing digests are never relabeled
+or rewritten. Continuing an old workflow checks its input under the old policy
+before recording the new step with <code>msmu-v2</code>. Mixed <code>msmu-v1</code>/<code>msmu-v2</code> histories
+require <code>verify=True</code> for replay and script export so each step can be checked under
+its own policy. Other changes of hash precision remain unsupported between steps.</p>
+<p>An old <code>msmu-v1</code> checkpoint whose lists have already become arrays can still fail
+its historical check: the original container types are no longer available. Rerun
+the original workflow with the current policy to establish a round-trip-stable
+history. This change does not repair old checkpoints or normalize other H5MU type
+changes, such as zero-dimensional arrays becoming scalars.</p>
 <p>Floating-point normalization uses quantization: values on opposite sides of a
 rounding boundary can produce different hashes. Hash agreement reflects equality
 under this policy rather than bitwise identity.</p>
@@ -4537,6 +4646,12 @@ including when <code>verify=False</code>; that flag only skips comparison with r
 The setting remains enabled in the execution context.</p>
 <p><a href="../../reference/pv/to_script/"><code>to_script</code></a> returns Python source text when <code>filename</code> is omitted. With <code>filename</code>,
 it writes the script, overwrites any existing destination, and returns <code>None</code>.
+With <code>verify=True</code>, passing a MuData also compares its current content hash with
+the output hash of the log's head event, using that event's recorded hash policy.
+A hash mismatch raises an error before creating or overwriting the script.
+Passing a decoded log cannot check the current data because it contains only
+the recorded history. <code>verify=False</code> skips this current-data comparison while
+retaining the existing history validation.
 It does not download inputs or execute the workflow. Original files need not exist until the script runs. The script
 omits recorded execution timestamps and hash durations. It
 contains explicit public <code>msmu</code> calls with recorded defaults and leaves the final result
@@ -4627,7 +4742,7 @@ No write/load monkey-patches or additional file formats are required.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 01:32:33 UTC">October 14, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 21, 2026 04:34:46 UTC">October 21, 2026</span>
   </span>
 
     
