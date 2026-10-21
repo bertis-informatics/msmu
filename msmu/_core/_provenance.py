@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from ._hashing import ALGORITHM, HASH_POLICY, _validate_precision, compute_hash
+from ._hashing import ALGORITHM, HASH_POLICY, FLOAT_NORMALIZATION, _validate_precision, compute_hash
 from ._sources import get_download_buffer, is_url, source_scope
 
 try:
@@ -90,7 +90,7 @@ def options(*, hashing: bool, significant_digits: int | None = 12, normalization
     Parameters:
         hashing: Whether recorded calls compute input/output content hashes. Disabling hashing does not disable provenance recording.
         significant_digits: Compatibility setting for legacy histories (1 to 15, or None for exact hashing). Keep the default for new workflows.
-        normalization: Hash policy; defaults to `"msmu-v1"`. Legacy values are retained for replay compatibility. Keep the default for new workflows.
+        normalization: Hash policy; defaults to `"msmu-v2"`. Legacy values are retained for replay compatibility. Keep the default for new workflows.
 
     Returns:
         context (ContextManager): A context manager restoring previous settings on exit.
@@ -496,7 +496,7 @@ def _entity(path, value, hashing):
                               "value": compute_hash(content, significant_digits=precision, normalization=_normalization.get())}
             if precision is not None:
                 hash_info["normalization"] = _normalization.get()
-                if _normalization.get() != HASH_POLICY:
+                if _normalization.get() not in ("msmu-v1", HASH_POLICY):
                     hash_info["significant_digits"] = precision
         except Exception as error:
             hash_info = {"status": "unavailable", "algorithm": ALGORITHM, "reason": str(error)}
@@ -597,12 +597,25 @@ def log_provenance(func=None, *, capture=()):
                     continue
                 previous_hash = outputs[0]["hash"]
                 if (
-                    previous_hash.get("status") == "completed"
-                    and previous_hash.get("algorithm") == current_hash.get("algorithm")
-                    and previous_hash.get("normalization") == current_hash.get("normalization")
-                    and previous_hash.get("significant_digits") == current_hash.get("significant_digits")
-                    and previous_hash.get("value") != current_hash["value"]
+                    previous_hash.get("status") != "completed"
+                    or previous_hash.get("algorithm") != current_hash.get("algorithm")
                 ):
+                    continue
+                if any(previous_hash.get(key) != current_hash.get(key) for key in ("normalization", "significant_digits")):
+                    normalization = previous_hash.get("normalization")
+                    try:
+                        if normalization not in (None, FLOAT_NORMALIZATION, "msmu-v1", HASH_POLICY):
+                            raise ValueError(f"Unsupported hash normalization: {normalization}")
+                        precision = previous_hash.get(
+                            "significant_digits", 12 if normalization in ("msmu-v1", HASH_POLICY) else None
+                        )
+                        current_hash = {"value": compute_hash(
+                            value, significant_digits=precision, normalization=normalization
+                        )}
+                    except Exception as error:
+                        get_logger().warning("Could not verify data continuity before %s: %s", func.__name__, error)
+                        continue
+                if previous_hash.get("value") != current_hash["value"]:
                     get_logger().warning(
                         "Data changed outside the recorded workflow.\n"
                         f"  Between: {head['function']} → {func.__name__}\n"
