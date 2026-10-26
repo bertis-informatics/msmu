@@ -15,7 +15,7 @@ def test_replace_rules_preserve_missing_and_replay(tmp_path, dtype):
     var.index = ["p1", "p2", "p3"]
     md.MuData({"peptide": ad.AnnData(X=np.ones((1, 3)), var=var)}).write_h5mu(source)
     with mm.pv.options(hashing=True):
-        m = mm.read_h5mu(source)
+        m = mm.pv.log(mm.read_h5mu)(source)
         result = mm.dt.replace(m, target="peptide.var",
                                      columns={"peptide_type": {True: "unique", False: "shared"}})
     assert result is m

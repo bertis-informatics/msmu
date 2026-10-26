@@ -648,7 +648,7 @@ def log_provenance(func=None, *, capture=()):
                 outputs = [("return/DeaResult", vars(result))]
             event["outputs"] = [_entity(path, value, hashing) for path, value in outputs]
             targets = [v for _, v in outputs if isinstance(v, md.MuData)] or owners
-            # Readers, notably read_h5mu, return an existing history without an input MuData.
+            # Explicitly logged readers can return an existing history without an input MuData.
             if not owners:
                 for target in targets:
                     previous = _read_log(target)

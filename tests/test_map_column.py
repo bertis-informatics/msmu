@@ -26,7 +26,7 @@ def test_mapping_and_saved_replay(tmp_path, target_index):
     original = tmp_path / "input.h5mu"
     data().write_h5mu(original)
     with mm.pv.options(hashing=True):
-        m = mm.read_h5mu(original)
+        m = mm.pv.log(mm.read_h5mu)(original)
         result = mm.dt.map(
             m, source="psm.varm.search_result", target="peptide.var",
             source_index="sequence", target_index=target_index,
@@ -58,7 +58,7 @@ def test_map_onto_decoy_table_and_saved_replay(tmp_path):
     original = tmp_path / "input.h5mu"
     md.MuData({"psm": psm}).write_h5mu(original)
     with mm.pv.options(hashing=True):
-        m = mm.read_h5mu(original)
+        m = mm.pv.log(mm.read_h5mu)(original)
         mm.dt.map(m, source="psm.obs", target="psm.decoy", source_index=None, target_index="filename",
                   columns={"cell": "cell"})
     decoy = m["psm"].uns["decoy"]

@@ -128,7 +128,7 @@ def test_provenance_records_parameters_and_replays(tmp_path):
     source = tmp_path / "source.h5mu"
     _mdata(_VALUES.copy()).write_h5mu(source)
     with mm.pv.options(hashing=True):
-        mdata = mm.read_h5mu(source)
+        mdata = mm.pv.log(mm.read_h5mu)(source)
         result = mm.pp.calculate_missingness(mdata, modality="protein", group_obs="group")
     expected = result["protein"].var.copy()
     saved = tmp_path / "result.h5mu"

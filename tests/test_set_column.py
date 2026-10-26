@@ -34,7 +34,7 @@ def test_set_column_matches_pandas_and_replays_after_save(tmp_path, values, on):
         uns={"decoy": pd.DataFrame({"score": [0.5, 0.9]}, index=["p1", "p2"])},
     )}).write_h5mu(source)
     with mm.pv.options(hashing=True):
-        mdata = mm.read_h5mu(source)
+        mdata = mm.pv.log(mm.read_h5mu)(source)
         expected = _table(mdata["peptide"], on).copy()
         expected["annotation"] = values
         result = mm.dt.assign(mdata, "annotation", values, modality="peptide", on=on)

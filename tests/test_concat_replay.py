@@ -44,7 +44,7 @@ def test_concat_independent_sources_and_chained_merge(tmp_path, sparse_input):
     for index, (name, data) in enumerate(sources.items()):
         path = tmp_path / f"source-{index}.h5mu"
         data.write_h5mu(path)
-        inputs[name] = mm.read_h5mu(path)
+        inputs[name] = mm.pv.log(mm.read_h5mu)(path)
     before = {name: (mm.pv.compute_hash(data), deepcopy(mm.pv.get_log(data))) for name, data in inputs.items()}
 
     first = mm.dt.concat({name: inputs[name] for name in ("batch/z", "batch'a")})

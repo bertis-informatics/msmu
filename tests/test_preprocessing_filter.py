@@ -406,7 +406,7 @@ def test_updated_filter_workflow_replays_and_generates_script(filter_mdata, tmp_
     filter_mdata["psm"].obsm["qc"] = pd.DataFrame({"score": [1., 0.]}, index=filter_mdata["psm"].obs_names)
     filter_mdata.write_h5mu(source)
     with mm.pv.options(hashing=True):
-        original = mm.read_h5mu(source)
+        original = mm.pv.log(mm.read_h5mu)(source)
         before_hash, before_log = mm.pv.compute_hash(original), get_log(original)
         out = add_filter(original, "psm", "score", "gt", 15.)
         out = add_filter(out, "psm", "score", "lt", 28.)

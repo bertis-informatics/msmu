@@ -27,8 +27,8 @@ loaded = mm.read_h5mu("analysis.h5mu")
 
 [`get_log`](../reference/pv/get_log.md) returns a detached dictionary. Editing it does not alter the stored history.
 Events are ordered by lineage sequence, then UTC start time (UUID breaks ties); `parents` and `head` identify
-branches explicitly. Reading with [`mm.read_h5mu`](../reference/read_h5mu.md) preserves the stored history and adds a
-read event. Native `mudata.read_h5mu` preserves the stored history without adding an event.
+branches explicitly. Reading with [`mm.read_h5mu`](../reference/read_h5mu.md) preserves the stored history
+without adding an event, calculating provenance hashes, or collecting the current environment.
 
 ![A recorded function call checks input continuity and stores its event, environment, and optional hashes in MuData.](../assets/provenance-function-cycle.svg){ width="100%" }
 
@@ -192,7 +192,7 @@ complete environment reconstruction are not guaranteed.
 ## Coverage and interpretation
 
 Automatic recording covers existing preprocessing and PCA/UMAP/correlation calls, plus
-[`split_tmt`](../reference/pp/split_tmt.md), import readers including DELPI/h5mu, [`io.add_quant`](../reference/io/add_quant.md), [`dt.concat`](../reference/dt/concat.md), [`tl.run_de`](../reference/tl/run_de.md),
+[`split_tmt`](../reference/pp/split_tmt.md), search-result readers including DELPI, [`io.add_quant`](../reference/io/add_quant.md), [`dt.concat`](../reference/dt/concat.md), [`tl.run_de`](../reference/tl/run_de.md),
 [`tl.compute_precursor_isolation_purity`](../reference/tl/compute_precursor_isolation_purity.md), and the MuData helpers [`reindex_obs`](../reference/utils/reindex_obs.md), [`attach_fasta`](../reference/utils/attach_fasta.md),
 [`map_fasta`](../reference/utils/map_fasta.md), and [`select_repr_protein`](../reference/utils/select_repr_protein.md). The [`normalize`](../reference/pp/normalize.md) alias uses the [`normalise`](../reference/pp/normalise.md) event.
 Plotting functions (`pl.plot_*`) do not record provenance events or calculate provenance
@@ -333,7 +333,7 @@ per call. Source replacements only change paths, not the expected hashes. If a r
 source locations as data metadata, relocating a file can also change its output hash.
 
 Replay validates the complete event graph before executing any processing function. It resolves
-only public, decorated `msmu` functions and never imports arbitrary function paths from the log.
+only supported public `msmu` functions and never imports arbitrary function paths from the log.
 Each root must be a file reader. Other calls take one direct MuData argument, or a
 [`dt.concat`](../reference/dt/concat.md) dictionary with string dataset names, and return one MuData. Parent links
 determine execution order; parameter references bind inputs to their producing events.
@@ -347,7 +347,7 @@ the missing operation cannot be inferred from the history.
 
 Current limits:
 
-- Intermediate [`read_h5mu`](../reference/read_h5mu.md) calls, other nested MuData arguments, non-MuData returns
+- Intermediate [`read_h5mu`](../reference/read_h5mu.md) events in older histories, other nested MuData arguments, non-MuData returns
   (including [`run_de`](../reference/tl/run_de.md)), and plotting calls are unsupported.
 - Older linear histories without parameter references remain supported. Older merged
   histories require uniquely matching parent-output hashes; ambiguous inputs must be
@@ -465,8 +465,7 @@ text = mm.pv.to_env(log, environment_id="<recorded ID>")
 ```
 
 Selecting one environment does not make it sufficient for every step recorded in
-another environment. Reading with native `mudata.read_h5mu` avoids adding the current
-machine's environment as a new `msmu` read event before export.
+another environment.
 
 **These exports are version specifications, not complete environment lockfiles.**
 The log does not capture package-index URLs, VCS/local/editable installation sources,
