@@ -29,6 +29,8 @@ def _functions():
         for name in module.__all__
         if inspect.isfunction(func := getattr(module, name)) and hasattr(func, "__wrapped__")
     }
+    # Existing histories can contain H5MU reads recorded before they became silent.
+    functions[f"{mm.read_h5mu.__module__}.{mm.read_h5mu.__qualname__}"] = mm.read_h5mu
 
     # Resolve recorded paths from earlier API names without exposing public aliases.
     functions.update({
@@ -283,6 +285,8 @@ def replay(history: md.MuData | dict, *, sources: dict | None = None, verify: bo
 
     See [`get_log`][msmu.pv.get_log] to inspect history, [`to_script`][msmu.pv.to_script] for editable Python, and [`to_env`][msmu.pv.to_env] for recorded package versions.
     """
+    import msmu as mm
+
     if not isinstance(verify, bool):
         raise TypeError("verify must be a bool")
     history = get_log(history) if isinstance(history, md.MuData) else deepcopy(history)
@@ -311,7 +315,8 @@ def replay(history: md.MuData | dict, *, sources: dict | None = None, verify: bo
                     if entity["type"] == "MuData":
                         _check_digest(compute_hash(results[bindings[entity["role"]]], significant_digits=_precision(event),
                                                    normalization=event["outputs"][0]["hash"].get("normalization")), entity, event)
-            result = func(*bound.args, **bound.kwargs)
+            call = mm.pv.log(func) if func is mm.read_h5mu else func
+            result = call(*bound.args, **bound.kwargs)
             if not isinstance(result, md.MuData):
                 raise ValueError(f"Replay expected a MuData return from {event['function']}")
             if verify:
@@ -503,7 +508,8 @@ def to_script(
             else:
                 arguments.append(f"{name}={value}")
         variable = variables[event["id"]]
-        lines.append(f"    {variable} = {names[func]}({', '.join(arguments)})")
+        call = f"mm.pv.log({names[func]})" if func is mm.read_h5mu else names[func]
+        lines.append(f"    {variable} = {call}({', '.join(arguments)})")
         if verify:
             lines.append(f"    _verify_output({variable}, event, previous_head)")
         for producer in bindings.values():

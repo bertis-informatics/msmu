@@ -314,10 +314,9 @@ def read_sdrf(
     return _read_sdrf(sdrf_file, validate=validate_sdrf)
 
 
-@log_provenance
 def read_h5mu(h5mu_file: str | Path) -> md.MuData:
     """
-    Reads an h5mu file (HDF5) and returns a MuData object.
+    Reads an h5mu file (HDF5) and preserves its stored provenance without adding an event.
 
     Parameters:
         h5mu_file: Path to the H5MU file.
