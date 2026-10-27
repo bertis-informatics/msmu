@@ -39,7 +39,7 @@ DE results can be accessed as a pandas `DataFrame` using the `to_df()` method.
 
 ## limma moderated-t
 
-This is the **default** engine — `stat_method="limma"`, or simply omit the argument. It borrows information across features through an empirical-Bayes shrinkage of the per-feature variance, which stabilizes each variance estimate and recovers power at small sample sizes. `msmu`'s limma is a thin layer over [inmoose](https://inmoose.readthedocs.io/) (a Python port of Smyth's limma, validated numerically against R limma) and reports Benjamini-Hochberg q-values by default (choose another correction with `p_adjust`; see above). The moderated-t method is due to [Smyth, Statistical Applications in Genetics and Molecular Biology, 2004](https://doi.org/10.2202/1544-6115.1027), and the limma framework is described in [Ritchie et al., Nucleic Acids Research, 2015](https://doi.org/10.1093/nar/gkv007).
+This is the **default** engine — `stat_method="limma"`, or simply omit the argument. It borrows information across features through an empirical-Bayes shrinkage of the per-feature variance, which stabilizes each variance estimate and recovers power at small sample sizes. `msmu`'s limma is a thin layer over [inmoose](https://inmoose.readthedocs.io/) (a Python port of Smyth's limma, validated numerically against R limma; [Colange et al. (2025)](#ref-colange-2025)) and reports Benjamini-Hochberg q-values by default (choose another correction with `p_adjust`; see above). The moderated-t method is due to [Smyth (2004)](#ref-smyth-2004), and the limma framework is described in [Ritchie et al. (2015)](#ref-ritchie-2015).
 
 Because limma builds an explicit design matrix, it supports designs the permutation path does not:
 
@@ -87,7 +87,7 @@ If the design has fewer distinct label splits than `n_resamples`, every split is
 
 `p-value` from the permutation test is computed with the proportion of permuted statistics that are as extreme or more extreme than the observed statistic in null distribution with two-sided test.
 
-`q-value` with `empirical` FDR is calculated by `E[FDR] = pi0 * E[FP] / E[TP]` referred to [Yang Xie et al., Bioinformatics, 2011.](https://academic.oup.com/bioinformatics/article/21/23/4280/194680) and [Storey et al., 2003](https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100).
+`q-value` with `empirical` FDR is calculated by `E[FDR] = pi0 * E[FP] / E[TP]` referred to [Xie et al. (2005)](#ref-xie-2005) and [Storey and Tibshirani (2003)](#ref-storey-2003).
 
 With very small groups the permutation null has few distinct label splits — only 20 for a 3-vs-3 comparison — and because the observed labeling is itself one of them, the empirical/BH q-value is floored (around `0.068` for 3-vs-3) regardless of effect size. **This is why `limma` is the default.** [`run_de()`](../reference/tl/run_de.md) warns when a permutation design cannot reach `q < 0.05`; the floor drops below 0.05 by roughly 4-vs-4.
 
@@ -116,3 +116,25 @@ de_res.plot_volcano(
 ```
 
 With `log2fc_threshold=None` the plot uses the fold-change guidance line (`fc_pct_5`), a label-permutation percentile of the log2 fold change that is computed for every engine. It is deliberately **not** produced for limma interaction or covariate-adjusted contrasts, whose reported `log2FC` (a difference-in-differences or an adjusted coefficient) is not on the scale of the raw two-group null — for those, pass `log2fc_threshold` explicitly.
+
+## References
+
+<a id="ref-colange-2025"></a>
+
+> Colange, M., Appé, G., Meunier, L., Weill, S., Johnson, W. E., Nordor, A., and Behdenna, A. Bridging the gap between R and Python in bulk transcriptomic data analysis with InMoose. *Scientific Reports* 15, 18104 (2025). [https://doi.org/10.1038/s41598-025-03376-y](https://doi.org/10.1038/s41598-025-03376-y).
+
+<a id="ref-smyth-2004"></a>
+
+> Smyth, G. K. Linear models and empirical Bayes methods for assessing differential expression in microarray experiments. *Statistical Applications in Genetics and Molecular Biology* 3(1), 1–25 (2004). [https://doi.org/10.2202/1544-6115.1027](https://doi.org/10.2202/1544-6115.1027).
+
+<a id="ref-ritchie-2015"></a>
+
+> Ritchie, M. E., Phipson, B., Wu, D., Hu, Y., Law, C. W., Shi, W., and Smyth, G. K. limma powers differential expression analyses for RNA-sequencing and microarray studies. *Nucleic Acids Research* 43(7), e47 (2015). [https://doi.org/10.1093/nar/gkv007](https://doi.org/10.1093/nar/gkv007).
+
+<a id="ref-xie-2005"></a>
+
+> Xie, Y., Pan, W., and Khodursky, A. B. A note on using permutation-based false discovery rate estimates to compare different analysis methods for microarray data. *Bioinformatics* 21(23), 4280–4288 (2005). [https://doi.org/10.1093/bioinformatics/bti685](https://doi.org/10.1093/bioinformatics/bti685).
+
+<a id="ref-storey-2003"></a>
+
+> Storey, J. D. and Tibshirani, R. Statistical significance for genomewide studies. *Proceedings of the National Academy of Sciences* 100(16), 9440–9445 (2003). [https://doi.org/10.1073/pnas.1530509100](https://doi.org/10.1073/pnas.1530509100).

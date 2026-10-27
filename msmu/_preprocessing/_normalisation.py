@@ -417,7 +417,7 @@ def normalise_total_sum(arr: np.ndarray) -> np.ndarray:
 class PTMProteinAdjuster:
     """Adjust PTM site intensities by their parent protein's abundance in a matched global dataset.
 
-    This computes *differential PTM usage* (DPU) in the sense of Demeulemeester et al. 2024: the
+    This computes *differential PTM usage* (DPU) in the sense of Demeulemeester et al. (2024): the
     site's log intensity minus its parent protein's summarized log intensity in the same sample. It
     is not occupancy/stoichiometry, which additionally needs the unmodified counterpart peptide.
 

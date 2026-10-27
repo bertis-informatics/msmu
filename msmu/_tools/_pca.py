@@ -26,16 +26,12 @@ def pca(
     """
     Perform principal component analysis (PCA) on the specified modality of the MuData object.
 
+    This uses the scikit-learn implementation described by
+    <a href="#ref-pedregosa-2011">Pedregosa et al. (2011)</a>. For background on PCA, see
+    <a href="#ref-mackiewicz-1993">Maćkiewicz and Ratajczak (1993)</a>.
+
     - [Repository](https://github.com/scikit-learn/scikit-learn)
     - [Documentation](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html)
-
-    References:
-        Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., ... & Duchesnay, E. (2011).
-        Scikit-learn: Machine learning in Python.
-        Journal of machine learning research, 12(Oct), 2825-2830.
-
-        Andrzej M., Waldemar R. (1993). Principal Component Analysis (PCA).
-        Computers & Geosciences, 19(3), 303-342.
 
     Parameters:
         mdata: MuData object containing the data.
@@ -83,7 +79,7 @@ def pca(
                 `0 < n_components < min(X.shape)`
 
             "randomized" :
-                Run randomized SVD by the method of Halko et al.
+                Run randomized SVD by the method of <a href="#ref-halko-2011">Halko et al. (2011)</a>.
         random_state:
             Used when the 'arpack' or 'randomized' solvers are used. Pass an int
             for reproducible results across multiple function calls.
@@ -98,6 +94,25 @@ def pca(
 
     Returns:
         Updated MuData object with PCA results.
+
+    References:
+        <a id="ref-pedregosa-2011"></a>
+
+        > Pedregosa, F. et al. Scikit-learn: machine learning in Python.
+        > *Journal of Machine Learning Research* 12, 2825–2830 (2011).
+        > [Full text](https://www.jmlr.org/papers/v12/pedregosa11a.html).
+
+        <a id="ref-mackiewicz-1993"></a>
+
+        > Maćkiewicz, A. and Ratajczak, W. Principal components analysis (PCA).
+        > *Computers & Geosciences* 19, 303–342 (1993).
+        > [DOI](https://doi.org/10.1016/0098-3004(93)90090-r).
+
+        <a id="ref-halko-2011"></a>
+
+        > Halko, N., Martinsson, P. G., and Tropp, J. A. Finding structure with randomness:
+        > probabilistic algorithms for constructing approximate matrix decompositions.
+        > *SIAM Review* 53, 217–288 (2011). [DOI](https://doi.org/10.1137/090771806).
     """
     mdata = mdata.copy()
 

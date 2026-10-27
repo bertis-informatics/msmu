@@ -28,13 +28,10 @@ def umap(
 ) -> MuData:
     """Calculate UMAP embedding for a given modality in MuData object.
 
+    UMAP is described by <a href="#ref-mcinnes-2018">McInnes et al. (2018)</a>.
+
     - [Repository](https://github.com/lmcinnes/umap)
     - [Documentation](https://umap-learn.readthedocs.io/en/latest/)
-
-    References:
-        McInnes, L., Healy, J., & Melville, J. (2018).
-        UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction.
-        arXiv preprint arXiv:1802.03426.
 
     Parameters:
         mdata: MuData object containing the data.
@@ -123,6 +120,13 @@ def umap(
 
     Returns:
         Updated MuData object with UMAP results.
+
+    References:
+        <a id="ref-mcinnes-2018"></a>
+
+        > McInnes, L., Healy, J., and Melville, J.
+        > UMAP: uniform manifold approximation and projection for dimension reduction.
+        > arXiv:1802.03426 (2018). [DOI](https://doi.org/10.48550/arXiv.1802.03426).
     """
     mdata = mdata.copy()
 

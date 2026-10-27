@@ -23,8 +23,8 @@ The `agg_method` argument selects how quantification values are combined. Two fa
 
 **Matrix rollups** — `median_polish` and `directlfq` treat the feature-by-sample block of a protein group as a whole matrix and estimate a per-sample protein profile while accounting for the fact that different peptides ionize with different efficiencies (per-peptide "response factors"):
 
-- `median_polish` fits Tukey's additive model `value = overall + peptide_effect + sample_effect + residual` by iteratively sweeping out row and column medians; the per-sample estimate is `overall + sample_effect`. This follows R's `stats::medpolish`, the protein summarization used by MSstats ([Choi et al., Bioinformatics, 2014](https://doi.org/10.1093/bioinformatics/btu305)), except in how peptides missing from some samples are treated; see [Missing values in median polish](#missing_values_in_median_polish) below.
-- `directlfq` applies the DirectLFQ rollup ([Ammar et al., 2023](https://doi.org/10.1016/j.mcpro.2023.100581)): it aligns each peptide's intensity trace onto a common within-group scale and takes the per-sample median of the aligned traces. DirectLFQ is MaxLFQ-inspired but a *distinct* algorithm from the classical MaxLFQ pairwise-ratio least-squares, so the two are correlated, not identical.
+- `median_polish` fits Tukey's additive model `value = overall + peptide_effect + sample_effect + residual` by iteratively sweeping out row and column medians; the per-sample estimate is `overall + sample_effect`. This follows R's `stats::medpolish`, the protein summarization used by MSstats ([Choi et al. (2014)](#ref-choi-2014)), except in how peptides missing from some samples are treated; see [Missing values in median polish](#missing_values_in_median_polish) below.
+- `directlfq` applies the DirectLFQ rollup ([Ammar et al. (2023)](#ref-ammar-2023)): it aligns each peptide's intensity trace onto a common within-group scale and takes the per-sample median of the aligned traces. DirectLFQ is MaxLFQ-inspired but a *distinct* algorithm from the classical MaxLFQ pairwise-ratio least-squares, so the two are correlated, not identical.
 
 Because they model per-peptide response factors — meaningful when combining *distinct* peptides into a protein, but not when combining replicate PSMs of the *same* peptide — the matrix rollups are offered only at the peptide-to-protein step ([`to_protein`](../reference/pp/to_protein.md) and [`to_ptm`](../reference/pp/to_ptm.md)). [`to_peptide`](../reference/pp/to_peptide.md) accepts only the column-wise reductions.
 
@@ -249,3 +249,13 @@ mdata = mm.pp.to_ptm(
     top_n=None                  # default
     )
 ```
+
+## References
+
+<a id="ref-choi-2014"></a>
+
+> Choi, M., Chang, C.-Y., Clough, T., Broudy, D., Killeen, T., MacLean, B., and Vitek, O. MSstats: an R package for statistical analysis of quantitative mass spectrometry-based proteomic experiments. *Bioinformatics* 30(17), 2524–2526 (2014). [https://doi.org/10.1093/bioinformatics/btu305](https://doi.org/10.1093/bioinformatics/btu305).
+
+<a id="ref-ammar-2023"></a>
+
+> Ammar, C., Schessner, J. P., Willems, S., Michaelis, A. C., and Mann, M. Accurate label-free quantification by directLFQ to compare unlimited numbers of proteomes. *Molecular & Cellular Proteomics* 22(7), 100581 (2023). [https://doi.org/10.1016/j.mcpro.2023.100581](https://doi.org/10.1016/j.mcpro.2023.100581).

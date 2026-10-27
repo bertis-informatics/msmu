@@ -1,8 +1,6 @@
 # 2024 Fulcher et al. tutorial
 
-This tutorial analyzes paired single-cell RNA and proteomics data from C10 and SVEC cells in [Fulcher et al. (2024)](https://www.nature.com/articles/s41467-024-54099-z). msmu processes Sage identifications and FlashLFQ peptide intensities and records the proteomics preprocessing steps. scanpy, PIMMS, muon, and MOFA provide RNA processing, protein imputation, and multi-omics analysis.
-
-> Fulcher, J. M., Markillie, L. M., Mitchell, H. D., Williams, S. M., Engbrecht, K. M., Degnan, D. J., ... & Zhu, Y. (2024). Parallel measurement of transcriptomes and proteomes from same single cells using nanodroplet splitting. Nature Communications, 15(1), 10614.
+This tutorial analyzes paired single-cell RNA and proteomics data from C10 and SVEC cells in [Fulcher et al. (2024)](#ref-fulcher-2024). msmu processes Sage identifications and FlashLFQ peptide intensities and records the proteomics preprocessing steps. scanpy, PIMMS, muon, and MOFA provide RNA processing, protein imputation, and multi-omics analysis.
 
 ## Workflow
 
@@ -24,3 +22,9 @@ The verification section in **Appendix A** and the comparison figures in **Appen
 ## Environment setup
 
 The recorded preprocessing environment uses **Python 3.13.5** and **msmu 0.4.3**. [Download requirements.txt](requirements.txt) for the exported package versions, including scanpy, PIMMS, muon, and MOFA dependencies.
+
+## References
+
+<a id="ref-fulcher-2024"></a>
+
+> Fulcher, J. M. et al. Parallel measurement of transcriptomes and proteomes from same single cells using nanodroplet splitting. *Nature Communications* 15, 10614 (2024). [https://doi.org/10.1038/s41467-024-54099-z](https://doi.org/10.1038/s41467-024-54099-z).

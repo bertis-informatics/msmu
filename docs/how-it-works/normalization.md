@@ -33,7 +33,7 @@ mdata = mm.pp.normalize(
 
 `median` centers every sample on the median of the values it observed. When missingness depends on intensity and samples differ in detection depth, that median is biased: a deeper run observes more low-abundance features, its median is pulled down, and after centering it is left too high relative to the same features in a shallower run. `pairwise_median` compares samples only on features they both observe.
 
-- **Estimator.** For every pair of samples, the median log2 difference over their co-observed features. Each sample's shift is the mean of its pairwise medians over all samples (its own pair counting as 0), which is the equal-weight least-squares solution with the shifts summing to zero; the block's mean sample level is kept. This is the construction MaxLFQ uses to build a protein profile from pairwise peptide ratios (Cox et al. 2014), applied to runs instead of proteins; pairwise medians of shared features are also how directLFQ, IonQuant, and FlashLFQ align samples. It is not MaxLFQ normalization or directLFQ normalization.
+- **Estimator.** For every pair of samples, the median log2 difference over their co-observed features. Each sample's shift is the mean of its pairwise medians over all samples (its own pair counting as 0), which is the equal-weight least-squares solution with the shifts summing to zero; the block's mean sample level is kept. This is the construction MaxLFQ uses to build a protein profile from pairwise peptide ratios ([Cox et al. (2014)](#ref-cox-2014)), applied to runs instead of proteins; pairwise medians of shared features are also how directLFQ, IonQuant, and FlashLFQ align samples. It is not MaxLFQ normalization or directLFQ normalization.
 - **Assumption.** The majority of the features *shared* between two samples are unchanged.
 - **Observed medians are no longer aligned.** After `pairwise_median`, per-sample medians (and box plots) of observed values can differ between samples with different missingness. This is intended: those differences reflect which features each sample observed, not loading.
 - **Limitation.** A true global change between conditions (most features moving in one direction) cannot be told from a loading difference and is removed, as `median` does. Check the loading scheme for secretome, exosome, or pull-down designs before relying on either method.
@@ -107,3 +107,9 @@ Each site is annotated with how it was resolved:
 - `var["adjustment_status"]`: why, when it was not — `shared_groups` (the accessions span two or more quantified groups, so the signal is a sum over them and no single denominator is valid), `not_quantified`, `no_global_group`, `not_in_global_fasta` (the two searches used different databases), or `no_estimate` (the denominator was found but the estimator declined, as `ridge` does below three paired observations).
 
 The denominator is located by translating the accessions a site was localized on through the global dataset's `uns["protein_map"]`. Nothing is looked up by peptide, so a PTM peptide the global run never observed — the normal case under enrichment — is still adjustable whenever its protein was quantified there.
+
+## References
+
+<a id="ref-cox-2014"></a>
+
+> Cox, J., Hein, M. Y., Luber, C. A., Paron, I., Nagaraj, N., and Mann, M. Accurate proteome-wide label-free quantification by delayed normalization and maximal peptide ratio extraction, termed MaxLFQ. *Molecular & Cellular Proteomics* 13(9), 2513–2526 (2014). [https://doi.org/10.1074/mcp.M113.031591](https://doi.org/10.1074/mcp.M113.031591).

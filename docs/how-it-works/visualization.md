@@ -23,7 +23,7 @@ Per-plot optional arguments:
 
 ## Plot examples
 
-> Uszkoreit, J., Barkovits, K., Pacharra, S., Pfeiffer, K., Steinbach, S., Marcus, K., & Eisenacher, M. (2022). Dataset containing physiological amounts of spike-in proteins into murine C2C12 background as a ground truth quantitative LC-MS/MS reference. Data in Brief, 43, 108435.
+The examples below use the dataset described by [Uszkoreit et al. (2022)](#ref-uszkoreit-2022).
 
 ### Sample metadata used below
 
@@ -119,3 +119,9 @@ mm.pl.plot_upset(mdata, "protein", groupby="condition")
 ```
 
 ![](../assets/images/visualization_upset_1.png)
+
+## References
+
+<a id="ref-uszkoreit-2022"></a>
+
+> Uszkoreit, J., Barkovits, K., Pacharra, S., Pfeiffer, K., Steinbach, S., Marcus, K., and Eisenacher, M. Dataset containing physiological amounts of spike-in proteins into murine C2C12 background as a ground truth quantitative LC-MS/MS reference. *Data in Brief* 43, 108435 (2022). [https://doi.org/10.1016/j.dib.2022.108435](https://doi.org/10.1016/j.dib.2022.108435).

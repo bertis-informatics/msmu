@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 # Methods that apply their correction subtractively/multiplicatively (via ``_correct``), so a sparse
 # input keeps its absent-cell (NaN) pattern and can be re-sparsified on the way out. ComBat replaces
-# the whole array (pycombat may fill NaN), so it is excluded and stays dense.
+# the whole array (inmoose's ComBat may fill NaN), so it is excluded and stays dense.
 _NAN_PRESERVING_METHODS: tuple[str, ...] = ("gis", "median_center", "continuous")
 
 # A matrix has cross-batch structure once at least one feature is observed in this many batches (a
@@ -39,12 +39,14 @@ def correct_batch_effect(
     """
     Batch correction methods for MuData object.
     GIS-based normalization, median centering, ComBat, and continuous batch correction (with lowess) are supported.
+    ComBat uses [inmoose's `pycombat_norm`](https://inmoose.readthedocs.io/en/stable/pycombatnorm.html)
+    (<a href="#ref-colange-2025">Colange et al. (2025)</a>).
 
     For 'gis', 'median_center', and 'continuous' the per-feature abundance scale is restored after
-    correction (gis: the geometric mean of the per-batch GIS levels, i.e., classic IRS [Plubell et
-    al. 2017]; median_center/continuous: the per-feature overall median). Restoration is decided for
-    the modality as a whole: when the matrix has cross-batch structure (at least one feature observed
-    in >=2 batches, as at the peptide/protein level) every observed feature is restored -- a
+    correction (gis: the geometric mean of the per-batch GIS levels, i.e., classic IRS from
+    <a href="#ref-plubell-2017">Plubell et al. (2017)</a>; median_center/continuous: the per-feature overall median).
+    Restoration is decided for the modality as a whole: when the matrix has cross-batch structure
+    (at least one feature observed in >=2 batches, as at the peptide/protein level) every observed feature is restored -- a
     single-batch feature to its own level, so it stays on the same abundance scale as the rest. When
     the matrix is fully block-diagonal (no feature spans >=2 batches, e.g., a per-plex-split PSM
     matrix) nothing is restored and the output stays reference-relative, ready to roll up. ComBat
@@ -62,6 +64,21 @@ def correct_batch_effect(
 
     Returns:
         Batch corrected MuData object.
+
+    References:
+        <a id="ref-colange-2025"></a>
+
+        > Colange, M., Appé, G., Meunier, L., Weill, S., Johnson, W. E., Nordor, A., and Behdenna, A.
+        > Bridging the gap between R and Python in bulk transcriptomic data analysis with InMoose.
+        > *Scientific Reports* 15, 18104 (2025).
+        > [https://doi.org/10.1038/s41598-025-03376-y](https://doi.org/10.1038/s41598-025-03376-y).
+
+        <a id="ref-plubell-2017"></a>
+
+        > Plubell, D. L. et al. Extended multiplexing of Tandem Mass Tags (TMT) labeling reveals
+        > age and high fat diet specific proteome changes in mouse epididymal adipose tissue.
+        > *Molecular & Cellular Proteomics* 16, 873–890 (2017).
+        > [DOI](https://doi.org/10.1074/mcp.M116.065524).
     """
     mdata = mdata.copy()
     adata = get_anndata_mod(mdata, modality)
@@ -225,8 +242,8 @@ class BatchCorrector:
 
     def combat(self):
         """
-        ComBat batch correction using pycombat.
-        https://epigenelabs.github.io/pyComBat/
+        ComBat batch correction using inmoose's pycombat_norm.
+        https://inmoose.readthedocs.io/en/stable/pycombatnorm.html
         """
         _, batch_idx = self._make_batch_matrix()
         logger.debug(
