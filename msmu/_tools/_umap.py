@@ -126,7 +126,7 @@ def umap(
 
         > McInnes, L., Healy, J., and Melville, J.
         > UMAP: uniform manifold approximation and projection for dimension reduction.
-        > arXiv:1802.03426 (2018). [DOI](https://doi.org/10.48550/arXiv.1802.03426).
+        > arXiv:1802.03426 (2018). [https://doi.org/10.48550/arXiv.1802.03426](https://doi.org/10.48550/arXiv.1802.03426).
     """
     mdata = mdata.copy()
 

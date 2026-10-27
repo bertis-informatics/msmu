@@ -106,13 +106,13 @@ def pca(
 
         > Maćkiewicz, A. and Ratajczak, W. Principal components analysis (PCA).
         > *Computers & Geosciences* 19, 303–342 (1993).
-        > [DOI](https://doi.org/10.1016/0098-3004(93)90090-r).
+        > [https://doi.org/10.1016/0098-3004(93)90090-r](https://doi.org/10.1016/0098-3004(93)90090-r).
 
         <a id="ref-halko-2011"></a>
 
         > Halko, N., Martinsson, P. G., and Tropp, J. A. Finding structure with randomness:
         > probabilistic algorithms for constructing approximate matrix decompositions.
-        > *SIAM Review* 53, 217–288 (2011). [DOI](https://doi.org/10.1137/090771806).
+        > *SIAM Review* 53, 217–288 (2011). [https://doi.org/10.1137/090771806](https://doi.org/10.1137/090771806).
     """
     mdata = mdata.copy()
 

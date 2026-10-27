@@ -78,7 +78,7 @@ def correct_batch_effect(
         > Plubell, D. L. et al. Extended multiplexing of Tandem Mass Tags (TMT) labeling reveals
         > age and high fat diet specific proteome changes in mouse epididymal adipose tissue.
         > *Molecular & Cellular Proteomics* 16, 873–890 (2017).
-        > [DOI](https://doi.org/10.1074/mcp.M116.065524).
+        > [https://doi.org/10.1074/mcp.M116.065524](https://doi.org/10.1074/mcp.M116.065524).
     """
     mdata = mdata.copy()
     adata = get_anndata_mod(mdata, modality)

@@ -636,7 +636,7 @@ def adjust_ptm_by_protein(
         > Demeulemeester, N. et al. msqrob2PTM: differential abundance and differential usage analysis
         > of MS-based proteomics data at the posttranslational modification and peptidoform level.
         > *Molecular & Cellular Proteomics* 23, 100708 (2024).
-        > [DOI](https://doi.org/10.1016/j.mcpro.2023.100708).
+        > [https://doi.org/10.1016/j.mcpro.2023.100708](https://doi.org/10.1016/j.mcpro.2023.100708).
     """
     mdata = mdata.copy()
 
