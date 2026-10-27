@@ -34,11 +34,15 @@ This unique marriage between flexible processing pipeline and `MuData` empowers 
 
 ## Supported DB search tools
 
-- Sage: [https://sage-docs.vercel.app](https://sage-docs.vercel.app)
-- DIA-NN: [https://github.com/vdemichev/DIA-NN](https://github.com/vdemichev/DIA-NN)
-- MaxQuant: [https://www.maxquant.org/](https://www.maxquant.org/)
-- FragPipe: [https://fragpipe.nesvilab.org/](https://fragpipe.nesvilab.org/)
-- and more upcoming.
+| Tool | Supported inputs | Repository | Publication |
+| --- | --- | --- | --- |
+| [Sage](https://sage-docs.vercel.app) | DDA (label-free or TMT) | [lazear/sage](https://github.com/lazear/sage) | [Lazear (2023)](#ref-lazear-2023) |
+| [DIA-NN](https://github.com/vdemichev/DiaNN) | DIA (label-free precursors) | [vdemichev/DiaNN](https://github.com/vdemichev/DiaNN) | [Demichev et al. (2020)](#ref-demichev-2020) |
+| [MaxQuant](https://www.maxquant.org/) | DDA (label-free or TMT) | [JurgenCox/mqtools7](https://github.com/JurgenCox/mqtools7), partial | [Cox and Mann (2008)](#ref-cox-2008) |
+| [FragPipe](https://fragpipe.nesvilab.org/) | DDA (label-free or TMT) | [Nesvilab/FragPipe](https://github.com/Nesvilab/FragPipe) | [Kong et al. (2017)](#ref-kong-2017) |
+| [DelPi](https://github.com/bertis-informatics/delpi) | DIA (label-free precursors) | [bertis-informatics/delpi](https://github.com/bertis-informatics/delpi) | [Park et al. (2026)](#ref-park-2026), preprint |
+
+Supported inputs describe the data that `msmu` can import from each tool. See [Data ingestion](how-it-works/data.md#data_ingestion_from_db_search_tools) for input files and reader options.
 
 ## License
 
@@ -49,3 +53,25 @@ BSD 3-Clause License. See `LICENSE` for details.
 If you use `msmu` in your research, please cite the following publication (preprint):
 
 > Choi, H.-W., Lee, B., Kang, U.-B., and Huh, S. msmu: a Python toolkit for modular and traceable LC-MS proteomics data analysis based on MuData. *bioRxiv* 2026.01.07.698308 (2026). [https://doi.org/10.64898/2026.01.07.698308](https://doi.org/10.64898/2026.01.07.698308).
+
+## References
+
+<a id="ref-lazear-2023"></a>
+
+> Lazear, M. R. Sage: an open-source tool for fast proteomics searching and quantification at scale. *Journal of Proteome Research* 22, 3652–3659 (2023). [https://doi.org/10.1021/acs.jproteome.3c00486](https://doi.org/10.1021/acs.jproteome.3c00486).
+
+<a id="ref-demichev-2020"></a>
+
+> Demichev, V., Messner, C. B., Vernardis, S. I., Lilley, K. S., and Ralser, M. DIA-NN: neural networks and interference correction enable deep proteome coverage in high throughput. *Nature Methods* 17, 41–44 (2020). [https://doi.org/10.1038/s41592-019-0638-x](https://doi.org/10.1038/s41592-019-0638-x).
+
+<a id="ref-cox-2008"></a>
+
+> Cox, J. and Mann, M. MaxQuant enables high peptide identification rates, individualized p.p.b.-range mass accuracies and proteome-wide protein quantification. *Nature Biotechnology* 26, 1367–1372 (2008). [https://doi.org/10.1038/nbt.1511](https://doi.org/10.1038/nbt.1511).
+
+<a id="ref-kong-2017"></a>
+
+> Kong, A. T., Leprevost, F. V., Avtonomov, D. M., Mellacheruvu, D., and Nesvizhskii, A. I. MSFragger: ultrafast and comprehensive peptide identification in mass spectrometry–based proteomics. *Nature Methods* 14, 513–520 (2017). [https://doi.org/10.1038/nmeth.4256](https://doi.org/10.1038/nmeth.4256).
+
+<a id="ref-park-2026"></a>
+
+> Park, J., Kim, K., Kang, U.-B., and Kim, S. DelPi learns generalizable peptide–signal correspondence for mass spectrometry-based proteomics. *bioRxiv* 2026.01.06.697814 (2026), preprint. [https://doi.org/10.64898/2026.01.06.697814](https://doi.org/10.64898/2026.01.06.697814).
