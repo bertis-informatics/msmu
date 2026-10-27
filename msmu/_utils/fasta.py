@@ -168,7 +168,6 @@ def parse_uniprot_accession(proteins: pd.Series) -> list[str]:
         import msmu as mm
         import pandas as pd
         accessions = mm.utils.parse_uniprot_accession(pd.Series(["sp|P12345|EXAMPLE"]))
-        assert accessions == ["P12345"]
         ```
     """
     return [parse_uniprot_accession_group(protein_group)[0] for protein_group in proteins]

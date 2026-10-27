@@ -158,8 +158,6 @@ def get_log(mdata: md.MuData) -> dict:
         ```python
         import msmu as mm
         history = mm.pv.get_log(mdata)
-        for event in history["events"]:
-            print(event["function_path"])
         ```
     """
     log = _read_log(mdata)
@@ -209,7 +207,6 @@ def to_env(
         ```python
         import msmu as mm
         requirements = mm.pv.to_env(mdata, format="uv")
-        print(requirements)
         ```
     """
     if format not in ("uv", "conda"):
