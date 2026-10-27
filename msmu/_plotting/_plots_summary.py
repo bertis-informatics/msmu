@@ -117,17 +117,17 @@ def plot_id(
     """Plot the number of identified features per group.
 
     Parameters:
-        mdata: MuData containing the selected modality and observation metadata.
+        mdata: `MuData` containing the selected modality and observation metadata.
         modality: Name of the modality to plot, such as `"protein"` or `"psm"`.
         layer: Quantification layer; `None` reads `.X`.
         groupby: Grouping column in observation metadata (or feature metadata where supported). `None` uses the resolved `obs_column`.
         colorby: Observation column used to assign sample colors when `groupby` resolves to `obs_column`; ignored for other groupings. `None` uses the template palette.
-        template: Registered Plotly template name, normally `"msmu"`.
-        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `uns["plotting"]["default_obs_column"]`, then source name/source_name/sample/filename, then the observation index.
-        kwargs: Additional Plotly layout options, for example `width=800` or `title_text="QC"`.
+        template: Registered `plotly` template name, normally `"msmu"`.
+        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `.uns["plotting"]["default_obs_column"]`, then `source name`/`source_name`/`sample`/`filename`, then the observation index.
+        kwargs: Additional `plotly` layout options, for example `width=800` or `title_text="QC"`.
 
     Returns:
-        Plotly `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
+        `plotly` `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
 
     Notes:
         With quantification, counts features with a non-missing value in any sample of each group. Feature grouping or an all-zero/empty quantification matrix uses annotation counts instead. Quantification and embeddings are unchanged. Resolving an existing sample-identifier column can convert that column in `mdata.obs` to categorical; pass a copy to preserve its dtype.
@@ -197,17 +197,17 @@ def plot_upset(
     """Show feature intersections across observation groups.
 
     Parameters:
-        mdata: MuData containing the selected modality and observation metadata.
+        mdata: `MuData` containing the selected modality and observation metadata.
         modality: Name of the modality to plot, such as `"protein"` or `"psm"`.
         layer: Quantification layer; `None` reads `.X`.
         subset: Optional value to select in `subset_column` before plotting.
         subset_column: Observation column used for `subset`; omitted values use the same sample-identifier resolution as `obs_column`.
         groupby: Grouping column in observation metadata (or feature metadata where supported). `None` uses the resolved `obs_column`.
-        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `uns["plotting"]["default_obs_column"]`, then source name/source_name/sample/filename, then the observation index.
-        kwargs: Additional Plotly layout options, for example `width=800` or `title_text="QC"`.
+        obs_column: Sample identifier in `mdata.obs`. If omitted, uses `.uns["plotting"]["default_obs_column"]`, then `source name`/`source_name`/`sample`/`filename`, then the observation index.
+        kwargs: Additional `plotly` layout options, for example `width=800` or `title_text="QC"`.
 
     Returns:
-        Plotly `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
+        `plotly` `Figure`. Call `.show()` to display or `.write_html("plot.html")` to export.
 
     Notes:
         Intersections are based on non-missing quantification. `groupby` must resolve to an observation grouping. Quantification and embeddings are unchanged. Resolving an existing sample-identifier column can convert that column in `mdata.obs` to categorical; pass a copy to preserve its dtype.

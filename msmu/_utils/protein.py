@@ -20,11 +20,11 @@ def select_repr_protein(mdata: md.MuData, modality: str) -> md.MuData:
     canonical > swissprot > trembl > contam
 
     Parameters:
-        mdata: MuData object with protein groups inferred
+        mdata: `MuData` object with protein groups inferred
         modality: Modality name for protein data
 
     Returns:
-        MuData object with representative proteins selected
+        `MuData` object with representative proteins selected
     """
 
     mdata = mdata.copy()

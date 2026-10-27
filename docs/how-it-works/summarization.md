@@ -32,7 +32,7 @@ Because they model per-peptide response factors — meaningful when combining *d
 
 ### Missing values in median polish
 
-In each column sweep, every peptide casts a vote on how far a sample sits from its own level. A peptide quantified in a single sample has nothing to compare against: its residual is exactly zero, which R's `medpolish` counts as a vote for "no difference". Where such peptides are the majority -- half of all peptides in a 1 vs 1 label-free run without match-between-runs -- both samples collapse onto the overall level and the protein reports a log2 fold change of exactly 0. msmu therefore applies three rules:
+In each column sweep, every peptide casts a vote on how far a sample sits from its own level. A peptide quantified in a single sample has nothing to compare against: its residual is exactly zero, which R's `medpolish` counts as a vote for "no difference". Where such peptides are the majority -- half of all peptides in a 1 vs 1 label-free run without match-between-runs -- both samples collapse onto the overall level and the protein reports a log2 fold change of exactly 0. `msmu` therefore applies three rules:
 
 1. **A peptide quantified in one sample sets the protein level but does not vote on between-sample differences.**
 2. **A sample that shares no peptide with the others is `NaN`.** No difference can be estimated, and a value there would read as "unchanged".
@@ -46,7 +46,7 @@ In each column sweep, every peptide casts a vote on how far a sample sits from i
 | pep4 | -- | 19 |
 | pep5 | -- | 21 |
 
-`medpolish` gives WT = KO = 21: pep2-pep5 outvote pep1. msmu gives WT 23, KO 21: the difference is pep1's, and pep2-pep5 inform only the level. Without pep1 both samples would be `NaN`.
+`medpolish` gives WT = KO = 21: pep2-pep5 outvote pep1. `msmu` gives WT 23, KO 21: the difference is pep1's, and pep2-pep5 inform only the level. Without pep1 both samples would be `NaN`.
 
 Any two non-`NaN` values of a protein are therefore on one scale, and their differences are those of `medpolish` on the peptides quantified in more than one sample -- in a 1 vs 1 run, the median log2 ratio of the shared peptides, as in MaxLFQ. A block in which every peptide is quantified in at least two samples gives exactly the `medpolish` result. The level of a protein follows Tukey's convention (the median peptide effect is zero), so it is the level of the protein's typical peptide: it compares a protein across samples, not proteins within a sample -- that needs a level corrected for protein size, which this rollup does not provide. As in MaxLFQ and DirectLFQ, a difference carried by a single shared peptide is kept (noisy, but estimable), and a peptide's absence from a sample is not used as information.
 
@@ -65,7 +65,7 @@ and decoy in a group receives the same q-value, regardless of input row order.
 For example, five targets and one decoy with the same PEP all receive
 `q = (1 + 1) / 5 = 0.4`, wherever the decoy appears in the input. Boundaries
 with no cumulative targets retain undefined (`NaN`) q-values. Missing PEPs
-form a final group, preserving the previous NaN-last ordering.
+form a final group, preserving the previous `NaN`-last ordering.
 
 This replaces the previous row-wise treatment of ties. For the same inputs at
 one calculation step, q-values can stay the same or increase, so fewer features
@@ -164,7 +164,7 @@ A site's position counts residues only: everything inside a modification tag's b
 text, however many letters it holds, so `AC(UniMod:4)M(UniMod:35)PSGS(UniMod:21)YTK` and
 `AC[+57.0215]M[+15.9949]PSGS[+79.9663]YTK` both put the phosphate on residue 7. A tag written before
 the first residue (an N-terminal modification) belongs to residue 1. Every parse is checked against
-the peptide's `stripped_peptide`, and a notation msmu cannot read raises rather than yield misplaced
+the peptide's `stripped_peptide`, and a notation `msmu` cannot read raises rather than yield misplaced
 sites.
 
 Sites are localized from the accessions in the peptide's `proteins` column, not from an inferred
@@ -219,7 +219,7 @@ modifications or missed cleavages still share a feature:
 | `S[ph]PGS[ph]PVLR` matching two proteins | `P1\|S5_S8;P2\|S3_S6` |
 
 Every peptidoform then feeds exactly one feature, so no measurement is tested twice, and no value is
-mixed with the change of a neighboring site. `var["count_site"]` records how many sites a feature
+mixed with the change of a neighboring site. `.var["count_site"]` records how many sites a feature
 names; the features with `count_site == 1` are the site table built from singly modified
 peptidoforms alone, which is what site-centric tools (kinase-activity inference, PhosphoSitePlus
 lookups) read:

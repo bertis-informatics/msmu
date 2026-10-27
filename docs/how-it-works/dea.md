@@ -35,17 +35,17 @@ de_res.to_df() # get results as pandas DataFrame
 
 DE analysis results are stored in `DeaResult` object, which contains: feature names, test statistics, log2 fold-changes, p-values, q-values, and other relevant information.
 
-DE results can be accessed as a pandas `DataFrame` using the `to_df()` method.
+DE results can be accessed as a `pandas` `DataFrame` using the `to_df()` method.
 
 ## limma moderated-t
 
-This is the **default** engine — `stat_method="limma"`, or simply omit the argument. It borrows information across features through an empirical-Bayes shrinkage of the per-feature variance, which stabilizes each variance estimate and recovers power at small sample sizes. `msmu`'s limma is a thin layer over [inmoose](https://inmoose.readthedocs.io/) (a Python port of Smyth's limma, validated numerically against R limma; [Colange et al. (2025)](#ref-colange-2025)) and reports Benjamini-Hochberg q-values by default (choose another correction with `p_adjust`; see above). The moderated-t method is due to [Smyth (2004)](#ref-smyth-2004), and the limma framework is described in [Ritchie et al. (2015)](#ref-ritchie-2015).
+This is the **default** engine — `stat_method="limma"`, or simply omit the argument. It borrows information across features through an empirical-Bayes shrinkage of the per-feature variance, which stabilizes each variance estimate and recovers power at small sample sizes. `msmu`'s limma is a thin layer over [`inmoose`](https://inmoose.readthedocs.io/) ([Colange et al., 2025](#ref-colange-2025)), a Python port of Smyth's limma validated numerically against R limma, and reports Benjamini-Hochberg q-values by default (choose another correction with `p_adjust`; see above). The moderated-t method is due to [Smyth (2004)](#ref-smyth-2004), and the limma framework is described in [Ritchie et al. (2015)](#ref-ritchie-2015).
 
 Because limma builds an explicit design matrix, it supports designs the permutation path does not:
 
 - **Main effect** (default) — the two-group contrast `expr - ctrl`.
 - **Interaction / difference-in-differences** — set `interaction` to a second `.obs` factor and `interaction_levels` to two of its levels to test whether the `expr - ctrl` effect differs between them (e.g., "does the treatment effect differ by genotype").
-- **Covariate adjustment** — pass `covariates` (obs columns) to adjust the contrast for nuisance variables. Numeric covariates are passed through; categorical ones are one-hot encoded.
+- **Covariate adjustment** — pass `covariates` (`.obs` columns) to adjust the contrast for nuisance variables. Numeric covariates are passed through; categorical ones are one-hot encoded.
 
 limma requires an explicit `expr` group (`expr=None` is not supported — for a "vs all other groups" comparison use one of the permutation methods), assumes log2-transformed input, and a positive `log2FC` means higher in `expr`. `n_resamples` does not apply to limma.
 

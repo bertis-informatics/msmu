@@ -21,13 +21,13 @@ def save_layer(
     """Save a copy of a modality's `.X` in a named layer, in place.
 
     Parameters:
-        mdata: MuData to modify.
+        mdata: `MuData` to modify.
         modality: Modality containing the matrix.
         layer: Destination layer name.
-        overwrite: Replace an existing layer when True; otherwise raise ValueError.
+        overwrite: Replace an existing layer when `True`; otherwise raise `ValueError`.
 
     Returns:
-        The same MuData with `.X` copied into `layers[layer]`.
+        The same `MuData` with `.X` copied into `.layers[layer]`.
     """
     if not isinstance(layer, str) or not layer:
         raise ValueError("layer must be a nonempty string")
@@ -49,12 +49,12 @@ def load_layer(mdata: MuData, *, modality: str, layer: str) -> MuData:
     """Load a named layer into a modality's `.X`, in place; other annotations are unchanged.
 
     Parameters:
-        mdata: MuData to modify.
+        mdata: `MuData` to modify.
         modality: Modality containing the layer.
-        layer: Source layer name; missing names raise KeyError.
+        layer: Source layer name; missing names raise `KeyError`.
 
     Returns:
-        The same MuData with `layers[layer]` copied into `.X`.
+        The same `MuData` with `.layers[layer]` copied into `.X`.
     """
     if not isinstance(layer, str) or not layer:
         raise ValueError("layer must be a nonempty string")
@@ -103,28 +103,28 @@ def map(
     source_index: str | None = None,
     target_index: str | None = None,
 ) -> MuData:
-    """Map source columns onto a target table in place, returning the same MuData.
+    """Map source columns onto a target table in place, returning the same `MuData`.
 
     Table paths are ``obs``, ``var``, ``<modality>.obs/var``, ``<modality>.decoy``
-    (the decoy table in ``uns["decoy"]``), or ``[<modality>.]obsm/varm.<key>``
-    (DataFrames only). Index arguments name
-    matching columns; None uses the table index without changing it.
+    (the decoy table in ``.uns["decoy"]``), or ``[<modality>.]obsm/varm.<key>``
+    (`DataFrame` objects only). Index arguments name
+    matching columns; `None` uses the table index without changing it.
     ``columns`` maps source column names to destination column names.
     Identical source key/value rows are collapsed; conflicting keys raise.
     Unmatched rows receive missing values. Existing destination columns are
-    overwritten. Matching follows pandas, including matching missing keys.
+    overwritten. Matching follows `pandas`, including matching missing keys.
     Provenance records these instructions, not the mapped column contents.
 
     Parameters:
-        mdata: MuData to modify.
-        source: Source table path: `obs`, `var`, `<modality>.obs`, `<modality>.var`, `<modality>.decoy`, or `[<modality>.]obsm/varm.<key>` containing a DataFrame.
+        mdata: `MuData` to modify.
+        source: Source table path: `obs`, `var`, `<modality>.obs`, `<modality>.var`, `<modality>.decoy`, or `[<modality>.]obsm/varm.<key>` containing a `DataFrame`.
         target: Destination table path using the same syntax.
         columns: Nonempty mapping from source column names to unique destination column names.
         source_index: Source matching column; `None` uses its index.
         target_index: Destination matching column; `None` uses its index.
 
     Returns:
-        The same MuData; destination columns are written in place.
+        The same `MuData`; destination columns are written in place.
 
     Examples:
         ```python
@@ -161,21 +161,21 @@ def replace(
     target: str,
     columns: dict[str, dict],
 ) -> MuData:
-    """Replace column values in place using pandas-style replacement mappings.
+    """Replace column values in place using `pandas`-style replacement mappings.
 
     ``columns`` maps column names to ``{old: new}`` rules. Unmatched values
     (including missing values unless explicitly mapped) remain unchanged.
     Restricted dtypes such as nullable booleans and categories are converted
     to object when needed to accommodate new values. Only rules are recorded.
-    Table paths follow [`map`][msmu.dt.map]. Returns the same MuData.
+    Table paths follow [`map`][msmu.dt.map]. Returns the same `MuData`.
 
     Parameters:
-        mdata: MuData to modify.
+        mdata: `MuData` to modify.
         target: Table path as described by [`map`][msmu.dt.map].
         columns: Nonempty mapping from each column name to an `{old_value: new_value}` dictionary.
 
     Returns:
-        The same MuData, modified in place.
+        The same `MuData`, modified in place.
 
     Examples:
         ```python
@@ -208,16 +208,16 @@ def drop(mdata: MuData, *, target: str, key: str) -> MuData:
     or a table path accepted by [`map`][msmu.dt.map]. A mapping target deletes
     its ``key``; a table target deletes a column, so ``<modality>.decoy`` removes
     a decoy-table column while ``<modality>.uns`` with ``key="decoy"`` removes the
-    whole table. Missing keys raise KeyError.
-    Returns the same MuData; provenance and global modality masks cannot be deleted.
+    whole table. Missing keys raise `KeyError`.
+    Returns the same `MuData`; provenance and global modality masks cannot be deleted.
 
     Parameters:
-        mdata: MuData to modify.
+        mdata: `MuData` to modify.
         target: Metadata mapping or table path.
-        key: Entry or column to delete. Missing keys raise KeyError; `_log` and global modality masks are protected.
+        key: Entry or column to delete. Missing keys raise `KeyError`; `_log` and global modality masks are protected.
 
     Returns:
-        The same MuData, modified in place.
+        The same `MuData`, modified in place.
 
     Examples:
         ```python
@@ -252,22 +252,22 @@ def assign(
 ) -> MuData:
     """Assign a column in place and record its values for replay.
 
-    Equivalent to ``mdata[modality].var[column] = values`` (or ``obs``), or to
+    Equivalent to ``mdata[modality].var[column] = values`` (or ``.obs``), or to
     ``mdata[modality].uns["decoy"][column] = values`` with ``on="decoy"``.
-    Pandas handles scalar broadcasting, positional arrays, and Series index
-    alignment. Returns the same MuData. Values are stored in full in provenance;
+    `pandas` handles scalar broadcasting, positional arrays, and `Series` index
+    alignment. Returns the same `MuData`. Values are stored in full in provenance;
     the computation that produced them is not recorded.
 
     Parameters:
-        mdata: MuData to modify.
+        mdata: `MuData` to modify.
         column: Destination column name; an existing column is overwritten.
-        values (Any): Scalar, positional array, or pandas Series. Series align by index. Values are captured in full for replay.
+        values (Any): Scalar, positional array, or `pandas` `Series`. `Series` align by index. Values are captured in full for replay.
         modality: Modality containing the target table.
-        on: `"var"`, `"obs"`, or `"decoy"` for the decoy table in `uns["decoy"]`, which
+        on: `"var"`, `"obs"`, or `"decoy"` for the decoy table in `.uns["decoy"]`, which
             [`add_filter`][msmu.pp.add_filter] requires to carry every column a variable filter uses.
 
     Returns:
-        The same MuData, modified in place.
+        The same `MuData`, modified in place.
 
     Examples:
         ```python
@@ -288,15 +288,15 @@ def concat(mdatas: dict[str, md.MuData]) -> md.MuData:
     """Concatenate samples, retaining modalities in first-seen order.
 
     Features and observation annotations use an outer join. Feature metadata
-    and uns use the first available value, without filling metadata nulls or
+    and `.uns` use the first available value, without filling metadata nulls or
     concatenating lists. Provenance joins both input histories separately.
-    At least two flat, sample-aligned (axis=0) MuData inputs are required.
+    At least two flat, sample-aligned (`axis=0`) `MuData` inputs are required.
 
     Parameters:
-        mdatas: Dictionary mapping dataset names to at least two flat, sample-aligned (`axis=0`) MuData objects. Keys become the `dataset` observation annotation.
+        mdatas: Dictionary mapping dataset names to at least two flat, sample-aligned (`axis=0`) `MuData` objects. Keys become the `dataset` observation annotation.
 
     Returns:
-        A new MuData containing the union of modalities/features and concatenated samples. Input objects are not modified.
+        A new `MuData` containing the union of modalities/features and concatenated samples. Input objects are not modified.
 
     Examples:
         ```python

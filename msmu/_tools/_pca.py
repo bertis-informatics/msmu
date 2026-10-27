@@ -24,9 +24,9 @@ def pca(
     **kwargs: Any,
 ) -> MuData:
     """
-    Perform principal component analysis (PCA) on the specified modality of the MuData object.
+    Perform principal component analysis (PCA) on the specified modality of the `MuData` object.
 
-    This uses the scikit-learn implementation described by
+    This uses the `scikit-learn` implementation described by
     <a href="#ref-pedregosa-2011">Pedregosa et al. (2011)</a>. For background on PCA, see
     <a href="#ref-mackiewicz-1993">Maćkiewicz and Ratajczak (1993)</a>.
 
@@ -34,12 +34,12 @@ def pca(
     - [Documentation](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html)
 
     Parameters:
-        mdata: MuData object containing the data.
+        mdata: `MuData` object containing the data.
         modality: The modality to perform PCA on.
-        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to "scaled".
+        layer: Layer to use for quantification aggregation. If `None`, the default layer (`.X`) will be used. Defaults to `"scaled"`.
         n_components:
             Number of components to keep.
-            if n_components is not set all components are kept::
+            if `n_components` is not set all components are kept::
 
                 n_components == min(n_samples, n_features)
 
@@ -49,51 +49,51 @@ def pca(
 
             If ``0 < n_components < 1`` and ``svd_solver == 'full'``, select the
             number of components such that the amount of variance that needs to be
-            explained is greater than the percentage specified by n_components.
+            explained is greater than the percentage specified by `n_components`.
 
             If ``svd_solver == 'arpack'``, the number of components must be
-            strictly less than the minimum of n_features and n_samples.
+            strictly less than the minimum of `n_features` and `n_samples`.
 
-            Hence, the None case results in:
+            Hence, the `None` case results in:
 
                 n_components == min(n_samples, n_features) - 1
         svd_solver:
 
-            "auto":
-                The solver is selected by a default 'auto' policy is based on `X.shape` and
+            `"auto"`:
+                The solver is selected by a default `'auto'` policy is based on `X.shape` and
                 `n_components`: if the input data has fewer than 1000 features and
-                more than 10 times as many samples, then the "covariance_eigh"
+                more than 10 times as many samples, then the `"covariance_eigh"`
                 solver is used. Otherwise, if the input data is larger than 500x500
                 and the number of components to extract is lower than 80% of the
                 smallest dimension of the data, then the more efficient
-                "randomized" method is selected. Otherwise the exact "full" SVD is
+                `"randomized"` method is selected. Otherwise the exact `"full"` SVD is
                 computed and optionally truncated afterward.
 
-            "full" :
+            `"full"` :
                 Run exact full SVD calling the standard LAPACK solver via
                 `scipy.linalg.svd` and select the components by postprocessing
 
-            "arpack" :
+            `"arpack"` :
                 Run SVD truncated to `n_components` calling ARPACK solver via
                 `scipy.sparse.linalg.svds`. It requires strictly
                 `0 < n_components < min(X.shape)`
 
-            "randomized" :
+            `"randomized"` :
                 Run randomized SVD by the method of <a href="#ref-halko-2011">Halko et al. (2011)</a>.
         random_state:
-            Used when the 'arpack' or 'randomized' solvers are used. Pass an int
+            Used when the `'arpack'` or `'randomized'` solvers are used. Pass an `int`
             for reproducible results across multiple function calls.
         key_added:
             Base key used for PCA outputs. Results are stored in:
             - `.obsm[key_added]` for component scores
             - `.varm[key_added]` for loadings
             - `.uns[key_added]` for explained variance metadata
-            Defaults to "X_pca".
+            Defaults to `"X_pca"`.
         **kwargs:
-            Additional keyword arguments passed to PCA constructor.
+            Additional keyword arguments passed to the `PCA` constructor.
 
     Returns:
-        Updated MuData object with PCA results.
+        Updated `MuData` object with PCA results.
 
     References:
         <a id="ref-pedregosa-2011"></a>

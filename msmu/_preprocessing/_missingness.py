@@ -38,11 +38,11 @@ def calculate_missingness(
     modality: str,
     group_obs: str | None = None,
 ) -> md.MuData:
-    """Count missing values per feature and record the counts in ``var`` (and on the decoys).
+    """Count missing values per feature and record the counts in ``.var`` (and on the decoys).
 
-    Writes ``var["n_missing"]``, the number of samples without a value for the feature, and
-    ``var["missing_ratio"]``, that count divided by the number of samples. With ``group_obs``, an
-    obs column of the modality, ``var["missing_ratio_<level>"]`` is added for every level present,
+    Writes ``.var["n_missing"]``, the number of samples without a value for the feature, and
+    ``.var["missing_ratio"]``, that count divided by the number of samples. With ``group_obs``, an
+    `.obs` column of the modality, ``.var["missing_ratio_<level>"]`` is added for every level present,
     so a filter can be set within one group. Existing columns are overwritten: recompute after
     removing samples, because [`apply_filter`][msmu.pp.apply_filter] does not update them.
 
@@ -52,14 +52,14 @@ def calculate_missingness(
     on missingness) would drop every decoy.
 
     Parameters:
-        mdata: MuData with the modality to annotate; a copy is returned.
+        mdata: `MuData` with the modality to annotate; a copy is returned.
         modality: Modality whose ``.X`` is counted along the sample axis.
-        group_obs: Optional obs column of the modality. One ``missing_ratio_<level>`` column is
+        group_obs: Optional `.obs` column of the modality. One ``missing_ratio_<level>`` column is
             written per level present; samples with a missing label contribute only to the overall
             columns, with a warning.
 
     Returns:
-        A copy of ``mdata`` with the columns added to ``var`` and to ``uns["decoy"]`` when present.
+        A copy of ``mdata`` with the columns added to ``.var`` and to ``.uns["decoy"]`` when present.
 
     Examples:
         ```python

@@ -260,21 +260,21 @@ def _plan(history, sources, verify, *, check_files=True):
 
 
 def replay(history: md.MuData | dict, *, sources: dict | None = None, verify: bool = True) -> md.MuData:
-    """Rerun a file-backed workflow, returning a new MuData with fresh history.
+    """Rerun a file-backed workflow, returning a new `MuData` with fresh history.
 
     Args:
-        history: MuData containing the original log, or the decoded result of [`get_log()`][msmu.pv.get_log].
+        history: `MuData` containing the original log, or the decoded result of [`get_log()`][msmu.pv.get_log].
         sources: Optional mapping from recorded paths/URLs to replacement paths/URLs.
-        verify: Require recorded hashes and verify inputs/outputs (default True).
-            False reruns without hash verification; known unrecorded edits still fail.
+        verify: Require recorded hashes and verify inputs/outputs (default `True`).
+            `False` reruns without hash verification; known unrecorded edits still fail.
 
-    Branches and concat are supported. Shared results are copied at forks.
-    Other nested MuData inputs and non-MuData returns are unsupported.
+    Branches and `concat` are supported. Shared results are copied at forks.
+    Other nested `MuData` inputs and non-`MuData` returns are unsupported.
     Only public `msmu` functions can run. Environment differences are logged as warnings;
     packages are never installed or changed. The supplied object/log is not modified.
 
     Returns:
-        A newly computed MuData with fresh history.
+        A newly computed `MuData` with fresh history.
 
     Examples:
         ```python
@@ -387,27 +387,27 @@ def to_script(
 ) -> str | None:
     """Generate editable Python calls with source/output hash checks.
 
-    If filename is supplied, write UTF-8 Python source (overwriting an existing
-    file) and return None. Otherwise return the source text.
+    If `filename` is supplied, write UTF-8 Python source (overwriting an existing
+    file) and return `None`. Otherwise return the source text.
 
     Accepts the same file-backed histories and options as [`replay()`][msmu.pv.replay]. The generated script
     requires `msmu`, checks the recorded environment at execution, and leaves its
-    final MuData in ``mdata``. Scripts enable hashing even when verification is disabled.
+    final `MuData` in ``mdata``. Scripts enable hashing even when verification is disabled.
     Generation neither reads inputs nor executes calls.
 
     Parameters:
-        history: MuData or decoded history from [`get_log`][msmu.pv.get_log]; supported workflows are described by [`replay`][msmu.pv.replay].
+        history: `MuData` or decoded history from [`get_log`][msmu.pv.get_log]; supported workflows are described by [`replay`][msmu.pv.replay].
         filename: Optional output path; an existing file is overwritten.
         sources: Mapping from recorded file paths/URLs to replacements, as in [`replay`][msmu.pv.replay].
-        verify: Include input/output hash verification. Requires recorded hashes when True
-            and checks the current MuData against the last recorded output before export.
+        verify: Include input/output hash verification. Requires recorded hashes when `True`
+            and checks the current `MuData` against the last recorded output before export.
 
     Returns:
-        Python source string when `filename` is omitted; otherwise None after writing the file.
+        Python source string when `filename` is omitted; otherwise `None` after writing the file.
 
     Notes:
         Export does not execute the workflow or modify the supplied history.
-        Decoded histories have no current MuData to compare. A failed validation
+        Decoded histories have no current `MuData` to compare. A failed validation
         leaves the destination file unchanged.
 
     Examples:

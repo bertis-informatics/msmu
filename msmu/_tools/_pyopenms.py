@@ -265,14 +265,14 @@ def compute_precursor_isolation_purity_from_mzml(
 
     Parameters:
         mzml_paths: One local mzML path or a list of paths; files must exist.
-        tolerance: Mass tolerance for matching precursor isotopes; default 20.
-        unit_ppm: True interprets tolerance in ppm; False uses absolute mass tolerance (Da).
+        tolerance: Mass tolerance for matching precursor isotopes; default `20`.
+        unit_ppm: `True` interprets tolerance in ppm; `False` uses absolute mass tolerance (Da).
 
     Returns:
-        A `PurityResult` object, not a DataFrame. `.to_df()` returns columns `purity`, `scan_num`, and `filename`; `.hist()` and `.box()` return Plotly figures.
+        A `PurityResult` object, not a `DataFrame`. `.to_df()` returns columns `purity`, `scan_num`, and `filename`; `.hist()` and `.box()` return `plotly` figures.
 
     Notes:
-        Requires pyOpenMS at execution time. Input files are read, not modified. To attach results to PSM data, use [`compute_precursor_isolation_purity`][msmu.tl.compute_precursor_isolation_purity].
+        Requires `pyopenms` at execution time. Input files are read, not modified. To attach results to PSM data, use [`compute_precursor_isolation_purity`][msmu.tl.compute_precursor_isolation_purity].
 
     Examples:
         ```python
@@ -319,19 +319,19 @@ def compute_precursor_isolation_purity(
     tolerance: float = 20.0,
     unit_ppm: bool = True,
 ) -> md.MuData:
-    """Calculate precursor isolation purity for PSMs in the given MuData object and mzML file.
+    """Calculate precursor isolation purity for PSMs in the given `MuData` object and mzML file.
 
     Parameters:
-        mdata: MuData object containing PSM data.
+        mdata: `MuData` object containing PSM data.
         mzml_paths: Full path(s) to the mzML file.
-        tolerance: Tolerance for precursor purity calculation. Default is 20.
-        unit_ppm: Whether to use ppm for tolerance. Default is True.
+        tolerance: Tolerance for precursor purity calculation. Default is `20`.
+        unit_ppm: Whether to use ppm for tolerance. Default is `True`.
 
     Returns:
-        md.MuData: MuData object containing purity results.
+        `md.MuData`: `MuData` object containing purity results.
 
     Notes:
-        Requires `psm.var` columns `filename` and `scan_num` and matching local mzML files. Returns a copy with scores in `psm.var["purity"]`; the input is unchanged. pyOpenMS is loaded at execution time. For standalone results and plotting, see [`compute_precursor_isolation_purity_from_mzml`][msmu.tl.compute_precursor_isolation_purity_from_mzml].
+        Requires `psm.var` columns `filename` and `scan_num` and matching local mzML files. Returns a copy with scores in `psm.var["purity"]`; the input is unchanged. `pyopenms` is loaded at execution time. For standalone results and plotting, see [`compute_precursor_isolation_purity_from_mzml`][msmu.tl.compute_precursor_isolation_purity_from_mzml].
 
     Examples:
         ```python
