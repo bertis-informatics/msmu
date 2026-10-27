@@ -68,7 +68,7 @@ def compute_hash(value, *, significant_digits: int | None = 12, normalization: s
 
     Unordered categories hash by values, allowing h5mu's string-to-category conversion.
     Floats use 12 significant digits by default; None preserves the legacy exact hash.
-    Numeric dtypes, axis order/names and ordered categorical metadata are significant.
+    Numeric dtypes, axis order/names, and ordered categorical metadata are significant.
     Lists in MuData/AnnData.uns hash as their H5MU array representation.
     Files are streamed; sparse storage is canonical CSR and explicit zeroes are retained.
 

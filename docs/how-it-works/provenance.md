@@ -41,15 +41,15 @@ computation time, parameters including defaults and input descriptors, an enviro
 Only successfully completed calls create events. Events have neither `status` nor `error`;
 hash entries retain their separate `status`.
 
-Scalar parameters, strings, mappings and sequences are not truncated. Data objects (including
-MuData, AnnData, pandas objects and arrays) are represented in parameters by their type
+Scalar parameters, strings, mappings, and sequences are not truncated. Data objects (including
+MuData, AnnData, pandas objects, and arrays) are represented in parameters by their type
 and hash, including nested arguments. MuData references also contain `source_event`,
 identifying the event that produced the input. Equal hashes do not imply equal histories.
 Each input descriptor is stored only in `parameters`; new events have no `inputs` field.
 Hashing runs once per input. Previous logs with a separate `inputs` list remain readable.
 Other option values and defaults are kept.
-Input/output descriptors contain IDs, roles, types and optional hashes, without shape, column
-or dimension summaries. File and URL parameters contain their readable `path`, type and hash. Unsupported parameters and callables are described
+Input/output descriptors contain IDs, roles, types, and optional hashes, without shape, column,
+or dimension summaries. File and URL parameters contain their readable `path`, type, and hash. Unsupported parameters and callables are described
 and marked non-replayable. Function objects are not pickled or executed from the log.
 
 Entities have independent UUIDs and argument/return roles. Input descriptors and hashes are
@@ -81,7 +81,7 @@ MuData object is not supported.
 
 The `msmu-v2` policy normalizes floating-point values to **12 significant digits**
 when computing hashes. Stored values and analysis calculations are unchanged.
-Files, identifiers/axes, strings, integers, booleans and numeric dtypes remain exact.
+Files, identifiers/axes, strings, integers, booleans, and numeric dtypes remain exact.
 Sparse matrices stay sparse; floating-point scratch buffers are processed in chunks.
 
 ```python
@@ -94,14 +94,14 @@ scripts use the recorded policy to verify inputs and outputs.
 
 Within global and modality `uns`, rectangular lists hash as the NumPy arrays that
 AnnData writes to H5MU. Filter-name lists and nested normalization sample lists
-therefore keep the same hash after saving and reading. Shape, order and values
+therefore keep the same hash after saving and reading. Shape, order, and values
 remain significant; no metadata is removed and stored numerical values are unchanged.
 List dtype inference follows NumPy/H5MU, including numeric promotion and conversion
 of mixed string/numeric lists to strings. Type distinctions erased by that conversion
 are not significant. Ragged and object-valued lists retain sequence hashing; this
 does not make them H5MU-serializable. Lists outside `uns` keep their original semantics.
 
-Historical `msmu-v1`, `significant-digits-v1` and exact hashes retain their original
+Historical `msmu-v1`, `significant-digits-v1`, and exact hashes retain their original
 definitions for replay and generated scripts. Existing digests are never relabeled
 or rewritten. Continuing an old workflow checks its input under the old policy
 before recording the new step with `msmu-v2`. Mixed `msmu-v1`/`msmu-v2` histories
@@ -129,7 +129,7 @@ print(mm.pv.get_options())  # {"hashing": True}
 mdata = mm.pp.log2_transform(mdata, modality="psm")
 mm.pv.set_options(hashing=False)
 
-# Or enable hashing for a block and restore the previous setting afterwards:
+# Or enable hashing for a block and restore the previous setting afterward:
 with mm.pv.options(hashing=True):
     mdata = mm.pp.scale_data(mdata, modality="psm")
 
@@ -141,12 +141,12 @@ current_hash = mm.pv.compute_hash(mdata)
 ```
 
 A hash entry has status `disabled`, `completed`, or `unavailable`. Completed entries include
-the algorithm (`sha256`), digest and hash duration. Unsupported types or
+the algorithm (`sha256`), digest, and hash duration. Unsupported types or
 unreadable inputs produce `unavailable` with a reason; these must never be interpreted as
 matching content. Explicit [`compute_hash`](../reference/pv/compute_hash.md) calls raise an exception for unsupported content.
 
 The MuData hash covers global and modality `obs`, `var`, aligned mappings, `uns`,
-MuData axis maps, AnnData `.X`, named layers and `.raw`. Only each object's `_log` is excluded.
+MuData axis maps, AnnData `.X`, named layers, and `.raw`. Only each object's `_log` is excluded.
 Numeric dtype, shape, values, axis labels/order, and metadata affect the digest. Numeric
 arrays use canonical byte order and NaN payloads. Sparse arrays are copied to canonical CSR,
 with sorted/combined entries, without densification. Explicit zero entries remain meaningful;
@@ -181,12 +181,12 @@ version/implementation, OS release and architecture, names and versions of all i
 Python distributions visible to the running interpreter (including indirect dependencies), an available
 `msmu` checkout commit/dirty flag, NumPy error settings, numerical threadpool details when
 available, and an allowlist of numerical thread/hash-seed environment variables. Arbitrary
-environment variables, credentials and host/user identifiers are not collected.
+environment variables, credentials, and host/user identifiers are not collected.
 
 Package/source metadata is a snapshot cached on the first recorded call in a Python process;
 restart Python after changing installed packages or source code. Threadpool and numerical
 settings are sampled on each call. Unavailable metadata is explicitly marked. Seeds supplied
-as function arguments are recorded, but hidden RNG state, GPU state, package binaries and
+as function arguments are recorded, but hidden RNG state, GPU state, package binaries, and
 complete environment reconstruction are not guaranteed.
 
 ## Coverage and interpretation
@@ -206,7 +206,7 @@ Export functions ([`io.to_readable`](../reference/io/to_readable.md), [`io.write
 filename and returns `None`.
 
 Standalone DataFrame readers, [`pl.plot_volcano`](../reference/pl/plot_volcano.md), standalone mzML purity calculation, scalar
-utilities, configuration functions and direct pandas/NumPy/MuData edits are not automatically
+utilities, configuration functions, and direct pandas/NumPy/MuData edits are not automatically
 recorded. They either have no MuData storage target or are outside processing history.
 Use [`dt.save_layer`](../reference/dt/save_layer.md) and [`dt.load_layer`](../reference/dt/load_layer.md)
 to record transfers between a modality's `.X` and a named layer.
@@ -285,7 +285,7 @@ This changes the supplied MuData in place and returns it. `on="obs"` assigns an
 observation column instead of a feature column, and `on="decoy"` writes to the
 decoy table in `uns["decoy"]`, which must carry every column a variable filter
 uses (see [Filter](filter.md#validation_and_compatibility)). Pandas handles broadcasting and
-index alignment. Scalars, lists, NumPy arrays, pandas Index and Series values are
+index alignment. Scalars, lists, NumPy arrays, pandas Index objects, and Series values are
 stored in full, including Series indices and dtypes, so replay can repeat the
 assignment without repeating the calculation that produced the values. Large
 columns increase the log size. Arbitrary Python objects and MultiIndex values
@@ -304,7 +304,7 @@ The model follows the core concepts of [W3C PROV-DM](https://www.w3.org/TR/prov-
 The stored representation is `msmu`'s versioned JSON schema, not PROV-JSON/RDF interchange,
 and does not claim PROV constraint validation or FAIR certification. History and hashes
 support auditing observations. They do not reconstruct arbitrary pandas edits, store original
-data or prove computational reproducibility. Supported histories can be rerun with
+data, or prove computational reproducibility. Supported histories can be rerun with
 [`mm.pv.replay`](../reference/pv/replay.md) as described below.
 
 ## Replay
@@ -355,7 +355,7 @@ Current limits:
 - Data-valued arguments such as an in-memory SDRF DataFrame are not reconstructible;
   use a file-backed argument when recording a workflow intended for replay.
   [`dt.assign`](../reference/dt/assign.md) explicitly captures its `values` argument and is an exception.
-- Basic values, mappings, lists and serialized dates/non-finite floats can be restored.
+- Basic values, mappings, lists, and serialized dates/non-finite floats can be restored.
   Tuples and sets were normalized to lists by the logger; their original container type
   cannot be recovered. Callables and parameters marked non-replayable are rejected.
 - PCA and UMAP require an explicitly recorded integer `random_state` (PCA defaults to 0).
@@ -477,7 +477,7 @@ configured sources on the target platform. In particular, a development/private
 
 Recorded context, including `msmu` commit/dirty status and runtime settings, is included
 as comments. Uncommitted `msmu` changes emit a warning because version pins cannot
-restore them. OS, native libraries, NumPy/thread settings and source edits must be
+restore them. OS, native libraries, NumPy/thread settings, and source edits must be
 handled separately. After preparing the environment and original inputs, use verified
 replay to check the recorded outputs; export alone does not establish reproducibility.
 
@@ -485,5 +485,5 @@ replay to check the recorded outputs; export alone does not establish reproducib
 
 `_log` contains `schema_version`, `head`, `events`, and `environments`. Events and environments
 are dictionaries from IDs to JSON strings. This avoids h5mu restrictions on heterogeneous
-lists, missing values and user parameter names. [`get_log`](../reference/pv/get_log.md) decodes those strings on demand.
+lists, missing values, and user parameter names. [`get_log`](../reference/pv/get_log.md) decodes those strings on demand.
 No write/load monkey-patches or additional file formats are required.

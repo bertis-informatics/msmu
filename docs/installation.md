@@ -38,7 +38,7 @@ record the printed version and pin that version in your environment specificatio
 The published site follows release tags, while repository documentation follows its checkout.
 Development-only APIs can be ahead of the PyPI release.
 
-Next, follow the [Quick Start](tutorials/quick_start.ipynb). To run the notebook
+Next, follow the [Quick start](tutorials/quick_start.ipynb). To run the notebook
 interactively in this environment:
 
 ```bash
@@ -47,7 +47,7 @@ python -m jupyter lab
 ```
 
 Download the notebook using its source link on the tutorial page and run its cells
-in order. The Quick Start fetches a small, revision-pinned dataset and writes results
+in order. The quick start fetches a small, revision-pinned dataset and writes results
 under `msmu_quick_start_output` in the notebook's working directory.
 
 ## Development checkout
@@ -85,7 +85,7 @@ Use `python -m mkdocs serve` to inspect navigation, examples, API pages, and fig
 
 ## Plot display and image export
 
-The Quick Start uses interactive Plotly figures and saves a self-contained HTML figure.
+The quick start uses interactive Plotly figures and saves a self-contained HTML figure.
 If a notebook does not display a figure, open the saved HTML file in a browser.
 Some longer tutorials use the PNG renderer. PNG/SVG/PDF export through Kaleido requires
 a compatible Chrome installation; if needed, run `plotly_get_chrome` in your environment.
@@ -94,6 +94,6 @@ Switching to an interactive renderer avoids that requirement for notebook displa
 ## Case-study environments
 
 The [Fulcher case study](tutorials/2024_Fulcher/index.md#environment_setup) uses
-additional RNA, imputation and multi-omics dependencies. Its environment setup
+additional RNA, imputation, and multi-omics dependencies. Its environment setup
 provides the Python version and a downloadable `requirements.txt` with pinned
 package versions.

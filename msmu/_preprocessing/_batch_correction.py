@@ -19,7 +19,7 @@ _NAN_PRESERVING_METHODS: tuple[str, ...] = ("gis", "median_center", "continuous"
 
 # A matrix has cross-batch structure once at least one feature is observed in this many batches (a
 # cross-batch reference then exists). If NO feature reaches it the matrix is fully block-diagonal
-# (e.g. a per-plex-split PSM matrix) and the scale is not restored -- restoring a single-batch
+# (e.g., a per-plex-split PSM matrix) and the scale is not restored -- restoring a single-batch
 # feature against its own level would merely reconstruct the original and undo the correction (see
 # ``BatchCorrector._restore_mask``).
 MIN_BATCHES_FOR_SCALE_RESTORE: int = 2
@@ -41,12 +41,12 @@ def correct_batch_effect(
     GIS-based normalization, median centering, ComBat, and continuous batch correction (with lowess) are supported.
 
     For 'gis', 'median_center', and 'continuous' the per-feature abundance scale is restored after
-    correction (gis: the geometric mean of the per-batch GIS levels, i.e. classic IRS [Plubell et
+    correction (gis: the geometric mean of the per-batch GIS levels, i.e., classic IRS [Plubell et
     al. 2017]; median_center/continuous: the per-feature overall median). Restoration is decided for
     the modality as a whole: when the matrix has cross-batch structure (at least one feature observed
     in >=2 batches, as at the peptide/protein level) every observed feature is restored -- a
     single-batch feature to its own level, so it stays on the same abundance scale as the rest. When
-    the matrix is fully block-diagonal (no feature spans >=2 batches, e.g. a per-plex-split PSM
+    the matrix is fully block-diagonal (no feature spans >=2 batches, e.g., a per-plex-split PSM
     matrix) nothing is restored and the output stays reference-relative, ready to roll up. ComBat
     scales itself.
 
@@ -260,7 +260,7 @@ class BatchCorrector:
         """
         Continuous batch correction using lowess.
 
-        Treats ``category`` as an ORDERED continuous covariate (e.g. acquisition / run order): the
+        Treats ``category`` as an ORDERED continuous covariate (e.g., acquisition / run order): the
         per-feature trend against the batch index is fitted with lowess and removed. It is not meant
         for an unordered/nominal batch label. Note the batch index orders ``category`` by its
         sorted-unique values, so a numeric run order stored as strings sorts lexicographically.
@@ -313,10 +313,10 @@ class BatchCorrector:
         """Which features to restore, decided for the matrix as a whole (not per feature).
 
         When any feature is observed in >=``MIN_BATCHES_FOR_SCALE_RESTORE`` batches the matrix has
-        cross-batch structure (e.g. peptide/protein level), so every observed feature is restored --
+        cross-batch structure (e.g., peptide/protein level), so every observed feature is restored --
         a lone single-batch feature to its own level, keeping it on the same abundance scale as the
         rest rather than stranded at the reference-relative origin. When no feature spans that many
-        batches the matrix is fully block-diagonal (e.g. a per-plex-split PSM matrix): restoring a
+        batches the matrix is fully block-diagonal (e.g., a per-plex-split PSM matrix): restoring a
         single-batch feature against its own level would just reconstruct the original and undo the
         correction, so nothing is restored and the output stays reference-relative (ready to roll up).
         """

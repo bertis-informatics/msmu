@@ -1,5 +1,5 @@
 """
-Module for performing Principal Component Analysis (PCA) on MuData objects, using scikit-learn's PCA implementation.
+Module for performing principal component analysis (PCA) on MuData objects, using scikit-learn's PCA implementation.
 """
 
 import pandas as pd
@@ -24,7 +24,7 @@ def pca(
     **kwargs: Any,
 ) -> MuData:
     """
-    Perform Principal Component Analysis (PCA) on the specified modality of the MuData object.
+    Perform principal component analysis (PCA) on the specified modality of the MuData object.
 
     - [Repository](https://github.com/scikit-learn/scikit-learn)
     - [Documentation](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html)
@@ -71,7 +71,7 @@ def pca(
                 and the number of components to extract is lower than 80% of the
                 smallest dimension of the data, then the more efficient
                 "randomized" method is selected. Otherwise the exact "full" SVD is
-                computed and optionally truncated afterwards.
+                computed and optionally truncated afterward.
 
             "full" :
                 Run exact full SVD calling the standard LAPACK solver via

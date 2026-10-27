@@ -164,7 +164,7 @@ class PvalueCorrection:
 
         Both S and S_star are counts of *features* exceeding the threshold: S over the observed
         statistics, S_star averaged over permutations. Summing the null matrix over its
-        permutation axis instead would make S_star a count of permutations, i.e. roughly
+        permutation axis instead would make S_star a count of permutations, i.e., roughly
         m/n_permutations times too small, which drives the denominator to 1 and collapses pi0
         onto the constant (1 - percentile/100) regardless of the data.
 

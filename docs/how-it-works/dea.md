@@ -1,6 +1,6 @@
-# Differential Expression (DE) Analysis
+# Differential expression (DE) analysis
 
-Differential Expression (DE) Analysis identifies proteins or peptides with significant abundance changes between experimental conditions. `msmu` exposes DE analysis through a single function, [`mm.tl.run_de()`](../reference/tl/run_de.md), with two complementary engines selected by `stat_method`: **limma moderated-t** (the default) — a parametric empirical-Bayes method that keeps power at the small sample sizes typical of proteomics and supports interactions and covariates — and an opt-in non-parametric **label-permutation test**. Both control the false discovery rate (FDR).
+Differential expression (DE) analysis identifies proteins or peptides with significant abundance changes between experimental conditions. `msmu` exposes DE analysis through a single function, [`mm.tl.run_de()`](../reference/tl/run_de.md), with two complementary engines selected by `stat_method`: **limma moderated-t** (the default) — a parametric empirical-Bayes method that keeps power at the small sample sizes typical of proteomics and supports interactions and covariates — and an opt-in non-parametric **label-permutation test**. Both control the false discovery rate (FDR).
 
 ## Run a differential-expression analysis
 
@@ -10,14 +10,14 @@ The `stat_method` argument selects the engine. It defaults to **`limma`** — th
 
 The engine sets the defaults for two things that used to be manual knobs:
 
-- **The fold-change measure follows the test.** The central tendency behind `log2FC` (and the group `repr_ctrl` / `repr_expr` values) is fixed by the statistic, so significance and effect size describe the same quantity: `welch`, `student` and `limma` are mean-based, `wilcoxon` is median-based. There is no `measure` argument. (For `wilcoxon`, the reported difference of medians is a pragmatic proxy for the Hodges–Lehmann shift that the rank-sum statistic actually localizes.)
+- **The fold-change measure follows the test.** The central tendency behind `log2FC` (and the group `repr_ctrl` / `repr_expr` values) is fixed by the statistic, so significance and effect size describe the same quantity: `welch`, `student`, and `limma` are mean-based, `wilcoxon` is median-based. There is no `measure` argument. (For `wilcoxon`, the reported difference of medians is a pragmatic proxy for the Hodges–Lehmann shift that the rank-sum statistic actually localizes.)
 - **The q-value's correction defaults to the engine, and is selectable with `p_adjust`.** By default (`p_adjust="auto"`) the permutation engines report an empirical (permutation) FDR and limma reports Benjamini-Hochberg q-values. Pass any R `p.adjust` / limma `adjust.method` name — `"bh"`, `"by"`, `"holm"`, `"hochberg"`, `"hommel"`, `"bonferroni"` (case-insensitive) — to choose the correction; both engines apply it identically to their p-values (numerically matched to R's `p.adjust`). `"empirical"` is permutation-only, since limma has no null distribution to build it from. There is no "no correction" option — both engines always return `p_value` and `q_value`, so for uncorrected significance read the `p_value` column. (The old `fdr` argument was replaced by `p_adjust`.)
 
 `min_pct` sets the minimum non-missing coverage a feature needs **in every group**, not in at least one, applied as a count — `max(1, ceil(min_pct × n))` non-missing values per group. The default `0.0` imposes only the **estimability floor**: every group needs at least one non-missing value (and limma additionally needs residual degrees of freedom), so every feature whose contrast can be estimated is tested. Requiring both groups — rather than at least one — is what keeps that contrast estimable without imputation, since a feature absent from one group has no contrast to estimate. Raise `min_pct` as an **opt-in stringency knob** to also demand a minimum coverage per group: for example `0.5` requires 2 of 3, 2 of 4, or 3 of 5, the count most commonly used in the field. It is a convention rather than a derived optimum — and above the estimability floor it is a pure extra filter whose reach grows with the missing rate (a no-op on complete data, but dropping most features, disproportionately the significant ones, on sparse data) — so choose it from the coverage you observe (`pct_ctrl` / `pct_expr`), not from which features come out significant.
 
-Features below the threshold are **not dropped from the result** — they stay as rows with their descriptive columns filled (`repr_ctrl` / `repr_expr`, `pct_ctrl` / `pct_expr`) but with `p_value` and `q_value` set to `NaN`, since no test was run. In particular, **on/off features — present in one group and absent in the other — are reported this way rather than receiving a p-value**: workflows that test them do so by imputing the missing group, which `msmu` does not. Read them off the detection percentages `pct_ctrl` / `pct_expr` (e.g. `pct_ctrl == 0` with `pct_expr == 100`). Note that sorting or filtering the result by `p_value` / `q_value` moves these `NaN` rows to the end.
+Features below the threshold are **not dropped from the result** — they stay as rows with their descriptive columns filled (`repr_ctrl` / `repr_expr`, `pct_ctrl` / `pct_expr`) but with `p_value` and `q_value` set to `NaN`, since no test was run. In particular, **on/off features — present in one group and absent in the other — are reported this way rather than receiving a p-value**: workflows that test them do so by imputing the missing group, which `msmu` does not. Read them off the detection percentages `pct_ctrl` / `pct_expr` (e.g., `pct_ctrl == 0` with `pct_expr == 100`). Note that sorting or filtering the result by `p_value` / `q_value` moves these `NaN` rows to the end.
 
-See more details in the [`mm.tl.run_de()`](../reference/tl/run_de.md) API reference and usage examples in the tutorial [`DE Analysis`](../tutorials/dea.ipynb).
+See more details in the [`mm.tl.run_de()`](../reference/tl/run_de.md) API reference and usage examples in the tutorial [DE analysis](../tutorials/dea.ipynb).
 
 ```python
 de_res = mm.tl.run_de(
@@ -33,7 +33,7 @@ de_res = mm.tl.run_de(
 de_res.to_df() # get results as pandas DataFrame
 ```
 
-DE analysis results are stored in `DeaResult` object, which contains: Feature names, test statistics, log2 fold-changes, p-values, q-values, and other relevant information.
+DE analysis results are stored in `DeaResult` object, which contains: feature names, test statistics, log2 fold-changes, p-values, q-values, and other relevant information.
 
 DE results can be accessed as a pandas `DataFrame` using the `to_df()` method.
 
@@ -44,7 +44,7 @@ This is the **default** engine — `stat_method="limma"`, or simply omit the arg
 Because limma builds an explicit design matrix, it supports designs the permutation path does not:
 
 - **Main effect** (default) — the two-group contrast `expr - ctrl`.
-- **Interaction / difference-in-differences** — set `interaction` to a second `.obs` factor and `interaction_levels` to two of its levels to test whether the `expr - ctrl` effect differs between them (e.g. "does the treatment effect differ by genotype").
+- **Interaction / difference-in-differences** — set `interaction` to a second `.obs` factor and `interaction_levels` to two of its levels to test whether the `expr - ctrl` effect differs between them (e.g., "does the treatment effect differ by genotype").
 - **Covariate adjustment** — pass `covariates` (obs columns) to adjust the contrast for nuisance variables. Numeric covariates are passed through; categorical ones are one-hot encoded.
 
 limma requires an explicit `expr` group (`expr=None` is not supported — for a "vs all other groups" comparison use one of the permutation methods), assumes log2-transformed input, and a positive `log2FC` means higher in `expr`. `n_resamples` does not apply to limma.
@@ -89,7 +89,7 @@ If the design has fewer distinct label splits than `n_resamples`, every split is
 
 `q-value` with `empirical` FDR is calculated by `E[FDR] = pi0 * E[FP] / E[TP]` referred to [Yang Xie et al., Bioinformatics, 2011.](https://academic.oup.com/bioinformatics/article/21/23/4280/194680) and [Storey et al., 2003](https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100).
 
-With very small groups the permutation null has few distinct label splits — only 20 for a 3-vs-3 comparison — and because the observed labelling is itself one of them, the empirical/BH q-value is floored (around `0.068` for 3-vs-3) regardless of effect size. **This is why `limma` is the default.** [`run_de()`](../reference/tl/run_de.md) warns when a permutation design cannot reach `q < 0.05`; the floor drops below 0.05 by roughly 4-vs-4.
+With very small groups the permutation null has few distinct label splits — only 20 for a 3-vs-3 comparison — and because the observed labeling is itself one of them, the empirical/BH q-value is floored (around `0.068` for 3-vs-3) regardless of effect size. **This is why `limma` is the default.** [`run_de()`](../reference/tl/run_de.md) warns when a permutation design cannot reach `q < 0.05`; the floor drops below 0.05 by roughly 4-vs-4.
 
 ```python
 de_res = mm.tl.run_de(
@@ -98,7 +98,7 @@ de_res = mm.tl.run_de(
     category="condition",
     ctrl="control",
     expr="treated",
-    stat_method="welch",     # "welch", "student" or "wilcoxon"
+    stat_method="welch",     # "welch", "student", or "wilcoxon"
     n_resamples=1000,        # number of label shuffles (positive integer)
 )
 ```

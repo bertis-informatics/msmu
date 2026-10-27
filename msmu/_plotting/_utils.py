@@ -513,8 +513,8 @@ def apply_msmu_template(fig: go.Figure, template: str | None = None) -> go.Figur
 
     Every public plot function routes its output through this helper so figures carry the
     msmu house style per-figure, without relying on the global ``pio.templates.default``
-    (i.e. without any import-time side effect). Functions that build a figure outside the
-    :func:`finalize_figure` path — e.g. [`plot_volcano`][msmu.pl.plot_volcano], which takes a results frame
+    (i.e., without any import-time side effect). Functions that build a figure outside the
+    :func:`finalize_figure` path — e.g., [`plot_volcano`][msmu.pl.plot_volcano], which takes a results frame
     rather than a MuData and therefore has no :class:`PlotContext` — call this directly.
     """
     ensure_msmu_templates_registered()

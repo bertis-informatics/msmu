@@ -1,4 +1,4 @@
-"""Recorded data manipulation for MuData objects, tables and metadata."""
+"""Recorded data manipulation for MuData objects, tables, and metadata."""
 
 from copy import deepcopy
 from typing import Any, Literal, cast
@@ -254,7 +254,7 @@ def assign(
 
     Equivalent to ``mdata[modality].var[column] = values`` (or ``obs``), or to
     ``mdata[modality].uns["decoy"][column] = values`` with ``on="decoy"``.
-    Pandas handles scalar broadcasting, positional arrays and Series index
+    Pandas handles scalar broadcasting, positional arrays, and Series index
     alignment. Returns the same MuData. Values are stored in full in provenance;
     the computation that produced them is not recorded.
 
