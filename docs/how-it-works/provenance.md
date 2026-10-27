@@ -153,26 +153,14 @@ with sorted/combined entries, without densification. Explicit zero entries remai
 sparse and dense representations are distinct. Unordered categorical columns hash by values,
 normalizing h5mu's automatic string-to-category conversion. Unused unordered categories and
 the string storage backend are intentionally ignored; ordered categories retain order metadata.
-When `pyarrow` is available, `pandas` string arrays and string categories emit the same framed
-UTF-8 byte stream in batches using Arrow kernels, avoiding per-value Python conversions.
-Chunk boundaries and slice offsets do not affect the digest. The scalar fallback remains
-available without `pyarrow`; existing hash values and the covered data are unchanged.
 
-`Path` objects and strings in `file`/`path` arguments are input file entities. Existing files
-are streamed in 1 MiB blocks when hashing is enabled. HTTP(S)/FTP URLs retain their original
-address. Shared tabular readers download each URL once per logged call into `BytesIO`, then
-give the same seekable buffer to `polars` or `pandas`. With hashing enabled, provenance hashes
-those downloaded bytes, using the same file-content encoding as a local file. No second
-download or disk file is needed. URL input hashes are finalized after the reader has consumed
-the source; URLs not consumed through this shared loader remain `unavailable`.
+`Path` objects and strings in `file`/`path` arguments identify input files. With hashing enabled,
+their contents are hashed. URLs retain their original address; supported readers hash the
+downloaded bytes. URL inputs that cannot be hashed are marked `unavailable`.
 
-Download buffers are retained until the logged call finishes and are closed on success or
-failure. Peak memory can include all downloaded source bytes plus parsed tables. This is a
-full download, not a remote partial-read optimization. Hashing off skips hash calculation but
-uses the same loading path. Directories and unavailable files are not recursively fetched.
-Other implicit external dependencies are outside
-the captured inputs. Hashing is proportional to covered content and allocates sparse copies
-and any required canonical arrays. It does not create checkpoints or data snapshots.
+URL inputs are downloaded in full even when hashing is disabled. Peak memory can include
+the downloaded bytes and parsed tables. Directories are not fetched recursively, and other
+implicit external dependencies are not captured. Hashing does not create checkpoints or data snapshots.
 
 ## Execution environment
 
@@ -486,4 +474,3 @@ replay to check the recorded outputs; export alone does not establish reproducib
 `_log` contains `schema_version`, `head`, `events`, and `environments`. Events and environments
 are dictionaries from IDs to JSON strings. This avoids h5mu restrictions on heterogeneous
 lists, missing values, and user parameter names. [`get_log`](../reference/pv/get_log.md) decodes those strings on demand.
-No write/load monkey-patches or additional file formats are required.

@@ -156,5 +156,3 @@ missing values passing, or requested nonexistent columns may no longer replay
 unchanged. Verified replay can report a hash mismatch, and explicit old matrix
 filter names can raise an error. Re-record those workflows with the current API;
 do not disable verification to hide a changed result.
-
-The existing copy behavior is retained in this correctness fix.
