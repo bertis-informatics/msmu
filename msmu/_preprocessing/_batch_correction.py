@@ -14,12 +14,12 @@ logger = get_logger(__name__)
 
 # Methods that apply their correction subtractively/multiplicatively (via ``_correct``), so a sparse
 # input keeps its absent-cell (NaN) pattern and can be re-sparsified on the way out. ComBat replaces
-# the whole array (pycombat may fill NaN), so it is excluded and stays dense.
+# the whole array (inmoose's ComBat may fill NaN), so it is excluded and stays dense.
 _NAN_PRESERVING_METHODS: tuple[str, ...] = ("gis", "median_center", "continuous")
 
 # A matrix has cross-batch structure once at least one feature is observed in this many batches (a
 # cross-batch reference then exists). If NO feature reaches it the matrix is fully block-diagonal
-# (e.g. a per-plex-split PSM matrix) and the scale is not restored -- restoring a single-batch
+# (e.g., a per-plex-split PSM matrix) and the scale is not restored -- restoring a single-batch
 # feature against its own level would merely reconstruct the original and undo the correction (see
 # ``BatchCorrector._restore_mask``).
 MIN_BATCHES_FOR_SCALE_RESTORE: int = 2
@@ -37,31 +37,48 @@ def correct_batch_effect(
     log_transformed: bool = True,
 ) -> md.MuData:
     """
-    Batch correction methods for MuData object.
+    Batch correction methods for `MuData` object.
     GIS-based normalization, median centering, ComBat, and continuous batch correction (with lowess) are supported.
+    ComBat uses [`inmoose`](https://inmoose.readthedocs.io/en/stable/) (<a href="#ref-colange-2025">Colange et al., 2025</a>),
+    specifically its [`pycombat_norm`](https://inmoose.readthedocs.io/en/stable/pycombatnorm.html) function.
 
-    For 'gis', 'median_center', and 'continuous' the per-feature abundance scale is restored after
-    correction (gis: the geometric mean of the per-batch GIS levels, i.e. classic IRS [Plubell et
-    al. 2017]; median_center/continuous: the per-feature overall median). Restoration is decided for
-    the modality as a whole: when the matrix has cross-batch structure (at least one feature observed
-    in >=2 batches, as at the peptide/protein level) every observed feature is restored -- a
+    For `'gis'`, `'median_center'`, and `'continuous'` the per-feature abundance scale is restored after
+    correction (`gis`: the geometric mean of the per-batch GIS levels, i.e., classic IRS from
+    <a href="#ref-plubell-2017">Plubell et al. (2017)</a>; `median_center`/`continuous`: the per-feature overall median).
+    Restoration is decided for the modality as a whole: when the matrix has cross-batch structure
+    (at least one feature observed in >=2 batches, as at the peptide/protein level) every observed feature is restored -- a
     single-batch feature to its own level, so it stays on the same abundance scale as the rest. When
-    the matrix is fully block-diagonal (no feature spans >=2 batches, e.g. a per-plex-split PSM
+    the matrix is fully block-diagonal (no feature spans >=2 batches, e.g., a per-plex-split PSM
     matrix) nothing is restored and the output stays reference-relative, ready to roll up. ComBat
     scales itself.
 
     Parameters:
-        mdata: MuData object to batch correct.
-        method: Batch correction method to use. Options are 'gis', 'median_center', 'combat', 'continuous'.
-        category: Category in .obs to use for batch correction.
+        mdata: `MuData` object to batch correct.
+        method: Batch correction method to use. Options are `'gis'`, `'median_center'`, `'combat'`, `'continuous'`.
+        category: Category in `.obs` to use for batch correction.
         modality: Modality to batch correct.
-        layer: Layer to batch correct. If None, the default layer (.X) will be used.
+        layer: Layer to batch correct. If `None`, the default layer (`.X`) will be used.
         gis_samples: List of GIS samples.
-        drop_gis: If True, GIS samples will be dropped after correction. Default is True.
-        log_transformed: If True, data is assumed to be log-transformed. Default is True.
+        drop_gis: If `True`, GIS samples will be dropped after correction. Default is `True`.
+        log_transformed: If `True`, data is assumed to be log-transformed. Default is `True`.
 
     Returns:
-        Batch corrected MuData object.
+        Batch corrected `MuData` object.
+
+    References:
+        <a id="ref-colange-2025"></a>
+
+        > Colange, M., Appé, G., Meunier, L., Weill, S., Johnson, W. E., Nordor, A., and Behdenna, A.
+        > Bridging the gap between R and Python in bulk transcriptomic data analysis with InMoose.
+        > *Scientific Reports* 15, 18104 (2025).
+        > [https://doi.org/10.1038/s41598-025-03376-y](https://doi.org/10.1038/s41598-025-03376-y).
+
+        <a id="ref-plubell-2017"></a>
+
+        > Plubell, D. L. et al. Extended multiplexing of Tandem Mass Tags (TMT) labeling reveals
+        > age and high fat diet specific proteome changes in mouse epididymal adipose tissue.
+        > *Molecular & Cellular Proteomics* 16, 873–890 (2017).
+        > [https://doi.org/10.1074/mcp.M116.065524](https://doi.org/10.1074/mcp.M116.065524).
     """
     mdata = mdata.copy()
     adata = get_anndata_mod(mdata, modality)
@@ -225,8 +242,8 @@ class BatchCorrector:
 
     def combat(self):
         """
-        ComBat batch correction using pycombat.
-        https://epigenelabs.github.io/pyComBat/
+        ComBat batch correction using inmoose's pycombat_norm.
+        https://inmoose.readthedocs.io/en/stable/pycombatnorm.html
         """
         _, batch_idx = self._make_batch_matrix()
         logger.debug(
@@ -260,7 +277,7 @@ class BatchCorrector:
         """
         Continuous batch correction using lowess.
 
-        Treats ``category`` as an ORDERED continuous covariate (e.g. acquisition / run order): the
+        Treats ``category`` as an ORDERED continuous covariate (e.g., acquisition / run order): the
         per-feature trend against the batch index is fitted with lowess and removed. It is not meant
         for an unordered/nominal batch label. Note the batch index orders ``category`` by its
         sorted-unique values, so a numeric run order stored as strings sorts lexicographically.
@@ -313,10 +330,10 @@ class BatchCorrector:
         """Which features to restore, decided for the matrix as a whole (not per feature).
 
         When any feature is observed in >=``MIN_BATCHES_FOR_SCALE_RESTORE`` batches the matrix has
-        cross-batch structure (e.g. peptide/protein level), so every observed feature is restored --
+        cross-batch structure (e.g., peptide/protein level), so every observed feature is restored --
         a lone single-batch feature to its own level, keeping it on the same abundance scale as the
         rest rather than stranded at the reference-relative origin. When no feature spans that many
-        batches the matrix is fully block-diagonal (e.g. a per-plex-split PSM matrix): restoring a
+        batches the matrix is fully block-diagonal (e.g., a per-plex-split PSM matrix): restoring a
         single-batch feature against its own level would just reconstruct the original and undo the
         correction, so nothing is restored and the output stays reference-relative (ready to roll up).
         """

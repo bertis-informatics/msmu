@@ -38,7 +38,7 @@ record the printed version and pin that version in your environment specificatio
 The published site follows release tags, while repository documentation follows its checkout.
 Development-only APIs can be ahead of the PyPI release.
 
-Next, follow the [Quick Start](tutorials/quick_start.ipynb). To run the notebook
+Next, follow the [DDA-TMT tutorial](tutorials/dda-tmt.ipynb). To run the notebook
 interactively in this environment:
 
 ```bash
@@ -46,9 +46,10 @@ python -m pip install jupyterlab
 python -m jupyter lab
 ```
 
-Download the notebook using its source link on the tutorial page and run its cells
-in order. The Quick Start fetches a small, revision-pinned dataset and writes results
-under `msmu_quick_start_output` in the notebook's working directory.
+Open the DDA-TMT notebook in JupyterLab and run its cells in order. It reads
+example Sage TMT results and SDRF metadata from URLs, so it needs
+network access. It saves `dda_tmt_PXD013361_raw.h5mu` and `dda_tmt_PXD013361.h5mu`
+in the notebook's working directory. See the plot display requirements below before running it.
 
 ## Development checkout
 
@@ -74,26 +75,23 @@ From the repository root, in the development environment:
 ```bash
 python -m pip install -e ".[dev,docs]"
 python -m mkdocs build --strict
-python -m pytest --nbval-lax docs/tutorials/quick_start.ipynb
+python -m pytest tests/test_docs_notebook_links.py
 ```
 
-The notebook includes checks for nonempty results, sample metadata, a generated figure,
-and an `.h5mu` round trip. It needs network access to fetch its pinned input files.
-Both checks also run in PR CI. The site build itself renders saved notebook outputs
+The strict site build and notebook-link checks also run in PR CI.
+The site build renders saved notebook outputs
 without executing notebooks, so a successful build alone does not validate analysis code.
 Use `python -m mkdocs serve` to inspect navigation, examples, API pages, and figures locally.
 
 ## Plot display and image export
 
-The Quick Start uses interactive Plotly figures and saves a self-contained HTML figure.
-If a notebook does not display a figure, open the saved HTML file in a browser.
-Some longer tutorials use the PNG renderer. PNG/SVG/PDF export through Kaleido requires
+The DDA-TMT tutorial uses the PNG renderer. PNG/SVG/PDF export through `kaleido` requires
 a compatible Chrome installation; if needed, run `plotly_get_chrome` in your environment.
 Switching to an interactive renderer avoids that requirement for notebook display.
 
 ## Case-study environments
 
 The [Fulcher case study](tutorials/2024_Fulcher/index.md#environment_setup) uses
-additional RNA, imputation and multi-omics dependencies. Its environment setup
+additional RNA, imputation, and multi-omics dependencies. Its environment setup
 provides the Python version and a downloadable `requirements.txt` with pinned
 package versions.

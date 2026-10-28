@@ -18,33 +18,33 @@ def split_tmt(
     set_key: str = "comment[sample preparation batch]",
 ) -> MuData:
     """
-    Split TMT channels in a MuData object into separate modalities based on a mapping.
+    Split TMT channels in a `MuData` object into separate modalities based on a mapping.
 
     Splitting relabels the ``C`` reporter channels into ``C x n_set`` distinct ``channel_set``
     samples so that each biological sample is unambiguous. Because a given PSM is measured in only
     one set, the resulting PSM matrix is block-diagonal: every feature carries values in just its
-    set's channels and is missing (NaN) in every other set's. A dense store would be ``O(n_set^2)``
+    set's channels and is missing (`NaN`) in every other set's. A dense store would be ``O(n_set^2)``
     -- both the feature count and the sample count scale with the number of sets, which is what
     makes many-plex studies exhaust memory -- so only the block diagonal (``O(n_set)``) is stored,
-    as a SciPy sparse ``.X``. Every obs label and stored value is identical to a fully materialised
+    as a `scipy` sparse ``.X``. Every `.obs` label and stored value is identical to a fully materialised
     split; only the structurally-absent cross-set cells are left out.
 
-    Note: because those cells are not stored, ``mdata.mod["psm"].to_df()`` returns 0 (SciPy sparse
-    convention) rather than NaN for them. Inspect the matrix with
-    :func:`msmu._core._blockdiag.dense_block`, which restores absent cells as NaN.
+    Note: because those cells are not stored, ``mdata.mod["psm"].to_df()`` returns 0 (`scipy` sparse
+    convention) rather than `NaN` for them. Inspect the matrix with
+    :func:`msmu._core._blockdiag.dense_block`, which restores absent cells as `NaN`.
 
     Parameters:
-        mdata: The MuData object containing TMT data.
-        map: A mapping of filenames to set names. If a DataFrame is provided, it should have two
-            columns: the first for filenames and the second for set names. If None (the default),
+        mdata: The `MuData` object containing TMT data.
+        map: A mapping of filenames to set names. If a `DataFrame` is provided, it should have two
+            columns: the first for filenames and the second for set names. If `None` (the default),
             the map is derived from the attached SDRF (``comment[data file]`` -> ``set_key``, one set
             per file), which requires [`attach_sdrf`][msmu.pp.attach_sdrf] first.
         set_key: SDRF column naming each file's set/plex when deriving the map (``map=None``).
             Default ``comment[sample preparation batch]``; name another per-file-constant column
-            (e.g. a ``factor value[...]``) when the SDRF encodes the set elsewhere.
+            (e.g., a ``factor value[...]``) when the SDRF encodes the set elsewhere.
 
     Returns:
-        The MuData object with TMT channels split into ``channel_set`` samples.
+        The `MuData` object with TMT channels split into ``channel_set`` samples.
     """
     derived_from_sdrf = map is None
     if map is None:
@@ -131,7 +131,7 @@ def _map_from_sdrf(mdata: MuData, set_key: str) -> dict[str, str]:
 
     Maps ``comment[data file]`` -> ``set_key``. The default ``comment[sample preparation batch]`` is
     the standard TERMS.tsv batch column standing in for the TMT plex/set, but SDRF has no dedicated
-    set column, so any column constant per data file (e.g. a ``factor value[...]``) may be named
+    set column, so any column constant per data file (e.g., a ``factor value[...]``) may be named
     instead. Requires one set per data file. The data-file extension is stripped to match
     [`split_tmt`][msmu.pp.split_tmt]'s own ``var["filename"]`` handling.
     """

@@ -182,7 +182,7 @@ def to_dense_df(adata, layer: str | None = None) -> pd.DataFrame:
 def sparse_apply_elementwise(matrix, func):
     """Apply an elementwise ``func`` to the stored values only, preserving sparsity.
 
-    For elementwise transforms (e.g. ``log2``) the absent (structurally-missing) cells stay
+    For elementwise transforms (e.g., ``log2``) the absent (structurally-missing) cells stay
     absent, so the transform runs on ``O(nnz)`` stored values and never densifies. Dense input
     is transformed as usual.
     """

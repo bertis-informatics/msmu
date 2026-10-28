@@ -26,26 +26,26 @@ def add_filter(
     name: str | None = None,
 ) -> MuData:
     """
-    Adds a filter to the specified modality in the MuData object based on the given condition.
+    Adds a filter to the specified modality in the `MuData` object based on the given condition.
 
     Missing source values never pass, including for negated conditions. Matrix
     filters use names prefixed with ``varm[key].`` or ``obsm[key].`` (key repr)
-    to distinguish their source from ordinary obs/var columns.
+    to distinguish their source from ordinary `.obs`/`.var` columns.
 
     Parameters:
-        mdata: MuData object to which the filter will be added.
-        modality: The modality within the MuData object to which the filter will be applied
+        mdata: `MuData` object to which the filter will be added.
+        modality: The modality within the `MuData` object to which the filter will be applied
         column: The column in the selected table to apply the filter on.
         keep: The condition to apply for filtering.
         value: The value to compare against for filtering.
-        on: Target table to filter on. One of 'var', 'obs', 'varm', or 'obsm'.
-        key: Key to select table from `.varm`/`.obsm` when `on` is 'varm'/'obsm'.
+        on: Target table to filter on. One of `'var'`, `'obs'`, `'varm'`, or `'obsm'`.
+        key: Key to select table from `.varm`/`.obsm` when `on` is `'varm'`/`'obsm'`.
         name: Optional filter name for selection with [`apply_filter(columns=...)`][msmu.pp.apply_filter].
             Must be nonblank and contain no slash (HDF5 key restriction). An existing
             name can only be reused with the same recorded condition.
 
     Returns:
-        MuData object with the added filter.
+        `MuData` object with the added filter.
     """
 
     if name is not None and (not isinstance(name, str) or not name.strip() or "/" in name):
@@ -179,21 +179,21 @@ def apply_filter(
     columns: list[str] | None = None,
 ) -> MuData:
     """
-    Applies the filter to the specified modality in the MuData object.
+    Applies the filter to the specified modality in the `MuData` object.
 
     Parameters:
-        mdata: MuData object to which the filter will be applied.
-        modality: The modality within the MuData object to which the filter will be applied.
+        mdata: `MuData` object to which the filter will be applied.
+        modality: The modality within the `MuData` object to which the filter will be applied.
         on: Which axis to apply filters on. One of:
-            - "var": apply only variable filters from `varm["filter"]`
-            - "obs": apply only observation filters from `obsm["filter"]`
-            - "all": apply both variable and observation filters
+            - `"var"`: apply only variable filters from `.varm["filter"]`
+            - `"obs"`: apply only observation filters from `.obsm["filter"]`
+            - `"all"`: apply both variable and observation filters
         columns: Optional list of filter column names to apply. When omitted, all
             available filter columns for the selected axis are applied. Missing
-            requested columns raise ValueError rather than applying a partial set.
+            requested columns raise `ValueError` rather than applying a partial set.
 
     Returns:
-        MuData object with the filter applied.
+        `MuData` object with the filter applied.
     """
     if on not in {"all", "var", "obs"}:
         raise ValueError(f"Unknown filter axis: {on}")

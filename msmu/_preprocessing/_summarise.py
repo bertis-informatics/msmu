@@ -47,7 +47,7 @@ def to_peptide(
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
     calculate_q: bool = True,
 ) -> md.MuData:
-    """Summarise PSM-level data to peptide-level data.
+    """Summarize PSM-level data to peptide-level data.
 
     Usage:
         mdata = mm.pp.to_peptide(
@@ -58,16 +58,16 @@ def to_peptide(
         )
 
     Parameters:
-        mdata: MuData object containing PSM-level data.
-        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method for quantification to use. One of "median", "mean", or "sum". Defaults to "median". The matrix rollups "median_polish" and "directlfq" are not offered here; they model per-peptide response factors and belong to the peptide-to-protein step ([`to_protein`][msmu.pp.to_protein]).
-        purity_threshold: Purity threshold for TMT data quantification aggregation (does not filter out features). If None, no filtering is applied. Defaults to 0.7.
-        top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
-        rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
-        calculate_q: Whether to calculate q-values. Defaults to True.
+        mdata: `MuData` object containing PSM-level data.
+        layer: Layer to use for quantification aggregation. If `None`, the default layer (`.X`) will be used. Defaults to `None`.
+        agg_method: Aggregation method for quantification to use. One of `"median"`, `"mean"`, or `"sum"`. Defaults to `"median"`. The matrix rollups `"median_polish"` and `"directlfq"` are not offered here; they model per-peptide response factors and belong to the peptide-to-protein step ([`to_protein`][msmu.pp.to_protein]).
+        purity_threshold: Purity threshold for TMT data quantification aggregation (does not filter out features). If `None`, no filtering is applied. Defaults to `0.7`.
+        top_n: Number of top features to consider for summarization. If `None`, all features are used. Defaults to `None`.
+        rank_method: Method to rank features when selecting `top_n`. Defaults to `"median_intensity"`.
+        calculate_q: Whether to calculate q-values. Defaults to `True`.
 
     Returns:
-        MuData object containing peptide-level data.
+        `MuData` object containing peptide-level data.
     """
     if agg_method not in PEPTIDE_AGG_METHODS:
         raise ValueError(
@@ -105,7 +105,7 @@ def to_peptide(
         summarisation_prep.rank_tuple = (
             rank_method,
             top_n,
-        )  # e.g. ("total_intensity", 3)
+        )  # e.g., ("total_intensity", 3)
 
     identification_df, quantification_df, decoy_df = summarisation_prep.prep()
     logger.debug(
@@ -212,19 +212,19 @@ def to_protein(
     calculate_q: bool = True,
     _shared_peptide: Literal["discard"] = "discard",
 ) -> md.MuData:
-    """Summarise peptide-level data to protein-level data. By default, uses every `unique` peptide (_shared_peptide = "discard") per protein_group for quantification aggregation with median; `top_n` with `rank_method` restricts the rollup to the top-ranked peptides.
+    """Summarize peptide-level data to protein-level data. By default, uses every `unique` peptide (`_shared_peptide` = `"discard"`) per `protein_group` for quantification aggregation with median; `top_n` with `rank_method` restricts the rollup to the top-ranked peptides.
 
     Parameters:
-        mdata: MuData object containing Peptide-level data.
-        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median". "median_polish" applies Tukey's median polish per protein group and "directlfq" applies the DirectLFQ rollup per protein group; both assume the quantification is in log2 space (apply [`log2_transform`][msmu.pp.log2_transform] first).
-        top_n: Number of top peptides to consider for summarisation. If None, all peptides are used. Defaults to None.
-        rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
-        calculate_q: Whether to calculate q-values. Defaults to True.
-        _shared_peptide: How to handle shared peptides. Currently only "discard" is implemented. Defaults to "discard".
+        mdata: `MuData` object containing Peptide-level data.
+        layer: Layer to use for quantification aggregation. If `None`, the default layer (`.X`) will be used. Defaults to `None`.
+        agg_method: Aggregation method to use. One of `"median"`, `"mean"`, `"sum"`, `"median_polish"`, or `"directlfq"`. Defaults to `"median"`. `"median_polish"` applies Tukey's median polish per protein group and `"directlfq"` applies the DirectLFQ rollup per protein group; both assume the quantification is in log2 space (apply [`log2_transform`][msmu.pp.log2_transform] first).
+        top_n: Number of top peptides to consider for summarization. If `None`, all peptides are used. Defaults to `None`.
+        rank_method: Method to rank features when selecting `top_n`. Defaults to `"median_intensity"`.
+        calculate_q: Whether to calculate q-values. Defaults to `True`.
+        _shared_peptide: How to handle shared peptides. Currently only `"discard"` is implemented. Defaults to `"discard"`.
 
     Returns:
-        MuData object containing protein-level data.
+        `MuData` object containing protein-level data.
     """
     original_mdata = mdata.copy()
     mdata = original_mdata.copy()
@@ -344,46 +344,46 @@ def to_ptm(
     rank_method: Literal["median_intensity", "total_intensity", "max_intensity", "mean_intensity"] = "median_intensity",
     multisite: Multisite = "combination",
 ) -> md.MuData:
-    """Summarise peptide-level data to PTM-level data.
+    """Summarize peptide-level data to PTM-level data.
 
-    Sites are localised from the peptide's own ``proteins`` accessions and the attached FASTA, so
+    Sites are localized from the peptide's own ``proteins`` accessions and the attached FASTA, so
     this step does not need an inferred ``protein_group`` and the resulting site ids do not depend on
     any other dataset.
 
     A site's position counts residues only -- the text inside a modification tag is never counted --
     so the same peptidoform yields the same site in every notation. Each peptidoform is parsed and
-    checked against its ``stripped_peptide``; a notation msmu cannot read raises rather than produce
+    checked against its ``stripped_peptide``; a notation `msmu` cannot read raises rather than produce
     misplaced sites.
 
     Parameters:
-        mdata: MuData object containing peptide-level data.
-        modi_name: Name of the PTM to summarise (e.g., "phospho"). Will be used in the output modality name (eg. phospho_site).
+        mdata: `MuData` object containing peptide-level data.
+        modi_name: Name of the PTM to summarize (e.g., `"phospho"`). Will be used in the output modality name (e.g., `phospho_site`).
         modification: The modification tag, exactly as it appears in ``peptide`` (brackets and case
-            included), or several of them to summarise into one modality. A tag may be qualified by
+            included), or several of them to summarize into one modality. A tag may be qualified by
             its residue to match that residue only. Examples: ``"[+79.9663]"`` (Sage; the decimals
             follow the search settings), ``"(UniMod:21)"`` (DIA-NN), ``"(Phospho (STY))"``
             (MaxQuant), ``["S[167]", "T[181]", "Y[243]"]`` (FragPipe, which writes the modified
             residue's total mass). If nothing matches, the error lists the tags the data contains.
-        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        agg_method: Aggregation method to use. One of "median", "mean", "sum", "median_polish", or "directlfq". Defaults to "median_polish", which models a per-peptidoform effect and so is not perturbed when the set of peptidoforms supporting a site changes between samples; for a site backed by a single peptidoform it is identical to "median". A sample whose peptidoforms are all observed in that sample alone cannot be compared with the others and is left NaN. "median_polish" applies Tukey's median polish per group and "directlfq" applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply [`log2_transform`][msmu.pp.log2_transform] first).
-        top_n: Number of top features to consider for summarisation. If None, all features are used. Defaults to None.
-        rank_method: Method to rank features when selecting top_n. Defaults to "median_intensity".
+        layer: Layer to use for quantification aggregation. If `None`, the default layer (`.X`) will be used. Defaults to `None`.
+        agg_method: Aggregation method to use. One of `"median"`, `"mean"`, `"sum"`, `"median_polish"`, or `"directlfq"`. Defaults to `"median_polish"`, which models a per-peptidoform effect and so is not perturbed when the set of peptidoforms supporting a site changes between samples; for a site backed by a single peptidoform it is identical to `"median"`. A sample whose peptidoforms are all observed in that sample alone cannot be compared with the others and is left `NaN`. `"median_polish"` applies Tukey's median polish per group and `"directlfq"` applies the DirectLFQ rollup per group; both assume the quantification is in log2 space (apply [`log2_transform`][msmu.pp.log2_transform] first).
+        top_n: Number of top features to consider for summarization. If `None`, all features are used. Defaults to `None`.
+        rank_method: Method to rank features when selecting `top_n`. Defaults to `"median_intensity"`.
         multisite: What a peptidoform carrying the target modification on several residues
             quantifies. ``"combination"`` (default) gives it to the set of sites it carries, as one
             feature (``"P1|S5_S8"``): a multiply modified peptide's change cannot be attributed to one
             of its sites, the way a shared peptide's cannot be attributed to one protein, so it is
             reported as the group it belongs to. Every peptidoform then feeds exactly one feature,
-            and the features with ``var["count_site"] == 1`` are the site table built from singly
+            and the features with ``.var["count_site"] == 1`` are the site table built from singly
             modified peptidoforms alone. ``"pool"`` gives its whole value to each of its sites
             instead -- copied, not divided -- so a site pools singly and multiply modified
             peptidoforms and one measurement can reach several sites. Peptidoforms differing only in
             other modifications or missed cleavages share a feature either way.
 
     Returns:
-        MuData: MuData object containing PTM-level data.
+        MuData: `MuData` object containing PTM-level data.
 
     Notes:
-        Adds `<modi_name>_site` to the supplied MuData in place. Use a copy to preserve the original. Requires peptide data and FASTA-derived `protein_info`; see [`to_peptide`][msmu.pp.to_peptide] and [`attach_fasta`][msmu.utils.attach_fasta].
+        Adds `<modi_name>_site` to the supplied `MuData` in place. Use a copy to preserve the original. Requires peptide data and FASTA-derived `protein_info`; see [`to_peptide`][msmu.pp.to_peptide] and [`attach_fasta`][msmu.utils.attach_fasta].
 
     Examples:
         ```python
@@ -420,7 +420,7 @@ def to_ptm(
         summarisation_prep.rank_tuple = (
             rank_method,
             top_n,
-        )  # e.g. ("total_intensity", 3)
+        )  # e.g., ("total_intensity", 3)
 
     identification_df, quantification_df = summarisation_prep.prep()
     logger.debug(

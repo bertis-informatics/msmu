@@ -1,17 +1,17 @@
 # Visualization
 
-`msmu._plotting` wraps Plotly to provide ready-made QC and exploratory plots for MuData objects. The module is structured around data preparation helpers and lightweight plot wrappers so you can compose figures with consistent defaults while still passing Plotly kwargs to tweak layout.
+`msmu.pl` provides QC and exploratory plots for `MuData` objects using `plotly`.
 
 ## Choose plot options
 
 - `mdata`: required `MuData` containing the modality to plot.
-- `modality`: required for [`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md) and [`plot_missingness`](../reference/pl/plot_missingness.md); elsewhere it defaults to the level the plot is normally read at (`psm` for [`plot_var`](../reference/pl/plot_var.md), `protein` for [`plot_pca`](../reference/pl/plot_pca.md), [`plot_umap`](../reference/pl/plot_umap.md), [`plot_correlation`](../reference/pl/plot_correlation.md) and [`plot_upset`](../reference/pl/plot_upset.md)).
+- `modality`: required for [`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md), and [`plot_missingness`](../reference/pl/plot_missingness.md); elsewhere it defaults to the level the plot is normally read at (`psm` for [`plot_var`](../reference/pl/plot_var.md), `protein` for [`plot_pca`](../reference/pl/plot_pca.md), [`plot_umap`](../reference/pl/plot_umap.md), [`plot_correlation`](../reference/pl/plot_correlation.md), and [`plot_upset`](../reference/pl/plot_upset.md)).
 - `groupby`: observation column used to split traces/groups (e.g., `filename`, `condition`). If omitted, falls back to `obs_column`.
-- `obs_column`: observation column used for labeling/group resolution; all elements should be unique. If omitted or no column exists, creates `__obs_idx__` column from the index of `obs`
-- `colorby`: optional obs column for coloring; only applied when `groupby` equals `obs_column`.
+- `obs_column`: observation column used for labeling/group resolution; all elements should be unique. If omitted or no column exists, creates `__obs_idx__` column from the index of `.obs`
+- `colorby`: optional `.obs` column for coloring; only applied when `groupby` equals `obs_column`.
 - `ptype`: plot style selector (`hist`, `box`, `vln`, etc.).
 - `layer`: optional; plot a layer instead of `.X` ([`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md), [`plot_missingness`](../reference/pl/plot_missingness.md), [`plot_upset`](../reference/pl/plot_upset.md)).
-- `template`: optional Plotly template, `"msmu"` by default ([`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md), [`plot_pca`](../reference/pl/plot_pca.md), [`plot_umap`](../reference/pl/plot_umap.md)).
+- `template`: optional `plotly` template, `"msmu"` by default ([`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md), [`plot_pca`](../reference/pl/plot_pca.md), [`plot_umap`](../reference/pl/plot_umap.md)).
 - `**kwargs`: forwarded to `go.Figure.update_layout` for per-plot overrides.
 
 Per-plot optional arguments:
@@ -23,7 +23,7 @@ Per-plot optional arguments:
 
 ## Plot examples
 
-> Uszkoreit, J., Barkovits, K., Pacharra, S., Pfeiffer, K., Steinbach, S., Marcus, K., & Eisenacher, M. (2022). Dataset containing physiological amounts of spike-in proteins into murine C2C12 background as a ground truth quantitative LC-MS/MS reference. Data in Brief, 43, 108435.
+The examples below use the dataset described by [Uszkoreit et al. (2022)](#ref-uszkoreit-2022).
 
 ### Sample metadata used below
 
@@ -119,3 +119,9 @@ mm.pl.plot_upset(mdata, "protein", groupby="condition")
 ```
 
 ![](../assets/images/visualization_upset_1.png)
+
+## References
+
+<a id="ref-uszkoreit-2022"></a>
+
+> Uszkoreit, J., Barkovits, K., Pacharra, S., Pfeiffer, K., Steinbach, S., Marcus, K., and Eisenacher, M. Dataset containing physiological amounts of spike-in proteins into murine C2C12 background as a ground truth quantitative LC-MS/MS reference. *Data in Brief* 43, 108435 (2022). [https://doi.org/10.1016/j.dib.2022.108435](https://doi.org/10.1016/j.dib.2022.108435).

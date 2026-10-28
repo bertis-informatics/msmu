@@ -94,7 +94,7 @@ class DelpiReader(SearchResultReader):
 
         The peptide cleanup ``.strip("<").strip(">").strip(".").strip("_")`` strips each character
         *in sequence* (not as a set), so it is replicated as four single-char ``strip_chars`` calls
-        -- ``strip_chars("<>._")`` would over-strip (e.g. ``._<AB>_.`` -> ``AB`` instead of
+        -- ``strip_chars("<>._")`` would over-strip (e.g., ``._<AB>_.`` -> ``AB`` instead of
         ``<AB>``). Accession parsing is deduplicated via ``replace_strict``.
         """
         uniq = identification_df.select("fasta_id").unique().to_series().to_list()

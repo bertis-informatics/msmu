@@ -27,14 +27,14 @@ CANONICAL_DECOY_PREFIX = "rev_"
 @log_provenance(file_inputs=("fasta_file",))
 def attach_fasta(mdata: md.MuData, fasta_file: str | None) -> md.MuData:
     """
-    Attach FASTA metadata to the MuData object.
+    Attach FASTA metadata to the `MuData` object.
 
     Parameters:
-        mdata: MuData object to attach FASTA metadata to.
-        fasta_file: Path to the FASTA file. If None, fetch from UniProt (not implemented).
+        mdata: `MuData` object to attach FASTA metadata to.
+        fasta_file: Path to the FASTA file. If `None`, fetch from UniProt (not implemented).
 
     Returns:
-        MuData object with attached FASTA metadata.
+        `MuData` object with attached FASTA metadata.
     """
     mdata = mdata.copy()
     if fasta_file is not None:
@@ -112,7 +112,7 @@ def _parse_protein_entry(protein_entry: str) -> tuple[str, bool]:
     """
     fields = protein_entry.split("|")
     if len(fields) != 3:
-        # Not a UniProt-style entry (e.g. a bare accession); only the marker can be recovered.
+        # Not a UniProt-style entry (e.g., a bare accession); only the marker can be recovered.
         accession, is_contaminant = _strip_contaminant_marker(protein_entry, search_anywhere=True)
         prefix = CANONICAL_CONTAMINANT_PREFIX if is_contaminant else ""
         return prefix + accession, is_contaminant
@@ -155,20 +155,19 @@ def parse_uniprot_accession(proteins: pd.Series) -> list[str]:
     """Extract UniProt accession groups from protein identifiers.
 
     Parameters:
-        proteins: Pandas Series of strings. Each string may contain semicolon-separated protein entries, including UniProt FASTA-style `sp|accession|name` identifiers.
+        proteins: `pandas` `Series` of strings. Each string may contain semicolon-separated protein entries, including UniProt FASTA-style `sp|accession|name` identifiers.
 
     Returns:
         List of accession strings in input order; multiple members remain semicolon-separated. Decoy/contaminant prefixes are preserved in canonical form; no contaminant boolean is returned.
 
     Notes:
-        The input Series is unchanged. Supply strings rather than missing values.
+        The input `Series` is unchanged. Supply strings rather than missing values.
 
     Examples:
         ```python
         import msmu as mm
         import pandas as pd
         accessions = mm.utils.parse_uniprot_accession(pd.Series(["sp|P12345|EXAMPLE"]))
-        assert accessions == ["P12345"]
         ```
     """
     return [parse_uniprot_accession_group(protein_group)[0] for protein_group in proteins]
@@ -222,15 +221,15 @@ def map_fasta(
     categories: list[str] = ["Protein ID", "Gene", "Description", "Organism"],
 ) -> md.MuData:
     """
-    Map protein groups to gene names using a FASTA metadata DataFrame.
+    Map protein groups to gene names using a FASTA metadata `DataFrame`.
 
     Parameters:
-        mdata: MuData object containing the modality to map.
-        modality: The modality in the MuData object to map.
+        mdata: `MuData` object containing the modality to map.
+        modality: The modality in the `MuData` object to map.
         categories: List of categories to map from fasta metadata.
 
     Returns:
-        MuData object with updated modality var.
+        `MuData` object with updated modality `.var`.
     """
     mdata = mdata.copy()
     fasta_meta = mdata.uns["protein_info"]

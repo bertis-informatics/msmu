@@ -164,7 +164,7 @@ class PvalueCorrection:
 
         Both S and S_star are counts of *features* exceeding the threshold: S over the observed
         statistics, S_star averaged over permutations. Summing the null matrix over its
-        permutation axis instead would make S_star a count of permutations, i.e. roughly
+        permutation axis instead would make S_star a count of permutations, i.e., roughly
         m/n_permutations times too small, which drives the denominator to 1 and collapses pi0
         onto the constant (1 - percentile/100) regardless of the data.
 
@@ -199,13 +199,13 @@ class PvalueCorrection:
         - Storey's method for pi0 (default)
         - or permutation-statistic-based method (equation 8)
 
-        References:
-        - https://academic.oup.com/bioinformatics/article/21/23/4280/194680
-        - https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100
-
         E[FDR] = pi0 * E[FP] / E[TP]
         E[FP] = #(FP >= s) / B (# permutation)
         E[TP] = #(TP >= s)
+
+        References:
+        - [Xie et al. (2005)](https://doi.org/10.1093/bioinformatics/bti685).
+        - [Storey and Tibshirani (2003)](https://doi.org/10.1073/pnas.1530509100).
         """
 
         stat_obs = np.asarray(stat_obs)

@@ -274,7 +274,7 @@ def fit_limma(
             :meth:`PvalueCorrection.adjust`.
 
     Returns:
-        LimmaResult with per-feature log2fc, moderated t, p-value and adjusted q-value, aligned to
+        LimmaResult with per-feature log2fc, moderated t, p-value, and adjusted q-value, aligned to
         every feature (NaN where not estimable).
     """
     features = np.asarray(fit_matrix.index)

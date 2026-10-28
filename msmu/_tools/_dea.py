@@ -355,63 +355,43 @@ def run_de(
     p_adjust: str = "auto",
     _force_resample: bool = False,
 ) -> DeaResult:
-    """Run Differential Expression Analysis (DEA) between two groups in a MuData object.
+    """Run Differential Expression Analysis (DEA) between two groups in a `MuData` object.
 
     The analysis reads as four stages: (1) data validation — prepare the inputs once and let the
     engine mask the usable features; (2) test — the engine-specific statistic; (3) fold change —
-    engine-independent group centres and the log2 fold change; (4) fold-change guidance line.
+    engine-independent group centers and the log2 fold change; (4) fold-change guidance line.
 
     Parameters:
-        mdata: MuData object containing the data.
-        modality: Modality name within the MuData to analyze.
-        category: Observation category to define groups.
+        mdata: `MuData` object containing the data.
+        modality: Modality name within the `MuData` to analyze.
+        category: `.obs` column containing the group labels.
         ctrl: Name of the control group.
-        expr: Name of the experimental group. If None, all other groups are used
-            (not supported for stat_method="limma", which needs an explicit group).
-        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        min_pct: Minimum non-missing coverage required in **every** group (design cell), not in at
-            least one, applied as a count: a feature needs ``max(1, ceil(min_pct * n))`` non-missing
-            values in each group. The default ``0.0`` imposes only the estimability floor — every
-            group needs at least one non-missing value (limma additionally requires residual
-            df >= 1) — so every feature whose contrast can be estimated is tested. Raise it as an
-            opt-in stringency knob to also demand a minimum coverage per group (e.g. ``0.5`` is 2 of
-            3, 2 of 4, 3 of 5); choose it from the coverage you observe (``pct_ctrl`` / ``pct_expr``),
-            not from which features come out significant. Features below the threshold are not tested:
-            they stay in the result as rows with ``repr_*`` / ``pct_*`` filled but ``p_value`` /
-            ``q_value`` set to NaN. Requiring both groups is what makes the contrast estimable
-            without imputation; the consequence is that on/off features (present in one group,
-            absent in the other) are reported this way rather than receiving a p-value — read them
-            off ``pct_ctrl`` / ``pct_expr``.
-        stat_method: Statistical test to use. Defaults to "limma" (empirical-Bayes moderated-t,
-            recommended for the small sample sizes where a permutation null is degenerate). The
-            permutation engines "welch"/"student"/"wilcoxon" always run a label-permutation test.
-            The fold-change central tendency follows the test: welch/student/limma are mean-based,
-            wilcoxon median-based (so significance and effect size stay on the same scale). For
-            wilcoxon the fold change is the median difference, a pragmatic proxy for the
-            Hodges-Lehmann shift the rank-sum statistic localizes.
-        n_resamples: Number of label permutations for the permutation engines (welch/student/
-            wilcoxon); must be a positive integer (e.g. 1000). Ignored by limma (which does not
-            permute). It is not an on/off switch — for a parametric analysis use stat_method="limma".
-        log_transformed: If True, data is assumed to be log-transformed. Defaults to True.
-        interaction: limma only — obs column of a second factor. If set, tests the
+        expr: Name of the experimental group. If `None`, all other groups are used
+            (not supported for `stat_method="limma"`, which needs an explicit group).
+        layer: Layer containing intensities. If `None`, uses `.X`. Defaults to `None`.
+        min_pct: Minimum observed fraction required in every compared group or design cell.
+            Defaults to `0.0`; the selected test must still be estimable. Features below this
+            threshold have `NaN` in `p_value` and `q_value`.
+        stat_method: Statistical method: `"limma"` (moderated-t, default), or `"welch"`,
+            `"student"`, or `"wilcoxon"` (label permutation).
+        n_resamples: Number of label permutations; must be a positive integer for permutation
+            methods. Defaults to `1000`. Ignored by limma.
+        log_transformed: Whether input is already log2-transformed. Defaults to `True`.
+            Limma expects log2-transformed input.
+        interaction: limma only — `.obs` column of a second factor. If set, tests the
             interaction (difference-in-differences) of ``expr - ctrl`` across two of its levels.
         interaction_levels: limma only — the two ``interaction`` levels to contrast.
-        covariates: limma only — obs columns to adjust for.
-        p_adjust: Multiple-testing correction for the q-value. Default ``"auto"`` uses each engine's
-            native default: limma adjusts its moderated p-values with Benjamini-Hochberg ("bh"), the
-            permutation engines use ``"empirical"`` (an FDR built from the label-permutation null).
-            The R ``p.adjust`` / limma ``adjust.method`` family — ``"bh"``, ``"by"``, ``"holm"``,
-            ``"hochberg"``, ``"hommel"``, ``"bonferroni"`` (case-insensitive) — is accepted by both
-            engines and applied identically to their p-values. ``"empirical"`` is permutation-only
-            (limma has no null distribution to build it from, so limma + ``"empirical"`` raises).
-            There is no "no correction" option — the uncorrected values are the ``p_value`` column.
-        _force_resample: If True, forces resampling even if the number of resamples exceeds the number of combinations.
+        covariates: limma only — `.obs` columns to adjust for.
+        p_adjust: Correction for `q_value`: `"auto"`, `"bh"`, `"by"`, `"bonferroni"`, `"holm"`,
+            `"hochberg"`, `"hommel"`, or `"empirical"`. Defaults to `"auto"`: `"bh"` for limma
+            and `"empirical"` for permutation methods. `"empirical"` is permutation-only.
+        _force_resample: If `True`, forces resampling even if the number of resamples exceeds the number of combinations.
 
     Returns:
-        DeaResult containing DE analysis results.
+        `DeaResult` containing DE analysis results.
 
     Notes:
-        The returned result provides `.to_df()` with `features`, `repr_ctrl`, `repr_expr`, `pct_ctrl`, `pct_expr`, `log2fc`, `statistic`, `p_value`, and `q_value`. `.plot_volcano(...)` delegates to [`plot_volcano`][msmu.pl.plot_volcano], which uses raw p-values. The analysis returns a result object rather than a new MuData; the provenance decorator can update the input history.
+        The returned result provides `.to_df()` with `features`, `repr_ctrl`, `repr_expr`, `pct_ctrl`, `pct_expr`, `log2fc`, `statistic`, `p_value`, and `q_value`. `.plot_volcano(...)` delegates to [`plot_volcano`][msmu.pl.plot_volcano], which uses raw p-values. The analysis returns a result object rather than a new `MuData`.
 
     Examples:
         ```python
@@ -607,9 +587,9 @@ def _attach_fold_change(
 ) -> None:
     """Fill the engine-independent fold-change fields of ``result`` in place.
 
-    Group labels, features, group centres (``repr``) and detection percentages are always set from
+    Group labels, features, group centers (``repr``), and detection percentages are always set from
     the prepared inputs, in the engine's ``effect_measure``. The log2 fold change is derived from
-    the group centres here only when the engine did not report one: limma reports the model
+    the group centers here only when the engine did not report one: limma reports the model
     contrast (an intrinsic, mean-based test output), while the permutation path gets its
     effect_measure-based difference at this step.
     """

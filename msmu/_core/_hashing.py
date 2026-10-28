@@ -58,7 +58,7 @@ def _hash_msmu(value) -> str:
     """Hash content with `msmu` v2: 12-digit floats and H5MU-stable list metadata.
 
     Stored values are unchanged. Files are streamed and hashed exactly.
-    Unsupported objects raise TypeError.
+    Unsupported objects raise `TypeError`.
     """
     return compute_hash(value, significant_digits=12, normalization=HASH_POLICY)
 
@@ -68,7 +68,7 @@ def compute_hash(value, *, significant_digits: int | None = 12, normalization: s
 
     Unordered categories hash by values, allowing h5mu's string-to-category conversion.
     Floats use 12 significant digits by default; None preserves the legacy exact hash.
-    Numeric dtypes, axis order/names and ordered categorical metadata are significant.
+    Numeric dtypes, axis order/names, and ordered categorical metadata are significant.
     Lists in MuData/AnnData.uns hash as their H5MU array representation.
     Files are streamed; sparse storage is canonical CSR and explicit zeroes are retained.
 

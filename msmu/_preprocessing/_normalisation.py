@@ -29,7 +29,7 @@ ADJUSTMENT_STATUS_ADJUSTED: str = "adjusted"
 # Accessions resolve to two or more quantified global groups. The site's signal is a sum over those
 # groups and rollup values are not comparable between groups, so no valid denominator exists.
 ADJUSTMENT_STATUS_SHARED_GROUPS: str = "shared_groups"
-# An accession maps to a global protein group, but that group has no quantification (e.g. all of its
+# An accession maps to a global protein group, but that group has no quantification (e.g., all of its
 # peptides were shared, so to_protein discarded them).
 ADJUSTMENT_STATUS_NOT_QUANTIFIED: str = "not_quantified"
 # No accession appears in the global protein_map, though at least one is in the global FASTA -- the
@@ -60,7 +60,7 @@ def _resolve_site_denominator(
     """Pick the global protein group whose quantification should serve as a site's denominator.
 
     Works from the site's accessions rather than any protein-group string, because groups are a
-    per-dataset judgement while accessions are shared. A site is adjustable exactly when its
+    per-dataset judgment while accessions are shared. A site is adjustable exactly when its
     accessions land on one quantified global group -- including the common case where several
     accessions are indistinguishable in the global data and therefore *are* one group.
     """
@@ -268,7 +268,7 @@ def normalise_median_center(arr: np.ndarray) -> np.ndarray:
 
 
 class UnsharedSamplePairsError(ValueError):
-    """Two samples of a normalisation block observe no feature in common.
+    """Two samples of a normalization block observe no feature in common.
 
     Positions refer to the block as passed to the estimator; [`normalise()`][msmu.pp.normalise] maps them to obs names.
     """
@@ -294,11 +294,11 @@ class PairwiseMedianShifts:
 
 
 def normalise_pairwise_median(arr: np.ndarray) -> np.ndarray:
-    """Pairwise-median normalisation: align samples on the features they observe in common.
+    """Pairwise-median normalization: align samples on the features they observe in common.
 
     For every pair of samples the median log2 difference over their co-observed features is taken;
     a sample's shift is the mean of its pairwise medians over all samples (its own pair being 0),
-    i.e. the equal-weight least-squares solution with the shifts summing to zero. ``arr`` is oriented
+    i.e., the equal-weight least-squares solution with the shifts summing to zero. ``arr`` is oriented
     (features x samples). Every pair must observe at least one feature in common, otherwise
     ``UnsharedSamplePairsError`` is raised.
     """
@@ -350,7 +350,7 @@ def compute_pairwise_median_differences(log2_matrix: np.ndarray, chunk_cell_coun
 
 
 def _collect_observed_columns_sparse(csr, cell_indices) -> tuple[list[int], list, list[np.ndarray]]:
-    """Position, ``csr.data`` entry and observed column indices of every block row holding a non-NaN value."""
+    """Position, ``csr.data`` entry, and observed column indices of every block row holding a non-NaN value."""
     kept_positions: list[int] = []
     kept_entries: list = []
     kept_columns: list[np.ndarray] = []
@@ -392,7 +392,7 @@ def _densify_shared_columns(csr, kept_entries: list, kept_columns: list[np.ndarr
 
 
 def normalise_total_sum(arr: np.ndarray) -> np.ndarray:
-    """Total-intensity (constant-sum) normalisation.
+    """Total-intensity (constant-sum) normalization.
 
     Rescales every sample so its summed intensity equals ``T`` -- the median of the per-sample totals
     -- correcting sample-to-sample loading / injection differences while leaving within-sample feature
@@ -417,14 +417,14 @@ def normalise_total_sum(arr: np.ndarray) -> np.ndarray:
 class PTMProteinAdjuster:
     """Adjust PTM site intensities by their parent protein's abundance in a matched global dataset.
 
-    This computes *differential PTM usage* (DPU) in the sense of Demeulemeester et al. 2024: the
-    site's log intensity minus its parent protein's summarised log intensity in the same sample. It
+    This computes *differential PTM usage* (DPU) in the sense of Demeulemeester et al. (2024): the
+    site's log intensity minus its parent protein's summarized log intensity in the same sample. It
     is not occupancy/stoichiometry, which additionally needs the unmodified counterpart peptide.
 
     The denominator is found by **accession**, not by peptide and not by comparing protein-group
-    strings. A site carries the accessions it was localised on; each is translated through the global
+    strings. A site carries the accessions it was localized on; each is translated through the global
     dataset's own ``protein_map`` into a global protein group, and that group's quantification is the
-    denominator. Protein groups are a judgement derived from one dataset's peptide evidence, so two
+    denominator. Protein groups are a judgment derived from one dataset's peptide evidence, so two
     datasets need not agree on them -- but they do agree on accessions. Going through accessions also
     means a PTM peptide that was never observed in the global run is still adjustable as long as its
     protein was quantified there, which is the common case under enrichment.
@@ -605,7 +605,7 @@ class PTMProteinAdjuster:
         there are samples. NOTE: the ridge penalty shrinks that slope toward zero by a factor
         ``Sxx / (Sxx + alpha)`` where ``Sxx = (n - 1) * var(protein)``; with proteomics-scale
         variance and sample counts, a large alpha leaves the residual indistinguishable from simply
-        centring the site, i.e. no protein correction at all. Choose alpha with that in mind.
+        centering the site, i.e., no protein correction at all. Choose alpha with that in mind.
         """
         records: list = list()
         skipped_for_few_pairs = 0
@@ -669,9 +669,9 @@ class PTMProteinAdjuster:
         """Replace the quantification in place and annotate every site with how it was resolved.
 
         Writes back to whichever matrix was read -- ``.X`` or ``layers[layer]`` -- the same contract
-        as [`log2_transform`][msmu.pp.log2_transform], [`normalise`][msmu.pp.normalise], [`scale_data`][msmu.pp.scale_data] and [`correct_batch_effect`][msmu.pp.correct_batch_effect]. Leaving the
+        as [`log2_transform`][msmu.pp.log2_transform], [`normalise`][msmu.pp.normalise], [`scale_data`][msmu.pp.scale_data], and [`correct_batch_effect`][msmu.pp.correct_batch_effect]. Leaving the
         adjusted values somewhere else would mean [`run_de`][msmu.tl.run_de] and friends, which default to ``.X``,
-        silently analysed the unadjusted data.
+        silently analyzed the unadjusted data.
 
         No site is dropped. A site that could not be adjusted is set to NaN rather than left holding
         its raw abundance, so residuals and raw abundances never share a matrix; ``adjustment_status``
