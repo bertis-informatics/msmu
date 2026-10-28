@@ -332,7 +332,7 @@ def _record_normalisation(adata: ad.AnnData, block_records: list[dict], method: 
                 }
             )
         )
-        logger.info(
+        logger.debug(
             "normalise[%s] %s layer %s block %s: %d samples; observed features per sample %d..%d (median %d); "
             "shift %+.3f..%+.3f log2",
             method,
