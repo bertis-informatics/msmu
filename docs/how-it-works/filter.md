@@ -33,7 +33,7 @@ mdata = mm.pp.apply_filter(mdata, modality="psm", columns=["qc_score"])
 
 Names must be nonblank strings without `/` so their definitions can be saved in
 HDF5. Explicit names are shared across the modality's obs and var filters.
-The source, column, operator and value are recorded in
+The source, column, operator, and value are recorded in
 `adata.uns["filter_conditions"][name]`. Reusing a name with the same condition
 recomputes its mask; a different condition raises an error. An existing mask
 without a recorded definition cannot be overwritten with an explicit name.
@@ -124,11 +124,11 @@ Readers record identification status rather than acting on it:
   `.uns["decoy_filter"]`, so target and decoy features stay matched.
 - **Contaminants** stay in `.var` with a `contaminant` flag (`1` / `0`). msmu records the flag and
   leaves the decision to you: a contaminant accession can also be a genuine protein of the sample
-  (the parsed group keeps both, e.g. `Cont_P07339;P07339`), so whether such a feature should go is
-  a protein-level judgement rather than something to drop at the PSM level.
+  (the parsed group keeps both, e.g., `Cont_P07339;P07339`), so whether such a feature should go is
+  a protein-level judgment rather than something to drop at the PSM level.
 
 Contaminant markers differ per FASTA (`contam_`, `Cont_`, `CON__`, and each engine's decoy tag in
-front of them), so the reader normalises every accession to one canonical form
+front of them), so the reader normalizes every accession to one canonical form
 `[rev_][Cont_]<accession>` and sets the flag from the parse. If you do filter on contaminant
 status, filter on the flag rather than matching a marker on the protein string — a string match
 silently stops matching when the search uses a different contaminant FASTA.

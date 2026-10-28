@@ -20,7 +20,7 @@ from ._sources import is_url, open_source, source_scope
 
 
 def _functions():
-    # Resolve only public MSMU functions; never import code named by a log.
+    # Resolve only public msmu functions; never import code named by a log.
     import msmu as mm
 
     functions = {

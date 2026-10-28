@@ -1,8 +1,8 @@
-# Sample Metadata (SDRF)
+# Sample metadata (SDRF)
 
 [SDRF-Proteomics](https://github.com/bigbio/proteomics-sample-metadata) is the community format for
 describing what each run and each label in an experiment actually is: the sample, its conditions,
-the instrument, the labelling. `msmu` treats an SDRF as the **source of truth** for sample
+the instrument, and the labeling. `msmu` treats an SDRF as the **source of truth** for sample
 metadata, in two explicit steps:
 
 1. [`attach_sdrf()`](../reference/pp/attach_sdrf.md) stores the whole table at `mdata.uns["sdrf"]`, unchanged.
@@ -75,9 +75,9 @@ All four arguments are optional, and the call above passes none of them:
   ignoring the extension, since readers store bare stems (`QExHF03751`) while an SDRF carries
   `QExHF03751.mzML`. Pass a column name to override, or a list of columns to match a composite key.
 
-    Only the reader's `psm` modality carries `uns["label"]`, so after summarising a TMT experiment
+    Only the reader's `psm` modality carries `uns["label"]`, so after summarizing a TMT experiment
     the derived `peptide` / `protein` modalities fall back to `comment[data file]` even though their
-    obs are still channels. Project **before** summarising, or pass `on="comment[label]"`
+    obs are still channels. Project **before** summarizing, or pass `on="comment[label]"`
     explicitly.
 - **`columns`** (optional, default `None`) — which columns to project. `None` projects every
   projectable column; pass a name or list to project a subset.
@@ -100,7 +100,7 @@ Plots turn the first appearance of each obs value into its category order, so th
 order ends up on every axis and legend. By default `apply_sdrf_to_obs()` reorders the observations
 to follow the SDRF rows instead: each observation takes the position of the first SDRF row carrying
 its match key (a channel that spans 12 fraction rows takes its first), and every modality, the
-MuData-level `obs`, `.X`, layers and `obsm` move together.
+MuData-level `obs`, `.X`, layers, and `obsm` move together.
 
 Observations absent from the SDRF — blank or reference channels, typically — are not dropped. They
 follow the matched ones in their original order with `NaN` metadata, and leave through
@@ -111,7 +111,7 @@ as before. Pass `order_obs=False` to keep the reader's order.
 
 Straight from a reader, samples are named by whatever the instrument produced — TMT channels or
 run file names. `set_index` renames them to the SDRF's own sample identifier, so every plot,
-`obs` slice and DE result speaks in the experiment's terms rather than the acquisition's:
+`obs` slice, and DE result speaks in the experiment's terms rather than the acquisition's:
 
 ```python
 mdata = mm.pp.apply_sdrf_to_obs(

@@ -1,5 +1,5 @@
 site_name: "msmu"
-site_description: "Proteomics Analysis Toolkit based on MuData"
+site_description: "Proteomics analysis toolkit based on MuData"
 
 repo_name: "msmu"
 repo_url: https://github.com/bertis-informatics/msmu

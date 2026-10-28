@@ -359,7 +359,7 @@ def run_de(
 
     The analysis reads as four stages: (1) data validation — prepare the inputs once and let the
     engine mask the usable features; (2) test — the engine-specific statistic; (3) fold change —
-    engine-independent group centres and the log2 fold change; (4) fold-change guidance line.
+    engine-independent group centers and the log2 fold change; (4) fold-change guidance line.
 
     Parameters:
         mdata: MuData object containing the data.
@@ -374,7 +374,7 @@ def run_de(
             values in each group. The default ``0.0`` imposes only the estimability floor — every
             group needs at least one non-missing value (limma additionally requires residual
             df >= 1) — so every feature whose contrast can be estimated is tested. Raise it as an
-            opt-in stringency knob to also demand a minimum coverage per group (e.g. ``0.5`` is 2 of
+            opt-in stringency knob to also demand a minimum coverage per group (e.g., ``0.5`` is 2 of
             3, 2 of 4, 3 of 5); choose it from the coverage you observe (``pct_ctrl`` / ``pct_expr``),
             not from which features come out significant. Features below the threshold are not tested:
             they stay in the result as rows with ``repr_*`` / ``pct_*`` filled but ``p_value`` /
@@ -390,7 +390,7 @@ def run_de(
             wilcoxon the fold change is the median difference, a pragmatic proxy for the
             Hodges-Lehmann shift the rank-sum statistic localizes.
         n_resamples: Number of label permutations for the permutation engines (welch/student/
-            wilcoxon); must be a positive integer (e.g. 1000). Ignored by limma (which does not
+            wilcoxon); must be a positive integer (e.g., 1000). Ignored by limma (which does not
             permute). It is not an on/off switch — for a parametric analysis use stat_method="limma".
         log_transformed: If True, data is assumed to be log-transformed. Defaults to True.
         interaction: limma only — obs column of a second factor. If set, tests the
@@ -607,9 +607,9 @@ def _attach_fold_change(
 ) -> None:
     """Fill the engine-independent fold-change fields of ``result`` in place.
 
-    Group labels, features, group centres (``repr``) and detection percentages are always set from
+    Group labels, features, group centers (``repr``), and detection percentages are always set from
     the prepared inputs, in the engine's ``effect_measure``. The log2 fold change is derived from
-    the group centres here only when the engine did not report one: limma reports the model
+    the group centers here only when the engine did not report one: limma reports the model
     contrast (an intrinsic, mean-based test output), while the permutation path gets its
     effect_measure-based difference at this step.
     """

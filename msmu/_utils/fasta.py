@@ -112,7 +112,7 @@ def _parse_protein_entry(protein_entry: str) -> tuple[str, bool]:
     """
     fields = protein_entry.split("|")
     if len(fields) != 3:
-        # Not a UniProt-style entry (e.g. a bare accession); only the marker can be recovered.
+        # Not a UniProt-style entry (e.g., a bare accession); only the marker can be recovered.
         accession, is_contaminant = _strip_contaminant_marker(protein_entry, search_anywhere=True)
         prefix = CANONICAL_CONTAMINANT_PREFIX if is_contaminant else ""
         return prefix + accession, is_contaminant

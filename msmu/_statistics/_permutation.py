@@ -30,7 +30,7 @@ def min_achievable_q(n_ctrl: int, n_expr: int, n_permutations: int, fdr: str) ->
     """
     Smallest q-value a permutation design can produce, whatever the data says.
 
-    The observed labelling is itself one of the permutations the null is built from, so every
+    The observed labeling is itself one of the permutations the null is built from, so every
     observed feature at ``|stat| >= s`` contributes its own statistic back into the null pool.
     A balanced design contributes it twice, because the complement of the observed split is
     another split of the same sizes and is therefore also enumerated. That forces

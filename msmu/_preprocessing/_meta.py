@@ -185,7 +185,7 @@ def apply_sdrf_to_obs(
 
     The SDRF spans both axes, so it is reduced to the obs axis by the match key ``on`` and
     only columns that are a *function* of that key (one value per key group) are projected.
-    Columns that vary within a key (e.g. ``comment[fraction identifier]`` under a channel key)
+    Columns that vary within a key (e.g., ``comment[fraction identifier]`` under a channel key)
     cannot be represented on the obs axis; they are left untouched in ``uns["sdrf"]`` and
     skipped with a warning -- or, if named explicitly in ``columns``, raise. obs never
     silently collapses SDRF data.
@@ -224,7 +224,7 @@ def apply_sdrf_to_obs(
     if not isinstance(sdrf, pd.DataFrame):
         raise TypeError("mdata.uns['sdrf'] must be a pandas DataFrame (attach via attach_sdrf).")
 
-    # File-name matching must ignore extensions: readers store bare stems (e.g. "QExHF03751")
+    # File-name matching must ignore extensions: readers store bare stems (e.g., "QExHF03751")
     # while SDRF comment[data file] carries ".mzML"/".raw"/".d". Normalise to stems for matching and
     # projection (uns['sdrf'] keeps the originals), mirroring split_tmt's filename handling.
     if "comment[data file]" in sdrf.columns:
@@ -300,7 +300,7 @@ def _default_sdrf_match_key(adata) -> str:
 def _copy_in_sdrf_order(mdata: MuData, sdrf: pd.DataFrame, *, on: str | None) -> MuData:
     """Copy ``mdata`` with its observations in SDRF row order.
 
-    Slicing the MuData by the reordered obs names moves every modality's obs, ``X``, layers and obsm
+    Slicing the MuData by the reordered obs names moves every modality's obs, ``X``, layers, and obsm
     together and rebuilds the global obs, so the order changes in exactly one place. A MuData whose
     obs already follow the SDRF is copied as is.
     """
@@ -340,7 +340,7 @@ def _resolve_match_on(
     on: str | Sequence[str] | None, sdrf: pd.DataFrame
 ) -> tuple[str | None, pd.DataFrame, list[str]]:
     """Resolve the match spec. A list becomes a synthetic "_"-joined key column so a post-split
-    ``channel_set`` obs index (e.g. "TMT126_set1") lines up with SDRF ``(comment[label], batch)``.
+    ``channel_set`` obs index (e.g., "TMT126_set1") lines up with SDRF ``(comment[label], batch)``.
 
     Returns ``(resolved_key, sdrf, composite_parts)``; the composite parts are excluded from
     projection since ``obs.index`` already encodes them.

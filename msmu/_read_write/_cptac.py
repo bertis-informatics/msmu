@@ -10,7 +10,7 @@ the other readers (see ``DelpiReader`` / ``DiannReader`` / ``MaxQuantReader``):
 build the feature frame on a fresh DataFrame in
 ``_make_needed_columns_for_identification`` (do not mutate the raw frame), and
 implement ``_extract_quant_from_raw`` for the merged (TMT) variant. The base
-``SearchResultReader`` no longer copies the raw frame before normalisation, so an
+``SearchResultReader`` no longer copies the raw frame before normalization, so an
 in-place ``_make_needed_columns_for_identification`` would corrupt the raw frame.
 The previous implementation lives in git history.
 """

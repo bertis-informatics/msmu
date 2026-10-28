@@ -1,4 +1,4 @@
-# Protein Inference
+# Protein inference
 
 This page explains how `msmu` infers proteins from peptide-level features through [`msmu.pp.infer_protein`](../reference/pp/infer_protein.md).
 
@@ -39,10 +39,10 @@ Optional arguments:
 
 !!! note "PTM workflows infer proteins on the global dataset only"
 
-    PTM data does not need [`infer_protein`](../reference/pp/infer_protein.md). [`to_ptm`](../reference/pp/to_ptm.md) localises sites from each peptide's own
+    PTM data does not need [`infer_protein`](../reference/pp/infer_protein.md). [`to_ptm`](../reference/pp/to_ptm.md) localizes sites from each peptide's own
     accessions and the attached FASTA, and [`adjust_ptm_by_protein`](../reference/pp/adjust_ptm_by_protein.md) resolves a site's denominator by
     translating those accessions through the *global* dataset's `protein_map`, so the global dataset
-    is the one to run [`infer_protein`](../reference/pp/infer_protein.md) and [`to_protein`](../reference/pp/to_protein.md) on. Protein groups are a judgement derived
+    is the one to run [`infer_protein`](../reference/pp/infer_protein.md) and [`to_protein`](../reference/pp/to_protein.md) on. Protein groups are a judgment derived
     from one dataset's peptide evidence, so keeping them on the side that produced them means a PTM
     peptide the global run never observed — the normal case under enrichment — is still adjustable
     whenever its protein was quantified there. See [`adjust_ptm_by_protein`](../reference/pp/adjust_ptm_by_protein.md).

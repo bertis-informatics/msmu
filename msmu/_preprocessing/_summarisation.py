@@ -54,7 +54,7 @@ def _format_examples(values: set[str]) -> str:
 
 @dataclass
 class SparseQuant:
-    """Carrier for a sparse block-diagonal quantification matrix through the summarisation path.
+    """Carrier for a sparse block-diagonal quantification matrix through the summarization path.
 
     Wraps a SciPy sparse ``(samples, features)`` matrix together with its sample names so the
     aggregator can reduce features per group without ever densifying the full matrix (see
@@ -93,7 +93,7 @@ _directlfq_runtime_configured: bool = False
 
 
 def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
-    """Summarise a feature-by-sample matrix to per-sample estimates via directlfq (DirectLFQ).
+    """Summarize a feature-by-sample matrix to per-sample estimates via directlfq (DirectLFQ).
 
     DirectLFQ (Ammar et al. 2023) aligns each feature's intensity trace onto a common scale
     (a within-group "peptide shift") and takes the per-sample median of the aligned traces.
@@ -103,12 +103,12 @@ def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
 
     This calls directlfq's per-protein worker on a single group's submatrix, so the estimate for
     each group depends only on that group's own features (directlfq's cross-group step is its
-    between-sample normalisation, which is skipped here — msmu handles normalisation upstream).
+    between-sample normalization, which is skipped here — msmu handles normalization upstream).
     That keeps this rollup a drop-in per-group aggregation, symmetric with ``_median_polish``.
 
     IMPORTANT: like median polish this operates in log space. directlfq's per-protein worker
     consumes log2 intensities and returns a log2-space profile, so the input must be log2
-    (e.g. apply [`log2_transform`][msmu.pp.log2_transform] first) and the output is log2.
+    (e.g., apply [`log2_transform`][msmu.pp.log2_transform] first) and the output is log2.
 
     NaN handling: missing values propagate as directlfq's own missingness. Features (rows) with
     no observed values are dropped before the call; a sample column with no observed values
@@ -323,28 +323,28 @@ def _polish_comparable_samples(feature_by_sample_matrix: np.ndarray) -> np.ndarr
 
 
 def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
-    """Summarise a feature-by-sample matrix to per-sample estimates via Tukey's median polish.
+    """Summarize a feature-by-sample matrix to per-sample estimates via Tukey's median polish.
 
     Median polish fits the additive model ``value[feature, sample] = overall +
     row_effect[feature] + col_effect[sample] + residual`` by iteratively sweeping row
     and column medians out of the matrix. The rollup estimate for each sample is
     ``overall + col_effect[sample]``.
 
-    Convergence follows R's ``stats::medpolish`` (MSstats' summarisation): iterate until the
+    Convergence follows R's ``stats::medpolish`` (MSstats' summarization): iterate until the
     relative change in the sum of absolute residuals falls below
     ``MEDIAN_POLISH_CONVERGENCE_TOLERANCE`` or ``MEDIAN_POLISH_MAX_ITERATIONS`` is reached.
     Convergence on ``overall`` alone is NOT sufficient — it can stabilise while the row/column
     effects are still moving, stopping early with a wrong estimate.
 
     IMPORTANT: this is an *additive* model, so it must be applied to log-space
-    intensities (e.g. log2). Applying it to linear intensities is not meaningful.
+    intensities (e.g., log2). Applying it to linear intensities is not meaningful.
 
     NaN handling: fully-missing features (all-NaN rows) are dropped before polishing --
     they carry no information, and keeping them would bias the row-effect alignment median
     that recovers the overall protein level toward zero (collapsing groups whose features
-    are mostly all-NaN, e.g. proteins quantified by a few unique peptides among many masked
+    are mostly all-NaN, e.g., proteins quantified by a few unique peptides among many masked
     shared ones). Remaining missing values are ignored via ``nanmedian``. A sample column
-    with no observed values across every feature yields ``NaN`` (there is nothing to summarise).
+    with no observed values across every feature yields ``NaN`` (there is nothing to summarize).
 
     Comparability: an estimate is returned only where it is on the same scale as the other
     returned estimates, so that any two non-NaN values of the result can be compared directly.
@@ -379,7 +379,7 @@ def _median_polish(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     # all-NaN row carries no information, yet ``nanmedian`` still yields a placeholder row effect
     # that, folded back through the row-effect alignment median, drags ``overall`` -- and therefore
     # every sample estimate -- toward zero. When such rows are the majority of a protein group
-    # (e.g. a few unique peptides among many masked shared ones) they collapse the whole protein
+    # (e.g., a few unique peptides among many masked shared ones) they collapse the whole protein
     # to ~0.
     observed_feature_mask = ~np.all(np.isnan(input_matrix), axis=1)
     if not observed_feature_mask.any():
@@ -724,7 +724,7 @@ class Aggregator:
 
 class SummarisationPrep:
     """
-    Preparation steps for summarisation.
+    Preparation steps for summarization.
 
     Attributes:
         mdata (MuData): MuData object containing feature-level data.
@@ -888,8 +888,8 @@ def _get_modification_tag_text(modification: str) -> str:
 
 class PtmSummarisationPrep(SummarisationPrep):
     """
-    Preparation steps for PTM site summarisation.
-        1. Keep the peptidoforms carrying a target modification, labelled with the peptide positions
+    Preparation steps for PTM site summarization.
+        1. Keep the peptidoforms carrying a target modification, labeled with the peptide positions
            of the residues that carry it
         2. Explode data to one row per peptide site
         3. Explode data to the peptide's own accessions for labeling protein site
@@ -956,10 +956,10 @@ class PtmSummarisationPrep(SummarisationPrep):
         self,
         data: pd.DataFrame,
     ) -> pd.DataFrame:
-        """Keep the peptidoforms carrying a target modification, labelled with where it sits.
+        """Keep the peptidoforms carrying a target modification, labeled with where it sits.
 
         ``peptide_site`` lists every residue carrying a target modification as ``<residue><1-based
-        position>`` (e.g. ``S7``), counted over residues only, so the letters inside a tag such as
+        position>`` (e.g., ``S7``), counted over residues only, so the letters inside a tag such as
         ``(UniMod:35)`` never shift it. Each parse is checked against the engine's own
         ``stripped_peptide``; a disagreement means msmu misread the notation, and every site in that
         peptide would be misplaced, so it raises instead.
@@ -1052,8 +1052,8 @@ class PtmSummarisationPrep(SummarisationPrep):
         Label PTM site to each single protein and get data arranged by peptide - peptide site
 
         Site identity is derived from the peptide's own ``proteins`` accessions rather than from an
-        inferred ``protein_group``. Localisation needs only an accession, a sequence and the FASTA;
-        protein grouping is a judgement made from one dataset's peptide evidence, so folding it into
+        inferred ``protein_group``. Localization needs only an accession, a sequence, and the FASTA;
+        protein grouping is a judgment made from one dataset's peptide evidence, so folding it into
         the site name would make the same PTM data yield different site ids depending on which global
         dataset it was processed alongside. Keeping accessions flat makes the site id a function of
         (peptide, FASTA) alone. Resolving an accession to a quantifiable protein group is the
@@ -1061,7 +1061,7 @@ class PtmSummarisationPrep(SummarisationPrep):
 
         Parameters:
             data (pd.DataFrame): Peptide data from msmu mudata['peptide'], already reduced to the
-                target peptidoforms and labelled with ``peptide_site`` by ``_extract_modi_peptide_df``
+                target peptidoforms and labeled with ``peptide_site`` by ``_extract_modi_peptide_df``
 
         Returns:
             ptm_data (pd.DataFrame): PTM data arranged by peptide - peptide site

@@ -41,7 +41,7 @@ def split_tmt(
             per file), which requires [`attach_sdrf`][msmu.pp.attach_sdrf] first.
         set_key: SDRF column naming each file's set/plex when deriving the map (``map=None``).
             Default ``comment[sample preparation batch]``; name another per-file-constant column
-            (e.g. a ``factor value[...]``) when the SDRF encodes the set elsewhere.
+            (e.g., a ``factor value[...]``) when the SDRF encodes the set elsewhere.
 
     Returns:
         The MuData object with TMT channels split into ``channel_set`` samples.
@@ -131,7 +131,7 @@ def _map_from_sdrf(mdata: MuData, set_key: str) -> dict[str, str]:
 
     Maps ``comment[data file]`` -> ``set_key``. The default ``comment[sample preparation batch]`` is
     the standard TERMS.tsv batch column standing in for the TMT plex/set, but SDRF has no dedicated
-    set column, so any column constant per data file (e.g. a ``factor value[...]``) may be named
+    set column, so any column constant per data file (e.g., a ``factor value[...]``) may be named
     instead. Requires one set per data file. The data-file extension is stripped to match
     [`split_tmt`][msmu.pp.split_tmt]'s own ``var["filename"]`` handling.
     """

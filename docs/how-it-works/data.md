@@ -1,6 +1,6 @@
 # Data in msmu
 
-In LC-MS/MS "shotgun" `proteomics`, data analysis typically follows a **hierarchical path**—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a **multi-level** and **multi-dimensional** structure: PSM/precursor, peptide, protein; feature metadata; sample annotations; and QC metrics.
+In LC-MS/MS "shotgun" `proteomics`, data analysis typically follows a **hierarchical path**—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a **multi-level** and **multi-dimensional** structure: PSM/precursor, peptide, and protein; feature metadata; sample annotations; and QC metrics.
 
 To manage these properties consistently, `msmu` adopts [`MuData`](https://mudata.readthedocs.io/en/latest/) from the `scverse` ecosystem as the fundamental data format. [`MuData`](https://mudata.readthedocs.io/en/latest/), together with its constituent [`AnnData`](https://anndata.readthedocs.io/en/stable/) objects, is widely used in scRNA-seq to manage complex data matrices and their associated metadata. The same structure fits proteomics naturally: identification-level attributes, quantification values, and sample information can all be stored cleanly and explored in an integrated way.
 
@@ -52,7 +52,7 @@ mdata = mm.dt.load_layer(mdata, modality="peptide", layer="raw")
 
 `save_layer` copies `.X` into the layer without changing `.X`. An existing layer raises an error unless `overwrite=True` is passed. `load_layer` copies the layer into `.X` without changing the layer or reverting other annotations. Both work in place, preserve dense or sparse storage, and record provenance. Backed MuData is unsupported; reopen it in memory with `mm.read_h5mu(path)` first.
 
-## Data Ingestion from DB search tools
+## Data ingestion from DB search tools
 
 Although different search tools return result files with heterogenous formats, their contents can typically be organized into two main conceptual parts to construct peptide- and protein-level data.
 
@@ -86,7 +86,7 @@ supply peptide intensities: add quantification with [`io.add_quant`](../referenc
 - Columns migrated into `mdata["psm"].var`
     - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q_value`, `contaminant`
 - `proteins` holds parsed UniProt accessions in one canonical form across every reader,
-  `[rev_][Cont_]<accession>` (e.g. `P07339`, `Cont_P02769`), and `contaminant` flags whether any
+  `[rev_][Cont_]<accession>` (e.g., `P07339`, `Cont_P02769`), and `contaminant` flags whether any
   member of the group carried a contaminant marker. See [Filter](filter.md#contaminants_and_decoys).
 - Decoy features are isolated from `.var` and stored in `.uns["decoy"]` for later use in FDR calculation.
 - Quantification data for **LFQ (DDA)** is stored in `peptide` modality.
@@ -134,10 +134,10 @@ fixes both the shape of the matrix and how `msmu` stores it.
 
 ![](../assets/quant_matrix_forms.svg){ width="100%" }
 
-*The matrices are drawn at one scale, and colour marks the group a feature belongs to. The bar under
+*The matrices are drawn at one scale, and color marks the group a feature belongs to. The bar under
 each one is the same grid seen as storage: the outline is every cell, the fill is what `.X` really
 keeps — a dense array allocates every slot, including the struck-through empty ones, while a sparse
-one keeps only the coloured cells and stops. For label-free DDA the quantification arrives at peptide level, so the
+one keeps only the colored cells and stops. For label-free DDA the quantification arrives at peptide level, so the
 `peptide` modality carries it and `psm` keeps identifications only.*
 
 **Multi-plex TMT.** Before splitting, `obs` is the `C` reporter channels, so row `126` stands for a
@@ -155,12 +155,12 @@ Both grouped forms keep only the observed cells, in a SciPy sparse `.X`.
 The sparsity is an implementation detail of the storage, not of the analysis. Every function that
 reads `.X` goes through a sparse-aware path, so **absent cells stay `NaN` and are never read as a
 measured zero** — preprocessing ([`log2_transform`](../reference/pp/log2_transform.md), [`normalise`](../reference/pp/normalise.md), [`scale_data`](../reference/pp/scale_data.md),
-[`correct_batch_effect`](../reference/pp/correct_batch_effect.md), [`collapse_obs`](../reference/pp/collapse_obs.md)), summarisation ([`to_peptide`](../reference/pp/to_peptide.md), [`to_protein`](../reference/pp/to_protein.md), [`to_ptm`](../reference/pp/to_ptm.md)),
-statistics ([`run_de`](../reference/tl/run_de.md), [`corr`](../reference/tl/corr.md), [`pca`](../reference/tl/pca.md), [`umap`](../reference/tl/umap.md)), plotting and the exporters all behave the same as on
-a dense matrix. Normalisation, scaling and batch correction also return sparse output for sparse
+[`correct_batch_effect`](../reference/pp/correct_batch_effect.md), [`collapse_obs`](../reference/pp/collapse_obs.md)), summarization ([`to_peptide`](../reference/pp/to_peptide.md), [`to_protein`](../reference/pp/to_protein.md), [`to_ptm`](../reference/pp/to_ptm.md)),
+statistics ([`run_de`](../reference/tl/run_de.md), [`corr`](../reference/tl/corr.md), [`pca`](../reference/tl/pca.md), [`umap`](../reference/tl/umap.md)), plotting, and the exporters all behave the same as on
+a dense matrix. Normalization, scaling, and batch correction also return sparse output for sparse
 input, so the saving is not spent at the first preprocessing step.
 
-Summarisation removes the grouping — a peptide is one feature across every run and plex, so its
+Summarization removes the grouping — a peptide is one feature across every run and plex, so its
 cells are all measurable — and peptide- and protein-level modalities are dense again:
 
 ```python
