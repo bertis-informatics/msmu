@@ -19,6 +19,18 @@ def _data():
     )})
 
 
+def test_undeclared_file_and_path_names_remain_ordinary_strings():
+    @mm.pv.log
+    def annotate(mdata, input_file, output_path, profile):
+        return mdata
+
+    values = {"input_file": "ordinary text", "output_path": "another value", "profile": "default"}
+    result = annotate(_data(), **values)
+    event = mm.pv.get_log(result)["events"][-1]
+    assert {name: event["parameters"][name] for name in values} == values
+    assert [entity["role"] for entity in _event_inputs(event)] == ["arguments/mdata"]
+
+
 def test_declared_nested_file_inputs_keep_arguments_and_ordinary_text_unchanged(tmp_path):
     first, second = tmp_path / "first.tsv", tmp_path / "second.tsv"
     first.write_text("first")

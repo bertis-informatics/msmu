@@ -573,7 +573,7 @@ def _read_global_mdata(global_mdata: md.MuData | str | PathLike[str]) -> md.MuDa
     return read_h5mu(global_mdata)
 
 
-@log_provenance
+@log_provenance(file_inputs=("global_mdata",))
 def adjust_ptm_by_protein(
     mdata: md.MuData,
     global_mdata: md.MuData | str | PathLike[str],
@@ -614,7 +614,7 @@ def adjust_ptm_by_protein(
             ``.h5mu`` file holding one. A path keeps this container's provenance a single chain --
             the file is recorded as an input with its content hash instead of merging the global
             dataset's own history -- so [`mm.pv.replay`][msmu.pv.replay] and [`mm.pv.to_script`][msmu.pv.to_script] can reproduce the
-            workflow through this step. Pass a ``Path`` rather than a ``str`` for that content hash.
+            workflow through this step. Both string paths and ``Path`` objects record the file content hash.
         modality: PTM modality to adjust (e.g. phospho_site, {ptm}_site).
         layer: Layer to adjust. If None, the default layer (.X) will be used.
         method: Estimator to use. 'ratio' subtracts the protein level, assuming the slope-one

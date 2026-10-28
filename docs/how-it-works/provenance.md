@@ -164,10 +164,11 @@ UTF-8 byte stream in batches using Arrow kernels, avoiding per-value Python conv
 Chunk boundaries and slice offsets do not affect the digest. The scalar fallback remains
 available without PyArrow; existing hash values and the covered data are unchanged.
 
-Path objects and strings in `file`/`path` arguments are input file entities. Local string
-paths passed to `pp.attach_sdrf(sdrf=...)`, `pp.add_meta(metadata=...)` and
-`io.add_quant(quant_data=...)` are also recorded as file inputs. Custom recorded functions
-can declare these arguments with `@mm.pv.log(file_inputs=("argument_name",))`.
+Path objects and URLs are detected directly as input file entities. Local string
+paths are recorded only for arguments declared with `file_inputs`, including search
+readers, SDRF/metadata attachment, FlashLFQ, FASTA, mzML and PTM global-data inputs.
+Custom recorded functions declare them with `@mm.pv.log(file_inputs=("argument_name",))`;
+argument names alone do not imply file inputs.
 Existing files are streamed in 1 MiB blocks when hashing is enabled. HTTP(S)/FTP URLs retain their original
 address. Shared tabular readers download each URL once per logged call into `BytesIO`, then
 give the same seekable buffer to Polars or pandas. With hashing enabled, provenance hashes

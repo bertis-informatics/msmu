@@ -464,9 +464,7 @@ def _entities(value, path, seen=None, *, file_input=False):
         yield path, value
     elif is_url(value):
         yield path, value
-    elif isinstance(value, os.PathLike) or isinstance(value, str) and (
-        file_input or any(x in path.lower() for x in ("file", "path"))
-    ):
+    elif isinstance(value, os.PathLike) or isinstance(value, str) and file_input:
         yield path, Path(value)
     elif isinstance(value, (Mapping, list, tuple)):
         seen.add(id(value))

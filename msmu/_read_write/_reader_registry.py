@@ -17,7 +17,7 @@ from .._core._provenance import log_provenance
 logger = get_logger(__name__)
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file", "quantification_file"))
 def read_sage(
     identification_file: str | Path,
     label: Literal["tmt", "label_free"],
@@ -95,7 +95,7 @@ def read_sage(
     return mdata
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file",))
 def read_diann(
     identification_file: str | Path | list,
     drop_search_result: bool = False,
@@ -139,7 +139,7 @@ def read_diann(
     return mdata
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file",))
 def read_maxquant(
     identification_file: str | Path | list,
     label: Literal["tmt", "label_free"],
@@ -196,7 +196,7 @@ def read_maxquant(
     return mdata
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file", "quantification_file"))
 def read_fragpipe(
     identification_file: str | Path | list,
     label: Literal["tmt", "label_free"],
@@ -263,7 +263,7 @@ def read_fragpipe(
     return mdata
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file",))
 def read_delpi(identification_file: str | Path, drop_search_result: bool = False) -> md.MuData:
     """
     Reads a DELPI output file and returns a MuData object.
