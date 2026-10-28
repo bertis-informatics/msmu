@@ -8,11 +8,11 @@ Protein inference in `msmu` is performed through a series of incremental refinem
 
 1. **Construct initial peptide-protein graph**  
    A initial graph explaining peptide-protein relationships is constructed.
-2. **Merge indistinguishable proteins** (`_find_indistinguishable`)  
+2. **Merge indistinguishable proteins**<br>
    Proteins associated with identical sets of peptides are merged into a single protein group. The protein group is named as a comma-separated list of members.
-3. **Collapse subsettable proteins** (`_find_subsettable`)  
+3. **Collapse subsettable proteins**<br>
    If the peptide set of one protein group is a strict subset of another, protein with smaller peptide set is reassigned to the protein group that has larger peptide set.
-4. **Resolve subsumable proteins** (`_find_subsumable`)  
+4. **Resolve subsumable proteins**<br>
    Proteins lacking unique peptides are evaluated within connected components of shared peptides. Proteins that cannot be distinguished are merged, while components without unique peptide evidence are dropped.
 5. **Finalize protein group assignment**  
    After above steps, all remaining protein groups are distinguishable (i.e., having at least one unique peptide). Mappings explaining peptide-protein relationship and annotations describing how each protein was handled are stored in `mdata.uns`.

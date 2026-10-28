@@ -1,6 +1,6 @@
 # Visualization
 
-`msmu._plotting` wraps `plotly` to provide ready-made QC and exploratory plots for `MuData` objects. The module is structured around data preparation helpers and lightweight plot wrappers so you can compose figures with consistent defaults while still passing `plotly` `kwargs` to tweak layout.
+`msmu.pl` provides QC and exploratory plots for `MuData` objects using `plotly`.
 
 ## Choose plot options
 
