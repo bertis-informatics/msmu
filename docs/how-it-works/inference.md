@@ -4,7 +4,7 @@ This page explains how `msmu` infers proteins from peptide-level features throug
 
 ## How proteins are inferred
 
-Protein inference in `msmu` is performed through a series of incremental refinement steps. By modifying the initial peptide-protein relationship, proteins are grouped based on shared peptide evidence, following principles outlined in Nesvizhskii & Aebersold (2005). The main steps are as follows:
+Protein inference in `msmu` is performed through a series of incremental refinement steps. By modifying the initial peptide-protein relationship, proteins are grouped based on shared peptide evidence, following principles outlined in [Nesvizhskii and Aebersold (2005)](#ref-nesvizhskii-2005). The main steps are as follows:
 
 1. **Construct initial peptide-protein graph**  
    A initial graph explaining peptide-protein relationships is constructed.
@@ -60,6 +60,10 @@ Output `MuData` also contains mapping information inside `uns`
 - `mdata.uns["peptide_map"]`: peptide → protein group mapping.
 - `mdata.uns["protein_map"]`: per-protein mapping with flags for `indistinguishable/subset/subsumable` status.
 
-## Citation
+<a id="citation"></a>
 
-> Nesvizhskii, A. I., & Aebersold, R. (2005). Interpretation of shotgun proteomic data. Molecular & cellular proteomics, 4(10), 1419-1440.
+## References
+
+<a id="ref-nesvizhskii-2005"></a>
+
+> Nesvizhskii, A. I. and Aebersold, R. Interpretation of shotgun proteomic data. *Molecular & Cellular Proteomics* 4(10), 1419–1440 (2005). [https://doi.org/10.1074/mcp.R500012-MCP200](https://doi.org/10.1074/mcp.R500012-MCP200).

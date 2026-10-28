@@ -199,13 +199,13 @@ class PvalueCorrection:
         - Storey's method for pi0 (default)
         - or permutation-statistic-based method (equation 8)
 
-        References:
-        - https://academic.oup.com/bioinformatics/article/21/23/4280/194680
-        - https://www.pnas.org/doi/epdf/10.1073/pnas.1530509100
-
         E[FDR] = pi0 * E[FP] / E[TP]
         E[FP] = #(FP >= s) / B (# permutation)
         E[TP] = #(TP >= s)
+
+        References:
+        - [Xie et al. (2005)](https://doi.org/10.1093/bioinformatics/bti685).
+        - [Storey and Tibshirani (2003)](https://doi.org/10.1073/pnas.1530509100).
         """
 
         stat_obs = np.asarray(stat_obs)

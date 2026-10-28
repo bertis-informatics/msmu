@@ -586,7 +586,8 @@ def adjust_ptm_by_protein(
     """
     Adjust PTM site intensities by parent protein abundance from a matched global dataset.
 
-    This computes *differential PTM usage* (DPU): the site's log intensity minus the log intensity
+    This computes *differential PTM usage* (DPU), as described by
+    <a href="#ref-demeulemeester-2024">Demeulemeester et al. (2024)</a>: the site's log intensity minus the log intensity
     of its parent protein in the same sample, so that a site's change is read relative to whatever
     its protein did. It is not occupancy/stoichiometry -- that additionally requires the unmodified
     counterpart peptide, and is a different estimand with far lower coverage.
@@ -628,6 +629,14 @@ def adjust_ptm_by_protein(
 
     Returns:
         MuData object with the adjusted quantification and per-site adjustment annotations.
+
+    References:
+        <a id="ref-demeulemeester-2024"></a>
+
+        > Demeulemeester, N. et al. msqrob2PTM: differential abundance and differential usage analysis
+        > of MS-based proteomics data at the posttranslational modification and peptidoform level.
+        > *Molecular & Cellular Proteomics* 23, 100708 (2024).
+        > [DOI](https://doi.org/10.1016/j.mcpro.2023.100708).
     """
     mdata = mdata.copy()
 

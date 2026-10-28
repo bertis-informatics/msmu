@@ -1,6 +1,7 @@
 # Sample metadata (SDRF)
 
-[SDRF-Proteomics](https://github.com/bigbio/proteomics-sample-metadata) is the community format for
+[SDRF-Proteomics](https://github.com/bigbio/proteomics-sample-metadata), described by
+[Dai et al. (2021)](#ref-dai-2021), is the community format for
 describing what each run and each label in an experiment actually is: the sample, its conditions,
 the instrument, and the labeling. `msmu` treats an SDRF as the **source of truth** for sample
 metadata, in two explicit steps:
@@ -261,3 +262,9 @@ is inferred from the extension (`.sdrf.tsv` / `.sdrf` → SDRF, otherwise `.csv`
 Use [`attach_sdrf()`](../reference/pp/attach_sdrf.md) + [`apply_sdrf_to_obs()`](../reference/pp/apply_sdrf_to_obs.md) instead when you do have an SDRF: those keep the
 original table on the container, understand its two axes, and refuse to collapse a column that is
 not well-defined per observation.
+
+## References
+
+<a id="ref-dai-2021"></a>
+
+> Dai, C. et al. A proteomics sample metadata representation for multiomics integration and big data analysis. *Nature Communications* 12, 5854 (2021). [https://doi.org/10.1038/s41467-021-26111-3](https://doi.org/10.1038/s41467-021-26111-3).

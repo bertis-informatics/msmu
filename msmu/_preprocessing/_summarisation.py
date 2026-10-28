@@ -95,7 +95,7 @@ _directlfq_runtime_configured: bool = False
 def _directlfq_rollup(feature_by_sample_matrix: np.ndarray) -> np.ndarray:
     """Summarize a feature-by-sample matrix to per-sample estimates via directlfq (DirectLFQ).
 
-    DirectLFQ (Ammar et al. 2023) aligns each feature's intensity trace onto a common scale
+    DirectLFQ, described by Ammar et al. (2023), aligns each feature's intensity trace onto a common scale
     (a within-group "peptide shift") and takes the per-sample median of the aligned traces.
     It is a fast, MaxLFQ-inspired label-free quantification method, but a *distinct* algorithm
     from the classical MaxLFQ pairwise-ratio least-squares — the results are correlated, not
