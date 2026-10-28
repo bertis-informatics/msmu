@@ -70,7 +70,7 @@ local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --nbval-lax"
+addopts = "-q --nbval-lax --nbval-current-env"
 
 [tool.ruff]
 target-version = "py311"
