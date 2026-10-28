@@ -556,13 +556,7 @@ def _normalise_by_groups(
 
 
 def _read_global_mdata(global_mdata: md.MuData | str | PathLike[str]) -> md.MuData:
-    """Accept the matched global dataset as an object, or as the path of an ``.h5mu`` holding it.
-
-    A path keeps the PTM container's history one chain: the file is recorded as an input with its
-    content hash instead of merging the global dataset's own history into the result. That is what
-    lets [`mm.pv.replay`][msmu.pv.replay] and [`mm.pv.to_script`][msmu.pv.to_script] reproduce a PTM workflow through the adjustment,
-    which they cannot do for a history with two parents.
-    """
+    """Accept the matched global dataset as a `MuData` object or an `.h5mu` file path."""
     if isinstance(global_mdata, md.MuData):
         return global_mdata
 
@@ -610,12 +604,7 @@ def adjust_ptm_by_protein(
 
     Parameters:
         mdata: `MuData` object holding the PTM data.
-        global_mdata: The matched global dataset: a `MuData` holding global protein expression in its
-            `'protein'` modality and the protein mapping in `.uns['protein_map']`, or the path of an
-            ``.h5mu`` file holding one. A path keeps this container's provenance a single chain --
-            the file is recorded as an input with its content hash instead of merging the global
-            dataset's own history -- so [`mm.pv.replay`][msmu.pv.replay] and [`mm.pv.to_script`][msmu.pv.to_script] can reproduce the
-            workflow through this step. Both string paths and ``Path`` objects record the file content hash.
+        global_mdata: Matched global protein data as a `MuData` object or an `.h5mu` file path.
         modality: PTM modality to adjust (e.g., `phospho_site`, `{ptm}_site`).
         layer: Layer to adjust. If `None`, the default layer (`.X`) will be used.
         method: Estimator to use. `'ratio'` subtracts the protein level, assuming the slope-one

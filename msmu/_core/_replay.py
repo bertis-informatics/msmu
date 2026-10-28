@@ -414,7 +414,6 @@ def to_script(
         ```python
         import msmu as mm
         script = mm.pv.to_script(mdata)
-        print(script)
         ```
     """
     import msmu as mm  # the public namespace; at module top this would import the package into itself
