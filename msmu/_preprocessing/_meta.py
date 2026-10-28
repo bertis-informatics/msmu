@@ -187,7 +187,7 @@ def apply_sdrf_to_obs(
     only columns that are a *function* of that key (one value per key group) are projected.
     Columns that vary within a key (e.g., ``comment[fraction identifier]`` under a channel key)
     cannot be represented on the `.obs` axis; they are left untouched in ``.uns["sdrf"]`` and
-    skipped with a warning -- or, if named explicitly in ``columns``, raise. `.obs` never
+    skipped with a DEBUG message -- or, if named explicitly in ``columns``, raise. `.obs` never
     silently collapses SDRF data.
 
     By default the observations are also reordered to follow the SDRF rows, so an order written
@@ -395,7 +395,7 @@ def _project_sdrf_onto_obs(
             raise ValueError(
                 f"SDRF columns are not a function of '{match_key}' (they vary within a key): {skipped}."
             )
-        logger.warning(
+        logger.debug(
             "apply_sdrf_to_obs: %s columns not projectable under '%s'; kept only in uns['sdrf']: %s",
             modality,
             match_key,
