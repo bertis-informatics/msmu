@@ -32,7 +32,7 @@ mdata = mm.pp.apply_filter(mdata, modality="psm", columns=["qc_score"])
 ```
 
 Names must be nonblank strings without `/` so their definitions can be saved in
-HDF5. Explicit names are shared across the modality's obs and var filters.
+HDF5. Explicit names are shared across the modality's observation and feature filters.
 The source, column, operator, and value are recorded in
 `adata.uns["filter_conditions"][name]`. Reusing a name with the same condition
 recomputes its mask; a different condition raises an error. An existing mask
@@ -99,9 +99,9 @@ mdata = mm.pp.apply_filter(
 
 ## Missingness
 
-A quantification filter needs the missing counts on `var` first.
+A quantification filter needs the missing counts on `.var` first.
 [`pp.calculate_missingness`](../reference/pp/calculate_missingness.md) records `n_missing` and
-`missing_ratio` per feature and, given an obs column, `missing_ratio_<level>` per group, so the
+`missing_ratio` per feature and, given an `.obs` column, `missing_ratio_<level>` per group, so the
 usual filter calls apply:
 
 ```python
@@ -122,7 +122,7 @@ Readers record identification status rather than acting on it:
 - **Decoys** are separated out of `.var` at read time and kept in `.uns["decoy"]`, where the
   q-value machinery needs them. Filters you add are applied to them in parallel, through
   `.uns["decoy_filter"]`, so target and decoy features stay matched.
-- **Contaminants** stay in `.var` with a `contaminant` flag (`1` / `0`). msmu records the flag and
+- **Contaminants** stay in `.var` with a `contaminant` flag (`1` / `0`). `msmu` records the flag and
   leaves the decision to you: a contaminant accession can also be a genuine protein of the sample
   (the parsed group keeps both, e.g., `Cont_P07339;P07339`), so whether such a feature should go is
   a protein-level judgment rather than something to drop at the PSM level.
@@ -146,7 +146,7 @@ refuses otherwise. Give decoys the column with a recorded edit rather than by ha
 annotation over by filename — so the step stays in provenance.
 Applying a subset of filters preserves the other decoy conditions for later calls.
 
-`contains` and `not_contains` retain pandas regular-expression semantics:
+`contains` and `not_contains` retain `pandas` regular-expression semantics:
 `A.B` also matches `AxB`. Escape regex metacharacters for literal matching.
 
 Existing stored filter names are not renamed. Newly recorded matrix filters use

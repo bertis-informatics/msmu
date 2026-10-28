@@ -68,7 +68,7 @@ mdata = mm.pp.adjust_ptm_by_protein(
 )
 ```
 
-The global dataset must hold a `protein` modality and the `uns["protein_map"]` that
+The global dataset must hold a `protein` modality and the `.uns["protein_map"]` that
 [`infer_protein()`](../reference/pp/infer_protein.md) writes, quantified on the same sample names as the PTM data, in log2 space.
 
 ### Pass the global dataset as a file to keep the workflow reproducible
@@ -91,7 +91,7 @@ Both `Path` objects and string paths are recorded with a file-content hash becau
 
 ### Where the result goes
 
-The adjusted values **replace the matrix that was read** — `.X`, or `layers[layer]` when given — the same contract as [`log2_transform()`](../reference/pp/log2_transform.md), [`normalise()`](../reference/pp/normalise.md), and [`correct_batch_effect()`](../reference/pp/correct_batch_effect.md). Nothing is dropped: a site that could not be adjusted is set to `NaN` rather than left holding its raw abundance, so residuals and raw abundances never share a matrix.
+The adjusted values **replace the matrix that was read** — `.X`, or `.layers[layer]` when given — the same contract as [`log2_transform()`](../reference/pp/log2_transform.md), [`normalise()`](../reference/pp/normalise.md), and [`correct_batch_effect()`](../reference/pp/correct_batch_effect.md). Nothing is dropped: a site that could not be adjusted is set to `NaN` rather than left holding its raw abundance, so residuals and raw abundances never share a matrix.
 
 To keep the unadjusted values for a side-by-side comparison, copy them into a layer first:
 
@@ -102,11 +102,11 @@ mdata = mm.pp.adjust_ptm_by_protein(mdata, global_mdata=global_mdata)
 
 Each site is annotated with how it was resolved:
 
-- `var["denominator_group"]`: the global protein group used as the denominator, if one was found.
-- `var["is_protein_adjusted"]`: whether an adjusted value was produced.
-- `var["adjustment_status"]`: why, when it was not — `shared_groups` (the accessions span two or more quantified groups, so the signal is a sum over them and no single denominator is valid), `not_quantified`, `no_global_group`, `not_in_global_fasta` (the two searches used different databases), or `no_estimate` (the denominator was found but the estimator declined, as `ridge` does below three paired observations).
+- `.var["denominator_group"]`: the global protein group used as the denominator, if one was found.
+- `.var["is_protein_adjusted"]`: whether an adjusted value was produced.
+- `.var["adjustment_status"]`: why, when it was not — `shared_groups` (the accessions span two or more quantified groups, so the signal is a sum over them and no single denominator is valid), `not_quantified`, `no_global_group`, `not_in_global_fasta` (the two searches used different databases), or `no_estimate` (the denominator was found but the estimator declined, as `ridge` does below three paired observations).
 
-The denominator is located by translating the accessions a site was localized on through the global dataset's `uns["protein_map"]`. Nothing is looked up by peptide, so a PTM peptide the global run never observed — the normal case under enrichment — is still adjustable whenever its protein was quantified there.
+The denominator is located by translating the accessions a site was localized on through the global dataset's `.uns["protein_map"]`. Nothing is looked up by peptide, so a PTM peptide the global run never observed — the normal case under enrichment — is still adjustable whenever its protein was quantified there.
 
 ## References
 

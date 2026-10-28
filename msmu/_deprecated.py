@@ -11,10 +11,10 @@ def merge_mudata(mdatas: dict[str, md.MuData]) -> md.MuData:
     """Deprecated alias of [`msmu.dt.concat`][msmu.dt.concat].
 
     Parameters:
-        mdatas: Dictionary mapping dataset labels to at least two sample-aligned MuData objects.
+        mdatas: Dictionary mapping dataset labels to at least two sample-aligned `MuData` objects.
 
     Returns:
-        A concatenated MuData, as described by [`concat`][msmu.dt.concat].
+        A concatenated `MuData`, as described by [`concat`][msmu.dt.concat].
 
     Notes:
         Calling this alias emits `DeprecationWarning`. Replace `mm.merge_mudata(...)` with [`mm.dt.concat(...)`][msmu.dt.concat].

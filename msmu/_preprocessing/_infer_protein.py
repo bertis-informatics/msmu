@@ -31,13 +31,13 @@ def infer_protein(
     Infer protein group mappings and annotate peptides with uniqueness.
 
     Parameters:
-        mdata: MuData object to update
+        mdata: `MuData` object to update
         modality: modality holding peptide-level data
-        protein_colname: column in var with semicolon-delimited protein accessions
-        peptide_colname: column in var with stripped peptide sequences
+        protein_colname: column in `.var` with semicolon-delimited protein accessions
+        peptide_colname: column in `.var` with stripped peptide sequences
 
     Returns:
-        MuData object with updated protein mappings and peptide annotations
+        `MuData` object with updated protein mappings and peptide annotations
     """
     logger.info("Starting protein inference")
 

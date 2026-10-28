@@ -1,6 +1,6 @@
 # 2024 Fulcher et al. tutorial
 
-This tutorial analyzes paired single-cell RNA and proteomics data from C10 and SVEC cells in [Fulcher et al. (2024)](#ref-fulcher-2024). msmu processes Sage identifications and FlashLFQ peptide intensities and records the proteomics preprocessing steps. scanpy, PIMMS, muon, and MOFA provide RNA processing, protein imputation, and multi-omics analysis.
+This tutorial analyzes paired single-cell RNA and proteomics data from C10 and SVEC cells in [Fulcher et al. (2024)](#ref-fulcher-2024). `msmu` processes Sage identifications and FlashLFQ peptide intensities and records the proteomics preprocessing steps. `scanpy`, PIMMS, `muon`, and MOFA provide RNA processing, protein imputation, and multi-omics analysis.
 
 ## Workflow
 
@@ -21,7 +21,7 @@ The verification section in **Appendix A** and the comparison figures in **Appen
 
 ## Environment setup
 
-The recorded preprocessing environment uses **Python 3.13.5** and **msmu 0.4.3**. [Download requirements.txt](requirements.txt) for the exported package versions, including scanpy, PIMMS, muon, and MOFA dependencies.
+The recorded preprocessing environment uses **Python 3.13.5** and **`msmu` 0.4.3**. [Download `requirements.txt`](requirements.txt) for the exported package versions, including `scanpy`, PIMMS, `muon`, and MOFA dependencies.
 
 ## References
 

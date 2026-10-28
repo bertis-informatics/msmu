@@ -85,9 +85,9 @@ Use `python -m mkdocs serve` to inspect navigation, examples, API pages, and fig
 
 ## Plot display and image export
 
-The quick start uses interactive Plotly figures and saves a self-contained HTML figure.
+The quick start uses interactive `plotly` figures and saves a self-contained HTML figure.
 If a notebook does not display a figure, open the saved HTML file in a browser.
-Some longer tutorials use the PNG renderer. PNG/SVG/PDF export through Kaleido requires
+Some longer tutorials use the PNG renderer. PNG/SVG/PDF export through `kaleido` requires
 a compatible Chrome installation; if needed, run `plotly_get_chrome` in your environment.
 Switching to an interactive renderer avoids that requirement for notebook display.
 

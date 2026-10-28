@@ -58,7 +58,7 @@ def _hash_msmu(value) -> str:
     """Hash content with `msmu` v2: 12-digit floats and H5MU-stable list metadata.
 
     Stored values are unchanged. Files are streamed and hashed exactly.
-    Unsupported objects raise TypeError.
+    Unsupported objects raise `TypeError`.
     """
     return compute_hash(value, significant_digits=12, normalization=HASH_POLICY)
 

@@ -42,9 +42,9 @@ def add_meta(
     """Attach metadata by exact matching of one metadata key to one observation key.
 
     Parameters:
-        mdata: MuData whose modality and global `.obs` annotations will be updated in a copy.
-        metadata: DataFrame, local file, or URL containing metadata.
-        format: `dataframe`/`df`/`generic`, `csv`, `tsv`, `parquet`, or `sdrf`. `None` accepts a DataFrame or infers the file format from its name.
+        mdata: `MuData` whose modality and global `.obs` annotations will be updated in a copy.
+        metadata: `DataFrame`, local file, or URL containing metadata.
+        format: `dataframe`/`df`/`generic`, `csv`, `tsv`, `parquet`, or `sdrf`. `None` accepts a `DataFrame` or infers the file format from its name.
         metadata_on: Metadata join column; `None` uses its index. A sequence must contain exactly one key.
         match_columns: Alias of `metadata_on`; cannot be supplied together with it.
         obs_columns: Join column in each modality `.obs`; `None` uses each observation index. A sequence must contain exactly one key.
@@ -52,7 +52,7 @@ def add_meta(
         skip_ontology: Skip ontology checks during SDRF validation.
 
     Returns:
-        A new MuData with metadata merged into each modality and global `.obs`; the original is unchanged.
+        A new `MuData` with metadata merged into each modality and global `.obs`; the original is unchanged.
 
     Notes:
         Metadata must be nonempty with unique columns and unique non-null join keys. Each modality must have at least one matching row; unmatched rows receive missing metadata. Existing non-null annotations take precedence; only gaps are filled. For separate SDRF storage/application, see [`attach_sdrf`][msmu.pp.attach_sdrf] and [`apply_sdrf_to_obs`][msmu.pp.apply_sdrf_to_obs].
@@ -142,19 +142,19 @@ def attach_sdrf(
     Attach an SDRF table to ``mdata.uns["sdrf"]`` as the immutable source of truth.
 
     The SDRF is stored whole because its rows span both axes -- ``comment[label]`` maps
-    to the obs axis (channels) and ``comment[data file]`` to the var axis (runs/fractions) --
-    so it is not reducible to obs alone. ``uns`` is copied through [`split_tmt`][msmu.pp.split_tmt] and
-    [`collapse_obs`][msmu.pp.collapse_obs], making it the durable home for the original table; obs is left
-    untouched here. Use [`apply_sdrf_to_obs`][msmu.pp.apply_sdrf_to_obs] to project selected columns onto obs.
+    to the `.obs` axis (channels) and ``comment[data file]`` to the `.var` axis (runs/fractions) --
+    so it is not reducible to `.obs` alone. ``.uns`` is copied through [`split_tmt`][msmu.pp.split_tmt] and
+    [`collapse_obs`][msmu.pp.collapse_obs], making it the durable home for the original table; `.obs` is left
+    untouched here. Use [`apply_sdrf_to_obs`][msmu.pp.apply_sdrf_to_obs] to project selected columns onto `.obs`.
 
     Parameters:
-        mdata: MuData to annotate.
-        sdrf: An SDRF as a pandas DataFrame, or a path/URL read via [`read_sdrf`][msmu.io.read_sdrf].
-        validate: Validate the SDRF with ``sdrf-pipelines`` (if installed). Default True.
-        skip_ontology: Skip ontology term checks during validation. Default True.
+        mdata: `MuData` to annotate.
+        sdrf: An SDRF as a `pandas` `DataFrame`, or a path/URL read via [`read_sdrf`][msmu.io.read_sdrf].
+        validate: Validate the SDRF with ``sdrf-pipelines`` (if installed). Default `True`.
+        skip_ontology: Skip ontology term checks during validation. Default `True`.
 
     Returns:
-        A copy of ``mdata`` with the SDRF DataFrame stored at ``uns["sdrf"]``.
+        A copy of ``mdata`` with the SDRF `DataFrame` stored at ``.uns["sdrf"]``.
     """
     if not isinstance(mdata, md.MuData):
         raise TypeError("mdata must be a MuData object.")
@@ -181,39 +181,39 @@ def apply_sdrf_to_obs(
     order_obs: bool = True,
 ) -> MuData:
     """
-    Project columns of the attached SDRF (``uns["sdrf"]``) onto each modality's obs.
+    Project columns of the attached SDRF (``.uns["sdrf"]``) onto each modality's `.obs`.
 
-    The SDRF spans both axes, so it is reduced to the obs axis by the match key ``on`` and
+    The SDRF spans both axes, so it is reduced to the `.obs` axis by the match key ``on`` and
     only columns that are a *function* of that key (one value per key group) are projected.
     Columns that vary within a key (e.g., ``comment[fraction identifier]`` under a channel key)
-    cannot be represented on the obs axis; they are left untouched in ``uns["sdrf"]`` and
-    skipped with a warning -- or, if named explicitly in ``columns``, raise. obs never
+    cannot be represented on the `.obs` axis; they are left untouched in ``.uns["sdrf"]`` and
+    skipped with a warning -- or, if named explicitly in ``columns``, raise. `.obs` never
     silently collapses SDRF data.
 
     By default the observations are also reordered to follow the SDRF rows, so an order written
-    into the SDRF (plate wells, acquisition sequence) carries into obs and into the category
-    order every plot derives from it. Readers order obs by file name or quant-table column.
+    into the SDRF (plate wells, acquisition sequence) carries into `.obs` and into the category
+    order every plot derives from it. Readers order `.obs` by file name or quant-table column.
 
     Parameters:
-        mdata: MuData with an SDRF attached via [`attach_sdrf`][msmu.pp.attach_sdrf].
-        on: SDRF column (or list of columns) matched against ``obs.index``. Default None auto-picks:
-            after [`split_tmt`][msmu.pp.split_tmt] (which records its ``set_key`` in ``uns``) it builds the composite
-            ``[comment[label], set_key]`` matching the ``channel_set`` obs automatically; otherwise
-            ``comment[label]`` for TMT and ``comment[data file]`` elsewhere. Pass a str or list to
-            override (a list forces a "_"-joined composite key).
-        columns: SDRF column(s) to project. Default None projects every projectable column;
+        mdata: `MuData` with an SDRF attached via [`attach_sdrf`][msmu.pp.attach_sdrf].
+        on: SDRF column (or list of columns) matched against ``.obs.index``. Default `None` auto-picks:
+            after [`split_tmt`][msmu.pp.split_tmt] (which records its ``set_key`` in ``.uns``) it builds the composite
+            ``[comment[label], set_key]`` matching the ``channel_set`` `.obs` automatically; otherwise
+            ``comment[label]`` for TMT and ``comment[data file]`` elsewhere. Pass a `str` or `list` to
+            override (a list forces a `"_"`-joined composite key).
+        columns: SDRF column(s) to project. Default `None` projects every projectable column;
             naming a non-projectable column raises instead of skipping it.
-        set_index: After projection, replace ``obs.index`` with this SDRF column's values.
-            Must be projectable and unique across obs. Default None keeps the index.
-        order_obs: Reorder every modality's obs, and the global obs, to the SDRF row order: each
+        set_index: After projection, replace ``.obs.index`` with this SDRF column's values.
+            Must be projectable and unique across `.obs`. Default `None` keeps the index.
+        order_obs: Reorder every modality's `.obs`, and the global `.obs`, to the SDRF row order: each
             observation takes the position of the first SDRF row carrying its match key, and
             observations absent from the SDRF follow the matched ones in their current order
             (none is dropped; removing samples stays with [`apply_filter`][msmu.pp.apply_filter]).
-            Default True; False keeps the reader's order.
+            Default `True`; `False` keeps the reader's order.
 
     Returns:
-        A copy of ``mdata`` with projected SDRF columns merged into each modality's obs and, by
-        default, obs in SDRF row order; ``uns["sdrf"]`` is left unchanged as the source of truth.
+        A copy of ``mdata`` with projected SDRF columns merged into each modality's `.obs` and, by
+        default, `.obs` in SDRF row order; ``.uns["sdrf"]`` is left unchanged as the source of truth.
     """
     if not isinstance(mdata, md.MuData):
         raise TypeError("mdata must be a MuData object.")

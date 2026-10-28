@@ -20,7 +20,7 @@ This unique marriage between flexible processing pipeline and `MuData` empowers 
 ## Key features
 
 - **Flexible data ingestion** from Sage, DIA-NN, and other popular DB search tools
-- **MuData/AnnData-compatible** object structure for organizing multi-level MS data
+- **`MuData`/`AnnData`-compatible** object structure for organizing multi-level MS data
 - **SDRF-native sample metadata**: attach a validated SDRF as the immutable source of truth and project it onto samples
 - **Command provenance**: supported processing calls record arguments, execution times, environment versions, lineage, and optional content hashes in the container; console output and dimension summaries are not stored
 - **Protein inference**: infer protein groups from peptide evidence using parsimony rule
@@ -42,7 +42,7 @@ This unique marriage between flexible processing pipeline and `MuData` empowers 
 
 ## License
 
-BSD 3-Clause License. See LICENSE for details.
+BSD 3-Clause License. See `LICENSE` for details.
 
 ## Citation
 

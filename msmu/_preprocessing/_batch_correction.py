@@ -37,14 +37,14 @@ def correct_batch_effect(
     log_transformed: bool = True,
 ) -> md.MuData:
     """
-    Batch correction methods for MuData object.
+    Batch correction methods for `MuData` object.
     GIS-based normalization, median centering, ComBat, and continuous batch correction (with lowess) are supported.
-    ComBat uses [inmoose's `pycombat_norm`](https://inmoose.readthedocs.io/en/stable/pycombatnorm.html)
-    (<a href="#ref-colange-2025">Colange et al. (2025)</a>).
+    ComBat uses [`inmoose`](https://inmoose.readthedocs.io/en/stable/) (<a href="#ref-colange-2025">Colange et al., 2025</a>),
+    specifically its [`pycombat_norm`](https://inmoose.readthedocs.io/en/stable/pycombatnorm.html) function.
 
-    For 'gis', 'median_center', and 'continuous' the per-feature abundance scale is restored after
-    correction (gis: the geometric mean of the per-batch GIS levels, i.e., classic IRS from
-    <a href="#ref-plubell-2017">Plubell et al. (2017)</a>; median_center/continuous: the per-feature overall median).
+    For `'gis'`, `'median_center'`, and `'continuous'` the per-feature abundance scale is restored after
+    correction (`gis`: the geometric mean of the per-batch GIS levels, i.e., classic IRS from
+    <a href="#ref-plubell-2017">Plubell et al. (2017)</a>; `median_center`/`continuous`: the per-feature overall median).
     Restoration is decided for the modality as a whole: when the matrix has cross-batch structure
     (at least one feature observed in >=2 batches, as at the peptide/protein level) every observed feature is restored -- a
     single-batch feature to its own level, so it stays on the same abundance scale as the rest. When
@@ -53,17 +53,17 @@ def correct_batch_effect(
     scales itself.
 
     Parameters:
-        mdata: MuData object to batch correct.
-        method: Batch correction method to use. Options are 'gis', 'median_center', 'combat', 'continuous'.
-        category: Category in .obs to use for batch correction.
+        mdata: `MuData` object to batch correct.
+        method: Batch correction method to use. Options are `'gis'`, `'median_center'`, `'combat'`, `'continuous'`.
+        category: Category in `.obs` to use for batch correction.
         modality: Modality to batch correct.
-        layer: Layer to batch correct. If None, the default layer (.X) will be used.
+        layer: Layer to batch correct. If `None`, the default layer (`.X`) will be used.
         gis_samples: List of GIS samples.
-        drop_gis: If True, GIS samples will be dropped after correction. Default is True.
-        log_transformed: If True, data is assumed to be log-transformed. Default is True.
+        drop_gis: If `True`, GIS samples will be dropped after correction. Default is `True`.
+        log_transformed: If `True`, data is assumed to be log-transformed. Default is `True`.
 
     Returns:
-        Batch corrected MuData object.
+        Batch corrected `MuData` object.
 
     References:
         <a id="ref-colange-2025"></a>

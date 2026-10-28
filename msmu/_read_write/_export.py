@@ -9,10 +9,10 @@ from .._core._blockdiag import to_dense_df
 
 def write_flashlfq_input(mdata: md.MuData, filename: str | Path) -> None:
     """
-    Exports MuData psm object to FlashLFQ format.
+    Exports `MuData` psm object to FlashLFQ format.
 
     Parameters:
-        mdata: MuData object containing the data to export.
+        mdata: `MuData` object containing the data to export.
         filename: Path to the output FlashLFQ file.
     """
     required_column_dict: dict[str, str] = {
@@ -45,13 +45,13 @@ def write_csv(
     quantification: bool = True,
 ) -> None:
     """
-    Exports MuData modalities to CSV/TSV files.
+    Exports `MuData` modalities to CSV/TSV files.
 
     Parameters:
-        mdata: MuData object containing the data to export.
-        modality: The modality to export (e.g., 'psm', 'peptide', 'protein').
+        mdata: `MuData` object containing the data to export.
+        modality: The modality to export (e.g., `'psm'`, `'peptide'`, `'protein'`).
         filename: Path to the output file.
-        sep: Separator for the output file (e.g., ',', '\t').
+        sep: Separator for the output file (e.g., `','`, `'\t'`).
         include: List of columns to include.
         exclude: List of columns to exclude.
         quantification: Whether to include quantification data.
@@ -71,10 +71,10 @@ def write_pin(
     filename: str | Path,
 ) -> None:
     """
-    Exports MuData psm object to Percolator input format.
+    Exports `MuData` psm object to Percolator input format.
 
     Parameters:
-        mdata: MuData object containing the data to export.
+        mdata: `MuData` object containing the data to export.
         filename: Path to the output Percolator input file.
     """
     if filename is None:
@@ -149,17 +149,17 @@ def to_readable(
     exclude: str | list[str] | None = None,
     quantification: bool = True,
 ) -> pd.DataFrame:
-    """Convert MuData modality to a human-readable format.
+    """Convert `MuData` modality to a human-readable format.
 
     Parameters:
-        mdata: MuData object containing the data to convert.
-        modality: The modality to convert (e.g., 'psm', 'peptide', 'protein').
+        mdata: `MuData` object containing the data to convert.
+        modality: The modality to convert (e.g., `'psm'`, `'peptide'`, `'protein'`).
         include: List of columns to include.
         exclude: List of columns to exclude.
         quantification: Whether to include quantification data.
 
     Returns:
-        A pandas DataFrame in a human-readable format.
+        A `pandas` `DataFrame` in a human-readable format.
     """
     adata = get_anndata_mod(mdata, modality)
     df = adata.var.copy()

@@ -44,13 +44,13 @@ _significant_digits: ContextVar[int | None] = ContextVar("msmu_hash_significant_
 
 
 def set_options(*, hashing: bool) -> None:
-    """Enable or disable input/output hashing in this execution context (default True).
+    """Enable or disable input/output hashing in this execution context (default `True`).
 
     Parameters:
         hashing: Whether recorded calls compute input/output content hashes. Disabling hashing does not disable provenance recording.
 
     Returns:
-        None. Updates settings for the current execution context.
+        `None`. Updates settings for the current execution context.
 
     Notes:
         See [`compute_hash`][msmu.pv.compute_hash] for hash semantics and [`get_options`][msmu.pv.get_options] to inspect current settings. Hash verification during [`replay`][msmu.pv.replay] requires recorded hashes.
@@ -146,7 +146,7 @@ def get_log(mdata: md.MuData) -> dict:
     """Return detached, decoded provenance in lineage order, then execution-start order.
 
     Parameters:
-        mdata: MuData containing recorded history in `.uns["_log"]`.
+        mdata: `MuData` containing recorded history in `.uns["_log"]`.
 
     Returns:
         A detached dictionary with `schema_version`, `head`, `events` (decoded event list), and `environments` (ID-to-environment mapping). No history yields an empty event list and empty head.
@@ -177,30 +177,30 @@ def to_env(
     history: md.MuData | dict, filename: str | Path | None = None,
     *, format: str = "uv", environment_id: str | None = None,
 ) -> str | None:
-    """Export recorded Python/package versions for uv or conda, without installing.
+    """Export recorded Python/package versions for `uv` or `conda`, without installing.
 
-    ``format="uv"`` returns requirements.txt text; ``format="conda"`` returns
-    environment.yml text with CPython/pip from conda-forge and Python packages
-    in its pip section. With filename, write UTF-8 text (overwriting an existing
-    file) and return None, as [`to_script`][msmu.pv.to_script] does.
+    ``format="uv"`` returns `requirements.txt` text; ``format="conda"`` returns
+    `environment.yml` text with CPython/`pip` from `conda-forge` and Python packages
+    in its `pip` section. With `filename`, write UTF-8 text (overwriting an existing
+    file) and return `None`, as [`to_script`][msmu.pv.to_script] does.
 
-    Accepts MuData or [`get_log()`][msmu.pv.get_log] output, independently of [`replay`][msmu.pv.replay] support or hashes.
+    Accepts `MuData` or [`get_log()`][msmu.pv.get_log] output, independently of [`replay`][msmu.pv.replay] support or hashes.
     By default, all referenced environments must agree on Python, package pins,
-    platform and `msmu` source. Otherwise select a recorded environment_id.
+    platform and `msmu` source. Otherwise select a recorded `environment_id`.
     Numerical/thread settings may differ and are included as comments only.
 
-    These are version pins, not lockfiles: original package sources, conda builds,
+    These are version pins, not lockfiles: original package sources, `conda` builds,
     native dependencies and uncommitted code cannot be reconstructed. Only
     recorded CPython environments are supported. The supplied history is unchanged.
 
     Parameters:
-        history: MuData or decoded history from [`get_log`][msmu.pv.get_log].
+        history: `MuData` or decoded history from [`get_log`][msmu.pv.get_log].
         filename: Optional output file path; an existing file is overwritten.
-        format: `"uv"` for requirements.txt text or `"conda"` for environment.yml text.
+        format: `"uv"` for `requirements.txt` text or `"conda"` for `environment.yml` text.
         environment_id: Recorded environment ID to export. If omitted, all referenced environments must agree on the required version/source fields.
 
     Returns:
-        Environment specification string when no filename is supplied; otherwise None.
+        Environment specification string when no `filename` is supplied; otherwise `None`.
 
     Notes:
         Use [`get_log`][msmu.pv.get_log] to find environment IDs. This does not install packages or mutate history.
@@ -535,7 +535,7 @@ def log_provenance(func=None, *, capture=(), file_inputs=()):
         file_inputs (tuple[str, ...]): Parameter names whose local string values are input paths, including strings in nested containers. URLs, path objects and DataFrames are detected directly.
 
     Returns:
-        wrapped (Callable): A wrapped function, or a decorator when `func` is omitted. Successful calls attach history to participating MuData objects.
+        wrapped (Callable): A wrapped function, or a decorator when `func` is omitted. Successful calls attach history to participating `MuData` objects.
 
     Notes:
         Nested recorded calls are represented by the outer call. Full captures may increase history size. Recording a custom function does not make it replayable: [`replay`][msmu.pv.replay] only executes supported public `msmu` functions. [`assign`][msmu.dt.assign] is the supported operation for recording column values.
