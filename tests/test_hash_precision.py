@@ -67,7 +67,7 @@ def test_legacy_v1_string_list_digest_remains_unchanged():
 
 @pytest.mark.parametrize("normalization,precision", [
     (None, None), ("significant-digits-v1", 6), ("significant-digits-v1", 12),
-    ("msmu-v1", 12), ("msmu-v2", 12), ("msmu-v3", 12),
+    ("msmu-v1", 12), ("msmu-v2", 12),
 ])
 def test_exact_and_rounded_replay(tmp_path, normalization, precision):
     source = tmp_path / 'source.h5mu'
@@ -88,7 +88,7 @@ def test_exact_and_rounded_replay(tmp_path, normalization, precision):
     assert legacy_hash(replayed, significant_digits=precision, normalization=normalization) == expected
     namespace = {}
     script = mm.pv.to_script(original)
-    if normalization == "msmu-v3":
+    if normalization == "msmu-v2":
         assert 'significant_digits=' not in script
     exec(script, namespace)
     assert get_options() == {'hashing': True}
@@ -104,16 +104,11 @@ def policy_source(tmp_path):
         var=pd.DataFrame({"score": [1., 2.]}, index=["p1", "p2"]),
     )})
     mdata.uns["labels"] = ["alpha", "β", ""]
-    mdata["protein"].uns.update(identification_file="old/report.tsv", quantification_file="old/quant.tsv")
     mdata.write_h5mu(source)
     return source
 
 
-@pytest.mark.parametrize("before,after", [
-    ("msmu-v1", "msmu-v2"), ("msmu-v2", "msmu-v1"),
-    ("msmu-v1", "msmu-v3"), ("msmu-v3", "msmu-v1"),
-    ("msmu-v2", "msmu-v3"), ("msmu-v3", "msmu-v2"),
-])
+@pytest.mark.parametrize("before,after", [("msmu-v1", "msmu-v2"), ("msmu-v2", "msmu-v1")])
 def test_mixed_fixed_policy_replay_and_script(policy_source, before, after):
     with legacy_options(hashing=True, normalization=before):
         original = mm.pv.log(mm.read_h5mu)(policy_source)
@@ -135,11 +130,7 @@ def test_mixed_fixed_policy_replay_and_script(policy_source, before, after):
             rerun(original, verify=False)
 
 
-@pytest.mark.parametrize("before,after", [
-    ("msmu-v1", "msmu-v2"), ("msmu-v2", "msmu-v1"),
-    ("msmu-v1", "msmu-v3"), ("msmu-v3", "msmu-v1"),
-    ("msmu-v2", "msmu-v3"), ("msmu-v3", "msmu-v2"),
-])
+@pytest.mark.parametrize("before,after", [("msmu-v1", "msmu-v2"), ("msmu-v2", "msmu-v1")])
 @pytest.mark.parametrize("edit", ["metadata", "numeric"])
 def test_policy_transition_still_rejects_unrecorded_edits(policy_source, before, after, edit):
     with legacy_options(hashing=True, normalization=before):
@@ -158,7 +149,7 @@ def test_policy_transition_still_rejects_unrecorded_edits(policy_source, before,
         exec(script, {})
 
 
-@pytest.mark.parametrize("normalization", ["msmu-v1", "msmu-v2", "msmu-v3"])
+@pytest.mark.parametrize("normalization", ["msmu-v1", "msmu-v2"])
 @pytest.mark.parametrize("precision", [None, 12])
 def test_fixed_policy_metadata_rejects_explicit_precision(policy_source, normalization, precision):
     with legacy_options(hashing=True, normalization=normalization):

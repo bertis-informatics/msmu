@@ -376,7 +376,7 @@ def test_script_verifies_current_data_after_h5mu_roundtrip(tmp_path):
 
 @pytest.mark.parametrize("normalization,precision", [
     (None, None), ("significant-digits-v1", 6),
-    ("significant-digits-v1", 12), ("msmu-v1", 12), ("msmu-v2", 12), ("msmu-v3", 12),
+    ("significant-digits-v1", 12), ("msmu-v1", 12), ("msmu-v2", 12),
 ])
 def test_script_checks_current_data_using_recorded_hash_policy(tmp_path, normalization, precision):
     source, _ = workflow(tmp_path)

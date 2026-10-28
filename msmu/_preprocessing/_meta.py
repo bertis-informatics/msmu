@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import urllib.parse
 from collections.abc import Sequence
-from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from typing import Literal
@@ -28,14 +27,7 @@ _INDEX_KEY = "index"
 logger = get_logger(__name__)
 
 
-@dataclass(frozen=True)
-class _LoadedMetadata:
-    dataframe: pd.DataFrame
-    format: Literal["dataframe", "csv", "tsv", "parquet", "sdrf"]
-    source: str | Path | None
-
-
-@log_provenance
+@log_provenance(file_inputs=("metadata",))
 def add_meta(
     mdata: MuData,
     metadata: pd.DataFrame | str | PathLike[str],
@@ -78,18 +70,18 @@ def add_meta(
 
     metadata_key = _coalesce_metadata_key(metadata_on=metadata_on, match_columns=match_columns)
     obs_key = _normalise_join_key(obs_columns, argument_name="obs_columns", default=_INDEX_KEY)
-    loaded = _load_metadata_input(
+    dataframe = _load_metadata_input(
         metadata,
         format=_resolve_meta_format(format=format),
         validate_sdrf=validate_sdrf,
         skip_ontology=skip_ontology,
     )
-    _validate_metadata_dataframe(loaded.dataframe)
+    _validate_metadata_dataframe(dataframe)
 
     out = mdata.copy()
     _attach_metadata_to_modalities(
         out,
-        loaded.dataframe,
+        dataframe,
         metadata_key=metadata_key,
         obs_key=obs_key,
     )
@@ -110,7 +102,6 @@ def read_sdrf(
         sep="\t",
         strings_only=True,
     )
-    metadata.attrs["sdrf_file"] = str(sdrf_file)
     if validate:
         validate_sdrf_file(metadata, skip_ontology=skip_ontology, source_name=str(sdrf_file))
     return metadata
@@ -124,7 +115,7 @@ def validate_sdrf_file(
 ) -> None:
     if isinstance(sdrf_file, pd.DataFrame):
         validation_df = sdrf_file
-        source = source_name if source_name is not None else sdrf_file.attrs.get("sdrf_file")
+        source = source_name
     else:
         validation_df = read_sdrf(sdrf_file, validate=False)
         source = source_name if source_name is not None else sdrf_file
@@ -139,7 +130,7 @@ def validate_sdrf_file(
     logger.info("SDRF validation succeeded for %s.", subject)
 
 
-@log_provenance
+@log_provenance(file_inputs=("sdrf",))
 def attach_sdrf(
     mdata: MuData,
     sdrf: pd.DataFrame | str | PathLike[str],
@@ -171,12 +162,7 @@ def attach_sdrf(
     if isinstance(sdrf, pd.DataFrame):
         sdrf_frame = sdrf.copy()
         if validate:
-            source = sdrf_frame.attrs.get("sdrf_file")
-            validate_sdrf_file(
-                sdrf_frame,
-                skip_ontology=skip_ontology,
-                source_name=str(source) if source is not None else "DataFrame",
-            )
+            validate_sdrf_file(sdrf_frame, skip_ontology=skip_ontology)
     else:
         sdrf_frame = read_sdrf(sdrf, validate=validate, skip_ontology=skip_ontology)
 
@@ -495,21 +481,14 @@ def _load_metadata_input(
     format: Literal["dataframe", "df", "generic", "csv", "tsv", "parquet", "sdrf"] | None,
     validate_sdrf: bool,
     skip_ontology: bool,
-) -> _LoadedMetadata:
+) -> pd.DataFrame:
     if isinstance(metadata, pd.DataFrame):
         if format in _TABULAR_TEXT_FORMATS | _PARQUET_FORMATS:
             raise TypeError(f"format='{format}' requires metadata to be a path-like object or URL string.")
         dataframe = metadata.copy()
-        source = dataframe.attrs.get("sdrf_file")
-        if format == "sdrf":
-            if validate_sdrf:
-                validate_sdrf_file(
-                    dataframe,
-                    skip_ontology=skip_ontology,
-                    source_name=str(source) if source is not None else "DataFrame",
-                )
-            return _LoadedMetadata(dataframe, "sdrf", source if isinstance(source, (str, Path)) else None)
-        return _LoadedMetadata(dataframe, "dataframe", None)
+        if format == "sdrf" and validate_sdrf:
+            validate_sdrf_file(dataframe, skip_ontology=skip_ontology)
+        return dataframe
 
     input_kind = _detect_metadata_input_kind(metadata)
     source = _normalise_metadata_source(metadata, input_kind=input_kind)
@@ -525,7 +504,7 @@ def _load_metadata_input(
     else:
         dataframe = read_sdrf(source, validate=validate_sdrf, skip_ontology=skip_ontology)
 
-    return _LoadedMetadata(dataframe, resolved_format, source)
+    return dataframe
 
 
 def _detect_metadata_input_kind(

@@ -148,11 +148,10 @@ def test_list_normalisation_is_limited_to_uns():
 
 
 @pytest.mark.parametrize("edit", [None, "metadata", "X"], ids=["unchanged", "metadata-edit", "numeric-edit"])
-@pytest.mark.parametrize("legacy_policy", ["msmu-v1", "msmu-v2"])
-def test_legacy_to_current_continuation_checks_old_hash_before_running(edit, legacy_policy, caplog):
+def test_v1_to_v2_continuation_checks_old_hash_before_running(edit, caplog):
     mdata = _data()
     mdata.uns["labels"] = ["first", "second"]
-    with legacy_options(hashing=True, normalization=legacy_policy):
+    with legacy_options(hashing=True, normalization="msmu-v1"):
         mdata = mm.pp.log2_transform(mdata, modality="protein")
     previous = mm.pv.get_log(mdata)
     if edit == "metadata":
@@ -173,14 +172,13 @@ def test_legacy_to_current_continuation_checks_old_hash_before_running(edit, leg
     assert warnings_at_entry == [edit is not None]
     event = mm.pv.get_log(result)["events"][-1]
     assert event["parents"] == [previous["head"]]
-    assert event["outputs"][0]["hash"]["normalization"] == "msmu-v3"
+    assert event["outputs"][0]["hash"]["normalization"] == "msmu-v2"
 
 
-@pytest.mark.parametrize("legacy_policy", ["msmu-v1", "msmu-v2"])
-def test_loaded_legacy_list_history_is_not_silently_relabelled(tmp_path, caplog, legacy_policy):
+def test_loaded_v1_list_history_is_not_silently_relabelled(tmp_path, caplog):
     mdata = _data()
     mdata.uns["labels"] = ["first", "second"]
-    with legacy_options(hashing=True, normalization=legacy_policy):
+    with legacy_options(hashing=True, normalization="msmu-v1"):
         mdata = mm.pp.log2_transform(mdata, modality="protein")
     loaded = _roundtrip(mdata, tmp_path)
     assert isinstance(loaded.uns["labels"], np.ndarray)
@@ -195,10 +193,10 @@ def test_loaded_legacy_list_history_is_not_silently_relabelled(tmp_path, caplog,
     with mm.pv.options(hashing=True), caplog.at_level(logging.WARNING, logger="msmu"):
         result = continue_workflow(loaded)
 
-    assert warnings_at_entry == [legacy_policy == "msmu-v1"]
+    assert warnings_at_entry == [True]
     events = mm.pv.get_log(result)["events"]
-    assert events[0]["outputs"][0]["hash"]["normalization"] == legacy_policy
-    assert events[-1]["outputs"][0]["hash"]["normalization"] == "msmu-v3"
+    assert events[0]["outputs"][0]["hash"]["normalization"] == "msmu-v1"
+    assert events[-1]["outputs"][0]["hash"]["normalization"] == "msmu-v2"
 
 
 @pytest.mark.parametrize("values", [

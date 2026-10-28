@@ -90,7 +90,7 @@ def options(*, hashing: bool, significant_digits: int | None = 12, normalization
     Parameters:
         hashing: Whether recorded calls compute input/output content hashes. Disabling hashing does not disable provenance recording.
         significant_digits: Compatibility setting for legacy histories (1 to 15, or None for exact hashing). Keep the default for new workflows.
-        normalization: Hash policy; defaults to `"msmu-v3"`. Legacy values are retained for replay compatibility. Keep the default for new workflows.
+        normalization: Hash policy; defaults to `"msmu-v2"`. Legacy values are retained for replay compatibility. Keep the default for new workflows.
 
     Returns:
         context (ContextManager): A context manager restoring previous settings on exit.
@@ -454,7 +454,7 @@ def _environment():
     return result
 
 
-def _entities(value, path, seen=None):
+def _entities(value, path, seen=None, *, file_input=False):
     seen = set() if seen is None else seen
     if id(value) in seen:
         return
@@ -464,14 +464,16 @@ def _entities(value, path, seen=None):
         yield path, value
     elif is_url(value):
         yield path, value
-    elif isinstance(value, os.PathLike) or isinstance(value, str) and any(x in path.lower() for x in ("file", "path")):
+    elif isinstance(value, os.PathLike) or isinstance(value, str) and (
+        file_input or any(x in path.lower() for x in ("file", "path"))
+    ):
         yield path, Path(value)
     elif isinstance(value, (Mapping, list, tuple)):
         seen.add(id(value))
         try:
             items = value.items() if isinstance(value, Mapping) else enumerate(value)
             for key, item in items:
-                yield from _entities(item, f"{path}/{key}", seen)
+                yield from _entities(item, f"{path}/{key}", seen, file_input=file_input)
         finally:
             seen.remove(id(value))
 
@@ -496,7 +498,7 @@ def _entity(path, value, hashing):
                               "value": compute_hash(content, significant_digits=precision, normalization=_normalization.get())}
             if precision is not None:
                 hash_info["normalization"] = _normalization.get()
-                if _normalization.get() not in ("msmu-v1", "msmu-v2", HASH_POLICY):
+                if _normalization.get() not in ("msmu-v1", HASH_POLICY):
                     hash_info["significant_digits"] = precision
         except Exception as error:
             hash_info = {"status": "unavailable", "algorithm": ALGORITHM, "reason": str(error)}
@@ -526,12 +528,13 @@ def _event_inputs(event):
             if "id" in reference and "role" in reference]
 
 
-def log_provenance(func=None, *, capture=()):
+def log_provenance(func=None, *, capture=(), file_inputs=()):
     """Log one public call. Nested `msmu` calls are represented by their outer call.
 
     Parameters:
         func (Callable | None): Function to decorate. Omit when using [`@mm.pv.log(capture=(... ,))`][msmu.pv.log].
         capture (tuple[str, ...]): Tuple of parameter names whose values are stored in full rather than summarized, for example `("values",)`.
+        file_inputs (tuple[str, ...]): Parameter names whose local string values are input paths, including strings in nested containers. URLs, path objects and DataFrames are detected directly.
 
     Returns:
         wrapped (Callable): A wrapped function, or a decorator when `func` is omitted. Successful calls attach history to participating MuData objects.
@@ -550,14 +553,17 @@ def log_provenance(func=None, *, capture=()):
     """
 
     if func is None:
-        return functools.partial(log_provenance, capture=capture)
+        return functools.partial(log_provenance, capture=capture, file_inputs=file_inputs)
 
     def run(*args, **kwargs):
         if _active.get():
             return func(*args, **kwargs)
         bound = inspect.signature(func).bind(*args, **kwargs)
         bound.apply_defaults()
-        inputs = list(_entities({k: v for k, v in bound.arguments.items() if k not in capture}, "arguments"))
+        inputs = [
+            entity for name, value in bound.arguments.items() if name not in capture
+            for entity in _entities(value, f"arguments/{name}", file_input=name in file_inputs)
+        ]
         owners = [v for _, v in inputs if isinstance(v, md.MuData)]
         log = _empty_log()
         parents = []
@@ -604,10 +610,10 @@ def log_provenance(func=None, *, capture=()):
                 if any(previous_hash.get(key) != current_hash.get(key) for key in ("normalization", "significant_digits")):
                     normalization = previous_hash.get("normalization")
                     try:
-                        if normalization not in (None, FLOAT_NORMALIZATION, "msmu-v1", "msmu-v2", HASH_POLICY):
+                        if normalization not in (None, FLOAT_NORMALIZATION, "msmu-v1", HASH_POLICY):
                             raise ValueError(f"Unsupported hash normalization: {normalization}")
                         precision = previous_hash.get(
-                            "significant_digits", 12 if normalization in ("msmu-v1", "msmu-v2", HASH_POLICY) else None
+                            "significant_digits", 12 if normalization in ("msmu-v1", HASH_POLICY) else None
                         )
                         current_hash = {"value": compute_hash(
                             value, significant_digits=precision, normalization=normalization
