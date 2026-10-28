@@ -86,15 +86,15 @@ class StatTestResult:
         pct_ctrl: Percentage of non-zero values in the control group.
         pct_expr: Percentage of non-zero values in the experimental group.
         log2fc: Log2 fold change between experimental and control groups.
-        statistic: Per-feature test statistic. Its meaning depends on stat_method:
+        statistic: Per-feature test statistic. Its meaning depends on `stat_method`:
             Welch/Student t, Wilcoxon rank-sum, or limma moderated t. For the
             permutation path it is the observed parametric statistic (the value
-            ranked against the empirical null), while p_value stays empirical.
+            ranked against the empirical null), while `p_value` stays empirical.
         p_value: P-values from the statistical test.
         q_value: Adjusted p-values (q-values) after multiple testing correction.
 
     Methods:
-        to_df: Convert the results to a pandas DataFrame.
+        to_df: Convert the results to a `pandas` `DataFrame`.
         [`plot_volcano`][msmu.pl.plot_volcano]: Plot a volcano plot of the DEA results.
     """
 
@@ -112,7 +112,7 @@ class PermTestResult(StatTestResult):
     Inherits all attributes from :class:`StatTestResult`, and adds:
 
     Attributes:
-        permutation_method: The permutation method used ("exact" or "randomised").
+        permutation_method: The permutation method used (`"exact"` or `"randomised"`).
         n_permutations: Number of permutations performed.
         fc_pct_1: Fold change at the 1st percentile.
         fc_pct_5: Fold change at the 5th percentile.

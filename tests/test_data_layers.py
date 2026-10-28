@@ -57,7 +57,7 @@ def test_layer_roundtrip_replays_from_h5mu(tmp_path):
     md.MuData({"protein": ad.AnnData(X=np.array([[2.0, 4.0], [8.0, 16.0]]))}).write_h5mu(source)
 
     with mm.pv.options(hashing=True):
-        mdata = mm.read_h5mu(source)
+        mdata = mm.pv.log(mm.read_h5mu)(source)
         mdata = mm.dt.save_layer(mdata, modality="protein", layer="raw")
         mdata = mm.pp.log2_transform(mdata, modality="protein")
         mdata = mm.dt.load_layer(mdata, modality="protein", layer="raw")

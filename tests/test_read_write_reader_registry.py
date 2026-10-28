@@ -44,10 +44,12 @@ def _assert_cmd(mdata: MuData, expected_function: str):
     assert "stdout" not in entry
 
 
-def test_read_h5mu_logs_first_command(monkeypatch):
-    monkeypatch.setattr(rr.md, "read_h5mu", lambda _: _dummy_mdata())
+def test_read_h5mu_does_not_create_log(monkeypatch):
+    expected = _dummy_mdata()
+    monkeypatch.setattr(rr.md, "read_h5mu", lambda _: expected)
     out = rr.read_h5mu(Path("dummy.h5mu"))
-    _assert_cmd(out, "read_h5mu")
+    assert out is expected
+    assert "_log" not in out.uns
 
 
 def test_import_readers_do_not_accept_sdrf_metadata_parameters():

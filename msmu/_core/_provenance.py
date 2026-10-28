@@ -44,13 +44,13 @@ _significant_digits: ContextVar[int | None] = ContextVar("msmu_hash_significant_
 
 
 def set_options(*, hashing: bool) -> None:
-    """Enable or disable input/output hashing in this execution context (default True).
+    """Enable or disable input/output hashing in this execution context (default `True`).
 
     Parameters:
         hashing: Whether recorded calls compute input/output content hashes. Disabling hashing does not disable provenance recording.
 
     Returns:
-        None. Updates settings for the current execution context.
+        `None`. Updates settings for the current execution context.
 
     Notes:
         See [`compute_hash`][msmu.pv.compute_hash] for hash semantics and [`get_options`][msmu.pv.get_options] to inspect current settings. Hash verification during [`replay`][msmu.pv.replay] requires recorded hashes.
@@ -146,7 +146,7 @@ def get_log(mdata: md.MuData) -> dict:
     """Return detached, decoded provenance in lineage order, then execution-start order.
 
     Parameters:
-        mdata: MuData containing recorded history in `.uns["_log"]`.
+        mdata: `MuData` containing recorded history in `.uns["_log"]`.
 
     Returns:
         A detached dictionary with `schema_version`, `head`, `events` (decoded event list), and `environments` (ID-to-environment mapping). No history yields an empty event list and empty head.
@@ -158,8 +158,6 @@ def get_log(mdata: md.MuData) -> dict:
         ```python
         import msmu as mm
         history = mm.pv.get_log(mdata)
-        for event in history["events"]:
-            print(event["function_path"])
         ```
     """
     log = _read_log(mdata)
@@ -177,30 +175,30 @@ def to_env(
     history: md.MuData | dict, filename: str | Path | None = None,
     *, format: str = "uv", environment_id: str | None = None,
 ) -> str | None:
-    """Export recorded Python/package versions for uv or conda, without installing.
+    """Export recorded Python/package versions for `uv` or `conda`, without installing.
 
-    ``format="uv"`` returns requirements.txt text; ``format="conda"`` returns
-    environment.yml text with CPython/pip from conda-forge and Python packages
-    in its pip section. With filename, write UTF-8 text (overwriting an existing
-    file) and return None, as [`to_script`][msmu.pv.to_script] does.
+    ``format="uv"`` returns `requirements.txt` text; ``format="conda"`` returns
+    `environment.yml` text with CPython/`pip` from `conda-forge` and Python packages
+    in its `pip` section. With `filename`, write UTF-8 text (overwriting an existing
+    file) and return `None`, as [`to_script`][msmu.pv.to_script] does.
 
-    Accepts MuData or [`get_log()`][msmu.pv.get_log] output, independently of [`replay`][msmu.pv.replay] support or hashes.
+    Accepts `MuData` or [`get_log()`][msmu.pv.get_log] output, independently of [`replay`][msmu.pv.replay] support or hashes.
     By default, all referenced environments must agree on Python, package pins,
-    platform and `msmu` source. Otherwise select a recorded environment_id.
+    platform and `msmu` source. Otherwise select a recorded `environment_id`.
     Numerical/thread settings may differ and are included as comments only.
 
-    These are version pins, not lockfiles: original package sources, conda builds,
+    These are version pins, not lockfiles: original package sources, `conda` builds,
     native dependencies and uncommitted code cannot be reconstructed. Only
     recorded CPython environments are supported. The supplied history is unchanged.
 
     Parameters:
-        history: MuData or decoded history from [`get_log`][msmu.pv.get_log].
+        history: `MuData` or decoded history from [`get_log`][msmu.pv.get_log].
         filename: Optional output file path; an existing file is overwritten.
-        format: `"uv"` for requirements.txt text or `"conda"` for environment.yml text.
+        format: `"uv"` for `requirements.txt` text or `"conda"` for `environment.yml` text.
         environment_id: Recorded environment ID to export. If omitted, all referenced environments must agree on the required version/source fields.
 
     Returns:
-        Environment specification string when no filename is supplied; otherwise None.
+        Environment specification string when no `filename` is supplied; otherwise `None`.
 
     Notes:
         Use [`get_log`][msmu.pv.get_log] to find environment IDs. This does not install packages or mutate history.
@@ -209,7 +207,6 @@ def to_env(
         ```python
         import msmu as mm
         requirements = mm.pv.to_env(mdata, format="uv")
-        print(requirements)
         ```
     """
     if format not in ("uv", "conda"):
@@ -454,7 +451,7 @@ def _environment():
     return result
 
 
-def _entities(value, path, seen=None):
+def _entities(value, path, seen=None, *, file_input=False):
     seen = set() if seen is None else seen
     if id(value) in seen:
         return
@@ -464,14 +461,14 @@ def _entities(value, path, seen=None):
         yield path, value
     elif is_url(value):
         yield path, value
-    elif isinstance(value, os.PathLike) or isinstance(value, str) and any(x in path.lower() for x in ("file", "path")):
+    elif isinstance(value, os.PathLike) or isinstance(value, str) and file_input:
         yield path, Path(value)
     elif isinstance(value, (Mapping, list, tuple)):
         seen.add(id(value))
         try:
             items = value.items() if isinstance(value, Mapping) else enumerate(value)
             for key, item in items:
-                yield from _entities(item, f"{path}/{key}", seen)
+                yield from _entities(item, f"{path}/{key}", seen, file_input=file_input)
         finally:
             seen.remove(id(value))
 
@@ -526,15 +523,16 @@ def _event_inputs(event):
             if "id" in reference and "role" in reference]
 
 
-def log_provenance(func=None, *, capture=()):
+def log_provenance(func=None, *, capture=(), file_inputs=()):
     """Log one public call. Nested `msmu` calls are represented by their outer call.
 
     Parameters:
         func (Callable | None): Function to decorate. Omit when using [`@mm.pv.log(capture=(... ,))`][msmu.pv.log].
         capture (tuple[str, ...]): Tuple of parameter names whose values are stored in full rather than summarized, for example `("values",)`.
+        file_inputs (tuple[str, ...]): Parameter names whose local string values are input paths, including strings in nested containers. URLs, path objects and DataFrames are detected directly.
 
     Returns:
-        wrapped (Callable): A wrapped function, or a decorator when `func` is omitted. Successful calls attach history to participating MuData objects.
+        wrapped (Callable): A wrapped function, or a decorator when `func` is omitted. Successful calls attach history to participating `MuData` objects.
 
     Notes:
         Nested recorded calls are represented by the outer call. Full captures may increase history size. Recording a custom function does not make it replayable: [`replay`][msmu.pv.replay] only executes supported public `msmu` functions. [`assign`][msmu.dt.assign] is the supported operation for recording column values.
@@ -550,14 +548,17 @@ def log_provenance(func=None, *, capture=()):
     """
 
     if func is None:
-        return functools.partial(log_provenance, capture=capture)
+        return functools.partial(log_provenance, capture=capture, file_inputs=file_inputs)
 
     def run(*args, **kwargs):
         if _active.get():
             return func(*args, **kwargs)
         bound = inspect.signature(func).bind(*args, **kwargs)
         bound.apply_defaults()
-        inputs = list(_entities({k: v for k, v in bound.arguments.items() if k not in capture}, "arguments"))
+        inputs = [
+            entity for name, value in bound.arguments.items() if name not in capture
+            for entity in _entities(value, f"arguments/{name}", file_input=name in file_inputs)
+        ]
         owners = [v for _, v in inputs if isinstance(v, md.MuData)]
         log = _empty_log()
         parents = []
@@ -648,7 +649,7 @@ def log_provenance(func=None, *, capture=()):
                 outputs = [("return/DeaResult", vars(result))]
             event["outputs"] = [_entity(path, value, hashing) for path, value in outputs]
             targets = [v for _, v in outputs if isinstance(v, md.MuData)] or owners
-            # Readers, notably read_h5mu, return an existing history without an input MuData.
+            # Explicitly logged readers can return an existing history without an input MuData.
             if not owners:
                 for target in targets:
                     previous = _read_log(target)

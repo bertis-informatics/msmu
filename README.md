@@ -14,22 +14,22 @@ This unique marriage between flexible processing pipeline and `MuData` empowers 
 
 <img src="https://raw.githubusercontent.com/bertis-informatics/msmu/refs/heads/main/docs/assets/overview.svg" width="100%" alt="MuData logo"/>
 
-## Key Features
+## Key features
 
 - **Flexible data ingestion** from Sage, DIA-NN, and other popular DB search tools
-- **MuData/AnnData-compatible** object structure for organizing multi-level MS data
+- **`MuData`/`AnnData`-compatible** object structure for organizing multi-level MS data
 - **SDRF-native sample metadata**: attach a validated SDRF as the immutable source of truth and project it onto samples
 - **Command provenance**: supported processing calls record arguments, execution times, environment versions, lineage, and optional content hashes in the container; console output and dimension summaries are not stored
 - **Protein inference**: infer protein groups from peptide evidence using parsimony rule
-- **Hierarchical summarization**: PSM/precursor → peptide → protein/PTM rollup (median, mean, sum, median polish, DirectLFQ)
+- **Hierarchical summarization**: PSM/precursor → peptide → protein/PTM rollup (median, mean, sum, median polish, and DirectLFQ)
 - **Normalization**: median centering, quantile normalization, etc.
 - **Batch correction** for discrete and continuous variations
 - **Built-in QC**: identification count, peptide length, charge, missed cleavage, intensity distribution, etc.
 - **Statistical analysis**: differential expression (limma moderated-t by default, or a label-permutation test), dimensionality reduction
 - **PTM data support** and stoichiometry adjustment with matched global dataset (if available)
-- **Visualization**: PCA, UMAP, volcano plots, heatmaps, QC metrics
+- **Visualization**: PCA, UMAP, volcano plots, heatmaps, and QC metrics
 
-## Supporting DB Search Tools
+## Supported DB search tools
 
 - Sage: [https://sage-docs.vercel.app](https://sage-docs.vercel.app)
 - DIA-NN: [https://github.com/vdemichev/DIA-NN](https://github.com/vdemichev/DIA-NN)
@@ -44,16 +44,12 @@ Comprehensive documentation, including installation instructions, tutorials, and
 Repository documentation describes the checked-out revision. The published site is built from release tags;
 development APIs may require installing from `dev`.
 
+## License
+
+BSD 3-Clause License. See `LICENSE` for details.
+
 ## Citation
 
 If you use `msmu` in your research, please cite the following publication (preprint):
 
-> msmu: a Python toolkit for modular and traceable LC-MS proteomics data analysis based on MuData
->
-> Hyung-Wook Choi, Byeongchan Lee, Un-Beom Kang, Sunghyun Huh
->
-> bioRxiv 2026.01.07.698308; doi: [10.64898/2026.01.07.698308](https://doi.org/10.64898/2026.01.07.698308)
-
-## License
-
-BSD 3-Clause License. See LICENSE for details.
+> Choi, H.-W., Lee, B., Kang, U.-B., and Huh, S. msmu: a Python toolkit for modular and traceable LC-MS proteomics data analysis based on MuData. *bioRxiv* 2026.01.07.698308 (2026). [https://doi.org/10.64898/2026.01.07.698308](https://doi.org/10.64898/2026.01.07.698308).

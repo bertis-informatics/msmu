@@ -1,4 +1,4 @@
-"""Shared Polars text ingestion for search results, quantification and metadata."""
+"""Shared Polars text ingestion for search results, quantification, and metadata."""
 
 import csv
 import bz2

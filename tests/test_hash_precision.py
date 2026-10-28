@@ -73,7 +73,7 @@ def test_exact_and_rounded_replay(tmp_path, normalization, precision):
     source = tmp_path / 'source.h5mu'
     md.MuData({'protein': ad.AnnData(np.array([[2., 4.]]))}).write_h5mu(source)
     with legacy_options(hashing=True, significant_digits=precision, normalization=normalization):
-        original = mm.read_h5mu(source)
+        original = mm.pv.log(mm.read_h5mu)(source)
         original = mm.pp.log2_transform(original, modality='protein')
     history = mm.pv.get_log(original)
     for event in history['events']:
@@ -111,7 +111,7 @@ def policy_source(tmp_path):
 @pytest.mark.parametrize("before,after", [("msmu-v1", "msmu-v2"), ("msmu-v2", "msmu-v1")])
 def test_mixed_fixed_policy_replay_and_script(policy_source, before, after):
     with legacy_options(hashing=True, normalization=before):
-        original = mm.read_h5mu(policy_source)
+        original = mm.pv.log(mm.read_h5mu)(policy_source)
         original = mm.pp.log2_transform(original, modality="protein")
     with legacy_options(hashing=True, normalization=after):
         original = mm.pp.add_filter(original, "protein", "score", "gt", 1.)
@@ -134,7 +134,7 @@ def test_mixed_fixed_policy_replay_and_script(policy_source, before, after):
 @pytest.mark.parametrize("edit", ["metadata", "numeric"])
 def test_policy_transition_still_rejects_unrecorded_edits(policy_source, before, after, edit):
     with legacy_options(hashing=True, normalization=before):
-        original = mm.read_h5mu(policy_source)
+        original = mm.pv.log(mm.read_h5mu)(policy_source)
         original = mm.pp.log2_transform(original, modality="protein")
     if edit == "metadata":
         original.uns["labels"] = ["changed", "β", ""]
@@ -153,7 +153,7 @@ def test_policy_transition_still_rejects_unrecorded_edits(policy_source, before,
 @pytest.mark.parametrize("precision", [None, 12])
 def test_fixed_policy_metadata_rejects_explicit_precision(policy_source, normalization, precision):
     with legacy_options(hashing=True, normalization=normalization):
-        original = mm.read_h5mu(policy_source)
+        original = mm.pv.log(mm.read_h5mu)(policy_source)
     history = mm.pv.get_log(original)
     history["events"][0]["outputs"][0]["hash"]["significant_digits"] = precision
     for rerun in (mm.pv.replay, mm.pv.to_script):
@@ -169,7 +169,7 @@ def test_fixed_policy_metadata_rejects_explicit_precision(policy_source, normali
 @pytest.mark.parametrize("verify", [False, True])
 def test_legacy_precision_transitions_remain_unsupported(policy_source, before, after, verify):
     with legacy_options(hashing=True, normalization=before[0], significant_digits=before[1]):
-        original = mm.read_h5mu(policy_source)
+        original = mm.pv.log(mm.read_h5mu)(policy_source)
     with legacy_options(hashing=True, normalization=after[0], significant_digits=after[1]):
         original = mm.pp.log2_transform(original, modality="protein")
     for rerun in (mm.pv.replay, mm.pv.to_script):

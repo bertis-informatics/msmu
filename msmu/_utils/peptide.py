@@ -38,7 +38,7 @@ def parse_modified_peptide(modified_peptide: str) -> list[ModifiedResidue]:
     however many letters it holds. That is what keeps a residue's position independent of the
     notation: ``AC[+57.0215]S[+79.9663]K`` (Sage) and ``AC(UniMod:4)S(UniMod:21)K`` (DIA-NN) both put
     the phosphate on residue 3. A tag written before the first residue -- an N-terminal modification,
-    as in ``[+42.0106]-AAK``, ``(UniMod:1)AAK``, ``_(Acetyl (Protein N-term))AAK_`` or ``n[43]AAK``
+    as in ``[+42.0106]-AAK``, ``(UniMod:1)AAK``, ``_(Acetyl (Protein N-term))AAK_``, or ``n[43]AAK``
     -- is attached to residue 1; every other tag is attached to the residue it follows.
 
     Raises:

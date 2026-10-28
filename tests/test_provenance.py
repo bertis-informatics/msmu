@@ -149,7 +149,8 @@ def test_environment_collects_all_installed_packages_once(monkeypatch):
         core._base_environment.cache_clear()
 
 
-def test_h5mu_roundtrip_and_read_continuation(tmp_path):
+@pytest.mark.parametrize("hashing", [False, True])
+def test_h5mu_roundtrip_and_read_continuation(tmp_path, monkeypatch, hashing):
     m = data()
     with options(hashing=True):
         identity(m)
@@ -160,9 +161,29 @@ def test_h5mu_roundtrip_and_read_continuation(tmp_path):
     loaded = md.read_h5mu(path)
     assert get_log(loaded) == before
     assert compute_hash(m) == compute_hash(loaded) == digest
-    continued = mm.read_h5mu(path)
+    with monkeypatch.context() as patch, options(hashing=hashing):
+        def forbidden(*args, **kwargs):
+            pytest.fail("Reading h5mu must not compute hashes or collect an environment")
+
+        patch.setattr(core, "compute_hash", forbidden)
+        patch.setattr(core, "_environment", forbidden)
+        continued = mm.read_h5mu(path)
+    assert get_log(continued) == before
+    assert compute_hash(continued) == digest
+    identity(continued)
     assert len(get_log(continued)["events"]) == 2
     assert get_log(continued)["events"][-1]["parents"] == [before["head"]]
+
+
+@pytest.mark.parametrize("hashing", [False, True])
+def test_h5mu_without_history_stays_unlogged(tmp_path, hashing):
+    path = tmp_path / "unlogged.h5mu"
+    original = data()
+    original.write_h5mu(path)
+    with options(hashing=hashing):
+        loaded = mm.read_h5mu(path)
+    assert "_log" not in loaded.uns
+    assert compute_hash(loaded) == compute_hash(original)
 
 
 def test_sparse_never_densifies_and_metadata_changes(monkeypatch):
@@ -202,7 +223,7 @@ def test_file_hash_snapshot_and_options_restore(tmp_path):
     path.write_text("before")
     digest = compute_hash(path)
 
-    @mm.pv.log
+    @mm.pv.log(file_inputs=("input_file",))
     def reader(input_file):
         Path(input_file).write_text("after")
         return data()

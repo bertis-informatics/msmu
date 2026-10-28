@@ -187,7 +187,7 @@ class TmtFragPipeReader(FragPipeReader):
     def _extract_quant_from_raw(self, raw_identification_df: pd.DataFrame) -> pd.DataFrame:
         # Real TMT channels only: raw columns that are neither FragPipe descriptors
         # (desc_cols) nor identification columns the reader renames (_feature_rename_dict
-        # keys, e.g. "observed mass"). Sourcing from the raw frame -- where those columns
+        # keys, e.g., "observed mass"). Sourcing from the raw frame -- where those columns
         # still carry their descriptor names -- avoids the old split's leak of renamed
         # identification cols (rt/calcmass/expmass/score) into quant. Re-indexed via
         # _make_unique_index (filename.scan_num) to align with the fresh feature frame.

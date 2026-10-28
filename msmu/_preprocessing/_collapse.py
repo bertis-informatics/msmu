@@ -54,7 +54,7 @@ def collapse_obs(
     log_transformed: bool = False,
 ) -> md.MuData:
     """
-    Collapse obs rows by ``sample_key``, aggregating duplicates into one row per group.
+    Collapse `.obs` rows by ``sample_key``, aggregating duplicates into one row per group.
 
     Common use cases (with recommended ``agg_method``):
 
@@ -64,18 +64,18 @@ def collapse_obs(
     - **Technical replicates** (sample × injection/process repeats → sample):
       ``agg_method="median"`` or ``"mean"``. Replicates measure the same analyte,
       so the central tendency is the right estimate (``"sum"`` would inflate).
-    - **Other obs-axis duplicates** (plate replicates, etc.): pick ``agg_method``
+    - **Other `.obs` axis duplicates** (plate replicates, etc.): pick ``agg_method``
       that matches the meaning of the duplication.
 
-    The effect on a given modality depends on its ``var`` structure:
+    The effect on a given modality depends on its ``.var`` structure:
 
-    - When ``var`` rows are file-specific (e.g. DIA-NN psm where the var index is
+    - When ``.var`` rows are file-specific (e.g., DIA-NN psm where the `.var` index is
       ``filename.Precursor.Id``), each ``(sample, var)`` cell still holds at most
-      one non-NaN value, so this function only reduces the obs dimension; the actual
+      one non-`NaN` value, so this function only reduces the `.obs` dimension; the actual
       cross-fraction precursor aggregation happens later in [`to_peptide`][msmu.pp.to_peptide].
-    - When ``var`` rows are identity-based (e.g. DDA-LFQ peptide modality where the
-      var index is the peptide identity), a single ``(sample, var)`` cell may collect
-      values from multiple obs rows, and ``agg_method`` performs the real rollup.
+    - When ``.var`` rows are identity-based (e.g., DDA-LFQ peptide modality where the
+      `.var` index is the peptide identity), a single ``(sample, var)`` cell may collect
+      values from multiple `.obs` rows, and ``agg_method`` performs the real rollup.
 
     Workflow contexts:
         - DIA-NN fractionated: read → psm/precursor → ``collapse_obs`` →
@@ -83,36 +83,36 @@ def collapse_obs(
         - DDA-LFQ fractionated: read → psm + peptide → ``collapse_obs``
           (peptide gets real sum) → [`to_protein`][msmu.pp.to_protein].
         - Any workflow with technical replicates: ``collapse_obs(agg_method="median")``
-          early in the pipeline (typically before normalisation).
+          early in the pipeline (typically before normalization).
 
-    Applied uniformly across all modalities so the obs axis stays consistent.
+    Applied uniformly across all modalities so the `.obs` axis stays consistent.
 
     Parameters:
-        mdata: MuData whose obs rows contain duplicates to be collapsed.
-        sample_key: Column in ``obs`` identifying the group each row belongs to.
+        mdata: `MuData` whose `.obs` rows contain duplicates to be collapsed.
+        sample_key: Column in ``.obs`` identifying the group each row belongs to.
         agg_method: Aggregation across rows of the same group for each
             ``(group, feature)`` pair. One of ``"sum"``, ``"max"``, ``"median"``,
-            ``"mean"``. NaN values are skipped; an all-NaN group yields NaN
-            (not 0) for ``"sum"`` as well.
-        layer: Layer to aggregate. If None, ``.X`` is used.
+            ``"mean"``. `NaN` values are skipped; an all-`NaN` group yields `NaN`
+            (not `0`) for ``"sum"`` as well.
+        layer: Layer to aggregate. If `None`, ``.X`` is used.
         log_transformed: Whether the input quantification is in log2-space.
             Defaults to ``False`` because ``collapse_obs`` is typically called before
-            [`log2_transform`][msmu.pp.log2_transform] (read → collapse → log2 → normalise → ...). When
+            [`log2_transform`][msmu.pp.log2_transform] (read → collapse → log2 → `normalise` → ...). When
             ``log_transformed=True`` is combined with ``agg_method="sum"``, the function
             internally converts back to linear space, sums, and re-applies log2
-            (i.e. ``log2(sum(2^x))``) — the correct LFQ rollup for log2 input. Other
+            (i.e., ``log2(sum(2^x))``) — the correct LFQ rollup for log2 input. Other
             ``agg_method`` choices (``max``, ``median``, ``mean``) operate directly in
             the given space; ``mean`` on log2 data corresponds to the geometric mean of
             linear intensities.
 
     Returns:
-        New MuData with collapsed obs. Obs columns uniform within a group retain
+        New `MuData` with collapsed `.obs`. Columns in `.obs` uniform within a group retain
         their scalar value; non-uniform columns become lists preserving the original
-        row order, so per-row metadata (e.g. filenames) is not lost.
+        row order, so per-row metadata (e.g., filenames) is not lost.
 
     Notes:
-        - ``obsm``/``obsp`` are not propagated through the collapse.
-        - ``var`` and modality ``uns`` are preserved.
+        - ``.obsm``/``.obsp`` are not propagated through the collapse.
+        - ``.var`` and modality ``.uns`` are preserved.
     """
     if agg_method not in _AGG_FUNCTIONS:
         raise ValueError(f"agg_method '{agg_method}' not recognised. Choose from {sorted(_AGG_FUNCTIONS)}.")
@@ -149,7 +149,7 @@ def _collapse_obs_sparse_blockdiag(
     """Collapse obs groups on a sparse block-diagonal without densifying.
 
     Valid only when each ``(group, feature)`` cell holds at most one stored value -- true for
-    file-specific ``var`` (e.g. DIA-NN precursors where the var index is ``filename.Precursor.Id``:
+    file-specific ``var`` (e.g., DIA-NN precursors where the var index is ``filename.Precursor.Id``:
     a feature belongs to a single obs row, so a group of rows contributes at most one value per
     feature). Then every ``agg_method`` (sum/max/median/mean, including the log2-space sum) reduces
     that single value to itself, so collapsing is a pure row->group remap of the stored entries. It

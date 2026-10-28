@@ -1,6 +1,6 @@
 # Data in msmu
 
-In LC-MS/MS "shotgun" `proteomics`, data analysis typically follows a **hierarchical path**—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a **multi-level** and **multi-dimensional** structure: PSM/precursor, peptide, protein; feature metadata; sample annotations; and QC metrics.
+In LC-MS/MS "shotgun" `proteomics`, data analysis typically follows a **hierarchical path**—starting from PSM-level data (PSM or precursor), progressing to peptides, and finally reaching proteins. Each stage introduces its own set of feature annotations, quantification matrices, and tool-specific metadata. As a result, shotgun proteomics data naturally form a **multi-level** and **multi-dimensional** structure: PSM/precursor, peptide, and protein; feature metadata; sample annotations; and QC metrics.
 
 To manage these properties consistently, `msmu` adopts [`MuData`](https://mudata.readthedocs.io/en/latest/) from the `scverse` ecosystem as the fundamental data format. [`MuData`](https://mudata.readthedocs.io/en/latest/), together with its constituent [`AnnData`](https://anndata.readthedocs.io/en/stable/) objects, is widely used in scRNA-seq to manage complex data matrices and their associated metadata. The same structure fits proteomics naturally: identification-level attributes, quantification values, and sample information can all be stored cleanly and explored in an integrated way.
 
@@ -22,14 +22,14 @@ mdata["psm"]
 mdata["protein"]
 ```
 
-As a general AnnData object, each individual modality contains `.X`, `.var`, `.varm`, `.obs`, `.obsm`, `.uns`, etc.
+As a general `AnnData` object, each individual modality contains `.X`, `.var`, `.varm`, `.obs`, `.obsm`, `.uns`, etc.
 
 - `.X` is a matrix holding the **quantification** data. It is dense for peptide- and protein-level
   modalities, and sparse where features belong to one run or one plex (see
   [The quantification matrix](#the_quantification_matrix)).
-- `.var` is a dataframe containing metadata of features for each level. As an example, `.var` in `psm` modality (for PSMs or precursors) contains information describing scan number, filename, PEP, q-value, etc., with `filename.scan` as index.
+- `.var` is a `DataFrame` containing metadata of features for each level. As an example, `.var` in `psm` modality (for PSMs or precursors) contains information describing scan number, filename, PEP, q-value, etc., with `filename.scan` as index.
 - `.varm` is a dictionary-like structure to store additional per-feature matrices, such as boolean masks for filtering features.
-- `.obs` is a dataframe containing metadata of samples, such as sample name, condition, replicate number, etc., with `filename` or `channel` as index.
+- `.obs` is a `DataFrame` containing metadata of samples, such as sample name, condition, replicate number, etc., with `filename` or `channel` as index.
 - `.obsm` is a dictionary-like structure to store additional per-sample matrices, such as PCA or UMAP coordinates.
 - `.uns` is a dictionary-like structure to store unstructured annotations, such as decoy features pulled from search results.
 - `.layers` is a dictionary-like structure to store additional per-feature quantification matrices, such as imputed values. Some functions in `msmu` provide options to read from or write to `.layers`.
@@ -50,9 +50,9 @@ mdata = mm.pp.log2_transform(mdata, modality="peptide")
 mdata = mm.dt.load_layer(mdata, modality="peptide", layer="raw")
 ```
 
-`save_layer` copies `.X` into the layer without changing `.X`. An existing layer raises an error unless `overwrite=True` is passed. `load_layer` copies the layer into `.X` without changing the layer or reverting other annotations. Both work in place, preserve dense or sparse storage, and record provenance. Backed MuData is unsupported; reopen it in memory with `mm.read_h5mu(path)` first.
+`save_layer` copies `.X` into the layer without changing `.X`. An existing layer raises an error unless `overwrite=True` is passed. `load_layer` copies the layer into `.X` without changing the layer or reverting other annotations. Both work in place, preserve dense or sparse storage, and record provenance. Backed `MuData` is unsupported; reopen it in memory with `mm.read_h5mu(path)` first.
 
-## Data Ingestion from DB search tools
+## Data ingestion from DB search tools
 
 Although different search tools return result files with heterogenous formats, their contents can typically be organized into two main conceptual parts to construct peptide- and protein-level data.
 
@@ -73,7 +73,7 @@ Although different search tools return result files with heterogenous formats, t
 Supply files, not output-directory placeholders. MaxQuant/FragPipe DIA and DIA-NN
 `level="protein_group"` are not implemented. Identification-only LFQ imports do not
 supply peptide intensities: add quantification with [`io.add_quant`](../reference/io/add_quant.md) as shown in the
-[FlashLFQ tutorial](../tutorials/flashlfq.ipynb) before quantitative analysis.
+[FlashLFQ section of the DDA-LFQ tutorial](../tutorials/dda-lfq.ipynb#optional-quantification-with-flashlfq) before quantitative analysis.
 
 - Inputs
     - `identification_file`: A file path to identification data
@@ -82,11 +82,11 @@ supply peptide intensities: add quantification with [`io.add_quant`](../referenc
     - `acquisition`: required as `"dda"` for the implemented MaxQuant and FragPipe readers
     - `drop_search_result` (Sage, DIA-NN, MaxQuant, DELPI; default `False`): skip keeping the raw search output in `.varm["search_result"]`. It is a full copy of the search table, so dropping it noticeably lowers memory and file size when you do not need to trace values back to the original columns.
 - Output
-    - `mudata`: Data ingested MuData object
+    - `mudata`: Data ingested `MuData` object
 - Columns migrated into `mdata["psm"].var`
     - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q_value`, `contaminant`
 - `proteins` holds parsed UniProt accessions in one canonical form across every reader,
-  `[rev_][Cont_]<accession>` (e.g. `P07339`, `Cont_P02769`), and `contaminant` flags whether any
+  `[rev_][Cont_]<accession>` (e.g., `P07339`, `Cont_P02769`), and `contaminant` flags whether any
   member of the group carried a contaminant marker. See [Filter](filter.md#contaminants_and_decoys).
 - Decoy features are isolated from `.var` and stored in `.uns["decoy"]` for later use in FDR calculation.
 - Quantification data for **LFQ (DDA)** is stored in `peptide` modality.
@@ -125,7 +125,7 @@ the feature belong to different acquisition units — a TMT reporter channel exi
 of its own plex. Which cells are measurable is fixed by the design before any data exists, so it
 fixes both the shape of the matrix and how `msmu` stores it.
 
-| Experiment | Quantification in | `obs` (samples) | `var` (features) | Design | `.X` |
+| Experiment | Quantification in | `.obs` (samples) | `.var` (features) | Design | `.X` |
 | --- | --- | --- | --- | --- | --- |
 | DDA, label-free | `peptide` | run | peptide | complete | dense |
 | DDA, TMT — single plex | `psm` | channel | `filename.scan` | complete | dense |
@@ -134,33 +134,33 @@ fixes both the shape of the matrix and how `msmu` stores it.
 
 ![](../assets/quant_matrix_forms.svg){ width="100%" }
 
-*The matrices are drawn at one scale, and colour marks the group a feature belongs to. The bar under
+*The matrices are drawn at one scale, and color marks the group a feature belongs to. The bar under
 each one is the same grid seen as storage: the outline is every cell, the fill is what `.X` really
 keeps — a dense array allocates every slot, including the struck-through empty ones, while a sparse
-one keeps only the coloured cells and stops. For label-free DDA the quantification arrives at peptide level, so the
+one keeps only the colored cells and stops. For label-free DDA the quantification arrives at peptide level, so the
 `peptide` modality carries it and `psm` keeps identifications only.*
 
-**Multi-plex TMT.** Before splitting, `obs` is the `C` reporter channels, so row `126` stands for a
+**Multi-plex TMT.** Before splitting, the observations are the `C` reporter channels, so row `126` stands for a
 different sample in every plex. [`split_tmt()`](../reference/pp/split_tmt.md) relabels them into `C x n_set` distinct `channel_set`
 samples; a cell is then measurable only when the sample and the PSM share a plex, which makes the
 matrix **block diagonal** with `C x m_k` blocks and `1/n_set` of it measurable.
 
-**DIA.** The feature id carries the run (`var` is `run.precursor`), so a feature has **exactly one
+**DIA.** The feature id carries the run (`.var.index` is `run.precursor`), so a feature has **exactly one
 measurable cell** — the degenerate case where every block is a single row, with `1/n_run`
 measurable. Each report row maps to one cell, so [`read_diann()`](../reference/read_diann.md) writes them straight into the
 sparse store and no wide table is built.
 
-Both grouped forms keep only the observed cells, in a SciPy sparse `.X`.
+Both grouped forms keep only the observed cells, in a `scipy` sparse `.X`.
 
 The sparsity is an implementation detail of the storage, not of the analysis. Every function that
 reads `.X` goes through a sparse-aware path, so **absent cells stay `NaN` and are never read as a
 measured zero** — preprocessing ([`log2_transform`](../reference/pp/log2_transform.md), [`normalise`](../reference/pp/normalise.md), [`scale_data`](../reference/pp/scale_data.md),
-[`correct_batch_effect`](../reference/pp/correct_batch_effect.md), [`collapse_obs`](../reference/pp/collapse_obs.md)), summarisation ([`to_peptide`](../reference/pp/to_peptide.md), [`to_protein`](../reference/pp/to_protein.md), [`to_ptm`](../reference/pp/to_ptm.md)),
-statistics ([`run_de`](../reference/tl/run_de.md), [`corr`](../reference/tl/corr.md), [`pca`](../reference/tl/pca.md), [`umap`](../reference/tl/umap.md)), plotting and the exporters all behave the same as on
-a dense matrix. Normalisation, scaling and batch correction also return sparse output for sparse
+[`correct_batch_effect`](../reference/pp/correct_batch_effect.md), [`collapse_obs`](../reference/pp/collapse_obs.md)), summarization ([`to_peptide`](../reference/pp/to_peptide.md), [`to_protein`](../reference/pp/to_protein.md), [`to_ptm`](../reference/pp/to_ptm.md)),
+statistics ([`run_de`](../reference/tl/run_de.md), [`corr`](../reference/tl/corr.md), [`pca`](../reference/tl/pca.md), [`umap`](../reference/tl/umap.md)), plotting, and the exporters all behave the same as on
+a dense matrix. Normalization, scaling, and batch correction also return sparse output for sparse
 input, so the saving is not spent at the first preprocessing step.
 
-Summarisation removes the grouping — a peptide is one feature across every run and plex, so its
+Summarization removes the grouping — a peptide is one feature across every run and plex, so its
 cells are all measurable — and peptide- and protein-level modalities are dense again:
 
 ```python
@@ -172,7 +172,7 @@ mdata["peptide"].X      # dense ndarray
 ```
 
 To read the values out yourself, use [`mm.io.to_readable()`](../reference/io/to_readable.md), which restores absent cells as `NaN`.
-AnnData's own `mdata["psm"].to_df()` densifies a sparse `.X` with **zeros**, so absent
+`AnnData`'s own `mdata["psm"].to_df()` densifies a sparse `.X` with **zeros**, so absent
 measurements silently become `0` intensities:
 
 ```python
@@ -198,12 +198,12 @@ These functions copy the input, as do [`pp.add_filter`](../reference/pp/add_filt
 [`pp.to_protein`](../reference/pp/to_protein.md), [`tl.pca`](../reference/tl/pca.md), and [`tl.umap`](../reference/tl/umap.md). Ignoring their return value discards the
 processed copy. Consult the API reference for other operations rather than assuming
 all functions have the same mutation behavior. In particular, [`pp.to_ptm`](../reference/pp/to_ptm.md) adds its
-new PTM modality to the supplied MuData in place; copy first to preserve an
+new PTM modality to the supplied `MuData` in place; copy first to preserve an
 unmodified input.
 
 [`dt.assign`](../reference/dt/assign.md), [`dt.map`](../reference/dt/map.md), [`dt.replace`](../reference/dt/replace.md),
 [`dt.drop`](../reference/dt/drop.md), [`dt.save_layer`](../reference/dt/save_layer.md), and
-[`dt.load_layer`](../reference/dt/load_layer.md) modify the supplied MuData **in place**
+[`dt.load_layer`](../reference/dt/load_layer.md) modify the supplied `MuData` **in place**
 and return that same object. Copy first when you need an independent branch:
 
 ```python
@@ -211,7 +211,7 @@ branch = mdata.copy()
 branch = mm.dt.assign(branch, "reviewed", True, modality="protein")
 ```
 
-[`dt.concat`](../reference/dt/concat.md) returns a new combined MuData. [`tl.run_de`](../reference/tl/run_de.md) returns a result object and
-records its execution history on the input MuData. Plotting returns a Plotly figure;
-export functions return tables or write files. Direct pandas/NumPy assignments are
+[`dt.concat`](../reference/dt/concat.md) returns a new combined `MuData`. [`tl.run_de`](../reference/tl/run_de.md) returns a result object and
+records its execution history on the input `MuData`. Plotting returns a `plotly` figure;
+export functions return tables or write files. Direct `pandas`/`numpy` assignments are
 not automatically recorded; see [Provenance](provenance.md) for the supported boundaries.

@@ -18,17 +18,17 @@ def corr(
     method: Literal["pearson", "spearman", "kendall"] = "pearson",
 ) -> MuData:
     """
-    Compute the correlation matrix for the specified modality in a MuData object.
+    Compute the correlation matrix for the specified modality in a `MuData` object.
 
     Parameters:
-        mdata: MuData object containing the data.
+        mdata: `MuData` object containing the data.
         modality: The modality to compute correlations on.
-        layer: Layer to use for quantification aggregation. If None, the default layer (.X) will be used. Defaults to None.
-        method: Correlation method to use: "pearson", "spearman", or "kendall". Defaults to "pearson".
+        layer: Layer to use for quantification aggregation. If `None`, the default layer (`.X`) will be used. Defaults to `None`.
+        method: Correlation method to use: `"pearson"`, `"spearman"`, or `"kendall"`. Defaults to `"pearson"`.
 
     Returns:
-        The input MuData (copied) with the correlation matrix stored in the modality's
-        ``obsp["X_corr"]``.
+        The input `MuData` (copied) with the correlation matrix stored in the modality's
+        ``.obsp["X_corr"]``.
     """
     mdata = mdata.copy()
     adata = get_anndata_mod(mdata, modality).copy()

@@ -27,7 +27,8 @@ def workflow(tmp_path, hashing=True):
         var=pd.DataFrame({"score": [1., 2.]}, index=["p1", "p2"]),
     )}).write_h5mu(source)
     with options(hashing=hashing):
-        m = mm.read_h5mu(source)
+        # Explicit logging recreates histories saved before H5MU reads became silent.
+        m = mm.pv.log(mm.read_h5mu)(source)
         m = mm.pp.log2_transform(m, modality="protein")
         m = mm.pp.add_filter(m, modality="protein", column="score", keep="gt", value=1.)
         m = mm.pp.apply_filter(m, modality="protein")
@@ -45,6 +46,7 @@ def test_replay_roundtrip_leaves_original_unchanged(tmp_path, decoded):
     assert get_log(original) == before
     assert [e["function"] for e in get_log(result)["events"]] == [e["function"] for e in before["events"]]
     assert get_log(result)["head"] != before["head"]
+    assert compute_hash(replay(result)) == compute_hash(original)
 
 
 @pytest.mark.parametrize("old_module", ["msmu._preprocessing._meta", "msmu.dt", "msmu._data"])
@@ -156,7 +158,7 @@ def test_environment_difference_warns(tmp_path, caplog):
     assert "python" in caplog.text
 
 
-def test_real_diann_url_replay_downloads_once_per_call(monkeypatch):
+def test_real_diann_url_replay_and_script_after_h5mu_reload(monkeypatch, tmp_path):
     path = Path(__file__).resolve().parents[1] / "data/diann_dia/diann/report.parquet"
     url = "https://example.test/report.parquet"
     sdrf_url = "https://example.test/meta.sdrf.tsv"
@@ -177,9 +179,17 @@ def test_real_diann_url_replay_downloads_once_per_call(monkeypatch):
         original = mm.pp.apply_sdrf_to_obs(original)
         original = mm.pp.log2_transform(original, modality="psm")
     before = deepcopy(get_log(original))
-    result = replay(original)
-    assert downloads == [url, sdrf_url, url, sdrf_url]
-    assert compute_hash(result) == compute_hash(original)
+    saved = tmp_path / "workflow.h5mu"
+    original.write_h5mu(saved)
+    loaded = mm.read_h5mu(saved)
+    assert get_log(loaded) == before
+    for result in (replay(loaded), script_result(loaded)):
+        assert compute_hash(result) == compute_hash(original)
+        assert [event["function"] for event in get_log(result)["events"]] == [
+            event["function"] for event in before["events"]
+        ]
+    assert downloads == [url, sdrf_url] * 3
+    assert get_log(loaded) == before
     assert get_log(original) == before
     assert _sources.get_download_buffer(url) is None
     assert _sources.get_download_buffer(sdrf_url) is None
@@ -219,7 +229,7 @@ def test_script_roundtrip_and_source_replacement(tmp_path):
     assert all(key not in script for key in ("duration_seconds", "started_at", "ended_at"))
     assert "mm.pv.set_options(hashing=True)" in script
     assert "mm.pv.options(" not in script
-    assert "mdata = mm.read_h5mu(" in script
+    assert "mdata = mm.pv.log(mm.read_h5mu, file_inputs=('h5mu_file',))(" in script
     assert "mdata = mm.pp.log2_transform(mdata=mdata," in script
     namespace = {}
     with options(hashing=False):
@@ -357,7 +367,7 @@ def test_script_verifies_current_data_after_h5mu_roundtrip(tmp_path):
     _, original = workflow(tmp_path)
     checkpoint = tmp_path / "checkpoint.h5mu"
     original.write_h5mu(checkpoint)
-    loaded = md.read_h5mu(checkpoint)
+    loaded = mm.read_h5mu(checkpoint)
     assert mm.pv.to_script(loaded) == mm.pv.to_script(original)
     loaded["protein"].X[0, 0] += 1
     with pytest.raises(ValueError, match="hash mismatch"):
@@ -371,7 +381,7 @@ def test_script_verifies_current_data_after_h5mu_roundtrip(tmp_path):
 def test_script_checks_current_data_using_recorded_hash_policy(tmp_path, normalization, precision):
     source, _ = workflow(tmp_path)
     with legacy_options(hashing=True, significant_digits=precision, normalization=normalization):
-        original = mm.pp.log2_transform(mm.read_h5mu(source), modality="protein")
+        original = mm.pp.log2_transform(mm.pv.log(mm.read_h5mu)(source), modality="protein")
     with options(hashing=False):
         compile(mm.pv.to_script(original), "generated_workflow.py", "exec")
         assert mm.pv.get_options() == {"hashing": False}
@@ -399,7 +409,7 @@ def merged_workflow(tmp_path, hashing=True):
         var=pd.DataFrame(index=["p1", "p2"]),
     )}).write_h5mu(path)
     with options(hashing=hashing):
-        base = mm.pp.log2_transform(mm.read_h5mu(path), modality="protein")
+        base = mm.pp.log2_transform(mm.pv.log(mm.read_h5mu)(path), modality="protein")
         branches = {}
         for key, group in [("G/1", "G1"), ("G'2", "G2")]:
             branch = mm.pp.add_filter(base, "protein", "group", "eq", group, on="obs")
@@ -462,7 +472,7 @@ def test_invalid_branch_reference_fails_before_reading(tmp_path, monkeypatch):
 def test_equal_hash_inputs_keep_distinct_producers(tmp_path):
     source = tmp_path / "empty.h5mu"
     md.MuData({"protein": ad.AnnData(np.empty((0, 2)))}).write_h5mu(source)
-    left, right = mm.read_h5mu(source), mm.read_h5mu(source)
+    left, right = mm.pv.log(mm.read_h5mu)(source), mm.pv.log(mm.read_h5mu)(source)
     assert compute_hash(left) == compute_hash(right)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
@@ -503,7 +513,7 @@ def test_fork_inputs_are_isolated_from_mutating_calls(tmp_path, monkeypatch):
     md.MuData({"protein": ad.AnnData(
         np.array([[1.], [2.]]), obs=pd.DataFrame({"group": ["a", "b"]}, index=["a", "b"])
     )}).write_h5mu(path)
-    base = mm.read_h5mu(path)
+    base = mm.pv.log(mm.read_h5mu)(path)
     branches = {}
     for group in ("a", "b"):
         branch = mm.pp.add_filter(base.copy(), "protein", "group", "eq", group, on="obs")

@@ -32,8 +32,8 @@ mdata = mm.pp.apply_filter(mdata, modality="psm", columns=["qc_score"])
 ```
 
 Names must be nonblank strings without `/` so their definitions can be saved in
-HDF5. Explicit names are shared across the modality's obs and var filters.
-The source, column, operator and value are recorded in
+HDF5. Explicit names are shared across the modality's observation and feature filters.
+The source, column, operator, and value are recorded in
 `adata.uns["filter_conditions"][name]`. Reusing a name with the same condition
 recomputes its mask; a different condition raises an error. An existing mask
 without a recorded definition cannot be overwritten with an explicit name.
@@ -99,9 +99,9 @@ mdata = mm.pp.apply_filter(
 
 ## Missingness
 
-A quantification filter needs the missing counts on `var` first.
+A quantification filter needs the missing counts on `.var` first.
 [`pp.calculate_missingness`](../reference/pp/calculate_missingness.md) records `n_missing` and
-`missing_ratio` per feature and, given an obs column, `missing_ratio_<level>` per group, so the
+`missing_ratio` per feature and, given an `.obs` column, `missing_ratio_<level>` per group, so the
 usual filter calls apply:
 
 ```python
@@ -122,13 +122,13 @@ Readers record identification status rather than acting on it:
 - **Decoys** are separated out of `.var` at read time and kept in `.uns["decoy"]`, where the
   q-value machinery needs them. Filters you add are applied to them in parallel, through
   `.uns["decoy_filter"]`, so target and decoy features stay matched.
-- **Contaminants** stay in `.var` with a `contaminant` flag (`1` / `0`). msmu records the flag and
+- **Contaminants** stay in `.var` with a `contaminant` flag (`1` / `0`). `msmu` records the flag and
   leaves the decision to you: a contaminant accession can also be a genuine protein of the sample
-  (the parsed group keeps both, e.g. `Cont_P07339;P07339`), so whether such a feature should go is
-  a protein-level judgement rather than something to drop at the PSM level.
+  (the parsed group keeps both, e.g., `Cont_P07339;P07339`), so whether such a feature should go is
+  a protein-level judgment rather than something to drop at the PSM level.
 
 Contaminant markers differ per FASTA (`contam_`, `Cont_`, `CON__`, and each engine's decoy tag in
-front of them), so the reader normalises every accession to one canonical form
+front of them), so the reader normalizes every accession to one canonical form
 `[rev_][Cont_]<accession>` and sets the flag from the parse. If you do filter on contaminant
 status, filter on the flag rather than matching a marker on the protein string — a string match
 silently stops matching when the search uses a different contaminant FASTA.
@@ -146,7 +146,7 @@ refuses otherwise. Give decoys the column with a recorded edit rather than by ha
 annotation over by filename — so the step stays in provenance.
 Applying a subset of filters preserves the other decoy conditions for later calls.
 
-`contains` and `not_contains` retain pandas regular-expression semantics:
+`contains` and `not_contains` retain `pandas` regular-expression semantics:
 `A.B` also matches `AxB`. Escape regex metacharacters for literal matching.
 
 Existing stored filter names are not renamed. Newly recorded matrix filters use
@@ -156,5 +156,3 @@ missing values passing, or requested nonexistent columns may no longer replay
 unchanged. Verified replay can report a hash mismatch, and explicit old matrix
 filter names can raise an error. Re-record those workflows with the current API;
 do not disable verification to hide a changed result.
-
-The existing copy behavior is retained in this correctness fix.

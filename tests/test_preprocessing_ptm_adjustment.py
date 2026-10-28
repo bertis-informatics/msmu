@@ -361,19 +361,23 @@ def test_the_global_dataset_can_be_given_as_a_file_and_yields_the_same_values(tm
     assert from_path["phospho_site"].var["adjustment_status"].tolist() == [ADJUSTMENT_STATUS_ADJUSTED] * 2
 
 
-def test_a_global_file_is_recorded_as_a_hashed_input_and_keeps_the_history_one_chain(tmp_path):
+@pytest.mark.parametrize("as_string", [False, True])
+def test_a_global_file_is_recorded_as_a_hashed_input_and_keeps_the_history_one_chain(tmp_path, as_string):
     ptm_mdata = _make_ptm({"P1|S5": "P1"})
     global_mdata = _make_global(["P1"], {"P1": "P1"})
     global_path = _write_global(tmp_path, global_mdata)
 
     with mm.pv.options(hashing=True):
-        from_path = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_path)
+        from_path = mm.pp.adjust_ptm_by_protein(
+            ptm_mdata, global_mdata=str(global_path) if as_string else global_path
+        )
         from_object = mm.pp.adjust_ptm_by_protein(ptm_mdata, global_mdata=global_mdata)
 
     # Since BID-315 each parameter carries its own descriptor; the file shows up as a path with a hash.
     global_input = mm.pv.get_log(from_path)["events"][-1]["parameters"]["global_mdata"]
     assert global_input["path"] == str(global_path)
     assert global_input["hash"]["status"] == "completed"
+    assert global_input["hash"]["value"] == mm.pv.compute_hash(global_path)
     # The object carries no history here, so neither call has a parent; what matters is that the file
     # is a path descriptor rather than a MuData whose history would merge into this one.
     assert global_input["type"] != "MuData"

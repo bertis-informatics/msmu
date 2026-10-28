@@ -22,15 +22,15 @@ def log2_transform(
     layer: str | None = None,
 ) -> md.MuData:
     """
-    Apply log2 transformation to the specified modality in MuData object.
+    Apply log2 transformation to the specified modality in `MuData` object.
 
     Parameters:
-        mdata: MuData object to transform.
+        mdata: `MuData` object to transform.
         modality: Modality to log2 transform.
-        layer: Layer to transform. If None, the default layer (.X) will be used.
+        layer: Layer to transform. If `None`, the default layer (`.X`) will be used.
 
     Returns:
-        Transformed MuData object.
+        Transformed `MuData` object.
     """
     mdata = mdata.copy()
     adata = get_anndata_mod(mdata, modality)
@@ -59,15 +59,15 @@ def scale_data(
     layer: str | None = None,
 ) -> md.MuData:
     """
-    Scale data in MuData object to have zero mean and unit variance.
+    Scale data in `MuData` object to have zero mean and unit variance.
 
     Parameters:
-        mdata: MuData object to scale.
+        mdata: `MuData` object to scale.
         modality: Modality to scale.
-        layer: Layer to scale. If None, the default layer (.X) will be used.
+        layer: Layer to scale. If `None`, the default layer (`.X`) will be used.
 
     Returns:
-        Scaled MuData object.
+        Scaled `MuData` object.
     """
     mdata = mdata.copy()
     adata = get_anndata_mod(mdata, modality)
@@ -113,45 +113,45 @@ def normalise(
     fraction: bool = False,
 ) -> md.MuData:
     """
-    Normalise data in MuData object.
+    Normalize data in `MuData` object.
 
     Parameters:
-        mdata: MuData object to normalise.
-        method: Normalisation method to use. Options are 'median', 'median_center', 'quantile',
-            'total_sum', 'pairwise_median'.
-        modality: Modality to normalise.
-        layer: Layer to normalise. If None, the default layer (.X) will be used.
-        group_obs: Column name in ``adata.obs`` defining sample groups. If provided, normalisation is
+        mdata: `MuData` object to normalize.
+        method: Normalization method to use. Options are `'median'`, `'median_center'`, `'quantile'`,
+            `'total_sum'`, `'pairwise_median'`.
+        modality: Modality to normalize.
+        layer: Layer to normalize. If `None`, the default layer (`.X`) will be used.
+        group_obs: Column name in ``adata.obs`` defining sample groups. If provided, normalization is
             performed independently within each group. Missing group values are rejected.
-            If None, no obs grouping is applied.
-        group_var: Column name in ``adata.var`` defining feature groups (e.g. ``"filename"`` for
-            fractionated TMT or label-free workflows). If provided, normalisation is performed
-            independently within each group. If None, no var grouping is applied.
+            If `None`, no `.obs` grouping is applied.
+        group_var: Column name in ``adata.var`` defining feature groups (e.g., ``"filename"`` for
+            fractionated TMT or label-free workflows). If provided, normalization is performed
+            independently within each group. If `None`, no `.var` grouping is applied.
         batch_key: Deprecated alias for ``group_obs``.
         fraction_key: Deprecated alias for ``group_var``.
-        fraction: Deprecated. If True, equivalent to ``group_var="filename"``.
+        fraction: Deprecated. If `True`, equivalent to ``group_var="filename"``.
 
     Returns:
-        Normalised copy of the MuData object; the selected `.X` or layer is updated in the copy.
+        Normalized copy of the `MuData` object; the selected `.X` or layer is updated in the copy.
 
     Notes:
-        When both ``group_obs`` and ``group_var`` are provided, normalisation is performed
-        independently within each (obs-group × var-group) block.
+        When both ``group_obs`` and ``group_var`` are provided, normalization is performed
+        independently within each (observation group × feature group) block.
 
         ``method="pairwise_median"`` aligns samples on the features they share: for every
         pair of samples it takes the median log2 difference over their co-observed features, and each
         sample's shift is the mean of its pairwise medians over all samples (the equal-weight
         least-squares solution, shifts summing to zero). It assumes that most of the features shared
         between two samples are unchanged. Per-sample medians of observed values are no longer aligned
-        afterwards; this is intended, as those differences reflect which features each sample
+        afterward; this is intended, as those differences reflect which features each sample
         observed rather than loading. A true global change between conditions is removed, as with
         ``median``. Two samples of a block that observe no feature in common raise a ``ValueError``
-        naming them (for example PSMs or precursors across runs or TMT plexes): normalise within
-        ``group_obs``, or after summarising to a level where the samples share features.
+        naming them (for example PSMs or precursors across runs or TMT plexes): normalize within
+        ``group_obs``, or after summarizing to a level where the samples share features.
 
         Every call records what was done to each sample of each block in
-        ``adata.uns["normalisation"]``: a ``summary`` table (sample, obs_group, var_group, method,
-        layer, n_observed_features, shift_log2, location_before, location_after) and, per block, the
+        ``adata.uns["normalisation"]``: a ``summary`` table (`sample`, `obs_group`, `var_group`, `method`,
+        `layer`, `n_observed_features`, `shift_log2`, `location_before`, `location_after`) and, per block, the
         per-sample vectors plus, for ``pairwise_median``, the ``pair_median_log2`` and
         ``pair_shared_count`` matrices the shifts were derived from. Records for the same layer are
         replaced on a repeated call.
@@ -332,7 +332,7 @@ def _record_normalisation(adata: ad.AnnData, block_records: list[dict], method: 
                 }
             )
         )
-        logger.info(
+        logger.debug(
             "normalise[%s] %s layer %s block %s: %d samples; observed features per sample %d..%d (median %d); "
             "shift %+.3f..%+.3f log2",
             method,
@@ -403,7 +403,7 @@ def normalize(
 ) -> md.MuData:
     """American-English alias of [`normalise`][msmu.pp.normalise].
 
-    All parameters, return values, grouping rules, and deprecated arguments are identical; see the linked API for the full contract. Returns a normalised copy.
+    All parameters, return values, grouping rules, and deprecated arguments are identical; see the linked API for the full contract. Returns a normalized copy.
 
     Examples:
         ```python
@@ -437,13 +437,13 @@ def _group_label(groups: np.ndarray | None, indices: np.ndarray) -> str:
 
 
 def _normalise_per_group_sparse(matrix, obs_groups, var_groups, norm_cls, block_records: list[dict] | None = None):
-    """Per-sample normalisation of a sparse block-diagonal within each (obs_group x var_group) block,
+    """Per-sample normalization of a sparse block-diagonal within each (obs_group x var_group) block,
     without densifying.
 
     Generalises the ungrouped per-sample path: with ``obs_groups`` and ``var_groups`` both None the
     whole matrix is a single block (the common PSM-level TMT/DIA case, taken via a whole-row fast
     path). ``obs_groups`` (obs grouping) partitions rows and ``var_groups`` (var grouping) partitions
-    columns; each block is normalised independently, matching the dense ``_normalise_by_groups`` path.
+    columns; each block is normalized independently, matching the dense ``_normalise_by_groups`` path.
     ``norm_cls`` supplies the per-block rescaler (``rescale_sparse_block``). Only ``.data`` is rewritten
     so structurally-absent cells stay absent and the layer stays sparse; the stored dtype is preserved.
     ``pairwise_median`` densifies the shared features of a block after checking the stored pattern.
@@ -519,7 +519,7 @@ def _normalise_by_groups(
     var_groups: np.ndarray | None,
     block_records: list[dict] | None = None,
 ) -> np.ndarray:
-    """Normalise raw_arr within each (obs_group × var_group) block; un-grouped axes use a single block.
+    """Normalize raw_arr within each (obs_group × var_group) block; un-grouped axes use a single block.
     Each block's per-sample record is appended to ``block_records`` when given."""
     obs_partitions = _partition_indices(obs_groups, raw_arr.shape[0])
     var_partitions = _partition_indices(var_groups, raw_arr.shape[1])
@@ -556,13 +556,7 @@ def _normalise_by_groups(
 
 
 def _read_global_mdata(global_mdata: md.MuData | str | PathLike[str]) -> md.MuData:
-    """Accept the matched global dataset as an object, or as the path of an ``.h5mu`` holding it.
-
-    A path keeps the PTM container's history one chain: the file is recorded as an input with its
-    content hash instead of merging the global dataset's own history into the result. That is what
-    lets [`mm.pv.replay`][msmu.pv.replay] and [`mm.pv.to_script`][msmu.pv.to_script] reproduce a PTM workflow through the adjustment,
-    which they cannot do for a history with two parents.
-    """
+    """Accept the matched global dataset as a `MuData` object or an `.h5mu` file path."""
     if isinstance(global_mdata, md.MuData):
         return global_mdata
 
@@ -573,7 +567,7 @@ def _read_global_mdata(global_mdata: md.MuData | str | PathLike[str]) -> md.MuDa
     return read_h5mu(global_mdata)
 
 
-@log_provenance
+@log_provenance(file_inputs=("global_mdata",))
 def adjust_ptm_by_protein(
     mdata: md.MuData,
     global_mdata: md.MuData | str | PathLike[str],
@@ -586,48 +580,52 @@ def adjust_ptm_by_protein(
     """
     Adjust PTM site intensities by parent protein abundance from a matched global dataset.
 
-    This computes *differential PTM usage* (DPU): the site's log intensity minus the log intensity
+    This computes *differential PTM usage* (DPU), as described by
+    <a href="#ref-demeulemeester-2024">Demeulemeester et al. (2024)</a>: the site's log intensity minus the log intensity
     of its parent protein in the same sample, so that a site's change is read relative to whatever
     its protein did. It is not occupancy/stoichiometry -- that additionally requires the unmodified
     counterpart peptide, and is a different estimand with far lower coverage.
 
-    A site's denominator is found through the accessions it was localised on, translated into a
-    global protein group via the global dataset's ``uns['protein_map']``. Nothing is looked up by
+    A site's denominator is found through the accessions it was localized on, translated into a
+    global protein group via the global dataset's ``.uns['protein_map']``. Nothing is looked up by
     peptide, so a PTM peptide the global run never observed is still adjustable whenever its protein
     was quantified there. Sites whose accessions span two or more quantified global groups have no
-    valid denominator and are left unadjusted; ``var['adjustment_status']`` records why for every
+    valid denominator and are left unadjusted; ``.var['adjustment_status']`` records why for every
     site.
 
-    The adjusted values replace the quantification that was read -- ``.X``, or ``layers[layer]`` when
+    The adjusted values replace the quantification that was read -- ``.X``, or ``.layers[layer]`` when
     given -- the same contract as [`log2_transform`][msmu.pp.log2_transform],
     [`normalise`][msmu.pp.normalise] and [`correct_batch_effect`][msmu.pp.correct_batch_effect]. A
-    site that could not be adjusted is set to NaN rather than left holding its raw abundance, so
+    site that could not be adjusted is set to `NaN` rather than left holding its raw abundance, so
     residuals and raw abundances never share a matrix. To keep the unadjusted values, copy them into
     a layer first::
 
         mdata[modality].layers["unadjusted"] = mdata[modality].X.copy()
 
     Parameters:
-        mdata: MuData object holding the PTM data.
-        global_mdata: The matched global dataset: a MuData holding global protein expression in its
-            'protein' modality and the protein mapping in uns['protein_map'], or the path of an
-            ``.h5mu`` file holding one. A path keeps this container's provenance a single chain --
-            the file is recorded as an input with its content hash instead of merging the global
-            dataset's own history -- so [`mm.pv.replay`][msmu.pv.replay] and [`mm.pv.to_script`][msmu.pv.to_script] can reproduce the
-            workflow through this step. Pass a ``Path`` rather than a ``str`` for that content hash.
-        modality: PTM modality to adjust (e.g. phospho_site, {ptm}_site).
-        layer: Layer to adjust. If None, the default layer (.X) will be used.
-        method: Estimator to use. 'ratio' subtracts the protein level, assuming the slope-one
-            relationship mass action predicts; 'ridge' instead fits a slope per site. Default is
-            'ratio', which needs no fitting and so stays usable at proteomics sample counts.
-        rescale: If True, shift the adjusted values by the PTM data's overall median so they read on
-            a comparable scale. A single constant, so it cancels in any contrast. Default is True.
-        ridge_alpha: Ridge penalty, used only when method='ridge'. A single-predictor ridge keeps
+        mdata: `MuData` object holding the PTM data.
+        global_mdata: Matched global protein data as a `MuData` object or an `.h5mu` file path.
+        modality: PTM modality to adjust (e.g., `phospho_site`, `{ptm}_site`).
+        layer: Layer to adjust. If `None`, the default layer (`.X`) will be used.
+        method: Estimator to use. `'ratio'` subtracts the protein level, assuming the slope-one
+            relationship mass action predicts; `'ridge'` instead fits a slope per site. Default is
+            `'ratio'`, which needs no fitting and so stays usable at proteomics sample counts.
+        rescale: If `True`, shift the adjusted values by the PTM data's overall median so they read on
+            a comparable scale. A single constant, so it cancels in any contrast. Default is `True`.
+        ridge_alpha: Ridge penalty, used only when `method='ridge'`. A single-predictor ridge keeps
             ``Sxx / (Sxx + alpha)`` of the least-squares slope, so a large alpha silently turns the
-            residual into a plain mean-centring. Defaults to DEFAULT_RIDGE_ALPHA.
+            residual into a plain mean-centering. Defaults to `DEFAULT_RIDGE_ALPHA`.
 
     Returns:
-        MuData object with the adjusted quantification and per-site adjustment annotations.
+        `MuData` object with the adjusted quantification and per-site adjustment annotations.
+
+    References:
+        <a id="ref-demeulemeester-2024"></a>
+
+        > Demeulemeester, N. et al. msqrob2PTM: differential abundance and differential usage analysis
+        > of MS-based proteomics data at the posttranslational modification and peptidoform level.
+        > *Molecular & Cellular Proteomics* 23, 100708 (2024).
+        > [https://doi.org/10.1016/j.mcpro.2023.100708](https://doi.org/10.1016/j.mcpro.2023.100708).
     """
     mdata = mdata.copy()
 

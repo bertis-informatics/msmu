@@ -17,7 +17,7 @@ def test_drop_key_saved_replay_and_script(tmp_path, target):
     source = tmp_path / "source.h5mu"
     m.write_h5mu(source)
     with mm.pv.options(hashing=True):
-        m = mm.read_h5mu(source)
+        m = mm.pv.log(mm.read_h5mu)(source)
         assert mm.dt.drop(m, target=target, key="decoy") is m
     container = m if target == "uns" else m["psm"]
     assert "decoy" not in container.uns
@@ -53,7 +53,7 @@ def test_drop_column_saved_replay_and_script(tmp_path, target):
     source = tmp_path / "source.h5mu"
     m.write_h5mu(source)
     with mm.pv.options(hashing=True):
-        m = mm.read_h5mu(source)
+        m = mm.pv.log(mm.read_h5mu)(source)
         assert mm.dt.drop(m, target=target, key="remove") is m
     owner = m["psm"] if target.startswith("psm.") else m
     parts = target.split(".")
@@ -88,7 +88,7 @@ def test_drop_mapping_entry_saved_replay(tmp_path, target):
     source = tmp_path / "source.h5mu"
     m.write_h5mu(source)
     with mm.pv.options(hashing=True):
-        m = mm.read_h5mu(source)
+        m = mm.pv.log(mm.read_h5mu)(source)
         assert mm.dt.drop(m, target=target, key="remove") is m
     owner = m["psm"] if target.startswith("psm.") else m
     mapping = getattr(owner, target.split(".")[-1])

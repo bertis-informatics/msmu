@@ -76,7 +76,7 @@ class SageReader(SearchResultReader):
           accession parse   per-group fn via ``replace_strict`` over UNIQUE groups (dedup)
           filename strip    ``Path(x).name.rsplit(".",1)[0]`` == ``split("/").list.last().replace(r"\\.[^.]*$", "")``
         """
-        # Fail loud on a scannr with no "scan=<number>" token (e.g. a non-Thermo instrument), the
+        # Fail loud on a scannr with no "scan=<number>" token (e.g., a non-Thermo instrument), the
         # way the old pandas int(...) did -- otherwise the polars extract nulls the scan, the index
         # float-promotes, and every feature is silently dropped at the ident/quant intersection.
         invalid_scannr = identification_df.filter(

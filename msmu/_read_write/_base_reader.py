@@ -119,7 +119,7 @@ class SearchResultDataFrameConverter:
         DataFrame-input API) is coerced to polars so the downstream reader transforms -- which are
         polars -- receive a polars frame. ``infer_schema_length=None`` scans every row for dtype
         inference (matching pandas' whole-file scan) so a column that only widens past the first
-        100 rows -- e.g. integer scans then a float -- does not hard-fail; ``null_values`` aligns
+        100 rows -- e.g., integer scans then a float -- does not hard-fail; ``null_values`` aligns
         the missing-token set with pandas through the shared text reader.
 
         Returns a tuple of the file path (``None`` for a DataFrame input) and the polars frame.
@@ -148,7 +148,7 @@ class SearchResultDataFrameConverter:
         internally).
 
         ``diagonal_relaxed`` unions columns (missing -> null) AND relaxes dtypes, matching pandas'
-        concat: multi-file inputs with an optional column (e.g. DIA-NN with/without Decoy) merge
+        concat: multi-file inputs with an optional column (e.g., DIA-NN with/without Decoy) merge
         instead of raising the schema-mismatch error ``vertical_relaxed`` would.
         """
         results = [self.__class__._read_file(fp) for fp in file_paths]
@@ -293,7 +293,7 @@ class SearchResultReader:
         Used by merged readers that build the feature frame fresh: the feature
         frame carries identification columns only, so quantification is extracted
         from the raw frame (indexed to match the feature frame) instead of being
-        split back out of the normalised frame.
+        split back out of the normalized frame.
         """
         raise NotImplementedError(
             "_extract_quant_from_raw must be implemented by merged readers that build the feature frame fresh."
@@ -435,12 +435,6 @@ class SearchResultReader:
                 "quantification": self.search_settings.quantification,
                 "label": self.search_settings.label,
                 "acquisition": self.search_settings.acquisition,
-                "identification_file": str(self.search_settings.identification_file),
-                "quantification_file": (
-                    str(self.search_settings.quantification_file)
-                    if self.search_settings.quantification_file is not None
-                    else None
-                ),
             }
         )
         return adata

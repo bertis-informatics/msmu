@@ -17,7 +17,7 @@ from .._core._provenance import log_provenance
 logger = get_logger(__name__)
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file", "quantification_file"))
 def read_sage(
     identification_file: str | Path,
     label: Literal["tmt", "label_free"],
@@ -25,17 +25,17 @@ def read_sage(
     drop_search_result: bool = False,
 ) -> md.MuData:
     """
-    Reads Sage output and returns a MuData object.
+    Reads Sage output and returns a `MuData` object.
 
     Parameters:
-        identification_file: Path or URL to results.sage.tsv, or a list of input files.
-        label: Label for the Sage output ('tmt' or 'label_free').
-        quantification_file: Path or URL to tmt.tsv (required for TMT) or lfq.tsv.
+        identification_file: Path or URL to `results.sage.tsv`, or a list of input files.
+        label: Label for the Sage output (`'tmt'` or `'label_free'`).
+        quantification_file: Path or URL to `tmt.tsv` (required for TMT) or `lfq.tsv`.
             Omit for an identification-only label-free import. A list of files is also accepted.
-        drop_search_result: If True, omit the raw search table from varm["search_result"].
+        drop_search_result: If `True`, omit the raw search table from `.varm["search_result"]`.
 
     Returns:
-        A MuData object containing the Sage data.
+        A `MuData` object containing the Sage data.
     """
     identification_files = []
     if isinstance(identification_file, list):
@@ -95,28 +95,28 @@ def read_sage(
     return mdata
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file",))
 def read_diann(
     identification_file: str | Path | list,
     drop_search_result: bool = False,
     level: Literal["precursor", "protein_group"] = "precursor",
 ) -> md.MuData:
     """
-    Reads DIA-NN output and returns a MuData object.
+    Reads DIA-NN output and returns a `MuData` object.
 
-    The block-diagonal precursor quantification is stored as a SciPy sparse ``.X``: the precursor
+    The block-diagonal precursor quantification is stored as a `scipy` sparse ``.X``: the precursor
     pivot is ``(n_precursor_obs x n_run)`` with ~one non-null per row, so only the observed cells
     are built (no dense pivot). Downstream tools handle the sparse ``.X`` transparently (absent
-    cells restored as NaN).
+    cells restored as `NaN`).
 
     Parameters:
-        identification_file: Path or URL to report.tsv/report.parquet, or a list of files.
-        drop_search_result: If True, omit the raw search table from varm["search_result"].
-        level: Level of the output to read ('precursor' or 'protein_group').
-            Note: 'protein_group' is not yet implemented.
+        identification_file: Path or URL to `report.tsv`/`report.parquet`, or a list of files.
+        drop_search_result: If `True`, omit the raw search table from `.varm["search_result"]`.
+        level: Level of the output to read (`'precursor'` or `'protein_group'`).
+            Note: `'protein_group'` is not yet implemented.
 
     Returns:
-        A MuData object containing the DIA-NN data.
+        A `MuData` object containing the DIA-NN data.
     """
     if level == "protein_group":
         raise NotImplementedError("Protein group level reading is not yet implemented.")
@@ -139,7 +139,7 @@ def read_diann(
     return mdata
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file",))
 def read_maxquant(
     identification_file: str | Path | list,
     label: Literal["tmt", "label_free"],
@@ -148,17 +148,17 @@ def read_maxquant(
     _quantification: bool = True,
 ) -> md.MuData:
     """
-    Reads MaxQuant output and returns a MuData object.
+    Reads MaxQuant output and returns a `MuData` object.
 
     Parameters:
-        identification_file: Path or URL to evidence.txt, or a list of files.
-        label: Label type ('tmt' or 'label_free').
-        acquisition: Acquisition method ('dda' or 'dia'). Note: 'dia' is not yet implemented.
-        drop_search_result: Whether to drop the raw search result after reading. Default is False.
-        _quantification: Whether to include quantification data. Default is True.
+        identification_file: Path or URL to `evidence.txt`, or a list of files.
+        label: Label type (`'tmt'` or `'label_free'`).
+        acquisition: Acquisition method (`'dda'` or `'dia'`). Note: `'dia'` is not yet implemented.
+        drop_search_result: Whether to drop the raw search result after reading. Default is `False`.
+        _quantification: Whether to include quantification data. Default is `True`.
 
     Returns:
-        A MuData object containing the MaxQuant data.
+        A `MuData` object containing the MaxQuant data.
     """
     identification_files = []
     if isinstance(identification_file, list):
@@ -196,7 +196,7 @@ def read_maxquant(
     return mdata
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file", "quantification_file"))
 def read_fragpipe(
     identification_file: str | Path | list,
     label: Literal["tmt", "label_free"],
@@ -204,17 +204,17 @@ def read_fragpipe(
     quantification_file: str | Path | list | None = None,
 ) -> md.MuData:
     """
-    Reads FragPipe output and returns a MuData object.
+    Reads FragPipe output and returns a `MuData` object.
 
     Parameters:
         identification_file: Path to the FragPipe PSM output file(s).
-        label: Label type ('tmt' or 'label_free').
-        acquisition: Acquisition method ('dda' or 'dia'). Note: 'dia' is not yet implemented.
-        quantification_file: Path to combined_modified_peptide.tsv file(s) for LFQ intensities.
+        label: Label type (`'tmt'` or `'label_free'`).
+        acquisition: Acquisition method (`'dda'` or `'dia'`). Note: `'dia'` is not yet implemented.
+        quantification_file: Path to `combined_modified_peptide.tsv` file(s) for LFQ intensities.
             Omit for an identification-only LFQ import. TMT intensities are read from the PSM file.
 
     Returns:
-        A MuData object containing the FragPipe data.
+        A `MuData` object containing the FragPipe data.
     """
     identification_files = []
     if isinstance(identification_file, list):
@@ -263,17 +263,17 @@ def read_fragpipe(
     return mdata
 
 
-@log_provenance
+@log_provenance(file_inputs=("identification_file",))
 def read_delpi(identification_file: str | Path, drop_search_result: bool = False) -> md.MuData:
     """
-    Reads a DELPI output file and returns a MuData object.
+    Reads a DELPI output file and returns a `MuData` object.
 
     Parameters:
         identification_file: Path to the DELPI output file.
-        drop_search_result: If True, the raw search result is not stored in varm.
+        drop_search_result: If `True`, the raw search result is not stored in `.varm`.
 
     Returns:
-        A MuData object.
+        A `MuData` object.
     """
     identification_files = []
     if isinstance(identification_file, list):
@@ -302,11 +302,11 @@ def read_sdrf(
     validate_sdrf: bool = True,
 ) -> pd.DataFrame:
     """
-    Reads tab-delimited SDRF metadata and returns an obs-ready DataFrame.
+    Reads tab-delimited SDRF metadata and returns a `DataFrame` ready for `.obs`.
 
     Parameters:
         sdrf_file: Path or URL to the SDRF file.
-        validate_sdrf: Validate the SDRF with sdrf-pipelines if installed. Default is True.
+        validate_sdrf: Validate the SDRF with `sdrf-pipelines` if installed. Default is `True`.
 
     Parsed SDRF columns preserve normalized SDRF header text, including spaces
     and square brackets.
@@ -314,16 +314,15 @@ def read_sdrf(
     return _read_sdrf(sdrf_file, validate=validate_sdrf)
 
 
-@log_provenance
 def read_h5mu(h5mu_file: str | Path) -> md.MuData:
     """
-    Reads an h5mu file (HDF5) and returns a MuData object.
+    Reads an h5mu file (HDF5) and preserves its stored provenance without adding an event.
 
     Parameters:
         h5mu_file: Path to the H5MU file.
 
     Returns:
-        A MuData object.
+        A `MuData` object.
     """
     mdata = md.read_h5mu(h5mu_file)
     return mdata
