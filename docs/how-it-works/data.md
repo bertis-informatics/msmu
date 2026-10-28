@@ -73,7 +73,7 @@ Although different search tools return result files with heterogenous formats, t
 Supply files, not output-directory placeholders. MaxQuant/FragPipe DIA and DIA-NN
 `level="protein_group"` are not implemented. Identification-only LFQ imports do not
 supply peptide intensities: add quantification with [`io.add_quant`](../reference/io/add_quant.md) as shown in the
-[FlashLFQ tutorial](../tutorials/flashlfq.ipynb) before quantitative analysis.
+[FlashLFQ section of the DDA-LFQ tutorial](../tutorials/dda-lfq.ipynb#optional-quantification-with-flashlfq) before quantitative analysis.
 
 - Inputs
     - `identification_file`: A file path to identification data
