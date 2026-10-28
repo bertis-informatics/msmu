@@ -6,6 +6,36 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-10-28
+
+### Changed
+
+- **Documentation and tutorials follow the current workflows.** Standardize terminology,
+  technical notation, citations, and DOI links; update supported search-tool information
+  and framework figures. Add a Verification tutorial, start DE and PTM from processed
+  checkpoints, and integrate FlashLFQ as an optional DDA-LFQ example. Remove Quick start
+  and the standalone FlashLFQ tutorial.
+- **Expected processing diagnostics use DEBUG.** Per-block normalization details and
+  notices about SDRF columns that cannot be projected onto `.obs` no longer appear at
+  the default logging level. Other warnings remain unchanged.
+
+### Fixed
+
+- **Loading H5MU preserves its recorded history.** `read_h5mu()` no longer adds a
+  processing event, computes provenance hashes, or collects the current environment.
+- **Relocating unchanged input files preserves newly recorded data hashes.** Readers
+  keep source locations in provenance instead of duplicating them in search-result
+  `.uns` or SDRF `DataFrame.attrs`. Local string file inputs are declared explicitly
+  with `file_inputs`; URLs and `Path` objects remain detected directly. Custom
+  `@mm.pv.log` functions must declare local string file arguments with
+  `file_inputs=("argument_name",)`.
+
+The `msmu-v2` hashing policy is unchanged, but removing duplicated source-path metadata
+changes the content of newly imported data. Replaying an older checkpoint with the new
+readers can therefore fail its recorded output-hash check. Use the recorded original
+environment or regenerate the reference with the current version. Existing hashes are
+not rewritten.
+
 ## [0.4.4] - 2026-10-21
 
 ### Changed
@@ -447,6 +477,8 @@ metadata, one canonical accession form across readers, and sparse-in / sparse-ou
 - **`add_filter` accepted duplicate filter names**, letting one filter silently shadow another.
 - **`split_tmt` operated on the `feature` modality instead of `psm`.**
 
+[Unreleased]: https://github.com/bertis-informatics/msmu/compare/v0.4.5...dev
+[0.4.5]: https://github.com/bertis-informatics/msmu/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/bertis-informatics/msmu/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/bertis-informatics/msmu/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/bertis-informatics/msmu/compare/v0.4.1...v0.4.2
