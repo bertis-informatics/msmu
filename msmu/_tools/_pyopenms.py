@@ -312,7 +312,7 @@ def compute_precursor_isolation_purity_from_mzml(
     return purity_result
 
 
-@log_provenance
+@log_provenance(file_inputs=("mzml_paths",))
 def compute_precursor_isolation_purity(
     mdata: md.MuData,
     mzml_paths: str | Path | list,

@@ -435,12 +435,6 @@ class SearchResultReader:
                 "quantification": self.search_settings.quantification,
                 "label": self.search_settings.label,
                 "acquisition": self.search_settings.acquisition,
-                "identification_file": str(self.search_settings.identification_file),
-                "quantification_file": (
-                    str(self.search_settings.quantification_file)
-                    if self.search_settings.quantification_file is not None
-                    else None
-                ),
             }
         )
         return adata

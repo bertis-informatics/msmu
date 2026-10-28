@@ -92,6 +92,12 @@ digest = mm.pv.compute_hash(mdata)
 Completed data hashes record `normalization="msmu-v2"`. Replay and generated
 scripts use the recorded policy to verify inputs and outputs.
 
+Source file locations are recorded in provenance. Search-result readers do not
+duplicate `identification_file` or `quantification_file` in `uns`, and SDRF readers
+do not store paths in `DataFrame.attrs`. Relocating unchanged input files therefore
+does not change the data hash. Sample filenames and other analytical metadata
+remain significant; the `msmu-v2` hashing rules are unchanged.
+
 Within global and modality `uns`, rectangular lists hash as the NumPy arrays that
 AnnData writes to H5MU. Filter-name lists and nested normalization sample lists
 therefore keep the same hash after saving and reading. Shape, order and values
@@ -158,13 +164,21 @@ UTF-8 byte stream in batches using Arrow kernels, avoiding per-value Python conv
 Chunk boundaries and slice offsets do not affect the digest. The scalar fallback remains
 available without PyArrow; existing hash values and the covered data are unchanged.
 
-Path objects and strings in `file`/`path` arguments are input file entities. Existing files
-are streamed in 1 MiB blocks when hashing is enabled. HTTP(S)/FTP URLs retain their original
+Path objects and URLs are detected directly as input file entities. Local string
+paths are recorded only for arguments declared with `file_inputs`, including search
+readers, SDRF/metadata attachment, FlashLFQ, FASTA, mzML and PTM global-data inputs.
+Custom recorded functions declare them with `@mm.pv.log(file_inputs=("argument_name",))`;
+argument names alone do not imply file inputs.
+Existing files are streamed in 1 MiB blocks when hashing is enabled. HTTP(S)/FTP URLs retain their original
 address. Shared tabular readers download each URL once per logged call into `BytesIO`, then
 give the same seekable buffer to Polars or pandas. With hashing enabled, provenance hashes
 those downloaded bytes, using the same file-content encoding as a local file. No second
 download or disk file is needed. URL input hashes are finalized after the reader has consumed
 the source; URLs not consumed through this shared loader remain `unavailable`.
+
+Pass a path or URL directly to `attach_sdrf` or `add_meta` to record its location
+and file-content hash in provenance. A separately loaded DataFrame records its
+table content; its original file location cannot be recovered from the DataFrame.
 
 Download buffers are retained until the logged call finishes and are closed on success or
 failure. Peak memory can include all downloaded source bytes plus parsed tables. This is a
@@ -329,8 +343,9 @@ By default, every recorded input/output must have a SHA-256 hash. Replay checks 
 content before each call and checks each returned MuData against its recorded output hash.
 It reuses output hashes produced by the logging decorator. A mismatch stops replay;
 partial results are not returned. URL verification and reading share one in-memory download
-per call. Source replacements only change paths, not the expected hashes. If a reader stores
-source locations as data metadata, relocating a file can also change its output hash.
+per call. Source replacements only change paths, not the expected hashes. Readers
+record source locations in provenance, so relocating unchanged input files does
+not change their output hashes.
 
 Replay validates the complete event graph before executing any processing function. It resolves
 only supported public `msmu` functions and never imports arbitrary function paths from the log.

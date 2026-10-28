@@ -24,7 +24,7 @@ CANONICAL_CONTAMINANT_PREFIX = "Cont_"
 CANONICAL_DECOY_PREFIX = "rev_"
 
 
-@log_provenance
+@log_provenance(file_inputs=("fasta_file",))
 def attach_fasta(mdata: md.MuData, fasta_file: str | None) -> md.MuData:
     """
     Attach FASTA metadata to the MuData object.

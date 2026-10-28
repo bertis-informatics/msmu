@@ -86,8 +86,8 @@ from pathlib import Path
 mdata = mm.pp.adjust_ptm_by_protein(mdata, global_mdata=Path("global/02_processed.h5mu"))
 ```
 
-Pass a `Path` rather than a `str`: provenance records a string as a file only when the parameter's
-name says so, and this one's does not, so a string is read correctly but recorded without a hash.
+Both `Path` objects and string paths are recorded with a file-content hash because
+`global_mdata` is explicitly declared as a file input.
 
 ### Where the result goes
 

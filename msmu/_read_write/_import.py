@@ -35,7 +35,7 @@ def _sample_names_from_obs(mdata: md.MuData, index_name: str | None) -> dict[str
     return {strip_ms_extensions(str(filename)): str(obs_name) for filename, obs_name in zip(filenames, obs_df.index)}
 
 
-@log_provenance
+@log_provenance(file_inputs=("quant_data",))
 def add_quant(
     mdata: md.MuData,
     quant_data: str | PathLike[str] | pd.DataFrame,

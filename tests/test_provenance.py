@@ -223,7 +223,7 @@ def test_file_hash_snapshot_and_options_restore(tmp_path):
     path.write_text("before")
     digest = compute_hash(path)
 
-    @mm.pv.log
+    @mm.pv.log(file_inputs=("input_file",))
     def reader(input_file):
         Path(input_file).write_text("after")
         return data()

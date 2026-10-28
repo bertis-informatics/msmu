@@ -121,7 +121,7 @@ def test_read_sdrf_preserves_literal_na_tokens_and_zero_padded_identifiers(tmp_p
     assert metadata["assay name"].tolist() == ["0001", "0002", "0003", "0004", "0005"]
     assert metadata["factor value[condition]"].iloc[:3].tolist() == ["NA", "NaN", "null"]
     assert metadata["factor value[condition]"].iloc[3:].isna().all()
-    assert metadata.attrs["sdrf_file"] == str(path)
+    assert metadata.attrs == {}
 
 
 def test_read_sdrf_reports_empty_source(tmp_path):
@@ -151,8 +151,40 @@ def test_read_sdrf_reads_url_like_sources_via_tabular_ingestion(monkeypatch):
     metadata = mm.read_sdrf(url, validate_sdrf=False)
 
     assert metadata.loc[0, "source name"] == "sample_1"
-    assert metadata.attrs["sdrf_file"] == url
+    assert metadata.attrs == {}
     assert opened == [url]
+
+
+def test_read_sdrf_validation_uses_explicit_path_without_storing_it(monkeypatch, tmp_path):
+    path = _write_sdrf(tmp_path, "source name\n001\n")
+    validated = []
+    monkeypatch.setattr(sdrf_tools, "validate_sdrf_dataframe", lambda dataframe, **kwargs: validated.append(kwargs))
+
+    metadata = meta_module.read_sdrf(path)
+
+    assert metadata.attrs == {}
+    assert validated[0]["source"] == str(path)
+
+
+@pytest.mark.parametrize("operation", ["validate", "attach", "add-meta"])
+def test_sdrf_dataframe_validation_ignores_source_attrs(monkeypatch, caplog, operation):
+    metadata = pd.DataFrame({"source name": ["sample_1"], "comment[data file]": ["run_1.raw"]})
+    metadata.attrs = {"sdrf_file": "legacy-source.tsv", "user_note": "keep"}
+    validated = []
+    monkeypatch.setattr(sdrf_tools, "validate_sdrf_dataframe", lambda dataframe, **kwargs: validated.append(kwargs))
+
+    with caplog.at_level(logging.INFO, logger="msmu"):
+        if operation == "validate":
+            meta_module.validate_sdrf_file(metadata)
+        elif operation == "attach":
+            mm.pp.attach_sdrf(_make_mdata(["run_1.raw"]), metadata)
+        else:
+            add_meta(_make_mdata(["run_1.raw"]), metadata, format="sdrf", metadata_on="comment[data file]")
+
+    assert validated[0]["source"] is None
+    assert "Validating SDRF metadata for DataFrame." in caplog.text
+    assert "legacy-source.tsv" not in caplog.text
+    assert metadata.attrs == {"sdrf_file": "legacy-source.tsv", "user_note": "keep"}
 
 
 def test_add_meta_sdrf_validates_through_pipeline_and_only_logs_validation_result(monkeypatch, tmp_path):
@@ -238,7 +270,7 @@ def test_add_meta_sdrf_raw_dataframe_keeps_headers_before_matching(monkeypatch, 
         "comment[data file]",
         "factor value[condition]",
     ]
-    assert validated[0]["source_name"] == "DataFrame"
+    assert validated[0]["source_name"] is None
 
 
 def test_add_meta_sdrf_defaults_to_metadata_index_when_metadata_on_is_omitted(tmp_path):

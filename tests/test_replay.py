@@ -229,7 +229,7 @@ def test_script_roundtrip_and_source_replacement(tmp_path):
     assert all(key not in script for key in ("duration_seconds", "started_at", "ended_at"))
     assert "mm.pv.set_options(hashing=True)" in script
     assert "mm.pv.options(" not in script
-    assert "mdata = mm.pv.log(mm.read_h5mu)(" in script
+    assert "mdata = mm.pv.log(mm.read_h5mu, file_inputs=('h5mu_file',))(" in script
     assert "mdata = mm.pp.log2_transform(mdata=mdata," in script
     namespace = {}
     with options(hashing=False):

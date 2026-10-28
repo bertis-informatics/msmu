@@ -315,7 +315,7 @@ def replay(history: md.MuData | dict, *, sources: dict | None = None, verify: bo
                     if entity["type"] == "MuData":
                         _check_digest(compute_hash(results[bindings[entity["role"]]], significant_digits=_precision(event),
                                                    normalization=event["outputs"][0]["hash"].get("normalization")), entity, event)
-            call = mm.pv.log(func) if func is mm.read_h5mu else func
+            call = mm.pv.log(func, file_inputs=("h5mu_file",)) if func is mm.read_h5mu else func
             result = call(*bound.args, **bound.kwargs)
             if not isinstance(result, md.MuData):
                 raise ValueError(f"Replay expected a MuData return from {event['function']}")
@@ -508,7 +508,7 @@ def to_script(
             else:
                 arguments.append(f"{name}={value}")
         variable = variables[event["id"]]
-        call = f"mm.pv.log({names[func]})" if func is mm.read_h5mu else names[func]
+        call = f"mm.pv.log({names[func]}, file_inputs=('h5mu_file',))" if func is mm.read_h5mu else names[func]
         lines.append(f"    {variable} = {call}({', '.join(arguments)})")
         if verify:
             lines.append(f"    _verify_output({variable}, event, previous_head)")
