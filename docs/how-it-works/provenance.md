@@ -79,7 +79,7 @@ MuData object is not supported.
 
 ## Hashing policy
 
-The `msmu-v2` policy normalizes floating-point values to **12 significant digits**
+The `msmu-v3` policy normalizes floating-point values to **12 significant digits**
 when computing hashes. Stored values and analysis calculations are unchanged.
 Files, identifiers/axes, strings, integers, booleans and numeric dtypes remain exact.
 Sparse matrices stay sparse; floating-point scratch buffers are processed in chunks.
@@ -89,8 +89,14 @@ mm.pv.set_options(hashing=True)
 digest = mm.pv.compute_hash(mdata)
 ```
 
-Completed data hashes record `normalization="msmu-v2"`. Replay and generated
+Completed data hashes record `normalization="msmu-v3"`. Replay and generated
 scripts use the recorded policy to verify inputs and outputs.
+
+The top-level `identification_file` and `quantification_file` keys in global and
+modality `uns` are excluded from data hashes. These source locations remain stored
+as metadata, so relocating an unchanged input file does not change the reader's
+output hash. Source file contents are still verified; sample filenames and other
+analytical metadata remain significant.
 
 Within global and modality `uns`, rectangular lists hash as the NumPy arrays that
 AnnData writes to H5MU. Filter-name lists and nested normalization sample lists
@@ -101,12 +107,14 @@ of mixed string/numeric lists to strings. Type distinctions erased by that conve
 are not significant. Ragged and object-valued lists retain sequence hashing; this
 does not make them H5MU-serializable. Lists outside `uns` keep their original semantics.
 
-Historical `msmu-v1`, `significant-digits-v1` and exact hashes retain their original
+Historical `msmu-v1`, `msmu-v2`, `significant-digits-v1` and exact hashes retain their original
 definitions for replay and generated scripts. Existing digests are never relabeled
 or rewritten. Continuing an old workflow checks its input under the old policy
-before recording the new step with `msmu-v2`. Mixed `msmu-v1`/`msmu-v2` histories
+before recording the new step with `msmu-v3`. Mixed `msmu-v1`/`msmu-v2`/`msmu-v3` histories
 require `verify=True` for replay and script export so each step can be checked under
 its own policy. Other changes of hash precision remain unsupported between steps.
+Scripts exported while `msmu-v2` was the default may rely on that default.
+Regenerate them with `to_script` from saved histories after upgrading.
 
 An old `msmu-v1` checkpoint whose lists have already become arrays can still fail
 its historical check: the original container types are no longer available. Rerun
@@ -146,7 +154,8 @@ unreadable inputs produce `unavailable` with a reason; these must never be inter
 matching content. Explicit [`compute_hash`](../reference/pv/compute_hash.md) calls raise an exception for unsupported content.
 
 The MuData hash covers global and modality `obs`, `var`, aligned mappings, `uns`,
-MuData axis maps, AnnData `.X`, named layers and `.raw`. Only each object's `_log` is excluded.
+MuData axis maps, AnnData `.X`, named layers and `.raw`. Each object's `_log` and
+top-level `uns` source-location keys described above are excluded.
 Numeric dtype, shape, values, axis labels/order, and metadata affect the digest. Numeric
 arrays use canonical byte order and NaN payloads. Sparse arrays are copied to canonical CSR,
 with sorted/combined entries, without densification. Explicit zero entries remain meaningful;
@@ -329,8 +338,10 @@ By default, every recorded input/output must have a SHA-256 hash. Replay checks 
 content before each call and checks each returned MuData against its recorded output hash.
 It reuses output hashes produced by the logging decorator. A mismatch stops replay;
 partial results are not returned. URL verification and reading share one in-memory download
-per call. Source replacements only change paths, not the expected hashes. If a reader stores
-source locations as data metadata, relocating a file can also change its output hash.
+per call. Source replacements only change paths, not the expected hashes. The current
+policy excludes `uns['identification_file']` and `uns['quantification_file']` from data
+hashes, allowing these locations to change during replay. Historical policies still
+include those keys, so relocating a source can fail their output verification.
 
 Replay validates the complete event graph before executing any processing function. It resolves
 only supported public `msmu` functions and never imports arbitrary function paths from the log.
