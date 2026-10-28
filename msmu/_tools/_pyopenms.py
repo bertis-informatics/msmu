@@ -272,7 +272,7 @@ def compute_precursor_isolation_purity_from_mzml(
         A `PurityResult` object, not a `DataFrame`. `.to_df()` returns columns `purity`, `scan_num`, and `filename`; `.hist()` and `.box()` return `plotly` figures.
 
     Notes:
-        Requires `pyopenms` at execution time. Input files are read, not modified. To attach results to PSM data, use [`compute_precursor_isolation_purity`][msmu.tl.compute_precursor_isolation_purity].
+        Requires [`pyopenms`](https://pyopenms.readthedocs.io/) (<a href="#ref-rost-2014">Röst et al., 2014</a>) at execution time. Input files are read, not modified. To attach results to PSM data, use [`compute_precursor_isolation_purity`][msmu.tl.compute_precursor_isolation_purity].
 
     Examples:
         ```python
@@ -282,6 +282,14 @@ def compute_precursor_isolation_purity_from_mzml(
         fig = result.hist()
         fig.show()
         ```
+
+    References:
+        <a id="ref-rost-2014"></a>
+
+        > Röst, H. L., Schmitt, U., Aebersold, R., and Malmström, L.
+        > pyOpenMS: a Python-based interface to the OpenMS mass-spectrometry algorithm library.
+        > *Proteomics* 14(1), 74–77 (2014).
+        > [https://doi.org/10.1002/pmic.201300246](https://doi.org/10.1002/pmic.201300246).
     """
     if isinstance(mzml_paths, (str, Path)):
         mzml_paths = [mzml_paths]
@@ -331,13 +339,21 @@ def compute_precursor_isolation_purity(
         `md.MuData`: `MuData` object containing purity results.
 
     Notes:
-        Requires `psm.var` columns `filename` and `scan_num` and matching local mzML files. Returns a copy with scores in `psm.var["purity"]`; the input is unchanged. `pyopenms` is loaded at execution time. For standalone results and plotting, see [`compute_precursor_isolation_purity_from_mzml`][msmu.tl.compute_precursor_isolation_purity_from_mzml].
+        Requires `psm.var` columns `filename` and `scan_num` and matching local mzML files. Returns a copy with scores in `psm.var["purity"]`; the input is unchanged. [`pyopenms`](https://pyopenms.readthedocs.io/) (<a href="#ref-rost-2014">Röst et al., 2014</a>) is loaded at execution time. For standalone results and plotting, see [`compute_precursor_isolation_purity_from_mzml`][msmu.tl.compute_precursor_isolation_purity_from_mzml].
 
     Examples:
         ```python
         import msmu as mm
         mdata = mm.tl.compute_precursor_isolation_purity(mdata, ["sample.mzML"])
         ```
+
+    References:
+        <a id="ref-rost-2014"></a>
+
+        > Röst, H. L., Schmitt, U., Aebersold, R., and Malmström, L.
+        > pyOpenMS: a Python-based interface to the OpenMS mass-spectrometry algorithm library.
+        > *Proteomics* 14(1), 74–77 (2014).
+        > [https://doi.org/10.1002/pmic.201300246](https://doi.org/10.1002/pmic.201300246).
     """
 
     if isinstance(mzml_paths, (str, Path)):
