@@ -12,6 +12,7 @@ import polars as pl
 from mudata import MuData
 
 from .._core._provenance import log_provenance
+from .._utils._mudata import copy_mudata, realign_global_var
 from .._core._sources import open_source
 from .._core._tabular import read_delimited
 from .._tools import _sdrf_pipelines as sdrf_tools
@@ -78,7 +79,7 @@ def add_meta(
     )
     _validate_metadata_dataframe(dataframe)
 
-    out = mdata.copy()
+    out = copy_mudata(mdata)
     _attach_metadata_to_modalities(
         out,
         dataframe,
@@ -166,7 +167,7 @@ def attach_sdrf(
     else:
         sdrf_frame = read_sdrf(sdrf, validate=validate, skip_ontology=skip_ontology)
 
-    out = mdata.copy()
+    out = copy_mudata(mdata)
     out.uns["sdrf"] = sdrf_frame
     return out
 
@@ -239,7 +240,7 @@ def apply_sdrf_to_obs(
     on, sdrf, composite_parts = _resolve_match_on(on, sdrf)
     requested_columns = _normalise_sdrf_columns(columns)
 
-    out = _copy_in_sdrf_order(mdata, sdrf, on=on) if order_obs else mdata.copy()
+    out = _copy_in_sdrf_order(mdata, sdrf, on=on) if order_obs else copy_mudata(mdata)
     projected_columns: list[str] = []  # preserve SDRF column order, deduped across modalities
     for mod_name in out.mod.keys():
         adata = out.mod[mod_name]
@@ -257,8 +258,9 @@ def apply_sdrf_to_obs(
                 projected_columns.append(column)
         if set_index is not None:
             _relabel_obsm_frames(adata)
-    out.update()
-    # update() syncs obs *names* across modalities but not obs *columns*, so merge the projected
+    realign_global_var(out)
+    out.update_obs()
+    # update_obs() syncs obs *names* across modalities but not obs *columns*, so merge the projected
     # columns onto the MuData-level obs too (consumers like correct_batch_effect read mdata.obs).
     if projected_columns:
         out.obs = _merge_obs_metadata(out.obs, _collect_mudata_obs_metadata(out, projected_columns))
@@ -306,7 +308,7 @@ def _copy_in_sdrf_order(mdata: MuData, sdrf: pd.DataFrame, *, on: str | None) ->
     """
     ordered_obs_names = _obs_names_in_sdrf_order(mdata, sdrf, on=on)
     if ordered_obs_names == list(mdata.obs_names):
-        return mdata.copy()
+        return copy_mudata(mdata)
     return mdata[ordered_obs_names, :].copy()
 
 

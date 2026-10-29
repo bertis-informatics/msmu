@@ -5,7 +5,7 @@ from typing import Literal
 import pandas as pd
 from mudata import MuData
 
-from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
+from .._utils._mudata import copy_mudata, get_anndata_mod, get_mudata_mod_as_mutable
 from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
@@ -51,7 +51,7 @@ def add_filter(
     if name is not None and (not isinstance(name, str) or not name.strip() or "/" in name):
         raise ValueError("name must be a nonblank string without slashes")
 
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     mstatus = MuDataStatus(mdata)
 
     if on in {"varm", "obsm"} and key is None:
@@ -198,7 +198,7 @@ def apply_filter(
     if on not in {"all", "var", "obs"}:
         raise ValueError(f"Unknown filter axis: {on}")
 
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     mstatus = MuDataStatus(mdata)
 
     adata_to_filter = get_anndata_mod(mdata, modality)
@@ -313,4 +313,4 @@ def apply_filter(
 
     get_mudata_mod_as_mutable(mdata)[modality] = filtered_adata
 
-    return mdata.copy()
+    return copy_mudata(mdata)

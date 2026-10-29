@@ -5,7 +5,7 @@ Module for correlation plots in MuData.
 from typing import Literal
 from mudata import MuData
 
-from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
+from .._utils._mudata import copy_mudata, get_anndata_mod, get_mudata_mod_as_mutable
 from .._core._blockdiag import to_dense_df
 from .._core._provenance import log_provenance
 
@@ -30,7 +30,7 @@ def corr(
         The input `MuData` (copied) with the correlation matrix stored in the modality's
         ``.obsp["X_corr"]``.
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     adata = get_anndata_mod(mdata, modality).copy()
 
     if layer is not None and layer not in adata.layers:

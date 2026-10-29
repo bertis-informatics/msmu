@@ -4,7 +4,7 @@ import anndata as ad
 import mudata as md
 import numpy as np
 
-from .._utils._mudata import get_anndata_mod
+from .._utils._mudata import copy_mudata, get_anndata_mod
 from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise, to_observed_sparse
 import pandas as pd
@@ -32,7 +32,7 @@ def log2_transform(
     Returns:
         Transformed `MuData` object.
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     adata = get_anndata_mod(mdata, modality)
 
     if layer is None:
@@ -69,7 +69,7 @@ def scale_data(
     Returns:
         Scaled `MuData` object.
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     adata = get_anndata_mod(mdata, modality)
 
     if layer is None:
@@ -173,7 +173,7 @@ def normalise(
 
     axis: str = "obs"
 
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     adata: ad.AnnData = get_anndata_mod(mdata, modality)
     norm_cls: Normalisation = Normalisation(method=method, axis=axis)
 
@@ -627,7 +627,7 @@ def adjust_ptm_by_protein(
         > *Molecular & Cellular Proteomics* 23, 100708 (2024).
         > [https://doi.org/10.1016/j.mcpro.2023.100708](https://doi.org/10.1016/j.mcpro.2023.100708).
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
 
     ptm_adjuster: PTMProteinAdjuster = PTMProteinAdjuster(
         ptm_mdata=mdata,

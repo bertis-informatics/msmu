@@ -13,6 +13,7 @@ import anndata as ad
 import mudata as md
 
 from .._core._provenance import log_provenance
+from .._utils._mudata import copy_mudata
 from .._utils._anndata import _require_columns
 import plotly.graph_objects as go
 
@@ -399,7 +400,7 @@ def compute_precursor_isolation_purity(
     purity_result_df = purity_result_df.rename_axis(None)
     purity_result_df["scan_num"] = purity_result_df["scan_num"].astype(int)
 
-    purity_mdata = mdata.copy()
+    purity_mdata = copy_mudata(mdata)
     purity_mdata.mod["psm"].var["purity"] = purity_result_df["purity"]
 
     return purity_mdata
