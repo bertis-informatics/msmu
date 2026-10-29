@@ -6,6 +6,17 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+### Changed
+
+- **Processing calls no longer re-align the global `.var` on every copy.** mudata's
+  `MuData.copy()` rebuilds the MuData-level bookkeeping through `update()`, whose cost
+  grows with the number of PSM features and, with pandas 3 string indexes, dominated
+  every step on large DIA data even when the step did not touch the PSM modality. msmu
+  now copies the parts as they are and rebuilds only what a call leaves stale, in the
+  layout mudata produces. Provenance hashes and recorded events are unchanged, so
+  existing histories replay as before. On a 958-run synthetic DIA-NN dataset the DIA
+  tutorial pipeline takes about 10 s instead of about 100 s, with a lower peak memory.
+
 ## [0.4.5] - 2026-10-28
 
 ### Changed

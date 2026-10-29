@@ -5,6 +5,7 @@ from Bio import SeqIO
 import mudata as md
 
 from .._core._provenance import log_provenance
+from ._mudata import copy_mudata
 from ._anndata import _resolve_accession_column
 from ..logging_utils import get_logger
 
@@ -36,7 +37,7 @@ def attach_fasta(mdata: md.MuData, fasta_file: str | None) -> md.MuData:
     Returns:
         `MuData` object with attached FASTA metadata.
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     if fasta_file is not None:
         fasta_meta = _get_protein_info_from_fasta(fasta_file)
         mdata.uns["protein_info"] = fasta_meta
@@ -231,7 +232,7 @@ def map_fasta(
     Returns:
         `MuData` object with updated modality `.var`.
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     fasta_meta = mdata.uns["protein_info"]
 
     for category in categories:
