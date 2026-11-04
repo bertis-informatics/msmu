@@ -9,7 +9,7 @@ from sklearn.linear_model import Ridge
 from dataclasses import dataclass
 from typing import Callable, Literal, get_args
 
-from .._utils._mudata import get_anndata_mod, get_mudata_mod_as_mutable
+from .._utils._mudata import copy_mudata, get_anndata_mod
 from .._utils._anndata import _require_columns
 from .._utils._pandas import split_delimited_strings
 from .._core._blockdiag import to_dense_df
@@ -677,8 +677,9 @@ class PTMProteinAdjuster:
         its raw abundance, so residuals and raw abundances never share a matrix; ``adjustment_status``
         records why for each one.
         """
-        adj_ptm_mdata: md.MuData = self.ptm_mdata.copy()
-        adj_ptm_adata = get_anndata_mod(adj_ptm_mdata, self.ptm_mod).copy()
+        # No site is dropped or renamed, so the copied modality is adjusted in place.
+        adj_ptm_mdata: md.MuData = copy_mudata(self.ptm_mdata)
+        adj_ptm_adata = get_anndata_mod(adj_ptm_mdata, self.ptm_mod)
 
         adjusted_matrix = pd.DataFrame(
             np.nan,
@@ -713,9 +714,6 @@ class PTMProteinAdjuster:
         adj_ptm_adata.var["denominator_group"] = self.resolution["denominator_group"].reindex(adj_ptm_adata.var_names)
         adj_ptm_adata.var["adjustment_status"] = final_status
         adj_ptm_adata.var["is_protein_adjusted"] = produced_values
-
-        get_mudata_mod_as_mutable(adj_ptm_mdata)[self.ptm_mod] = adj_ptm_adata.copy()
-        adj_ptm_mdata.update()
 
         logger.info(
             "Protein-adjusted %s written to %s; %d of %d sites are NaN because they could not be adjusted.",

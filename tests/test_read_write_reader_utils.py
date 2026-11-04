@@ -150,13 +150,6 @@ def test_concat_failure_does_not_remove_input_masks(mdata_factory, monkeypatch):
     assert {name: compute_hash(data) for name, data in inputs.items()} == before
 
 
-def test_add_modality_requires_parent_mods(mdata_factory):
-    mdata = mdata_factory("a")
-    new_adata = AnnData(np.array([[1.0]]))
-    with pytest.raises(ValueError, match="parent_mods should not be empty"):
-        add_modality(mdata=mdata, adata=new_adata, mod_name="peptide", parent_mods=[])
-
-
 def test_add_modality_inserts_modality(mdata_factory):
     mdata = mdata_factory("a")
     new_adata = AnnData(
@@ -164,8 +157,16 @@ def test_add_modality_inserts_modality(mdata_factory):
         obs=pd.DataFrame(index=["a_s1"]),
         var=pd.DataFrame(index=["p1"]),
     )
-    out = add_modality(mdata=mdata, adata=new_adata, mod_name="peptide", parent_mods=["psm"])
+    out = add_modality(mdata=mdata, adata=new_adata, mod_name="peptide")
     assert "peptide" in out.mod
+    assert out.obsmap["peptide"].ravel().tolist() == [1, 0]
+
+
+def test_add_modality_rejects_observations_outside_the_container(mdata_factory):
+    mdata = mdata_factory("a")
+    new_adata = AnnData(np.array([[1.0]]), obs=pd.DataFrame(index=["unknown"]), var=pd.DataFrame(index=["p1"]))
+    with pytest.raises(ValueError, match="not present in mdata.obs.index"):
+        add_modality(mdata=mdata, adata=new_adata, mod_name="peptide")
 
 
 def test_to_categorical_casts_string_columns_and_preserves_missing_values():

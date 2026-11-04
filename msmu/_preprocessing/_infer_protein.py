@@ -7,6 +7,7 @@ import pandas as pd
 import scipy.sparse as sp
 
 from .._core._provenance import log_provenance
+from .._utils._mudata import copy_mudata
 from .._core._status import AnnDataFlags, MuDataStatus
 from .._utils._anndata import _require_columns
 from .._utils._pandas import split_delimited_strings
@@ -41,7 +42,7 @@ def infer_protein(
     """
     logger.info("Starting protein inference")
 
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     modality_status = _get_modality_status(mdata, modality)
     _require_columns(
         mdata.mod[modality].var,

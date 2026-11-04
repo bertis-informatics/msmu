@@ -1,19 +1,54 @@
+"""MuData access and bookkeeping helpers.
+
+Contract: every msmu call receives a MuData whose MuData-level bookkeeping (global ``obs``/``var``,
+``obsmap``/``varmap``, ``obsm``/``varm`` masks) is finished, meaning mudata's ``update()`` would leave
+it unchanged, and returns one in the same state. The provenance hash covers that bookkeeping.
+
+- ``copy_mudata`` copies the parts without rebuilding them (``MuData.copy()`` reruns ``update()``).
+- ``add_modality`` / ``replace_modality`` insert or swap a modality and finish the bookkeeping.
+- ``refresh_global_obs`` finishes the obs side for calls that only relabel observations.
+
+These helpers read mudata's private attributes, so mudata is pinned to a minor in pyproject.
+"""
+
+import copy as copy_module
 from collections.abc import MutableMapping
+from hashlib import sha1
 from typing import Any, TypeAlias, cast
 
 import anndata as ad
 import mudata as md
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
+from anndata._core.aligned_mapping import AxisArrays, PairwiseArrays
+from mudata._core.file_backing import MuDataFileManager
+from mudata._core.mudata import ModalityMapAxisArrays, ModDict
 
 from .._core._provenance import log_provenance
 from ..logging_utils import get_logger
 
 MutableMuDataMod: TypeAlias = MutableMapping[str, ad.AnnData | md.MuData]
-MutableMuDataObsMap: TypeAlias = MutableMapping[str, NDArray[np.integer]]
+
+# dtype mudata gives obsmap/varmap: 0 marks "not in this modality", 1.. the position in the modality.
+MODALITY_MAP_DTYPE = np.uint32
+
+# Aligned-mapping attributes of a MuData, with the class and axis mudata builds them with. They hold a
+# reference to their parent, so a copy is constructed for the new parent instead of deep-copied.
+_ALIGNED_MAPPING_CLASSES: dict[str, tuple[type, int]] = {
+    "_obsm": (AxisArrays, 0),
+    "_varm": (AxisArrays, 1),
+    "_obsp": (PairwiseArrays, 0),
+    "_varp": (PairwiseArrays, 1),
+    "_obsmap": (ModalityMapAxisArrays, 0),
+    "_varmap": (ModalityMapAxisArrays, 1),
+}
 
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------------------------------
+# Typed access
+# ---------------------------------------------------------------------------------------------------
 
 
 def get_anndata_mod(mdata: md.MuData, mod_name: str) -> ad.AnnData:
@@ -46,71 +81,177 @@ def mutable_mudata_mod(mdata: md.MuData) -> MutableMuDataMod:
     return cast(MutableMuDataMod, mdata.mod)
 
 
-def get_mudata_mod_as_mutable(mdata: md.MuData) -> MutableMuDataMod:
-    """Return the mutable modality mapping with MuData's runtime value types."""
-    return mutable_mudata_mod(mdata)
+# ---------------------------------------------------------------------------------------------------
+# Copying
+# ---------------------------------------------------------------------------------------------------
 
 
-def mutable_mudata_obsmap(mdata: md.MuData) -> MutableMuDataObsMap:
-    return cast(MutableMuDataObsMap, mdata.obsmap)
+def _copy_part(value: Any) -> Any:
+    """Copy one stored part: pandas, numpy and sparse containers by their own ``copy()``, everything else deeply."""
+    if isinstance(value, dict):
+        return copy_module.deepcopy(value)
+    if hasattr(value, "copy"):
+        return value.copy()
+    return copy_module.deepcopy(value)
 
 
-def add_modality(
-    mdata: md.MuData,
-    adata: ad.AnnData,
-    mod_name: str,
-    parent_mods: list[str] | None = None,
-) -> md.MuData:
+def copy_mudata(mdata: md.MuData) -> md.MuData:
+    """Copy ``mdata`` without rebuilding its bookkeeping.
+
+    The source is not modified. A container edited by hand (``mdata.mod[name] = adata`` without
+    ``update()``) is copied as it is. Views and backed objects go through ``MuData.copy()``.
     """
-    Add a modality to MuData while keeping obs/var mappings consistent.
+    if mdata.is_view or mdata.isbacked:
+        return mdata.copy()
+    copied = md.MuData.__new__(md.MuData)
+    for attribute_name, value in vars(mdata).items():
+        if attribute_name == "_mod":
+            modalities = ModDict()
+            for modality_name, modality in value.items():
+                modalities[modality_name] = modality.copy()
+            copied_value: Any = modalities
+        elif attribute_name in _ALIGNED_MAPPING_CLASSES:
+            mapping_class, axis = _ALIGNED_MAPPING_CLASSES[attribute_name]
+            copied_value = mapping_class(
+                copied, axis=axis, store={key: _copy_part(item) for key, item in value.items()}
+            )
+        elif isinstance(value, MuDataFileManager):
+            copied_value = MuDataFileManager()  # the copy is not backed by the source file
+        else:
+            copied_value = _copy_part(value)
+        copied.__dict__[attribute_name] = copied_value
+    return copied
 
-    This helper is shared across readers and preprocessors so modality insertion
-    follows one contract. The new modality may cover all or part of the existing
-    MuData observations, but it may not introduce observations outside
-    ``mdata.obs.index``.
+
+# ---------------------------------------------------------------------------------------------------
+# Finishing the bookkeeping after a modality changed
+# ---------------------------------------------------------------------------------------------------
+
+
+def _has_plain_global_var(mdata: md.MuData) -> bool:
+    """Whether the global var is the layout msmu readers produce: ``axis=0``, no global var columns, no
+    varm beyond the modality masks and no varp.
     """
-    if parent_mods is not None:
-        if not parent_mods:
-            raise ValueError("parent_mods should not be empty.")
+    return (
+        mdata.axis == 0
+        and mdata._var.shape[1] == 0
+        and set(mdata._varm.keys()) <= set(mdata.mod.keys())
+        and len(mdata._varp) == 0
+    )
 
-        obsmap_list = [mdata.obsmap[parent_mod] for parent_mod in parent_mods]
-        merged_obsmap = obsmap_list[0].copy()
-        for obsmap in obsmap_list[1:]:
-            merged_obsmap = merged_obsmap + obsmap
-        zero_indices = merged_obsmap == 0
-        merged_obsmap = np.arange(1, len(merged_obsmap) + 1, dtype=int).reshape(-1, 1)
-        merged_obsmap[zero_indices] = 0
 
-        mutable_mudata_mod(mdata)[mod_name] = adata
-        mutable_mudata_obsmap(mdata)[mod_name] = merged_obsmap
+def _concatenate_var_names(modalities: list[ad.AnnData]) -> pd.Index:
+    return pd.Index([]).append([modality.var_names for modality in modalities])
 
-        mdata.push_obs()
+
+def _rebuild_global_var(mdata: md.MuData, global_var_names: pd.Index | None = None) -> None:
+    """Rebuild the global var, ``varmap`` and ``varm`` masks in place.
+
+    The plain layout with unique var names is built directly: the modalities' var names in modality
+    order, with contiguous 1..n blocks. Any other container goes through ``update_var()``, which keeps
+    the existing rows in place and appends a renamed modality's new names last; either state is one
+    ``update()`` leaves unchanged. ``global_var_names`` is the concatenated var names when the caller
+    already built them.
+    """
+    modalities = list(mdata.mod.items())
+    modality_names = [name for name, _ in modalities]
+    if global_var_names is None:
+        global_var_names = _concatenate_var_names([modality for _, modality in modalities])
+    if not (_has_plain_global_var(mdata) and global_var_names.is_unique):
         mdata.update_var()
+        return
 
-        return mdata
+    global_var_names.name = mdata._var.index.name
+    # mudata's global var has no columns and its empty columns Index is string-typed (the label dtype
+    # of the modality columns it drops); pandas' default RangeIndex would change the provenance hash.
+    mdata._var = pd.DataFrame(index=global_var_names, columns=pd.Index([], dtype="str"))
+    for removed_name in [name for name in list(mdata._varmap.keys()) if name not in modality_names]:
+        del mdata._varmap[removed_name]
+    block_start = 0
+    for modality_name, modality in modalities:
+        varmap = np.zeros(len(global_var_names), dtype=MODALITY_MAP_DTYPE)
+        varmap[block_start : block_start + modality.n_vars] = np.arange(
+            1, modality.n_vars + 1, dtype=MODALITY_MAP_DTYPE
+        )
+        mdata._varmap[modality_name] = varmap
+        mdata._varm[modality_name] = varmap > 0
+        block_start += modality.n_vars
+    # mudata caches a sha1 of every modality's var index and columns to skip update_var() when nothing
+    # changed; leave it as an update would. (The sha1 runs over the array of string pointers, so with
+    # arrow-backed indexes it never hits and mudata re-aligns on every copy, which is why copy_mudata
+    # exists.)
+    mdata._varhash = {
+        modality_name: (
+            sha1(np.ascontiguousarray(modality.var.index.values)).hexdigest(),
+            sha1(np.ascontiguousarray(modality.var.columns.values)).hexdigest(),
+        )
+        for modality_name, modality in modalities
+    }
 
+
+def refresh_global_obs(mdata: md.MuData) -> None:
+    """Rebuild the global obs, ``obsmap`` and ``obsm`` masks in place with ``update_obs()``; mudata's change
+    cache is cleared first so observations relabelled in place are not skipped.
+    """
+    mdata.__dict__.pop("_obshash", None)
+    mdata.update_obs()
+
+
+def _check_observations_within_container(mdata: md.MuData, adata: ad.AnnData) -> None:
     if not mdata.obs.index.is_unique:
         raise ValueError("mdata.obs.index should be unique.")
-
     if not adata.obs.index.is_unique:
         raise ValueError("adata.obs.index should be unique.")
+    missing_obs_names = adata.obs.index.difference(mdata.obs.index).tolist()
+    if missing_obs_names:
+        raise ValueError(
+            f"adata.obs.index contains observations not present in mdata.obs.index: {missing_obs_names}"
+        )
 
-    mdata_obs_positions = {obs_name: index for index, obs_name in enumerate(mdata.obs.index)}
-    missing_obs = [obs_name for obs_name in adata.obs.index if obs_name not in mdata_obs_positions]
-    if missing_obs:
-        raise ValueError(f"adata.obs.index contains observations not present in mdata.obs.index: {missing_obs}")
 
-    new_obsmap = np.zeros((len(mdata.obs.index), 1), dtype=int)
-    for adata_index, obs_name in enumerate(adata.obs.index, start=1):
-        new_obsmap[mdata_obs_positions[obs_name], 0] = adata_index
+def add_modality(mdata: md.MuData, adata: ad.AnnData, mod_name: str) -> md.MuData:
+    """Insert ``adata`` as modality ``mod_name`` and finish the bookkeeping; returns ``mdata`` itself.
 
+    ``adata`` may cover part of the container's observations but none outside ``mdata.obs.index``.
+    Global obs columns are pushed onto the new modality.
+    """
+    _check_observations_within_container(mdata, adata)
     mutable_mudata_mod(mdata)[mod_name] = adata
-    mutable_mudata_obsmap(mdata)[mod_name] = new_obsmap
-
+    refresh_global_obs(mdata)  # gives the new modality its obsmap, which push_obs aligns through
     mdata.push_obs()
-    mdata.update_var()
-
+    _rebuild_global_var(mdata)
     return mdata
+
+
+def replace_modality(mdata: md.MuData, mod_name: str, adata: ad.AnnData) -> md.MuData:
+    """Replace modality ``mod_name`` with ``adata`` and finish the bookkeeping.
+
+    ``adata`` may drop or rename features but may not add observations outside ``mdata.obs.index``.
+    Whenever the rebuild would go through ``update_var()`` (a layout that is not plain, or a var name
+    shared with another modality) the old var rows are sliced away first: ``update_var()`` refuses a
+    modality renamed and filtered at once, and the slice makes the replacement an insertion to it. The
+    result is then a new object. Global obs columns are pushed onto the new modality, as in
+    ``add_modality``.
+    """
+    if mod_name not in mdata.mod:
+        raise KeyError(f"Modality '{mod_name}' not found in mdata.")
+    _check_observations_within_container(mdata, adata)
+    global_var_names = _concatenate_var_names(
+        [adata if name == mod_name else modality for name, modality in mdata.mod.items()]
+    )
+    if not (_has_plain_global_var(mdata) and global_var_names.is_unique):
+        old_var_names = mdata.mod[mod_name].var_names
+        mdata = mdata[:, ~mdata.var_names.isin(old_var_names)].copy()
+    mutable_mudata_mod(mdata)[mod_name] = adata
+    _rebuild_global_var(mdata, global_var_names)
+    refresh_global_obs(mdata)
+    mdata.push_obs()
+    return mdata
+
+
+# ---------------------------------------------------------------------------------------------------
+# Public utilities
+# ---------------------------------------------------------------------------------------------------
 
 
 @log_provenance
@@ -136,7 +277,7 @@ def reindex_obs(
         renamed = mm.utils.reindex_obs(mdata, column="sample")
         ```
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     if column not in mdata.obs.columns:
         msg = f"Column '{column}' not found in mdata.obs."
         logger.error(msg)
@@ -167,14 +308,14 @@ def reindex_obs(
 
 __all__ = [
     "MutableMuDataMod",
-    "MutableMuDataObsMap",
     "add_modality",
+    "copy_mudata",
     "get_anndata",
     "get_anndata_mod",
     "get_mudata",
     "get_mudata_mod",
-    "get_mudata_mod_as_mutable",
     "mutable_mudata_mod",
-    "mutable_mudata_obsmap",
+    "refresh_global_obs",
     "reindex_obs",
+    "replace_modality",
 ]

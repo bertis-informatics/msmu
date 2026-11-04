@@ -3,7 +3,7 @@ import warnings
 import anndata as ad
 import pandas as pd
 
-from .._utils._mudata import add_modality, get_anndata_mod, get_mudata, get_mudata_mod_as_mutable
+from .._utils._mudata import add_modality, copy_mudata, get_anndata_mod, replace_modality
 from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
@@ -76,7 +76,7 @@ def to_peptide(
             "factors and are intended for the peptide-to-protein step (to_protein)."
         )
 
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "psm")
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
@@ -180,9 +180,7 @@ def to_peptide(
             X=quant_df_agg.T,
             var=ident_df_agg,
         )
-        mdata = get_mudata(mdata[:, [v not in existing_peptide_adata.var_names for v in mdata.var_names]].copy())
-        get_mudata_mod_as_mutable(mdata)["peptide"] = peptide_adata
-        # mdata["peptide"].var = ident_df_agg
+        mdata = replace_modality(mdata, "peptide", peptide_adata)
 
     else:  # all other cases
         logger.info("Building new peptide quantification data.")
@@ -226,8 +224,7 @@ def to_protein(
     Returns:
         `MuData` object containing protein-level data.
     """
-    original_mdata = mdata.copy()
-    mdata = original_mdata.copy()
+    original_mdata = copy_mudata(mdata)
 
     mstatus = MuDataStatus(original_mdata)
     _protein_col: str = "protein_group"

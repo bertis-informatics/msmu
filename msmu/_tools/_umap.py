@@ -7,7 +7,7 @@ import pandas as pd
 from mudata import MuData
 from typing import Any
 
-from .._utils._mudata import get_anndata_mod
+from .._utils._mudata import copy_mudata, get_anndata_mod
 from .._core._blockdiag import to_dense_df
 from .._core._provenance import log_provenance
 
@@ -128,7 +128,7 @@ def umap(
         > UMAP: uniform manifold approximation and projection for dimension reduction.
         > arXiv:1802.03426 (2018). [https://doi.org/10.48550/arXiv.1802.03426](https://doi.org/10.48550/arXiv.1802.03426).
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
 
     # Drop columns with NaN values
     adata = get_anndata_mod(mdata, modality)
