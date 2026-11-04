@@ -1,6 +1,7 @@
 import re
 
 from .._core._provenance import log_provenance
+from ._mudata import copy_mudata
 from .._core._status import MuDataStatus
 from .fasta import CANONICAL_CONTAMINANT_PREFIX
 from ._anndata import _resolve_accession_column
@@ -27,7 +28,7 @@ def select_repr_protein(mdata: md.MuData, modality: str) -> md.MuData:
         `MuData` object with representative proteins selected
     """
 
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     mstatus = MuDataStatus(mdata)
 
     if modality not in mstatus.mod_names:

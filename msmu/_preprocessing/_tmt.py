@@ -82,7 +82,6 @@ def split_tmt(
     new_adata.uns = dict(psm_adata.uns)
 
     new_mdata = MuData({"psm": new_adata})
-    new_mdata.var = mdata.var.copy()
     new_mdata.uns = dict(mdata.uns)
     if derived_from_sdrf:
         # record the set column so apply_sdrf_to_obs can auto-build the (label, set) composite key

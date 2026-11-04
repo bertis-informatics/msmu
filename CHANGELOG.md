@@ -6,6 +6,41 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+### Changed
+
+- **Processing calls copy without rebuilding the MuData bookkeeping, and finish it before
+  returning.** mudata's `MuData.copy()` rebuilds the MuData-level bookkeeping (global `.var`,
+  modality maps, membership masks) through `update()`, whose cost grows with the number of
+  PSM features and, with pandas 3 string indexes, dominated every step on large DIA data even
+  when the step did not touch the PSM modality. msmu now copies the parts as they are; the
+  calls that insert or replace a modality rebuild the bookkeeping themselves, in the layout
+  mudata produces. On a 958-run synthetic DIA-NN dataset the DIA tutorial pipeline takes
+  about 12 s instead of about 100 s, with a lower peak memory.
+
+### Fixed
+
+- **A replaced peptide modality keeps the sample annotations.** When the peptide modality
+  already held quantification (DDA LFQ), `to_peptide` rebuilt it without the `.obs` columns
+  that `apply_sdrf_to_obs` or `add_meta` had attached, so a call that groups by a sample
+  annotation on the peptide modality, such as `normalise(modality="peptide", group_obs=...)`,
+  failed until `to_protein` pushed the columns back. The rebuilt modality now receives the
+  global `.obs` columns, as an added modality already did; `apply_filter`, which replaces the
+  modality the same way, pushes them too, which changes nothing when the modalities already
+  carry the columns. Histories recorded on such data get a different peptide hash from
+  `to_peptide` on.
+- **Workflows resumed from a checkpoint replay with verification.** `to_peptide`,
+  `to_protein` and `to_ptm` returned a `MuData` whose bookkeeping was only finished by the
+  next msmu call. Writing, re-loading, copying or updating that object in between changed its
+  provenance hash, so the next recorded call saw an input no recorded output matched and
+  `pv.replay(verify=True)` refused the history with "Unrecorded data changes". Every call now
+  returns a finished `MuData`.
+
+The `msmu-v2` hashing policy is unchanged, but the recorded output hashes of `to_peptide`,
+`to_protein` and `to_ptm` now describe the finished object. Replaying a history recorded
+with an earlier version therefore fails its output-hash check at those steps. Use the
+recorded original environment or regenerate the reference with the current version.
+Existing hashes are not rewritten.
+
 ## [0.4.5] - 2026-10-28
 
 ### Changed

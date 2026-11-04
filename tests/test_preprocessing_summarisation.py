@@ -442,3 +442,28 @@ def test_peptide_and_protein_summarisation_share_tied_pep_policy():
     mdata = mm.pp.to_protein(mm.pp.infer_protein(mdata))
     np.testing.assert_array_equal(mdata["protein"].var["q_value"], [0.4] * 5)
     np.testing.assert_array_equal(mdata["protein"].uns["decoy"]["q_value"], [0.4])
+
+
+def test_to_peptide_keeps_the_sample_annotations_on_a_replaced_peptide_modality():
+    # DDA LFQ: read_sage with the LFQ table creates the peptide modality up front, so to_peptide replaces it.
+    # The rebuilt modality must carry the SDRF columns, which calls grouping by a sample annotation read
+    # from the modality's own obs.
+    from pathlib import Path
+
+    import msmu as mm
+
+    dataset = Path(__file__).resolve().parents[1] / "data" / "sage_lfq"
+    mdata = mm.read_sage(
+        identification_file=str(dataset / "sage" / "results.sage.tsv"),
+        quantification_file=str(dataset / "sage" / "lfq.tsv"),
+        label="label_free",
+    )
+    mdata = mm.pp.apply_sdrf_to_obs(mm.pp.attach_sdrf(mdata, dataset / "meta.sdrf.tsv", validate=False))
+    condition_column = "factor value[condition]"
+
+    mdata = mm.pp.to_peptide(mdata)
+
+    assert set(mdata["peptide"].obs.columns) == set(mdata.obs.columns)
+    assert mdata["peptide"].obs[condition_column].tolist() == mdata.obs[condition_column].tolist()
+    normalised = mm.pp.normalise(mdata, modality="peptide", method="median", group_obs=condition_column)
+    assert normalised["peptide"].shape == mdata["peptide"].shape

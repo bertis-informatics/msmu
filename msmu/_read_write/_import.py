@@ -114,8 +114,6 @@ def add_quant(
         logger.info("Added quantification modality 'peptide' using %s data.", quant_tool)
         logger.debug("Added peptide quantification matrix with shape %s.", input_arr.shape)
 
-    mdata.update_obs()
-
     return mdata
 
 

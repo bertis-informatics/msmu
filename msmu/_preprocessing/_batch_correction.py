@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-from .._utils._mudata import get_anndata_mod, get_mudata
+from .._utils._mudata import copy_mudata, get_anndata_mod, get_mudata
 from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block, is_sparse, to_observed_sparse
 from ..logging_utils import get_logger
@@ -80,7 +80,7 @@ def correct_batch_effect(
         > *Molecular & Cellular Proteomics* 16, 873–890 (2017).
         > [https://doi.org/10.1074/mcp.M116.065524](https://doi.org/10.1074/mcp.M116.065524).
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     adata = get_anndata_mod(mdata, modality)
     input_arr = adata.X if layer is None else adata.layers[layer]
     input_was_sparse = is_sparse(input_arr)

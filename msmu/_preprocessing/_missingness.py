@@ -6,7 +6,7 @@ import pandas as pd
 
 from .._core._blockdiag import is_sparse
 from .._core._provenance import log_provenance
-from .._utils._mudata import get_anndata_mod
+from .._utils._mudata import copy_mudata, get_anndata_mod
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -69,7 +69,7 @@ def calculate_missingness(
         mdata = mm.pp.apply_filter(mdata, modality="protein")
         ```
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
     adata = get_anndata_mod(mdata, modality)
     if adata.n_obs == 0:
         raise ValueError(f"{modality!r} has no observations to count missing values over")

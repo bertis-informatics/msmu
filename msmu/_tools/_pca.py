@@ -7,7 +7,7 @@ from mudata import MuData
 from sklearn.decomposition import PCA
 from typing import Literal, Any
 
-from .._utils._mudata import get_anndata_mod
+from .._utils._mudata import copy_mudata, get_anndata_mod
 from .._core._blockdiag import to_dense_df
 from .._core._provenance import log_provenance
 
@@ -114,7 +114,7 @@ def pca(
         > probabilistic algorithms for constructing approximate matrix decompositions.
         > *SIAM Review* 53, 217–288 (2011). [https://doi.org/10.1137/090771806](https://doi.org/10.1137/090771806).
     """
-    mdata = mdata.copy()
+    mdata = copy_mudata(mdata)
 
     # Drop columns with NaN values
     adata = get_anndata_mod(mdata, modality)
