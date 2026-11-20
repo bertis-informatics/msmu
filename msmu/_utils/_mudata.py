@@ -224,14 +224,14 @@ def add_modality(mdata: md.MuData, adata: ad.AnnData, mod_name: str) -> md.MuDat
 
 
 def replace_modality(mdata: md.MuData, mod_name: str, adata: ad.AnnData) -> md.MuData:
-    """Replace modality ``mod_name`` with ``adata`` and finish the bookkeeping.
+    """Replace modality ``mod_name`` with ``adata`` and finish the bookkeeping; returns ``mdata`` itself.
 
     ``adata`` may drop or rename features but may not add observations outside ``mdata.obs.index``.
     Whenever the rebuild would go through ``update_var()`` (a layout that is not plain, or a var name
-    shared with another modality) the old var rows are sliced away first: ``update_var()`` refuses a
-    modality renamed and filtered at once, and the slice makes the replacement an insertion to it. The
-    result is then a new object. Global obs columns are pushed onto the new modality, as in
-    ``add_modality``.
+    shared with another modality) the modality is emptied and the global var updated first:
+    ``update_var()`` refuses a modality renamed and filtered at once, and this way it sees a removal
+    and then an insertion. Only the bookkeeping is rewritten, so the other modalities stay as they
+    are. Global obs columns are pushed onto the new modality, as in ``add_modality``.
     """
     if mod_name not in mdata.mod:
         raise KeyError(f"Modality '{mod_name}' not found in mdata.")
@@ -240,8 +240,8 @@ def replace_modality(mdata: md.MuData, mod_name: str, adata: ad.AnnData) -> md.M
         [adata if name == mod_name else modality for name, modality in mdata.mod.items()]
     )
     if not (_has_plain_global_var(mdata) and global_var_names.is_unique):
-        old_var_names = mdata.mod[mod_name].var_names
-        mdata = mdata[:, ~mdata.var_names.isin(old_var_names)].copy()
+        mutable_mudata_mod(mdata)[mod_name] = mdata.mod[mod_name][:, :0].copy()
+        mdata.update_var()
     mutable_mudata_mod(mdata)[mod_name] = adata
     _rebuild_global_var(mdata, global_var_names)
     refresh_global_obs(mdata)

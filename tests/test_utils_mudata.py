@@ -262,17 +262,32 @@ def test_replace_modality_handles_renamed_and_filtered_features_where_mudata_ref
 
 def test_replace_modality_handles_a_var_name_shared_with_another_modality(mdata: md.MuData) -> None:
     # The plain layout alone does not qualify for the direct rebuild: a shared name sends the rebuild to
-    # update_var(), which would refuse the renamed and filtered modality after the swap had happened.
+    # update_var(), which would refuse the renamed and filtered modality if it were swapped in directly.
     container = copy_mudata(mdata)
-    input_hash = compute_hash(container)
     shared_name = mdata["protein"].var_names[0]
 
     replaced = replace_modality(container, "psm", _new_modality(mdata, [shared_name, "new_1"]))
 
+    assert replaced is container
     assert replaced["psm"].var_names.tolist() == [shared_name, "new_1"]
     assert replaced.var_names.tolist().count(shared_name) == 2
-    assert compute_hash(container) == input_hash  # the input is not left half rewritten
     assert_bookkeeping_is_final(replaced, "shared var name")
+
+
+def test_replace_modality_keeps_the_same_named_var_of_another_modality(mdata: md.MuData) -> None:
+    # The replaced modality already shares a name with another modality and still holds it afterwards.
+    # The other modality keeps its same-named var, and its var order, although mudata no longer lists
+    # that modality's rows of the global var in the modality's own order.
+    shared_name = mdata["protein"].var_names[0]
+    container = replace_modality(copy_mudata(mdata), "psm", _new_modality(mdata, [shared_name, "old_1"]))
+    protein_before = container["protein"].to_df()
+
+    replaced = replace_modality(container, "psm", _new_modality(mdata, [shared_name, "new_1"]))
+
+    assert replaced["psm"].var_names.tolist() == [shared_name, "new_1"]
+    pd.testing.assert_frame_equal(replaced["protein"].to_df(), protein_before)
+    assert replaced.var_names.tolist().count(shared_name) == 2
+    assert_bookkeeping_is_final(replaced, "shared var name kept")
 
 
 def test_replaced_modality_round_trips_through_h5mu(mdata: md.MuData, tmp_path) -> None:

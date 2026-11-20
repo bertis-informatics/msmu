@@ -19,6 +19,12 @@ from git tags via setuptools-scm.
 
 ### Fixed
 
+- **Replacing a modality leaves the other modalities as they are.** In a `MuData` whose
+  modalities share a feature name, which the readers never produce but a hand-built or external
+  container can, filtering a modality or rebuilding the peptide modality could remove the
+  same-named feature from another modality or reorder another modality's features. The
+  replaced modality is now emptied and the bookkeeping updated before the new one is inserted,
+  so only the bookkeeping is rewritten.
 - **A replaced peptide modality keeps the sample annotations.** When the peptide modality
   already held quantification (DDA LFQ), `to_peptide` rebuilt it without the `.obs` columns
   that `apply_sdrf_to_obs` or `add_meta` had attached, so a call that groups by a sample
