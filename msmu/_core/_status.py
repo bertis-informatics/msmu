@@ -18,7 +18,6 @@ class AnnDataFlags:
     aquisition: str | None
     has_purity: bool
     has_decoy: bool
-    has_pep: bool
     has_var: bool
     has_quant: bool
 
@@ -56,7 +55,6 @@ class MuDataStatus:
                 aquisition=(adata.uns["acquisition"] if "acquisition" in adata.uns else None),
                 has_purity="purity" in adata.var.columns,
                 has_decoy="decoy" in adata.uns,
-                has_pep="PEP" in adata.var.columns,
                 has_var=len(adata.var) > 0,
                 has_quant=_has_quant_values(adata.X),
             ),

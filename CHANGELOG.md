@@ -8,6 +8,10 @@ from git tags via setuptools-scm.
 
 ### Changed
 
+- **Rollups skip the identification columns their input lacks.** `to_peptide`, `to_protein` and
+  `to_ptm` raised `KeyError` when `.var` had no `PEP` (or, for `to_protein` and `to_ptm`, no
+  `count_psm`). They now summarize without the missing score or count, and skip the q-values
+  with a warning.
 - **Processing calls copy without rebuilding the MuData bookkeeping, and finish it before
   returning.** mudata's `MuData.copy()` rebuilds the MuData-level bookkeeping (global `.var`,
   modality maps, membership masks) through `update()`, whose cost grows with the number of

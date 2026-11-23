@@ -537,6 +537,11 @@ class Scorer:
             raise ValueError(f"Scoring method '{method}' not recognized.")
 
 
+# Columns a rollup carries up only when its input has them: without `PEP` there is no score (and
+# no q-value) to carry, without `count_psm` no count to sum. Every other source column is required.
+OPTIONAL_IDENTIFICATION_SOURCE_COLUMNS: tuple[str, ...] = ("PEP", "count_psm")
+
+
 class Aggregator:
     """
     Base class for aggregating identification and quantification data.
@@ -649,14 +654,23 @@ class Aggregator:
         return aggregator
 
     def aggregate_identification(self) -> pd.DataFrame:
-        agg_id_df: pd.DataFrame = self._id_df.copy()
-        col_to_groupby = self._col_to_groupby
+        return self._aggregate_available_columns(self._id_df, self._id_agg_dict)
 
-        agg_id_df = agg_id_df.groupby(col_to_groupby, observed=True).agg(**self._id_agg_dict)
+    def _aggregate_available_columns(self, table: pd.DataFrame, agg_dict: dict) -> pd.DataFrame:
+        """Aggregate ``table`` per group, skipping the optional source columns it does not carry."""
+        available_agg_dict = {
+            output_column: (source_column, agg_function)
+            for output_column, (source_column, agg_function) in agg_dict.items()
+            if source_column in table.columns or source_column not in OPTIONAL_IDENTIFICATION_SOURCE_COLUMNS
+        }
+        grouped_table = table.groupby(self._col_to_groupby, observed=True)
+        if available_agg_dict:
+            aggregated_table = grouped_table.agg(**available_agg_dict)
+        else:
+            # pandas refuses an aggregation without columns; the groups themselves are still the result.
+            aggregated_table = pd.DataFrame(index=grouped_table.size().index)
 
-        agg_id_df = agg_id_df.rename_axis(index=None)
-
-        return agg_id_df
+        return aggregated_table.rename_axis(index=None)
 
     def aggregate_quantification(self) -> pd.DataFrame:
         if isinstance(self._quant_df, SparseQuant):
@@ -714,12 +728,7 @@ class Aggregator:
         return agg_quant_df.rename_axis(index=None)
 
     def aggregate_decoy(self) -> pd.DataFrame:
-        agg_decoy_df: pd.DataFrame = self._decoy_id_df.copy()
-        agg_decoy_df = agg_decoy_df.groupby(self._col_to_groupby, observed=True).agg(**self._decoy_agg_dict)
-
-        agg_decoy_df = agg_decoy_df.rename_axis(index=None)
-
-        return agg_decoy_df
+        return self._aggregate_available_columns(self._decoy_id_df, self._decoy_agg_dict)
 
 
 class SummarisationPrep:
@@ -1210,17 +1219,18 @@ class PtmSummarisationPrep(SummarisationPrep):
         return exploded_data
 
     def _implode_peptide_peptide_site(self, data) -> pd.DataFrame:
-        data = data.groupby(["peptide", "peptide_site"], as_index=False, observed=True).agg(
-            {
-                "protein_site": ";".join,
-                "modified_protein": ";".join,
-                "stripped_peptide": "first",
-                # "first", not "sum": the accession explode duplicated this peptidoform's row, so
-                # summing here would multiply its PSM count by the number of accessions it maps to.
-                "count_psm": "first",
-                "count_site": "first",
-            }
-        )
+        site_agg_dict = {
+            "protein_site": ";".join,
+            "modified_protein": ";".join,
+            "stripped_peptide": "first",
+            # "first", not "sum": the accession explode duplicated this peptidoform's row, so
+            # summing here would multiply its PSM count by the number of accessions it maps to.
+            "count_psm": "first",
+            "count_site": "first",
+        }
+        if "count_psm" not in data.columns:
+            del site_agg_dict["count_psm"]
+        data = data.groupby(["peptide", "peptide_site"], as_index=False, observed=True).agg(site_agg_dict)
 
         return data
 
