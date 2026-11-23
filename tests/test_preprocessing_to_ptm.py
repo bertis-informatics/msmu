@@ -470,3 +470,14 @@ def test_pooling_reports_one_site_per_feature():
 def test_an_unknown_multisite_is_rejected():
     with pytest.raises(ValueError, match="multisite"):
         mm.pp.to_ptm(_single_and_double_phospho_mdata(), modi_name="phospho", modification=PHOSPHO, multisite="split")
+
+
+def test_sites_are_built_from_peptides_without_a_psm_count():
+    """A peptide modality without a `count_psm` column still gives sites."""
+    mdata = _make_peptide_mdata([{"peptide": f"SPGS{PHOSPHO}PVLR", "stripped_peptide": "SPGSPVLR", "proteins": "P1"}])
+
+    result = mm.pp.to_ptm(mdata, modi_name="phospho", modification=PHOSPHO)
+
+    assert list(result["phospho_site"].var_names) == ["P1|S8"]
+    assert "count_psm" not in _site_var(result).columns
+    assert _site_var(result)["count_peptide"].tolist() == [1]

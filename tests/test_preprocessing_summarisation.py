@@ -467,3 +467,57 @@ def test_to_peptide_keeps_the_sample_annotations_on_a_replaced_peptide_modality(
     assert mdata["peptide"].obs[condition_column].tolist() == mdata.obs[condition_column].tolist()
     normalised = mm.pp.normalise(mdata, modality="peptide", method="median", group_obs=condition_column)
     assert normalised["peptide"].shape == mdata["peptide"].shape
+
+
+def test_aggregator_skips_optional_columns_but_requires_the_annotations():
+    id_df = pd.DataFrame({"peptide": ["p1", "p1"], "proteins": ["A", "A"]}, index=["f1", "f2"])
+    quant_df = pd.DataFrame({"s1": [1.0, 2.0]}, index=id_df.index)
+    aggregator = Aggregator.peptide(
+        identification_df=id_df,
+        quantification_df=quant_df,
+        decoy_df=None,
+        agg_method="median",
+        score_method="best_pep",
+        protein_col="proteins",
+        peptide_col="peptide",
+    )
+
+    # PEP is optional and skipped; stripped_peptide is an annotation every rollup needs.
+    with pytest.raises(KeyError, match="stripped_peptide"):
+        aggregator.aggregate_identification()
+
+
+def test_rollups_run_without_pep_and_count_columns():
+    import msmu as mm
+    from anndata import AnnData
+    from mudata import MuData
+
+    peptides = ["AA", "AA", "BB", "CC"]
+    identifications = pd.DataFrame(
+        {"peptide": peptides, "stripped_peptide": peptides, "proteins": ["P1", "P1", "P2", "P3"]},
+        index=[f"psm_{position}" for position in range(4)],
+    )
+    decoys = pd.DataFrame({"peptide": ["DD"], "stripped_peptide": ["DD"], "proteins": ["P9"]}, index=["decoy_0"])
+    psm = AnnData(
+        X=np.array([[1.0, 3.0, 5.0, 7.0]]),
+        obs=pd.DataFrame(index=["sample"]),
+        var=identifications,
+        uns={"decoy": decoys},
+    )
+
+    mdata = mm.pp.to_peptide(MuData({"psm": psm}))
+    peptide = mdata["peptide"]
+    assert peptide.var.columns.tolist() == ["peptide", "proteins", "stripped_peptide", "count_psm"]
+    assert peptide.var["count_psm"].tolist() == [2, 1, 1]
+    np.testing.assert_array_equal(peptide.X, [[2.0, 5.0, 7.0]])
+    assert peptide.uns["decoy"].columns.tolist() == ["proteins", "stripped_peptide"]
+
+    del peptide.var["count_psm"]
+    mdata = mm.pp.to_protein(mm.pp.infer_protein(mdata))
+    protein = mdata["protein"]
+    assert protein.var_names.tolist() == ["P1", "P2", "P3"]
+    assert protein.var.columns.tolist() == ["count_stripped_peptide"]
+    np.testing.assert_array_equal(protein.X, [[2.0, 5.0, 7.0]])
+    # A decoy table without a score has nothing to aggregate: one row per decoy group, no columns.
+    assert protein.uns["decoy"].index.tolist() == ["P9"]
+    assert protein.uns["decoy"].columns.tolist() == []

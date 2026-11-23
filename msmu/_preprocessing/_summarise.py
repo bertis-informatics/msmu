@@ -36,6 +36,9 @@ logger = get_logger(__name__)
 # column-wise reductions; the matrix rollups belong to the peptide->protein step (to_protein).
 PEPTIDE_AGG_METHODS: tuple[str, ...] = ("median", "mean", "sum")
 
+# Name of the posterior error probability column.
+PEP_COLUMN: str = "PEP"
+
 
 @log_provenance
 def to_peptide(
@@ -144,8 +147,8 @@ def to_peptide(
     if calculate_q:
         if mstatus.psm.has_decoy is False:
             logger.warning("Decoy data not found. Skipping q-value calculation.")
-        elif mstatus.psm.has_pep is False:
-            logger.warning("PEP column not found in identification data. Skipping q-value calculation.")
+        elif PEP_COLUMN not in ident_df_agg.columns or PEP_COLUMN not in decoy_df_agg.columns:
+            logger.warning("PEP column not found in identification or decoy data. Skipping q-value calculation.")
         else:
             ident_df_agg, decoy_df_agg = estimate_q_values(
                 identification_df=ident_df_agg,
@@ -297,8 +300,8 @@ def to_protein(
     if calculate_q:
         if mstatus.peptide.has_decoy is False:
             logger.warning("Decoy data not found. Skipping q-value calculation.")
-        elif mstatus.peptide.has_pep is False:
-            logger.warning("PEP column not found in identification data. Skipping q-value calculation.")
+        elif PEP_COLUMN not in ident_df_agg.columns or PEP_COLUMN not in agg_decoy_df.columns:
+            logger.warning("PEP column not found in identification or decoy data. Skipping q-value calculation.")
         else:
             ident_df_agg, agg_decoy_df = estimate_q_values(
                 identification_df=ident_df_agg,
