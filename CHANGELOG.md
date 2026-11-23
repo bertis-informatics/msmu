@@ -16,6 +16,15 @@ from git tags via setuptools-scm.
   without a passing cell are removed; an integer or boolean layer becomes floating-point to
   hold the emptied cells, and a layer of strings is refused. Decoys in `.uns["decoy"]` are
   filtered on their own column of the same name.
+- **A wide `precursor` modality from an external file is summarized like `psm`.** `to_peptide`
+  summarizes a `precursor` modality (samples are runs, features are precursors, identification
+  scores per cell in the `q_value` and `PEP` layers) when there is no `psm`, and rejects a
+  `MuData` holding both. The peptide `PEP` is the best value of the `PEP` layer over the
+  peptide's precursors and runs, and q-values are calculated from it when the decoy table is
+  present; `count_psm` is not produced. On the DIA tutorial data laid out wide, the peptide
+  and protein `PEP` and q-values equal those of the long `psm` modality and the quantification
+  agrees to `float32` precision. Plots label the modality "Precursor". The readers keep the
+  long layout.
 
 ### Changed
 

@@ -469,6 +469,26 @@ def test_to_peptide_keeps_the_sample_annotations_on_a_replaced_peptide_modality(
     assert normalised["peptide"].shape == mdata["peptide"].shape
 
 
+def test_aggregator_peptide_omits_the_psm_count_on_request():
+    id_df = pd.DataFrame(
+        {"peptide": ["p1", "p1"], "proteins": ["A", "A"], "stripped_peptide": ["p1", "p1"], "PEP": [0.1, 0.2]},
+        index=["f1", "f2"],
+    )
+    quant_df = pd.DataFrame({"s1": [1.0, 2.0]}, index=id_df.index)
+    aggregator = Aggregator.peptide(
+        identification_df=id_df,
+        quantification_df=quant_df,
+        decoy_df=None,
+        agg_method="median",
+        score_method="best_pep",
+        protein_col="proteins",
+        peptide_col="peptide",
+        should_count_psm=False,
+    )
+
+    assert aggregator.aggregate_identification().columns.tolist() == ["peptide", "proteins", "stripped_peptide", "PEP"]
+
+
 def test_aggregator_skips_optional_columns_but_requires_the_annotations():
     id_df = pd.DataFrame({"peptide": ["p1", "p1"], "proteins": ["A", "A"]}, index=["f1", "f2"])
     quant_df = pd.DataFrame({"s1": [1.0, 2.0]}, index=id_df.index)
@@ -485,6 +505,115 @@ def test_aggregator_skips_optional_columns_but_requires_the_annotations():
     # PEP is optional and skipped; stripped_peptide is an annotation every rollup needs.
     with pytest.raises(KeyError, match="stripped_peptide"):
         aggregator.aggregate_identification()
+
+
+def test_to_peptide_summarises_a_wide_precursor_modality(wide_precursor_mdata):
+    import msmu as mm
+
+    mdata = mm.pp.to_peptide(wide_precursor_mdata)
+    peptide = mdata["peptide"]
+
+    assert peptide.var_names.tolist() == ["AAK", "CCR", "DDK"]
+    assert peptide.obs_names.tolist() == ["run1", "run2"]
+    # AAK has two precursors in run1 (median of 10 and 20) and one in run2.
+    np.testing.assert_array_equal(peptide.X, np.array([[15.0, 30.0, np.nan], [12.0, 34.0, 40.0]]))
+    # A precursor is not a PSM, so no count_psm; the scores come from the PEP layer.
+    assert peptide.var.columns.tolist() == ["peptide", "proteins", "stripped_peptide", "PEP", "q_value"]
+    assert peptide.var["proteins"].tolist() == ["P1", "P2", "P3"]
+    assert peptide.uns["decoy"].index.tolist() == ["XXK", "YYR"]
+    assert mdata["precursor"].shape == (2, 4)
+
+
+def test_to_peptide_scores_a_wide_precursor_from_its_pep_layer(wide_precursor_mdata):
+    import msmu as mm
+
+    precursor_var_before = wide_precursor_mdata["precursor"].var.copy()
+
+    mdata = mm.pp.to_peptide(wide_precursor_mdata)
+    peptide = mdata["peptide"]
+
+    # Best PEP over runs, then over the precursors of the peptide: AAK takes 0.01 of AAK2 in run1,
+    # not 0.02 (AAK2 in run2) or 0.2 (AAK3); CCR takes 0.03 of run1, not 0.9 of run2.
+    assert peptide.var["PEP"].tolist() == pytest.approx([0.01, 0.03, 0.04])
+    # Targets and decoys ordered by PEP: AAK 0.01, CCR 0.03, DDK and decoy XXK 0.04, decoy YYR 0.6.
+    # (decoys + 1) / targets at each PEP is 1/1, 1/2, 2/3, 3/3; a q-value is the smallest from there on.
+    assert peptide.var["q_value"].tolist() == pytest.approx([1 / 2, 1 / 2, 2 / 3])
+    assert peptide.uns["decoy"]["q_value"].tolist() == pytest.approx([2 / 3, 1.0])
+    # The precursor modality keeps its scores in the layers only.
+    pd.testing.assert_frame_equal(mdata["precursor"].var, precursor_var_before)
+
+
+def test_to_peptide_scores_a_wide_precursor_from_the_cells_a_layer_filter_left(wide_precursor_mdata):
+    import msmu as mm
+
+    # Emptying the cells with PEP below 0.015 removes AAK2 in run1, the best score AAK had.
+    filtered = mm.pp.filter(
+        wide_precursor_mdata, modality="precursor", on="layers", column="PEP", keep="gt", value=0.015
+    )
+
+    peptide = mm.pp.to_peptide(filtered)["peptide"]
+
+    assert peptide.var["PEP"].tolist() == pytest.approx([0.02, 0.03, 0.04])
+
+
+def test_to_peptide_summarises_only_quantification_without_a_pep_layer(wide_precursor_mdata):
+    import msmu as mm
+
+    del wide_precursor_mdata["precursor"].layers["PEP"]
+
+    peptide = mm.pp.to_peptide(wide_precursor_mdata)["peptide"]
+
+    np.testing.assert_array_equal(peptide.X, np.array([[15.0, 30.0, np.nan], [12.0, 34.0, 40.0]]))
+    assert peptide.var.columns.tolist() == ["peptide", "proteins", "stripped_peptide"]
+    # The decoys are still carried up, with nothing to compare their PEP against.
+    assert peptide.uns["decoy"].index.tolist() == ["XXK", "YYR"]
+    assert "q_value" not in peptide.uns["decoy"].columns
+
+
+def test_to_peptide_carries_the_pep_of_a_wide_precursor_without_decoys(wide_precursor_mdata):
+    import msmu as mm
+
+    del wide_precursor_mdata["precursor"].uns["decoy"]
+
+    peptide = mm.pp.to_peptide(wide_precursor_mdata)["peptide"]
+
+    assert peptide.var.columns.tolist() == ["peptide", "proteins", "stripped_peptide", "PEP"]
+    assert peptide.var["PEP"].tolist() == pytest.approx([0.01, 0.03, 0.04])
+    assert "decoy" not in peptide.uns
+
+
+def test_to_protein_scores_proteins_from_a_wide_precursor(wide_precursor_mdata):
+    import msmu as mm
+
+    mdata = mm.pp.to_peptide(wide_precursor_mdata)
+    mdata = mm.pp.infer_protein(mdata)
+    protein = mm.pp.to_protein(mdata)["protein"]
+
+    assert protein.var_names.tolist() == ["P1", "P2", "P3"]
+    assert protein.var["PEP"].tolist() == pytest.approx([0.01, 0.03, 0.04])
+    assert "q_value" in protein.var.columns
+    assert "count_psm" not in protein.var.columns
+
+
+def test_to_peptide_rejects_psm_and_precursor_together(wide_precursor_mdata):
+    import msmu as mm
+    from mudata import MuData
+
+    precursor = wide_precursor_mdata["precursor"]
+    psm = precursor.copy()
+    psm.var_names = [f"run1.{precursor_name}" for precursor_name in psm.var_names]
+    both = MuData({"psm": psm, "precursor": precursor.copy()})
+    with pytest.raises(ValueError, match="both 'psm' and 'precursor'"):
+        mm.pp.to_peptide(both)
+
+
+def test_to_peptide_names_the_modalities_it_can_summarise(wide_precursor_mdata):
+    import msmu as mm
+    from mudata import MuData
+
+    without_source = MuData({"protein": wide_precursor_mdata["precursor"].copy()})
+    with pytest.raises(KeyError, match="needs a 'psm' or a 'precursor' modality"):
+        mm.pp.to_peptide(without_source)
 
 
 def test_rollups_run_without_pep_and_count_columns():
@@ -521,3 +650,4 @@ def test_rollups_run_without_pep_and_count_columns():
     # A decoy table without a score has nothing to aggregate: one row per decoy group, no columns.
     assert protein.uns["decoy"].index.tolist() == ["P9"]
     assert protein.uns["decoy"].columns.tolist() == []
+

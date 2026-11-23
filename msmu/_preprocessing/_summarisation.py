@@ -536,6 +536,19 @@ class Scorer:
         else:
             raise ValueError(f"Scoring method '{method}' not recognized.")
 
+    @classmethod
+    def score_variables_from_layer(cls, pep_layer: np.ndarray, method: str) -> np.ndarray:
+        """Reduce an (observations x variables) PEP layer to one PEP per variable.
+
+        The layer is reduced over the observations here and the aggregation then reduces the
+        variables of a group. That equals scoring all the group's cells at once only for a method
+        that can be applied in two passes; the minimum is one.
+        """
+        if method != "best_pep":
+            raise ValueError(f"Scoring method '{method}' cannot be applied to a PEP layer.")
+        # fmin skips NaN and, unlike nanmin, returns NaN without a warning where every cell is missing.
+        return np.fmin.reduce(np.asarray(pep_layer), axis=0, initial=np.nan)
+
 
 # Columns a rollup carries up only when its input has them: without `PEP` there is no score (and
 # no q-value) to carry, without `count_psm` no count to sum. Every other source column is required.
@@ -575,9 +588,13 @@ class Aggregator:
         score_method,
         protein_col,
         peptide_col,
+        should_count_psm: bool = True,
     ):
         """
         Create a peptide-level aggregator.
+
+        `should_count_psm` is False when the input rows are not PSMs (a wide `precursor` modality has
+        one row per precursor, whatever the number of runs identifying it).
         """
         aggregator = cls(
             identification_df,
@@ -595,6 +612,8 @@ class Aggregator:
             "count_psm": ("peptide", "count"),
             "PEP": ("PEP", Scorer.func(score_method)),
         }
+        if not should_count_psm:
+            del aggregator._id_agg_dict["count_psm"]
 
         aggregator._decoy_agg_dict = {
             aggregator._protein_col: (aggregator._protein_col, "first"),

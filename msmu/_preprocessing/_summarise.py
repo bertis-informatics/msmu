@@ -12,6 +12,7 @@ from ._summarisation import (
     Aggregator,
     Multisite,
     PtmSummarisationPrep,
+    Scorer,
     SummarisationPrep,
     warn_if_not_log_scale,
 )
@@ -36,7 +37,12 @@ logger = get_logger(__name__)
 # column-wise reductions; the matrix rollups belong to the peptide->protein step (to_protein).
 PEPTIDE_AGG_METHODS: tuple[str, ...] = ("median", "mean", "sum")
 
-# Name of the posterior error probability column.
+# Modalities `to_peptide` can summarize. Both hold identifications of peptide ions; they differ in
+# layout: `psm` has one variable per identification (long), `precursor` one per precursor with the
+# runs as observations (wide).
+PSM_MODALITY: str = "psm"
+PRECURSOR_MODALITY: str = "precursor"
+# Name of the posterior error probability, as a `.var` column (`psm`) or as a layer (`precursor`).
 PEP_COLUMN: str = "PEP"
 
 
@@ -52,6 +58,15 @@ def to_peptide(
 ) -> md.MuData:
     """Summarize PSM-level data to peptide-level data.
 
+    The source is the `psm` modality, or a wide `precursor` modality when there is no `psm`
+    (observations = runs, variables = precursors, one identification per run and precursor). A
+    `MuData` holding both `psm` and `precursor` is rejected.
+
+    A `precursor` source keeps its identification scores per run in layers. The peptide `PEP` is the
+    best value of the `PEP` layer over the peptide's precursors and runs, and q-values are calculated
+    from it as for `psm`, when the decoy table is present. Without a `PEP` layer only the
+    quantification is summarized. `count_psm` is not produced.
+
     Usage:
         mdata = mm.pp.to_peptide(
             mdata,
@@ -61,7 +76,7 @@ def to_peptide(
         )
 
     Parameters:
-        mdata: `MuData` object containing PSM-level data.
+        mdata: `MuData` object containing PSM-level data (`psm`) or wide precursor-level data (`precursor`).
         layer: Layer to use for quantification aggregation. If `None`, the default layer (`.X`) will be used. Defaults to `None`.
         agg_method: Aggregation method for quantification to use. One of `"median"`, `"mean"`, or `"sum"`. Defaults to `"median"`. The matrix rollups `"median_polish"` and `"directlfq"` are not offered here; they model per-peptide response factors and belong to the peptide-to-protein step ([`to_protein`][msmu.pp.to_protein]).
         purity_threshold: Purity threshold for TMT data quantification aggregation (does not filter out features). If `None`, no filtering is applied. Defaults to `0.7`.
@@ -80,24 +95,28 @@ def to_peptide(
         )
 
     mdata = copy_mudata(mdata)
-    adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "psm")
+    source_modality = _resolve_peptide_source_modality(mdata)
+    adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, source_modality)
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for peptide summarisation.", layer)
 
     mstatus = MuDataStatus(mdata)
+    source_status = getattr(mstatus, source_modality)
     _peptide_col: str = "peptide"
     _protein_col: str = "proteins"
 
     # Preparation
     summarisation_prep = SummarisationPrep(
-        adata_to_summarise, col_to_groupby=_peptide_col, has_decoy=mstatus.psm.has_decoy
+        adata_to_summarise, col_to_groupby=_peptide_col, has_decoy=source_status.has_decoy
     )
 
     # Filtering for TMT purity in peptide quantification
-    if mstatus.psm.label == "tmt":
-        if not mstatus.psm.has_purity:
-            logger.warning("Purity column not found in psm modality for TMT data. Skipping purity filtering.")
+    if source_status.label == "tmt":
+        if not source_status.has_purity:
+            logger.warning(
+                "Purity column not found in %s modality for TMT data. Skipping purity filtering.", source_modality
+            )
         elif purity_threshold is None:
             logger.debug("No purity threshold provided for TMT data. Skipping purity filtering.")
         else:
@@ -120,6 +139,12 @@ def to_peptide(
 
     # Aggregation
     score_method: str = "best_pep"
+    if source_modality == PRECURSOR_MODALITY and PEP_COLUMN in adata_to_summarise.layers:
+        # A wide precursor modality keeps its scores per run in a layer; one PEP per precursor is needed here.
+        identification_df[PEP_COLUMN] = Scorer.score_variables_from_layer(
+            adata_to_summarise.layers[PEP_COLUMN], score_method
+        )
+
     aggregator = Aggregator.peptide(
         identification_df=identification_df,
         quantification_df=quantification_df,
@@ -128,24 +153,25 @@ def to_peptide(
         score_method=score_method,
         protein_col=_protein_col,
         peptide_col=_peptide_col,
+        should_count_psm=source_modality == PSM_MODALITY,
     )
 
     # Aggregate identification and quantification data
-    if mstatus.psm.has_var:
+    if source_status.has_var:
         ident_df_agg = aggregator.aggregate_identification()
     else:
-        logger.error("var is empty in psm modality. Cannot aggregate identification data.")
+        logger.error("var is empty in %s modality. Cannot aggregate identification data.", source_modality)
         raise
 
     # Aggregate decoy data if present
-    if mstatus.psm.has_decoy:
+    if source_status.has_decoy:
         decoy_df_agg = aggregator.aggregate_decoy()
     else:
         logger.warning("Decoy data not found. Skipping decoy aggregation.")
 
     # q-value calculation
     if calculate_q:
-        if mstatus.psm.has_decoy is False:
+        if source_status.has_decoy is False:
             logger.warning("Decoy data not found. Skipping q-value calculation.")
         elif PEP_COLUMN not in ident_df_agg.columns or PEP_COLUMN not in decoy_df_agg.columns:
             logger.warning("PEP column not found in identification or decoy data. Skipping q-value calculation.")
@@ -166,7 +192,7 @@ def to_peptide(
 
     # build peptide-level anndata
     if (
-        not mstatus.psm.has_quant and "peptide" in mstatus.mod_names
+        not source_status.has_quant and "peptide" in mstatus.mod_names
     ):  # for lfq (dda) data with peptide quantification already existing
         logger.info("Using existing peptide quantification data.")
         existing_peptide_adata = get_anndata_mod(mdata, "peptide")
@@ -197,10 +223,25 @@ def to_peptide(
     peptide_mod = get_anndata_mod(mdata, "peptide")
     peptide_mod.uns["level"] = "peptide"
 
-    if mstatus.psm.has_decoy:
+    if source_status.has_decoy:
         peptide_mod.uns["decoy"] = decoy_df_agg
 
     return mdata
+
+
+def _resolve_peptide_source_modality(mdata: md.MuData) -> str:
+    """Name of the modality `to_peptide` summarizes: `psm`, or a wide `precursor` when there is no `psm`."""
+    available_sources = [modality for modality in (PSM_MODALITY, PRECURSOR_MODALITY) if modality in mdata.mod]
+    if len(available_sources) > 1:
+        raise ValueError(
+            f"MuData holds both '{PSM_MODALITY}' and '{PRECURSOR_MODALITY}' modalities; to_peptide summarizes "
+            "one of them. Remove the one that is not the source."
+        )
+    if not available_sources:
+        raise KeyError(
+            f"to_peptide needs a '{PSM_MODALITY}' or a '{PRECURSOR_MODALITY}' modality; found {list(mdata.mod)}."
+        )
+    return available_sources[0]
 
 
 @log_provenance

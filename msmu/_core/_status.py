@@ -35,6 +35,7 @@ class MuDataStatus:
         self.set_mudata_flags()
 
         self.psm: AnnDataFlags | None = None
+        self.precursor: AnnDataFlags | None = None
         self.peptide: AnnDataFlags | None = None
         self.protein: AnnDataFlags | None = None
 
