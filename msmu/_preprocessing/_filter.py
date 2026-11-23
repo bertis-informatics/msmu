@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Literal
 
+import numpy as np
 import pandas as pd
+from anndata import AnnData
 from mudata import MuData
 
 from .._utils._mudata import copy_mudata, get_anndata_mod, replace_modality
@@ -11,6 +13,9 @@ from .._core._status import MuDataStatus
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
+
+# numpy dtype kinds of a string matrix: object (as an h5mu file returns strings), unicode and bytes.
+_STRING_DTYPE_KINDS = frozenset("OUS")
 
 
 @log_provenance
@@ -54,8 +59,7 @@ def add_filter(
     mdata = copy_mudata(mdata)
     mstatus = MuDataStatus(mdata)
 
-    if on in {"varm", "obsm"} and key is None:
-        raise ValueError("key must be provided when on is 'varm' or 'obsm'.")
+    _require_key_for_matrix_source(on, key)
 
     filter_name = f"{column}_{keep}_{value}"
     if on in {"varm", "obsm"}:
@@ -64,39 +68,12 @@ def add_filter(
         filter_name = name
     adata = get_anndata_mod(mdata, modality)
 
-    if on == "var":
-        source_df = adata.var
-        store_axis = "varm"
-    elif on == "obs":
-        source_df = adata.obs
-        store_axis = "obsm"
-    elif on == "varm":
-        if key not in adata.varm:
-            raise ValueError(f"Key {key} not found in {modality}.varm")
-        source_df = pd.DataFrame(adata.varm[key], index=adata.var_names)
-        store_axis = "varm"
-    elif on == "obsm":
-        if key not in adata.obsm:
-            raise ValueError(f"Key {key} not found in {modality}.obsm")
-        source_df = pd.DataFrame(adata.obsm[key], index=adata.obs_names)
-        store_axis = "obsm"
-    else:
-        raise ValueError(f"Unknown filter target: {on}")
-
-    if column not in source_df.columns:
-        raise ValueError(f"Column '{column}' not found in {modality}.{on}")
-
-    column_values = source_df[column]
-    if not isinstance(column_values, pd.Series):
-        raise ValueError(f"Column '{column}' must identify a single column in {modality}.{on}")
+    column_values = _get_filter_source_column(adata, modality, column, on, key)
+    store_axis = "varm" if _is_variable_filter(on) else "obsm"
 
     has_decoy = mstatus.__getattribute__(modality).has_decoy
-    if on == "var" and has_decoy and column not in adata.uns["decoy"].columns:
-        raise ValueError(
-            f"Column '{column}' is missing from {modality}.uns['decoy']; variable filters apply to "
-            f"decoys too. Add it with mm.dt.assign(..., modality='{modality}', on='decoy') or "
-            f"mm.dt.map(..., target='{modality}.decoy') before adding the filter."
-        )
+    if on == "var" and has_decoy:
+        _require_decoy_column(adata, modality, column, filter_kind="variable")
 
     condition = {"on": on, "key": key if on in {"varm", "obsm"} else None,
                  "column": column, "keep": keep, "value": value}
@@ -110,7 +87,7 @@ def add_filter(
     ):
         raise ValueError(f"Filter name {filter_name!r} already exists without a recorded condition")
 
-    mask = _mask_boolean_filter(series_to_mask=column_values, keep=keep, value=value)
+    mask = _mask_boolean_filter(values_to_mask=column_values, keep=keep, value=value)
 
     if store_axis == "varm":
         if "filter" not in adata.varm.keys():
@@ -130,11 +107,7 @@ def add_filter(
 
     # add filter for decoy (only supported for variable-level filters)
     if store_axis == "varm" and has_decoy:
-        decoy_df = adata.uns["decoy"]
-        if on == "var":
-            decoy_mask = _mask_boolean_filter(series_to_mask=decoy_df[column], keep=keep, value=value)
-        else:
-            decoy_mask = mask.reindex(decoy_df.index).fillna(False)
+        decoy_mask = _mask_decoys(adata.uns["decoy"], mask, column, keep, value, on)
 
         if "decoy_filter" not in adata.uns:
             adata.uns["decoy_filter"] = decoy_mask.to_frame(name=filter_name)
@@ -147,9 +120,66 @@ def add_filter(
     return mdata
 
 
-def _mask_boolean_filter(series_to_mask: pd.Series, keep, value):
+def _require_key_for_matrix_source(on: str, key: str | None) -> None:
+    if on in {"varm", "obsm"} and key is None:
+        raise ValueError("key must be provided when on is 'varm' or 'obsm'.")
+
+
+def _is_variable_filter(on: str) -> bool:
+    """Whether a filter source is aligned with the variables (`.var` or a `.varm` table)."""
+    return on in {"var", "varm"}
+
+
+def _get_filter_source_column(adata: AnnData, modality: str, column: str, on: str, key: str | None) -> pd.Series:
+    """The column a `.var`/`.obs`/`.varm`/`.obsm` filter reads, indexed by the axis it filters."""
+    if on == "var":
+        source_df = adata.var
+    elif on == "obs":
+        source_df = adata.obs
+    elif on == "varm":
+        if key not in adata.varm:
+            raise ValueError(f"Key {key} not found in {modality}.varm")
+        source_df = pd.DataFrame(adata.varm[key], index=adata.var_names)
+    elif on == "obsm":
+        if key not in adata.obsm:
+            raise ValueError(f"Key {key} not found in {modality}.obsm")
+        source_df = pd.DataFrame(adata.obsm[key], index=adata.obs_names)
+    else:
+        raise ValueError(f"Unknown filter target: {on}")
+
+    if column not in source_df.columns:
+        raise ValueError(f"Column '{column}' not found in {modality}.{on}")
+
+    column_values = source_df[column]
+    if not isinstance(column_values, pd.Series):
+        raise ValueError(f"Column '{column}' must identify a single column in {modality}.{on}")
+
+    return column_values
+
+
+def _require_decoy_column(adata: AnnData, modality: str, column: str, filter_kind: str) -> None:
+    if column not in adata.uns["decoy"].columns:
+        raise ValueError(
+            f"Column '{column}' is missing from {modality}.uns['decoy']; {filter_kind} filters apply to "
+            f"decoys too. Add it with mm.dt.assign(..., modality='{modality}', on='decoy') or "
+            f"mm.dt.map(..., target='{modality}.decoy') before adding the filter."
+        )
+
+
+def _mask_decoys(decoy_df: pd.DataFrame, target_mask: pd.Series, column: str, keep, value, on: str) -> pd.Series:
+    """Decoy rows passing a variable filter.
+
+    A `.var` column is evaluated on the decoy table's own values. A `.varm` table has no decoy rows, so
+    a decoy passes only when it shares its name with a passing target.
+    """
+    if on == "var":
+        return _mask_boolean_filter(values_to_mask=decoy_df[column], keep=keep, value=value)
+    return target_mask.reindex(decoy_df.index).fillna(False)
+
+
+def _mask_boolean_filter(values_to_mask: pd.Series | pd.DataFrame, keep, value):
     # Missing source values never satisfy a condition, including negated conditions.
-    values = series_to_mask
+    values = values_to_mask
     if keep == "eq":
         mask = values == value
     elif keep == "ne":
@@ -312,3 +342,150 @@ def apply_filter(
         filtered_adata.uns["decoy_filter"] = decoy_filter
 
     return replace_modality(mdata, modality, filtered_adata)
+
+
+@log_provenance
+def filter(
+    mdata: MuData,
+    modality: str,
+    on: Literal["var", "obs", "varm", "obsm", "layers"],
+    column: str,
+    keep: Literal["eq", "ne", "lt", "le", "gt", "ge", "contains", "not_contains"],
+    value: str | float | None,
+    key: str | None = None,
+) -> MuData:
+    """
+    Filters the specified modality on one condition and returns the filtered `MuData`.
+
+    The condition is applied at once: no mask is stored, and the provenance log is the record of what
+    was filtered. Missing source values never pass, including for negated conditions.
+
+    - `on="var"` / `on="varm"`: variables failing the condition are removed. Decoys in
+      `.uns["decoy"]` are filtered with them, on their own column of the same name (`"var"`) or by
+      sharing a name with a passing variable (`"varm"`).
+    - `on="obs"` / `on="obsm"`: observations failing the condition are removed.
+    - `on="layers"`: `column` names a layer holding one value per cell, such as the per-run
+      `q_value` of a wide `precursor` modality (observations = runs, variables = precursors). Cells
+      failing the condition are emptied (set to NaN) in `.X` and in every layer, and variables left
+      without a passing cell are removed; observations are kept. An integer or boolean layer cannot
+      hold NaN and becomes floating-point; a layer of strings cannot hold an emptied cell and is
+      refused. Decoys in `.uns["decoy"]` are filtered on their own column of the same name.
+
+    Parameters:
+        mdata: `MuData` object to filter.
+        modality: The modality within the `MuData` object to filter.
+        on: Source of the values to filter on. One of `'var'`, `'obs'`, `'varm'`, `'obsm'`, or `'layers'`.
+        column: The column in the selected table to filter on, or the layer name when `on` is `'layers'`.
+        keep: The condition a value must satisfy to be kept. Layers support the numeric comparisons only.
+        value: The value to compare against.
+        key: Key to select the table from `.varm`/`.obsm` when `on` is `'varm'`/`'obsm'`.
+
+    Returns:
+        `MuData` object with the modality filtered.
+    """
+    _require_key_for_matrix_source(on, key)
+
+    mdata = copy_mudata(mdata)
+    adata = get_anndata_mod(mdata, modality)
+
+    if on == "layers":
+        filtered_adata = _filter_cells_by_layer(adata, modality, column, keep, value)
+    else:
+        filtered_adata = _filter_axis_by_column(adata, modality, column, keep, value, on, key)
+
+    return replace_modality(mdata, modality, filtered_adata)
+
+
+def _filter_axis_by_column(
+    adata: AnnData, modality: str, column: str, keep, value, on: str, key: str | None
+) -> AnnData:
+    """Remove the variables or observations failing a condition on a `.var`/`.obs`/`.varm`/`.obsm` column."""
+    column_values = _get_filter_source_column(adata, modality, column, on, key)
+    has_decoy = "decoy" in adata.uns
+    if on == "var" and has_decoy:
+        _require_decoy_column(adata, modality, column, filter_kind="variable")
+
+    mask = _mask_boolean_filter(values_to_mask=column_values, keep=keep, value=value)
+
+    if not _is_variable_filter(on):
+        filtered_adata = adata[mask, :].copy()
+        logger.info(
+            "Filtered %s on %s '%s' %s %s: observations %d -> %d",
+            modality, on, column, keep, value, adata.n_obs, filtered_adata.n_obs,
+        )
+        return filtered_adata
+
+    filtered_adata = adata[:, mask].copy()
+    logger.info(
+        "Filtered %s on %s '%s' %s %s: variables %d -> %d",
+        modality, on, column, keep, value, adata.n_vars, filtered_adata.n_vars,
+    )
+    if has_decoy:
+        _keep_passing_decoys(filtered_adata, _mask_decoys(adata.uns["decoy"], mask, column, keep, value, on))
+
+    return filtered_adata
+
+
+def _filter_cells_by_layer(adata: AnnData, modality: str, column: str, keep, value) -> AnnData:
+    """Empty the cells failing a condition on one layer, then remove the variables left without a passing cell."""
+    if keep in {"contains", "not_contains"}:
+        raise ValueError(f"Layer filters compare numbers; '{keep}' is not supported when on is 'layers'.")
+    if column not in adata.layers:
+        raise ValueError(f"Layer '{column}' not found in {modality}.layers")
+    has_decoy = "decoy" in adata.uns
+    if has_decoy:
+        _require_decoy_column(adata, modality, column, filter_kind="layer")
+
+    # anndata lists `.X` among the layers under the key None; it is handled by name here.
+    layer_names = [layer_name for layer_name in adata.layers.keys() if layer_name is not None]
+
+    # The comparisons are elementwise, so the whole (observations x variables) frame is masked in one call.
+    source_values = pd.DataFrame(adata.layers[column])
+    is_passing_cell = _mask_boolean_filter(values_to_mask=source_values, keep=keep, value=value).to_numpy()
+
+    # A failing cell is an identification that is gone, so it is emptied wherever the cell has a value.
+    adata.X = _empty_failing_cells(adata.X, is_passing_cell, f"{modality}.X")
+    for layer_name in layer_names:
+        adata.layers[layer_name] = _empty_failing_cells(
+            adata.layers[layer_name], is_passing_cell, f"{modality}.layers['{layer_name}']"
+        )
+    filtered_adata = adata[:, is_passing_cell.any(axis=0)].copy()
+
+    cell_count_with_value = int(source_values.notna().to_numpy().sum())
+    logger.info(
+        "Filtered %s on layers['%s'] %s %s: emptied %d of %d cells, variables %d -> %d",
+        modality, column, keep, value,
+        cell_count_with_value - int(is_passing_cell.sum()), cell_count_with_value,
+        adata.n_vars, filtered_adata.n_vars,
+    )
+    if has_decoy:
+        decoy_mask = _mask_boolean_filter(values_to_mask=adata.uns["decoy"][column], keep=keep, value=value)
+        _keep_passing_decoys(filtered_adata, decoy_mask)
+
+    return filtered_adata
+
+
+def _empty_failing_cells(matrix: np.ndarray, is_passing_cell: np.ndarray, location: str) -> np.ndarray:
+    """Set the failing cells of a matrix to NaN.
+
+    An integer or boolean matrix cannot hold NaN and is returned as float64. Strings have no missing
+    value that an h5mu file can store, so a matrix of strings cannot be emptied.
+    """
+    values = np.asarray(matrix)
+    if values.dtype.kind in _STRING_DTYPE_KINDS:
+        raise ValueError(
+            f"{location} (dtype {values.dtype}) cannot hold an emptied cell: strings have no missing value "
+            "that an h5mu file can store. A layer filter empties the failing cells in .X and in every layer."
+        )
+    emptied_dtype = values.dtype if np.issubdtype(values.dtype, np.floating) else np.float64
+    emptied_matrix = values.astype(emptied_dtype)
+    emptied_matrix[~is_passing_cell] = np.nan
+    return emptied_matrix
+
+
+def _keep_passing_decoys(filtered_adata: AnnData, decoy_mask: pd.Series) -> None:
+    """Keep the passing rows of the decoy table, and a pending `decoy_filter` aligned with them."""
+    passing_decoy_df = filtered_adata.uns["decoy"][decoy_mask.astype(bool)].copy()
+    filtered_adata.uns["decoy"] = passing_decoy_df
+    if "decoy_filter" in filtered_adata.uns:
+        filtered_adata.uns["decoy_filter"] = filtered_adata.uns["decoy_filter"].loc[passing_decoy_df.index].copy()

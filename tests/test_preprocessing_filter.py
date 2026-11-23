@@ -2,6 +2,7 @@ from msmu._provenance import get_log
 import io
 import logging
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -487,3 +488,220 @@ def test_named_matrix_filter_h5mu_roundtrip(filter_mdata, tmp_path):
         add_filter(restored, "psm", "score", "gt", 25., name="quality")
     selected = apply_filter(restored, "psm", columns=["qc_score", "quality"])
     assert selected["psm"].shape == (1, 2)
+
+
+def _assert_same_filtered_modality(actual, expected):
+    assert actual.obs_names.tolist() == expected.obs_names.tolist()
+    assert actual.var_names.tolist() == expected.var_names.tolist()
+    np.testing.assert_array_equal(actual.X, expected.X)
+    np.testing.assert_array_equal(actual.layers["doubled"], expected.layers["doubled"])
+    pd.testing.assert_frame_equal(actual.obs, expected.obs)
+    pd.testing.assert_frame_equal(actual.var, expected.var)
+    pd.testing.assert_frame_equal(actual.varm["qc"], expected.varm["qc"])
+    pd.testing.assert_frame_equal(actual.obsm["qc"], expected.obsm["qc"])
+    pd.testing.assert_frame_equal(actual.uns["decoy"], expected.uns["decoy"])
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        {"column": "score", "keep": "gt", "value": 15.0, "on": "var"},
+        {"column": "score", "keep": "ne", "value": 20.0, "on": "var"},
+        {"column": "score", "keep": "gt", "value": 15.0, "on": "varm", "key": "qc"},
+        {"column": "group", "keep": "eq", "value": "A", "on": "obs"},
+        {"column": "group", "keep": "not_contains", "value": "A", "on": "obs"},
+        {"column": "score", "keep": "gt", "value": 0.5, "on": "obsm", "key": "qc"},
+    ],
+)
+def test_filter_equals_add_filter_then_apply_filter(filter_mdata, condition):
+    psm = filter_mdata["psm"]
+    psm.obs["group"] = ["A", "B"]
+    psm.layers["doubled"] = psm.X * 2
+    psm.varm["qc"] = pd.DataFrame({"score": [30.0, 10.0, 30.0]}, index=psm.var_names)
+    psm.obsm["qc"] = pd.DataFrame({"score": [0.1, 0.9]}, index=psm.obs_names)
+
+    expected = apply_filter(add_filter(filter_mdata, modality="psm", **condition), modality="psm")
+    filtered = mm.pp.filter(filter_mdata, modality="psm", **condition)
+
+    _assert_same_filtered_modality(filtered["psm"], expected["psm"])
+    assert expected["psm"].shape != filter_mdata["psm"].shape
+    assert filter_mdata["psm"].shape == (2, 3)
+
+
+def test_filter_stores_no_mask_and_is_logged_under_its_name(filter_mdata):
+    filtered = mm.pp.filter(filter_mdata, "psm", "var", "score", "gt", 15.0)
+
+    assert "filter" not in filtered["psm"].varm
+    assert "filter" not in filtered["psm"].obsm
+    assert set(filtered["psm"].uns) == {"decoy"}
+    entry = get_log(filtered)["events"][-1]
+    assert entry["function"] == "filter"
+    assert entry["parameters"]["column"] == "score"
+    assert entry["parameters"]["on"] == "var"
+
+
+def test_filter_has_no_default_source(filter_mdata):
+    # Where the values are depends on the layout (var, obs, layers), so the caller always names it.
+    with pytest.raises(TypeError, match="'on'"):
+        mm.pp.filter(filter_mdata, modality="psm", column="score", keep="gt", value=15.0)
+
+
+def test_filter_requires_var_column_in_decoy_table(filter_mdata):
+    filter_mdata["psm"].var["cell"] = ["a", "b", "a"]
+    with pytest.raises(ValueError, match=r"missing from psm.uns\['decoy'\].*dt\.assign"):
+        mm.pp.filter(filter_mdata, "psm", "var", "cell", "eq", "a")
+
+
+@pytest.mark.parametrize(
+    "arguments, message",
+    [
+        ({"column": "score", "on": "obsm"}, "key must be provided"),
+        ({"column": "score", "on": "varm", "key": "missing"}, "Key missing not found in psm.varm"),
+        ({"column": "missing", "on": "var"}, "Column 'missing' not found in psm.var"),
+        ({"column": "score", "on": "vars"}, "Unknown filter target"),
+    ],
+)
+def test_filter_rejects_the_sources_add_filter_rejects(filter_mdata, arguments, message):
+    for filter_function in (add_filter, mm.pp.filter):
+        with pytest.raises(ValueError, match=message):
+            filter_function(filter_mdata, modality="psm", keep="gt", value=15.0, **arguments)
+
+
+def test_filter_keeps_pending_decoy_masks_aligned(filter_mdata):
+    pending = add_filter(filter_mdata, "psm", "score", "lt", 28.0)
+    filtered = mm.pp.filter(pending, "psm", "var", "score", "gt", 15.0)
+    assert filtered["psm"].uns["decoy_filter"].index.tolist() == filtered["psm"].uns["decoy"].index.tolist()
+
+    applied = apply_filter(filtered, "psm")
+    assert applied["psm"].var_names.tolist() == ["v2"]
+    assert applied["psm"].uns["decoy"].index.tolist() == ["v2"]
+
+
+def test_filter_on_layers_empties_failing_cells_and_drops_emptied_variables(wide_precursor_mdata):
+    filtered = mm.pp.filter(wide_precursor_mdata, "precursor", "layers", "q_value", "lt", 0.01)
+    precursor = filtered["precursor"]
+
+    # AAK3 passes in no run and is removed; DDK2 passes in run2 only and is kept with run1 empty.
+    assert precursor.var_names.tolist() == ["AAK2", "CCR2", "DDK2"]
+    assert precursor.obs_names.tolist() == ["run1", "run2"]
+    np.testing.assert_array_equal(precursor.X, np.array([[10.0, 30.0, np.nan], [12.0, np.nan, 40.0]], dtype="float32"))
+    np.testing.assert_array_equal(
+        precursor.layers["q_value"], np.array([[0.001, 0.003, np.nan], [0.002, np.nan, 0.004]], dtype="float32")
+    )
+    np.testing.assert_array_equal(
+        precursor.layers["PEP"], np.array([[0.01, 0.03, np.nan], [0.02, np.nan, 0.04]], dtype="float32")
+    )
+    assert precursor.X.dtype == np.float32
+    assert precursor.uns["decoy"].index.tolist() == ["run1.XXK2"]
+    assert {key for key in precursor.layers.keys() if key is not None} == {"q_value", "PEP"}
+    assert "filter" not in precursor.uns
+    assert get_log(filtered)["events"][-1]["parameters"]["on"] == "layers"
+
+    # The input is left as it was.
+    assert wide_precursor_mdata["precursor"].shape == (2, 4)
+    assert wide_precursor_mdata["precursor"].X[0, 1] == 20.0
+    assert len(wide_precursor_mdata["precursor"].uns["decoy"]) == 2
+
+
+def test_filter_on_layers_never_passes_a_missing_score(wide_precursor_mdata):
+    # A negated condition is true of NaN in plain numpy; a cell without a score is still not kept.
+    wide_precursor_mdata["precursor"].layers["q_value"][0, 0] = np.nan
+    filtered = mm.pp.filter(wide_precursor_mdata, "precursor", "layers", "q_value", "ne", 0.5)
+    precursor = filtered["precursor"]
+
+    assert precursor.var_names.tolist() == ["AAK2", "AAK3", "CCR2", "DDK2"]
+    assert np.isnan(precursor.X[0, 0])
+    assert np.isnan(precursor.layers["PEP"][0, 0])
+    assert precursor.X[1, 0] == 12.0
+    assert np.isnan(precursor.X[1, 2])
+
+
+def test_filter_on_layers_requires_the_layer_column_in_the_decoy_table(wide_precursor_mdata):
+    precursor = wide_precursor_mdata["precursor"]
+    precursor.uns["decoy"] = precursor.uns["decoy"].drop(columns="q_value")
+    with pytest.raises(ValueError, match=r"missing from precursor.uns\['decoy'\]; layer filters apply"):
+        mm.pp.filter(wide_precursor_mdata, "precursor", "layers", "q_value", "lt", 0.01)
+
+    del precursor.uns["decoy"]
+    without_decoy = mm.pp.filter(wide_precursor_mdata, "precursor", "layers", "q_value", "lt", 0.01)
+    assert without_decoy["precursor"].var_names.tolist() == ["AAK2", "CCR2", "DDK2"]
+
+
+@pytest.mark.parametrize("keep", ["contains", "not_contains"])
+def test_filter_on_layers_rejects_string_conditions(wide_precursor_mdata, keep):
+    with pytest.raises(ValueError, match="Layer filters compare numbers"):
+        mm.pp.filter(wide_precursor_mdata, "precursor", "layers", "q_value", keep, "0.0")
+
+
+def test_filter_on_layers_rejects_an_unknown_layer(wide_precursor_mdata):
+    with pytest.raises(ValueError, match=r"Layer 'missing' not found in precursor.layers"):
+        mm.pp.filter(wide_precursor_mdata, "precursor", "layers", "missing", "lt", 0.01)
+
+
+def test_filter_on_layers_empties_integer_and_boolean_layers_as_float(wide_precursor_mdata, tmp_path):
+    # An integer or boolean matrix cannot hold NaN, so its failing cells are emptied in a float matrix.
+    precursor = wide_precursor_mdata["precursor"]
+    precursor.layers["fragment_count"] = np.array([[6, 5, 4, 0], [7, 0, 3, 8]], dtype="int64")
+    precursor.layers["is_proteotypic"] = np.array([[True, True, False, False], [True, False, False, True]])
+
+    filtered = mm.pp.filter(wide_precursor_mdata, "precursor", "layers", "q_value", "lt", 0.01)
+
+    # AAK3 is removed; CCR2 fails in run2 and DDK2 has no identification in run1.
+    expected_fragment_count = np.array([[6.0, 4.0, np.nan], [7.0, np.nan, 8.0]])
+    expected_is_proteotypic = np.array([[1.0, 0.0, np.nan], [1.0, np.nan, 1.0]])
+    for layers in (filtered["precursor"].layers, _write_and_read_h5mu(filtered, tmp_path)["precursor"].layers):
+        np.testing.assert_array_equal(layers["fragment_count"], expected_fragment_count)
+        np.testing.assert_array_equal(layers["is_proteotypic"], expected_is_proteotypic)
+        assert layers["fragment_count"].dtype == np.float64
+        assert layers["is_proteotypic"].dtype == np.float64
+
+    # The input keeps its own values and dtypes.
+    assert precursor.layers["fragment_count"].dtype == np.int64
+    assert precursor.layers["is_proteotypic"].dtype == np.bool_
+
+
+def _write_and_read_h5mu(mdata, directory):
+    path = directory / "filtered.h5mu"
+    mdata.write_h5mu(path)
+    return mm.read_h5mu(path)
+
+
+def test_filter_on_layers_never_passes_a_cell_an_earlier_layer_filter_emptied(wide_precursor_mdata):
+    precursor = wide_precursor_mdata["precursor"]
+    precursor.layers["fragment_count"] = np.array([[2, 5, 4, 0], [7, 0, 3, 8]], dtype="int64")
+    precursor.uns["decoy"]["fragment_count"] = [5, 5]
+
+    score_filtered = mm.pp.filter(wide_precursor_mdata, "precursor", "layers", "q_value", "lt", 0.01)
+    filtered = mm.pp.filter(score_filtered, "precursor", "layers", "fragment_count", "le", 3)
+
+    # CCR2 holds 3 fragments in run2, but that identification failed the score filter: its cell was
+    # emptied in every layer, so it cannot pass a later condition and keep CCR2.
+    assert filtered["precursor"].var_names.tolist() == ["AAK2"]
+    np.testing.assert_array_equal(filtered["precursor"].X, np.array([[10.0], [np.nan]], dtype="float32"))
+
+
+def test_filter_on_layers_refuses_a_layer_of_strings(wide_precursor_mdata):
+    # A string matrix has no missing value that an h5mu file can store, so its cells cannot be emptied.
+    wide_precursor_mdata["precursor"].layers["note"] = np.array(
+        [["a", "b", "c", ""], ["d", "", "e", "f"]], dtype=object
+    )
+    with pytest.raises(ValueError, match=r"precursor\.layers\['note'\] \(dtype object\) cannot hold an emptied cell"):
+        mm.pp.filter(wide_precursor_mdata, "precursor", "layers", "q_value", "lt", 0.01)
+
+
+def test_filter_workflow_replays_and_generates_script(wide_precursor_mdata, tmp_path):
+    source = tmp_path / "wide.h5mu"
+    wide_precursor_mdata["precursor"].var["charge"] = [2, 3, 2, 2]
+    wide_precursor_mdata["precursor"].uns["decoy"]["charge"] = [2, 2]
+    wide_precursor_mdata.write_h5mu(source)
+    with mm.pv.options(hashing=True):
+        original = mm.pv.log(mm.read_h5mu)(source)
+        out = mm.pp.filter(original, "precursor", "layers", "q_value", "lt", 0.01)
+        out = mm.pp.filter(out, "precursor", "var", "charge", "eq", 2)
+    assert out["precursor"].var_names.tolist() == ["AAK2", "CCR2", "DDK2"]
+    assert [event["function"] for event in get_log(out)["events"][-2:]] == ["filter", "filter"]
+    assert mm.pv.compute_hash(mm.pv.replay(out, verify=True)) == mm.pv.compute_hash(out)
+    namespace = {}
+    exec(mm.pv.to_script(out, verify=True), namespace)
+    assert mm.pv.compute_hash(namespace["mdata"]) == mm.pv.compute_hash(out)
+

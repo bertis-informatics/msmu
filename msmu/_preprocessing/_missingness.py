@@ -65,8 +65,7 @@ def calculate_missingness(
         ```python
         import msmu as mm
         mdata = mm.pp.calculate_missingness(mdata, modality="protein", group_obs="condition")
-        mdata = mm.pp.add_filter(mdata, modality="protein", column="missing_ratio", keep="lt", value=0.5)
-        mdata = mm.pp.apply_filter(mdata, modality="protein")
+        mdata = mm.pp.filter(mdata, modality="protein", on="var", column="missing_ratio", keep="lt", value=0.5)
         ```
     """
     mdata = copy_mudata(mdata)

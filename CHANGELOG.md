@@ -6,6 +6,17 @@ from git tags via setuptools-scm.
 
 ## [Unreleased]
 
+### Added
+
+- **`mm.pp.filter` filters in one call.** It evaluates one condition on a modality and returns
+  the `MuData` without whatever failed it. No mask is stored; the provenance log records the
+  condition. `on` says where the values are and has no default: `.var`, `.obs`, a table in
+  `.varm` or `.obsm`, or a layer holding one value per cell (`on="layers"`). For a layer, the
+  cells failing the condition are emptied in `.X` and in every layer, and the features left
+  without a passing cell are removed; an integer or boolean layer becomes floating-point to
+  hold the emptied cells, and a layer of strings is refused. Decoys in `.uns["decoy"]` are
+  filtered on their own column of the same name.
+
 ### Changed
 
 - **Rollups skip the identification columns their input lacks.** `to_peptide`, `to_protein` and
