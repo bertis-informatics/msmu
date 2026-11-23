@@ -796,7 +796,7 @@ class SummarisationPrep:
         filter_indices = pd.Series(False, index=id_df.index)
 
         for column, (keep, value) in self._filter_dict.items():
-            column_mask = _mask_boolean_filter(series_to_mask=id_df[column], keep=keep, value=value)
+            column_mask = _mask_boolean_filter(values_to_mask=id_df[column], keep=keep, value=value)
             filter_indices = filter_indices | column_mask
 
         return filter_indices
@@ -810,7 +810,7 @@ class SummarisationPrep:
             col_to_groupby=self._col_to_groupby,
         )
 
-        rank_mask = _mask_boolean_filter(series_to_mask=ranked_id_df["rank"], keep="le", value=top_n)
+        rank_mask = _mask_boolean_filter(values_to_mask=ranked_id_df["rank"], keep="le", value=top_n)
 
         return rank_mask
 

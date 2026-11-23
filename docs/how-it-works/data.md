@@ -193,7 +193,7 @@ mdata = mm.pp.log2_transform(mdata, modality="peptide")
 mdata = mm.pp.normalise(mdata, modality="peptide", method="median")
 ```
 
-These functions copy the input, as do [`pp.add_filter`](../reference/pp/add_filter.md), [`pp.apply_filter`](../reference/pp/apply_filter.md),
+These functions copy the input, as do [`pp.filter`](../reference/pp/filter.md), [`pp.add_filter`](../reference/pp/add_filter.md), [`pp.apply_filter`](../reference/pp/apply_filter.md),
 [`pp.attach_sdrf`](../reference/pp/attach_sdrf.md), [`pp.apply_sdrf_to_obs`](../reference/pp/apply_sdrf_to_obs.md), [`pp.infer_protein`](../reference/pp/infer_protein.md), [`pp.to_peptide`](../reference/pp/to_peptide.md),
 [`pp.to_protein`](../reference/pp/to_protein.md), [`tl.pca`](../reference/tl/pca.md), and [`tl.umap`](../reference/tl/umap.md). Ignoring their return value discards the
 processed copy. Consult the API reference for other operations rather than assuming

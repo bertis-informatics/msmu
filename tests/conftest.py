@@ -130,6 +130,47 @@ def filter_mdata() -> MuData:
 
 
 @pytest.fixture
+def wide_precursor_mdata() -> MuData:
+    """A wide `precursor` modality: observations are runs, variables precursors, scores in layers.
+
+    Precursor ``AAK3`` is identified in ``run1`` only; ``DDK2`` in ``run2`` only. The decoy table keeps
+    the long layout, one row per run and decoy precursor. Its ``PEP`` has the precision of the ``PEP``
+    layer, as in the tables the readers build, so that decoy ``XXK`` ties with target ``DDK`` at 0.04.
+    """
+    obs = pd.DataFrame(index=["run1", "run2"])
+    var = pd.DataFrame(
+        {
+            "peptide": ["AAK", "AAK", "CCR", "DDK"],
+            "stripped_peptide": ["AAK", "AAK", "CCR", "DDK"],
+            "proteins": ["P1", "P1", "P2", "P3"],
+        },
+        index=["AAK2", "AAK3", "CCR2", "DDK2"],
+    )
+    decoy = pd.DataFrame(
+        {
+            "peptide": ["XXK", "YYR"],
+            "stripped_peptide": ["XXK", "YYR"],
+            "proteins": ["P8", "P9"],
+            "filename": ["run1", "run2"],
+            "PEP": np.array([0.04, 0.6], dtype="float32"),
+            "q_value": [0.004, 0.2],
+        },
+        index=["run1.XXK2", "run2.YYR2"],
+    )
+    adata = _make_adata(
+        np.array([[10.0, 20.0, 30.0, np.nan], [12.0, np.nan, 34.0, 40.0]], dtype="float32"),
+        obs,
+        var,
+        uns={"level": "precursor", "label": "label_free", "acquisition": "dia", "decoy": decoy},
+    )
+    adata.layers["q_value"] = np.array(
+        [[0.001, 0.02, 0.003, np.nan], [0.002, np.nan, 0.5, 0.004]], dtype="float32"
+    )
+    adata.layers["PEP"] = np.array([[0.01, 0.2, 0.03, np.nan], [0.02, np.nan, 0.9, 0.04]], dtype="float32")
+    return _make_mdata({"precursor": adata})
+
+
+@pytest.fixture
 def simple_mdata() -> MuData:
     obs = pd.DataFrame(index=["s1", "s2", "gis1", "s3", "s4", "gis2"])
     var = pd.DataFrame(index=["v1", "v2"])
