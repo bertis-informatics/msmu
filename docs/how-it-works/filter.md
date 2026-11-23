@@ -56,9 +56,10 @@ Each call applies one condition; call it again for the next one.
 
 ## Filtering cells
 
-In a wide `precursor` modality (samples are runs, features are precursors) an identification is a
-cell, not a feature, and its score is kept per cell in a layer. A filter on a feature would keep or
-remove a precursor in every run at once, so the condition is evaluated per cell instead:
+In a wide `precursor` modality (samples are runs, features are precursors; see
+[Data](data.md#wide_precursor_input)) an identification is a cell, not a feature, and its score is
+kept per cell in a layer. A filter on a feature would keep or remove a precursor in every run at
+once, so the condition is evaluated per cell instead:
 
 ```python
 mdata = mm.pp.filter(

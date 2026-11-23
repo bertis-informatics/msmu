@@ -81,7 +81,7 @@ comparison. Do not overwrite its expected hashes to make verification pass.
 
 [`to_peptide()`](../reference/pp/to_peptide.md) function takes:
 
-- `MuData` containing `psm` level modality
+- `MuData` containing `psm` level modality, or a [wide `precursor` modality](data.md#wide_precursor_input) when there is no `psm`
 
 and returns
 
@@ -89,6 +89,7 @@ and returns
 
 This step aggregates PSMs and their quantification values by `peptide` (non-redundant modified peptide).
 Peptide-level PEP is calculated with `best_pep` method by default and peptide-level q-values are computed using a conservative approach when decoy information is available.
+For a `precursor` modality the scores are read from its `PEP` layer: the best value over the peptide's precursors and runs.
 
 For quantification aggregation, the default method is `median`, and an optional `top_n` argument can be used to restrict aggregation using top N (e.g., top 3) features within each peptide. Feature ranking is based on `median_intensity` unless specified otherwise. Only the column-wise reductions (`median`, `mean`, `sum`) are available at the peptide level; the matrix rollups belong to the protein step (see [Aggregation methods](#aggregation_methods)).
 

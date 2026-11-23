@@ -339,7 +339,7 @@ def format_modality(mdata: md.MuData, modality: str) -> str:
 
     Parameters:
         mdata: MuData object containing modality metadata.
-        modality: Modality key such as 'psm', 'peptide', or 'protein'.
+        modality: Modality key such as 'psm', 'precursor', 'peptide', or 'protein'.
 
     Returns:
         Display-ready modality label.
@@ -349,6 +349,8 @@ def format_modality(mdata: md.MuData, modality: str) -> str:
             return "Precursor"
         else:
             return "PSM"
+    elif modality == "precursor":
+        return "Precursor"
     elif modality == "peptide":
         return "Peptide"
     elif modality == "protein":
@@ -356,7 +358,9 @@ def format_modality(mdata: md.MuData, modality: str) -> str:
     elif modality.endswith("_site"):
         return modality.capitalize()
     else:
-        raise ValueError(f"Unknown modality: {modality}, choose from 'psm', 'peptide', 'protein', '[ptm]_site'")
+        raise ValueError(
+            f"Unknown modality: {modality}, choose from 'psm', 'precursor', 'peptide', 'protein', '[ptm]_site'"
+        )
 
 
 def set_color(

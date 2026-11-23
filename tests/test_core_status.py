@@ -62,3 +62,14 @@ def test_mudata_status_has_no_quant_for_empty_matrix(matrix):
 
     assert status.psm is not None
     assert not status.psm.has_quant
+
+
+def test_mudata_status_exposes_a_precursor_modality_like_psm(wide_precursor_mdata):
+    assert _status_for_matrix(np.array([[1.0]])).precursor is None
+
+    status = MuDataStatus(wide_precursor_mdata)
+
+    assert status.psm is None
+    assert status.precursor.modality == "precursor"
+    assert status.precursor.has_decoy
+    assert status.precursor.has_quant

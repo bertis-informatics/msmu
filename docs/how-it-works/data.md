@@ -131,6 +131,7 @@ fixes both the shape of the matrix and how `msmu` stores it.
 | DDA, TMT — single plex | `psm` | channel | `filename.scan` | complete | dense |
 | DDA, TMT — multi-plex | `psm` | `channel_set` | `filename.scan` | block diagonal | sparse |
 | DIA — precursor level | `psm` | run | `run.precursor` | one cell per feature | sparse |
+| DIA — precursor level, wide ([external file](#wide_precursor_input)) | `precursor` | run | precursor | complete | dense |
 
 ![](../assets/quant_matrix_forms.svg){ width="100%" }
 
@@ -183,6 +184,54 @@ mdata["psm"].to_df()                       # absent cells -> 0  (do not use on a
 [`to_readable()`](../reference/io/to_readable.md) returns `.var` and the quantification side by side; narrow it with the optional
 `include` / `exclude` (feature columns to keep or drop) and `quantification=False` (annotations
 only).
+
+## Wide precursor input
+
+The readers lay DIA precursors out long: `psm` has one feature per run and precursor. A file
+written by another tool can bring the same data wide, as a `precursor` modality whose samples are
+runs and whose features are precursors. `msmu` loads such a file with
+[`read_h5mu`](../reference/read_h5mu.md) and processes the modality as it is; its own readers do
+not produce this layout.
+
+An identification is one cell here, so what differs between the runs of a precursor sits in a
+matrix and `.var` keeps what the runs have in common:
+
+| Part | Content |
+| --- | --- |
+| Modality name | `precursor`, in a `MuData` without a `psm` modality |
+| `.obs` / `.var` | runs / precursors, targets only |
+| `.X` | quantification; dense, `NaN` (not `0`) where the precursor has no value in the run |
+| `.var` columns | `proteins`, `peptide`, `stripped_peptide`, and any other value shared by the runs |
+| `.layers["q_value"]`, `.layers["PEP"]` | identification scores per cell; dense, `NaN` where there is no identification |
+| `.uns["decoy"]` | optional; the table the readers build, one row per run and decoy precursor |
+
+The workflow differs from the long one in two places:
+
+- **A score filter is a cell filter.** [`filter`](../reference/pp/filter.md) with `on="layers"`
+  empties the cells failing the condition and removes the precursors left without one; see
+  [Filter](filter.md#filtering_cells).
+- **[`to_peptide`](../reference/pp/to_peptide.md) summarizes `precursor` when there is no `psm`**,
+  and rejects a `MuData` holding both. The peptide `PEP` is the best value of the `PEP` layer over
+  the peptide's precursors and runs, and q-values are calculated from it as for `psm` when the
+  decoy table is present. Without a decoy table the `PEP` is carried up without q-values; without
+  a `PEP` layer only the quantification is summarized. `count_psm` is not produced.
+
+```python
+mdata = mm.read_h5mu("path/to/wide_precursor.h5mu")
+mdata = mm.pp.filter(
+    mdata, modality="precursor", on="layers", column="q_value", keep="lt", value=0.01
+)
+mdata = mm.pp.log2_transform(mdata, modality="precursor")
+mdata = mm.pp.to_peptide(mdata)
+mdata = mm.pp.infer_protein(mdata)
+mdata = mm.pp.to_protein(mdata)
+```
+
+A decoy table needs the columns `peptide`, `stripped_peptide` and `proteins`, `PEP` for q-values,
+and a column named like every layer a filter uses, because decoys are filtered on their own
+values. Its `PEP` must have the precision of the `PEP` layer: q-values group exactly equal PEPs (see
+[Summarization](summarization.md#identification_q-values_and_tied_peps)), so a target stored as
+`float32` no longer ties with a decoy of the same score stored as `float64`.
 
 ## Returned objects and in-place changes
 

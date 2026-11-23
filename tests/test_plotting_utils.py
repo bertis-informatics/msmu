@@ -250,6 +250,7 @@ def test_merge_traces_overrides_options():
 
 def test_format_modality_labels(mdata):
     assert format_modality(mdata, "psm") == "Precursor"
+    assert format_modality(mdata, "precursor") == "Precursor"
     assert format_modality(mdata, "peptide") == "Peptide"
     assert format_modality(mdata, "protein") == "Protein"
     assert format_modality(mdata, "phospho_site") == "Phospho_site"
