@@ -35,6 +35,13 @@ from git tags via setuptools-scm.
   from, had none. The parser now removes the engine's tag. Inputs without a decoy
   column still read it: `mm.utils.parse_uniprot_accession` and `attach_fasta` mark a tagged
   entry `decoy_`, and the FragPipe reader recognises decoys by FragPipe's `rev_` tag.
+- **Analyses of the quantification leave out decoy features.** `pca`, `umap`, `corr`, `run_de`,
+  `to_ptm` and every plot leave out the features whose `.var["decoy"]` is 1, so `run_de` neither
+  tests a decoy nor counts it in the multiple-testing correction. `normalise` and
+  `correct_batch_effect` compute from the targets and leave the decoy values as they were, and
+  `adjust_ptm_by_protein` never takes a decoy protein of the global data as a denominator. The
+  readers still keep decoys in `.uns["decoy"]`, so results do not change; this prepares for
+  decoys stored as `.var` rows next to the targets.
 - **Rollups skip the identification columns their input lacks.** `to_peptide`, `to_protein` and
   `to_ptm` raised `KeyError` when `.var` had no `PEP` (or, for `to_protein` and `to_ptm`, no
   `count_psm`). They now summarize without the missing score or count, and skip the q-values

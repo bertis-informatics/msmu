@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from .._core._provenance import log_provenance
+from .._utils._anndata import _drop_decoy_features
 from .._utils._mudata import get_anndata_mod
 from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
@@ -98,7 +99,7 @@ class DeaInputs:
         expr: str | None,
         layer: str | None,
     ) -> "DeaInputs":
-        mod_adata = get_anndata_mod(mdata, modality)
+        mod_adata = _drop_decoy_features(get_anndata_mod(mdata, modality))
         # to_dense_df restores absent cells as NaN for a sparse .X/layer (a plain DataFrame over
         # the raw sparse matrix crashes, and a densify would poison absent cells with 0).
         data = to_dense_df(mod_adata, layer=layer)
@@ -391,7 +392,7 @@ def run_de(
         `DeaResult` containing DE analysis results.
 
     Notes:
-        The returned result provides `.to_df()` with `features`, `repr_ctrl`, `repr_expr`, `pct_ctrl`, `pct_expr`, `log2fc`, `statistic`, `p_value`, and `q_value`. `.plot_volcano(...)` delegates to [`plot_volcano`][msmu.pl.plot_volcano], which uses raw p-values. The analysis returns a result object rather than a new `MuData`.
+        The returned result provides `.to_df()` with `features`, `repr_ctrl`, `repr_expr`, `pct_ctrl`, `pct_expr`, `log2fc`, `statistic`, `p_value`, and `q_value`. `.plot_volcano(...)` delegates to [`plot_volcano`][msmu.pl.plot_volcano], which uses raw p-values. The analysis returns a result object rather than a new `MuData`. Decoy features (`.var["decoy"] == 1`) are always left out, so they are neither tested nor counted in the multiple-testing correction.
 
     Examples:
         ```python

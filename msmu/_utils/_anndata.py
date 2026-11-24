@@ -1,5 +1,6 @@
 from typing import Any, cast
 
+from anndata import AnnData
 from anndata.abc import CSCDataset, CSRDataset
 from anndata.experimental.backed import Dataset2D
 try:
@@ -9,6 +10,8 @@ except ImportError:  # anndata >=0.13 made XDataType private; XDataArray is the 
 import numpy as np
 from pandas import DataFrame
 from scipy import sparse as sp
+
+from .._core._blockdiag import dense_block
 
 
 def _require_columns(frame: DataFrame | Dataset2D, columns: list[str], context: str) -> None:
@@ -37,6 +40,53 @@ def _resolve_accession_column(frame: DataFrame | Dataset2D, context: str) -> str
             return column
 
     raise ValueError(f"No protein accession column found in {context}; expected one of {ACCESSION_COLUMN_PREFERENCE}.")
+
+
+DECOY_COLUMN = "decoy"
+
+
+def _get_target_feature_mask(var: DataFrame) -> np.ndarray:
+    """Return True for the target features of a ``.var`` table and False for its decoys.
+
+    A decoy is a row whose ``decoy`` column is 1. A table without that column holds targets only.
+    """
+    if DECOY_COLUMN not in var.columns:
+        return np.ones(len(var), dtype=bool)
+    return var[DECOY_COLUMN].ne(1).to_numpy()
+
+
+def _drop_decoy_features(adata: AnnData) -> AnnData:
+    """Return the modality without its decoy features, for analyses of the quantification.
+
+    A modality without decoys is returned as it is; otherwise the result is a view.
+    """
+    is_target_feature = _get_target_feature_mask(adata.var)
+    if is_target_feature.all():
+        return adata
+    return adata[:, is_target_feature]
+
+
+def _replace_target_columns(full_matrix: Any, target_matrix: Any, is_target_feature: np.ndarray) -> Any:
+    """Return a copy of ``full_matrix`` whose target columns hold ``target_matrix``.
+
+    For computations that rewrite the target columns only: the decoy columns keep the values of
+    ``full_matrix``. The result takes the format and dtype of ``target_matrix``; a sparse
+    ``full_matrix`` read into a dense result gives NaN for its absent cells.
+    """
+    if is_target_feature.all():
+        return target_matrix
+    if sp.issparse(target_matrix):
+        decoy_matrix = sp.csc_matrix(full_matrix)[:, ~is_target_feature]
+        stacked_matrix = sp.hstack([sp.csc_matrix(target_matrix), decoy_matrix], format="csc")
+        stacked_column_positions = np.concatenate(
+            [np.flatnonzero(is_target_feature), np.flatnonzero(~is_target_feature)]
+        )
+        replaced_matrix = stacked_matrix[:, np.argsort(stacked_column_positions)]
+        return replaced_matrix.asformat(target_matrix.format).astype(target_matrix.dtype)
+    full_values = dense_block(full_matrix) if sp.issparse(full_matrix) else np.asarray(full_matrix)
+    replaced_values = full_values.astype(target_matrix.dtype, copy=True)
+    replaced_values[:, is_target_feature] = target_matrix
+    return replaced_values
 
 
 def _has_quant_values(matrix: XDataType | None) -> bool:
@@ -69,4 +119,10 @@ def _has_quant_values(matrix: XDataType | None) -> bool:
     return not bool(np.isnan(values).all())
 
 
-__all__ = ["_has_quant_values", "_require_columns"]
+__all__ = [
+    "_drop_decoy_features",
+    "_get_target_feature_mask",
+    "_has_quant_values",
+    "_require_columns",
+    "_replace_target_columns",
+]

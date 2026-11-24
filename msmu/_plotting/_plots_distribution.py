@@ -4,6 +4,7 @@ import mudata as md
 import pandas as pd
 import plotly.graph_objects as go
 
+from .._utils._anndata import _drop_decoy_features
 from ._pdata import PlotData
 from ._ptypes import (
     PlotBox,
@@ -285,8 +286,9 @@ def plot_var(
     modality_label = context.modality_label
     column_label = var_column.replace("_", " ").capitalize()
 
-    if pd.api.types.is_numeric_dtype(mdata.mod[modality].var[var_column]):
-        if len(mdata.mod[modality].var[var_column].unique()) > 20:
+    var_values = _drop_decoy_features(mdata.mod[modality]).var[var_column]
+    if pd.api.types.is_numeric_dtype(var_values):
+        if len(var_values.unique()) > 20:
             ptype = ptype or "box"
         else:
             ptype = ptype or "stack"

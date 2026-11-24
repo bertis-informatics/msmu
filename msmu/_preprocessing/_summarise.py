@@ -3,6 +3,7 @@ import warnings
 import anndata as ad
 import pandas as pd
 
+from .._utils._anndata import _drop_decoy_features
 from .._utils._mudata import add_modality, copy_mudata, get_anndata_mod, replace_modality
 from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
@@ -424,7 +425,7 @@ def to_ptm(
         MuData: `MuData` object containing PTM-level data.
 
     Notes:
-        Adds `<modi_name>_site` to the supplied `MuData` in place. Use a copy to preserve the original. Requires peptide data and FASTA-derived `protein_info`; see [`to_peptide`][msmu.pp.to_peptide] and [`attach_fasta`][msmu.utils.attach_fasta].
+        Adds `<modi_name>_site` to the supplied `MuData` in place. Use a copy to preserve the original. Requires peptide data and FASTA-derived `protein_info`; see [`to_peptide`][msmu.pp.to_peptide] and [`attach_fasta`][msmu.utils.attach_fasta]. Decoy peptides (`.var["decoy"] == 1`) are always left out, so no site is built from them.
 
     Examples:
         ```python
@@ -433,7 +434,7 @@ def to_ptm(
         mdata = mm.pp.to_ptm(mdata, modi_name="phospho", modification="(unimod:21)")
         ```
     """
-    adata_to_summarise: ad.AnnData = get_anndata_mod(mdata, "peptide").copy()
+    adata_to_summarise: ad.AnnData = _drop_decoy_features(get_anndata_mod(mdata, "peptide")).copy()
     if layer is not None:
         adata_to_summarise.X = adata_to_summarise.layers[layer]
         logger.debug("Using layer '%s' for PTM summarisation.", layer)

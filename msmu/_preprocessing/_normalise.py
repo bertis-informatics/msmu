@@ -4,6 +4,7 @@ import anndata as ad
 import mudata as md
 import numpy as np
 
+from .._utils._anndata import _get_target_feature_mask, _replace_target_columns
 from .._utils._mudata import copy_mudata, get_anndata_mod
 from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block, is_sparse, sparse_apply_elementwise, to_observed_sparse
@@ -155,6 +156,9 @@ def normalise(
         per-sample vectors plus, for ``pairwise_median``, the ``pair_median_log2`` and
         ``pair_shared_count`` matrices the shifts were derived from. Records for the same layer are
         replaced on a repeated call.
+
+        Decoy features (`.var["decoy"] == 1`) are always left out of the normalization and keep
+        their values.
     """
     if batch_key is not None:
         logger.warning("`batch_key` is deprecated; use `group_obs` instead.")
@@ -195,6 +199,11 @@ def normalise(
     obs_groups = adata.obs[group_obs].to_numpy() if group_obs is not None else None
     var_groups = adata.var[group_var].to_numpy() if group_var is not None else None
 
+    # The factors are computed from the targets only, and the decoys keep their values.
+    is_target_feature = _get_target_feature_mask(adata.var)
+    target_raw_arr = raw_arr if is_target_feature.all() else raw_arr[:, is_target_feature]
+    target_var_groups = var_groups[is_target_feature] if var_groups is not None else None
+
     # Sparse-native methods (those the ``Normalisation`` object defines a ``_{method}_sparse`` rescaler
     # for) are computed directly on the sparse block-diagonal -- each obs row is rescaled from its own
     # stored values -- so the layer stays sparse instead of materialising the dense matrix, for the
@@ -202,27 +211,30 @@ def normalise(
     # Quantile is not sparse-native (its per-sample rank mapping couples all samples), so it densifies.
     block_records: list[dict] = []
     try:
-        if is_sparse(raw_arr) and norm_cls.is_sparse_native:
-            normalised_arr = _normalise_per_group_sparse(raw_arr, obs_groups, var_groups, norm_cls, block_records)
+        if is_sparse(target_raw_arr) and norm_cls.is_sparse_native:
+            normalised_target_arr = _normalise_per_group_sparse(
+                target_raw_arr, obs_groups, target_var_groups, norm_cls, block_records
+            )
         else:
-            input_was_sparse = is_sparse(raw_arr)
+            input_was_sparse = is_sparse(target_raw_arr)
             if input_was_sparse:
-                input_dtype = raw_arr.dtype
-                raw_arr = dense_block(raw_arr).astype(input_dtype)
+                input_dtype = target_raw_arr.dtype
+                target_raw_arr = dense_block(target_raw_arr).astype(input_dtype)
 
-            normalised_arr = _normalise_by_groups(
-                raw_arr=raw_arr,
+            normalised_target_arr = _normalise_by_groups(
+                raw_arr=target_raw_arr,
                 norm_cls=norm_cls,
                 obs_groups=obs_groups,
-                var_groups=var_groups,
+                var_groups=target_var_groups,
                 block_records=block_records,
             )
             # quantile densifies to compute (its per-sample rank mapping couples all samples); re-sparsify so
             # a sparse input yields a sparse output, recovering the memory freed by dropping absent cells.
             if input_was_sparse:
-                normalised_arr = to_observed_sparse(normalised_arr, dtype=input_dtype)
+                normalised_target_arr = to_observed_sparse(normalised_target_arr, dtype=input_dtype)
     except UnsharedSamplePairsError as error:
         raise ValueError(_describe_unshared_sample_pairs(error, adata.obs_names.to_list(), method, modality)) from None
+    normalised_arr = _replace_target_columns(raw_arr, normalised_target_arr, is_target_feature)
 
     if layer is None:
         adata.X = normalised_arr
@@ -591,7 +603,7 @@ def adjust_ptm_by_protein(
     peptide, so a PTM peptide the global run never observed is still adjustable whenever its protein
     was quantified there. Sites whose accessions span two or more quantified global groups have no
     valid denominator and are left unadjusted; ``.var['adjustment_status']`` records why for every
-    site.
+    site. A decoy protein of the global dataset (``.var["decoy"] == 1``) is never a denominator.
 
     The adjusted values replace the quantification that was read -- ``.X``, or ``.layers[layer]`` when
     given -- the same contract as [`log2_transform`][msmu.pp.log2_transform],
