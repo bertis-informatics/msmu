@@ -28,6 +28,13 @@ from git tags via setuptools-scm.
 
 ### Changed
 
+- **Decoy accessions take the `decoy_` prefix, set from the decoy column.** Readers prefix every
+  accession of a row their decoy column marks, so a decoy never shares an accession with a
+  target. The prefix used to be `rev_` and came only from a search engine's tag in front of a
+  UniProt-style entry, so DIA-NN decoys, which carry the accession of the target they were made
+  from, had none. The parser now removes the engine's tag. Inputs without a decoy
+  column still read it: `mm.utils.parse_uniprot_accession` and `attach_fasta` mark a tagged
+  entry `decoy_`, and the FragPipe reader recognises decoys by FragPipe's `rev_` tag.
 - **Rollups skip the identification columns their input lacks.** `to_peptide`, `to_protein` and
   `to_ptm` raised `KeyError` when `.var` had no `PEP` (or, for `to_protein` and `to_ptm`, no
   `count_psm`). They now summarize without the missing score or count, and skip the q-values
@@ -43,6 +50,12 @@ from git tags via setuptools-scm.
 
 ### Fixed
 
+- **DIA-NN decoys no longer change the target protein groups.** A DIA-NN decoy carried the
+  accession of its target, so `infer_protein` mapped decoy peptides onto target proteins, and a
+  protein that only a decoy peptide distinguished was split out of its group. With the `decoy_`
+  prefix the decoys are inferred apart from the targets. On the DIA tutorial data two target
+  protein groups gain the members the decoys had split off; their quantification and q-values
+  are unchanged.
 - **Replacing a modality leaves the other modalities as they are.** In a `MuData` whose
   modalities share a feature name, which the readers never produce but a hand-built or external
   container can, filtering a modality or rebuilding the peptide modality could remove the

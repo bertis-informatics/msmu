@@ -22,7 +22,7 @@ UNIPROT_DATABASE_TAGS = ("sp", "tr")
 CONTAMINANT_MARKERS = ("contam_", "Cont_", "CON__")
 
 CANONICAL_CONTAMINANT_PREFIX = "Cont_"
-CANONICAL_DECOY_PREFIX = "rev_"
+CANONICAL_DECOY_PREFIX = "decoy_"
 
 
 @log_provenance(file_inputs=("fasta_file",))
@@ -57,7 +57,7 @@ def _get_protein_info_from_fasta(fasta_file: str) -> pd.DataFrame:
         entry_type, _raw_accession, protein_id = _split_uniprot_fasta_entry(record.id)
         # Index on the canonical accession so the mapping keys match what the readers parse out
         # of the search output, whichever contaminant FASTA convention the search used.
-        ref_uniprot, _is_contaminant = _parse_protein_entry(record.id)
+        ref_uniprot = _canonical_accession_from_tag(record.id)
         accession, _ = _strip_contaminant_marker(_raw_accession, search_anywhere=False)
 
         gene_name_search = re.search(r"GN=([^\s]+)", desc)
@@ -102,11 +102,14 @@ def _strip_contaminant_marker(text: str, *, search_anywhere: bool) -> tuple[str,
     return text, False
 
 
-def _parse_protein_entry(protein_entry: str) -> tuple[str, bool]:
-    """Parse one protein entry into its canonical accession and its contaminant status.
+def _parse_protein_entry(protein_entry: str) -> tuple[str, bool, bool]:
+    """Parse one protein entry into its accession, its contaminant status and its decoy tag.
 
-    The canonical form is ``[rev_][Cont_]<accession>``, so entries reaching msmu through
-    different search engines and contaminant FASTA conventions collapse onto one spelling.
+    The accession takes the canonical form ``[Cont_]<accession>``, so entries reaching msmu
+    through different search engines and contaminant FASTA conventions collapse onto one
+    spelling. The search engine's decoy tag is removed from it and reported separately: readers
+    take decoy status from the search output's decoy column, and only inputs without one fall
+    back to the tag (see ``_canonical_accession_from_tag``).
 
     The protein name field is never inspected: real names such as ``CONA_CANLI`` would otherwise
     match a contaminant marker.
@@ -116,20 +119,36 @@ def _parse_protein_entry(protein_entry: str) -> tuple[str, bool]:
         # Not a UniProt-style entry (e.g., a bare accession); only the marker can be recovered.
         accession, is_contaminant = _strip_contaminant_marker(protein_entry, search_anywhere=True)
         prefix = CANONICAL_CONTAMINANT_PREFIX if is_contaminant else ""
-        return prefix + accession, is_contaminant
+        return prefix + accession, is_contaminant, False
 
     database_field, accession, _protein_name = fields
     database_field, marker_in_database_field = _strip_contaminant_marker(database_field, search_anywhere=True)
     accession, marker_in_accession = _strip_contaminant_marker(accession, search_anywhere=False)
 
-    # A recognised database tag carrying something in front of it is a decoy entry. Decoy status
-    # itself comes from the reader's flag column; the prefix is kept only so that decoy accessions
-    # stay distinct from their target counterparts.
-    is_decoy = any(database_field.endswith(tag) and database_field != tag for tag in UNIPROT_DATABASE_TAGS)
+    # A recognised database tag carrying something in front of it is a decoy entry.
+    has_decoy_tag = any(database_field.endswith(tag) and database_field != tag for tag in UNIPROT_DATABASE_TAGS)
     is_contaminant = marker_in_database_field or marker_in_accession
 
-    prefix = (CANONICAL_DECOY_PREFIX if is_decoy else "") + (CANONICAL_CONTAMINANT_PREFIX if is_contaminant else "")
-    return prefix + accession, is_contaminant
+    prefix = CANONICAL_CONTAMINANT_PREFIX if is_contaminant else ""
+    return prefix + accession, is_contaminant, has_decoy_tag
+
+
+def _canonical_accession_from_tag(protein_entry: str) -> str:
+    """Canonical accession ``[decoy_][Cont_]<accession>``, with decoy status read from the tag.
+
+    For inputs that carry no decoy column, such as a FASTA file or a bare protein string.
+    """
+    accession, _is_contaminant, has_decoy_tag = _parse_protein_entry(protein_entry)
+    return (CANONICAL_DECOY_PREFIX if has_decoy_tag else "") + accession
+
+
+def add_decoy_prefix(protein_group: str) -> str:
+    """Prefix every accession of a semicolon-delimited group with the canonical decoy prefix.
+
+    Readers apply it to the rows their decoy column marks, so a decoy never shares an accession
+    with its target, whether or not the search engine tags decoy entries.
+    """
+    return ";".join(CANONICAL_DECOY_PREFIX + accession for accession in protein_group.split(";"))
 
 
 def parse_uniprot_accession_group(protein_group: str) -> tuple[str, bool]:
@@ -137,6 +156,8 @@ def parse_uniprot_accession_group(protein_group: str) -> tuple[str, bool]:
 
     Returns the accession string and whether any member is a contaminant, so callers take the
     contaminant flag from the parser instead of re-matching the marker on the parsed string.
+    Decoy tags are removed; readers mark decoy rows from their decoy column with
+    ``add_decoy_prefix``.
 
     Kept as a per-value function so callers can deduplicate (map over distinct protein groups)
     instead of parsing every PSM row -- protein groups repeat heavily across PSMs.
@@ -144,7 +165,7 @@ def parse_uniprot_accession_group(protein_group: str) -> tuple[str, bool]:
     group_accessions: list[str] = []
     group_has_contaminant = False
     for protein in protein_group.split(";"):
-        accession, is_contaminant = _parse_protein_entry(protein)
+        accession, is_contaminant, _has_decoy_tag = _parse_protein_entry(protein)
         group_accessions.append(accession)
         group_has_contaminant = group_has_contaminant or is_contaminant
 
@@ -159,10 +180,10 @@ def parse_uniprot_accession(proteins: pd.Series) -> list[str]:
         proteins: `pandas` `Series` of strings. Each string may contain semicolon-separated protein entries, including UniProt FASTA-style `sp|accession|name` identifiers.
 
     Returns:
-        List of accession strings in input order; multiple members remain semicolon-separated. Decoy/contaminant prefixes are preserved in canonical form; no contaminant boolean is returned.
+        List of accession strings in input order; multiple members remain semicolon-separated. Accessions take the canonical form `[decoy_][Cont_]<accession>`; no contaminant boolean is returned.
 
     Notes:
-        The input `Series` is unchanged. Supply strings rather than missing values.
+        The input `Series` is unchanged. Supply strings rather than missing values. A protein string carries no decoy column, so a decoy is recognised by the search engine's tag in front of the `sp`/`tr` field (for example `rev_sp|...`). Readers instead mark decoys from the search output's decoy column.
 
     Examples:
         ```python
@@ -171,7 +192,10 @@ def parse_uniprot_accession(proteins: pd.Series) -> list[str]:
         accessions = mm.utils.parse_uniprot_accession(pd.Series(["sp|P12345|EXAMPLE"]))
         ```
     """
-    return [parse_uniprot_accession_group(protein_group)[0] for protein_group in proteins]
+    return [
+        ";".join(_canonical_accession_from_tag(protein) for protein in protein_group.split(";"))
+        for protein_group in proteins
+    ]
 
 
 def _split_uniprot_fasta_entry(entry: str) -> tuple[str, str, str]:

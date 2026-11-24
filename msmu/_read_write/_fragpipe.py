@@ -7,6 +7,10 @@ from . import label_info
 from ._base_reader import SearchResultReader, SearchResultSettings
 from .._utils.fasta import parse_uniprot_accession_group
 
+# psm.tsv has no decoy column, so decoys are recognised by the tag FragPipe puts in front of
+# decoy entries in its protein database.
+FRAGPIPE_DECOY_TAG = "rev_"
+
 
 class FragPipeReader(SearchResultReader):
     def __init__(
@@ -152,6 +156,8 @@ class FragPipeReader(SearchResultReader):
             pl.col("Spectrum").str.split(".").list.get(1).cast(pl.Int64).alias("scan_num"),
             proteins_expr.replace_strict(accession_map, default=None).alias("proteins"),
             proteins_expr.replace_strict(contaminant_map, default=0).cast(pl.Int64).alias("contaminant"),
+            # Read the tag off the unparsed column: the parser removes it from the accession.
+            proteins_expr.str.contains(FRAGPIPE_DECOY_TAG, literal=True).cast(pl.Int64).alias("decoy"),
             pl.col("Modified Peptide").fill_null(pl.col("Peptide")).alias("peptide"),
             (pl.col("Retention") / 60.0).alias("rt"),  # convert to minutes
             pl.col("Peptide"),  # -> stripped_peptide
@@ -161,8 +167,6 @@ class FragPipeReader(SearchResultReader):
             pl.col("Calculated Peptide Mass"),  # -> calcmass
             pl.col("observed mass"),  # -> expmass
             pl.col("Hyperscore"),  # -> score
-        ).with_columns(
-            pl.col("proteins").str.contains("rev_", literal=True).cast(pl.Int64).alias("decoy"),
         )
         if out.select(pl.col("decoy").sum()).item() == 0:
             self.search_settings.has_decoy = False

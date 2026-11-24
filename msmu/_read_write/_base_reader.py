@@ -16,6 +16,7 @@ from ..logging_utils import get_logger
 from .._core._blockdiag import SparseQuantFrame
 from .._core._sources import is_url, open_source
 from .._core._tabular import read_delimited
+from .._utils.fasta import add_decoy_prefix
 from .._utils.peptide import (
     _calc_exp_mz,
     _count_missed_cleavages,
@@ -424,6 +425,9 @@ class SearchResultReader:
 
         decoy_df = norm_identification_df[norm_identification_df["decoy"] == 1].copy()
         target_df = norm_identification_df[norm_identification_df["decoy"] == 0].copy()
+        # The decoy column decides the name: an engine that does not tag decoy entries, such as
+        # DIA-NN, would otherwise give a decoy the accession of its target.
+        decoy_df["proteins"] = decoy_df["proteins"].map(add_decoy_prefix, na_action="ignore")
 
         return target_df, decoy_df
 
