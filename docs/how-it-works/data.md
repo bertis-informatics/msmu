@@ -86,8 +86,10 @@ supply peptide intensities: add quantification with [`io.add_quant`](../referenc
 - Columns migrated into `mdata["psm"].var`
     - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q_value`, `contaminant`
 - `proteins` holds parsed UniProt accessions in one canonical form across every reader,
-  `[rev_][Cont_]<accession>` (e.g., `P07339`, `Cont_P02769`), and `contaminant` flags whether any
-  member of the group carried a contaminant marker. See [Filter](filter.md#contaminants_and_decoys).
+  `[decoy_][Cont_]<accession>` (e.g., `P07339`, `Cont_P02769`, `decoy_P07339`), and `contaminant`
+  flags whether any member of the group carried a contaminant marker. The `decoy_` prefix follows
+  the search output's decoy column, not the search engine's decoy tag, so a decoy never shares an
+  accession with a target. See [Filter](filter.md#contaminants_and_decoys).
 - Decoy features are isolated from `.var` and stored in `.uns["decoy"]` for later use in FDR calculation.
 - Quantification data for **LFQ (DDA)** is stored in `peptide` modality.
 - Raw information from a search tool is stored in `mdata["psm"].varm["search_result"]`

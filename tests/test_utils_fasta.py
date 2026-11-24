@@ -7,6 +7,7 @@ from msmu._utils.fasta import (
     _get_protein_info_from_fasta,
     _map_fasta,
     _split_uniprot_fasta_entry,
+    add_decoy_prefix,
     attach_fasta,
     map_fasta,
     parse_uniprot_accession,
@@ -33,10 +34,31 @@ def test_get_protein_info_from_fasta(tmp_path):
     assert df.loc["P2", "Organism"] == "Mus musculus"
 
 
-def test_parse_uniprot_accession_handles_rev_contam():
+def test_parse_uniprot_accession_marks_decoy_tag_and_contaminant():
     series = pd.Series(["sp|P1|P1_HUMAN;rev_sp|P2|P2_MOUSE;contam_sp|P3|P3_HUMAN"])
     parsed = parse_uniprot_accession(series)
-    assert parsed[0] == "P1;rev_P2;Cont_P3"
+    assert parsed[0] == "P1;decoy_P2;Cont_P3"
+
+
+@pytest.mark.parametrize(
+    ("protein_entry", "expected_accession"),
+    [
+        # Decoy tags are not enumerated, so an unfamiliar one still marks a decoy.
+        ("rev_sp|Q8WU76-2|SCFD2_HUMAN", "decoy_Q8WU76-2"),
+        ("DECOY_sp|Q8WU76|SCFD2_HUMAN", "decoy_Q8WU76"),
+        # Decoy of a contaminant keeps both markers, so the two can later be removed together
+        # without biasing target-decoy competition.
+        ("rev_contam_sp|P02769|ALBU_BOVIN", "decoy_Cont_P02769"),
+        # A bare accession has no database field to find a tag in front of, so it stays as given.
+        ("rev_P12345", "rev_P12345"),
+    ],
+)
+def test_parse_uniprot_accession_reads_decoy_status_from_the_tag(protein_entry, expected_accession):
+    assert parse_uniprot_accession(pd.Series([protein_entry])) == [expected_accession]
+
+
+def test_add_decoy_prefix_marks_every_member():
+    assert add_decoy_prefix("P1;Cont_P2") == "decoy_P1;decoy_Cont_P2"
 
 
 @pytest.mark.parametrize(
@@ -49,12 +71,10 @@ def test_parse_uniprot_accession_handles_rev_contam():
         ("sp|Cont_P00722|BGAL_ECOLI", "Cont_P00722", True),
         ("tr|Cont_P30879|PEPC_PIG", "Cont_P30879", True),
         ("CON__P02769", "Cont_P02769", True),
-        # Decoy tags are not enumerated, so an unfamiliar one still parses.
-        ("rev_sp|Q8WU76-2|SCFD2_HUMAN", "rev_Q8WU76-2", False),
-        ("DECOY_sp|Q8WU76|SCFD2_HUMAN", "rev_Q8WU76", False),
-        # Decoy of a contaminant keeps both markers, so the two can later be removed together
-        # without biasing target-decoy competition.
-        ("rev_contam_sp|P02769|ALBU_BOVIN", "rev_Cont_P02769", True),
+        # Decoy tags are removed: readers mark decoy rows from their decoy column instead.
+        ("rev_sp|Q8WU76-2|SCFD2_HUMAN", "Q8WU76-2", False),
+        ("DECOY_sp|Q8WU76|SCFD2_HUMAN", "Q8WU76", False),
+        ("rev_contam_sp|P02769|ALBU_BOVIN", "Cont_P02769", True),
         # The protein name field is never inspected: this is a real protein, not a contaminant.
         ("sp|P12345|CONA_CANLI", "P12345", False),
         ("P12345", "P12345", False),
@@ -89,6 +109,22 @@ MKWVTFISLL
     assert "Cont_P00722" in df.index
     assert df.loc["Cont_P00722", "Accession"] == "P00722"
     assert df.loc["Cont_P00722", "Gene"] == "lacZ"
+
+
+def test_get_protein_info_from_fasta_keeps_decoy_entries_apart_from_their_targets(tmp_path):
+    """A FASTA file has no decoy column, so its decoy entries are recognised by their tag."""
+    fasta = """>sp|P1|P1_HUMAN Protein One OS=Homo sapiens OX=9606 GN=GENE1
+MKWVTFISLL
+>rev_sp|P1|P1_HUMAN Protein One OS=Homo sapiens OX=9606 GN=GENE1
+LLSIFTVWKM
+"""
+    path = tmp_path / "target_decoy.fasta"
+    path.write_text(fasta)
+
+    df = _get_protein_info_from_fasta(str(path))
+
+    assert df.loc["P1", "Sequence"] == "MKWVTFISLL"
+    assert df.loc["decoy_P1", "Sequence"] == "LLSIFTVWKM"
 
 
 def test_split_uniprot_fasta_entry_fallback():

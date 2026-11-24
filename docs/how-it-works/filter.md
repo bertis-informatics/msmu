@@ -118,7 +118,8 @@ rows, so with `on="varm"` a decoy is kept only when it shares its name with a pa
 
 Contaminant markers differ per FASTA (`contam_`, `Cont_`, `CON__`, and each engine's decoy tag in
 front of them), so the reader normalizes every accession to one canonical form
-`[rev_][Cont_]<accession>` and sets the flag from the parse. If you do filter on contaminant
+`[decoy_][Cont_]<accession>`, takes `decoy_` from the decoy column and sets the contaminant flag
+from the parse. If you do filter on contaminant
 status, filter on the flag rather than matching a marker on the protein string — a string match
 silently stops matching when the search uses a different contaminant FASTA.
 
