@@ -5,6 +5,7 @@ Module for correlation plots in MuData.
 from typing import Literal
 from mudata import MuData
 
+from .._utils._anndata import _drop_decoy_features
 from .._utils._mudata import copy_mudata, get_anndata_mod
 from .._core._blockdiag import to_dense_df
 from .._core._provenance import log_provenance
@@ -29,6 +30,9 @@ def corr(
     Returns:
         The input `MuData` (copied) with the correlation matrix stored in the modality's
         ``.obsp["X_corr"]``.
+
+    Notes:
+        Decoy features (`.var["decoy"] == 1`) are always left out.
     """
     mdata = copy_mudata(mdata)
     adata = get_anndata_mod(mdata, modality)
@@ -37,7 +41,7 @@ def corr(
         raise ValueError(f"Layer '{layer}' not found in modality '{modality}'.")
     # to_dense_df restores absent cells as NaN for a sparse .X/layer (a plain DataFrame over
     # the raw sparse matrix crashes, and a densify would poison absent cells with 0).
-    data = to_dense_df(adata, layer=layer)
+    data = to_dense_df(_drop_decoy_features(adata), layer=layer)
 
     corr_matrix = data.T.corr(method=method)
 

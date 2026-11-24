@@ -4,10 +4,12 @@ Module for preparing plotting data from MuData objects.
 
 from typing import cast
 
+from anndata import AnnData
 from mudata import MuData
 import numpy as np
 import pandas as pd
 
+from .._utils._anndata import _drop_decoy_features
 from .._utils._mudata import get_anndata_mod
 from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
@@ -26,6 +28,8 @@ class PlotData:
     ):
         """
         Prepares MuData observations, variables, and derived summaries for plotting.
+
+        Decoy features (`.var["decoy"] == 1`) are left out of every plot.
 
         Parameters:
             mdata: MuData object containing observations and variables.
@@ -160,6 +164,10 @@ class PlotData:
 
         return key, groupby
 
+    def _get_target_adata(self) -> AnnData:
+        """Return the current modality without its decoy features."""
+        return _drop_decoy_features(get_anndata_mod(self.mdata, self.modality))
+
     def _get_data(self) -> pd.DataFrame:
         """
         Retrieves the expression/intensity DataFrame for the current modality.
@@ -167,7 +175,7 @@ class PlotData:
         Returns:
             Copy of the modality's data matrix as a DataFrame.
         """
-        adata = get_anndata_mod(self.mdata, self.modality).copy()
+        adata = self._get_target_adata().copy()
 
         if self.layer is not None and self.layer not in adata.layers:
             raise ValueError(f"Layer '{self.layer}' not found in modality '{self.modality}'.")
@@ -184,7 +192,7 @@ class PlotData:
         Returns:
             Copy of the modality's `var` table.
         """
-        var_df = cast(pd.DataFrame, get_anndata_mod(self.mdata, self.modality).var.copy())
+        var_df = cast(pd.DataFrame, self._get_target_adata().var.copy())
 
         if groupby and groupby in var_df.columns:
             if not isinstance(var_df[groupby].dtype, pd.CategoricalDtype):
@@ -205,7 +213,7 @@ class PlotData:
             Concatenated `var` and selected varm DataFrame.
         """
         var_df: pd.DataFrame = self._get_var()
-        varm_df: pd.DataFrame = pd.DataFrame(get_anndata_mod(self.mdata, self.modality).varm[column].copy())
+        varm_df: pd.DataFrame = pd.DataFrame(self._get_target_adata().varm[column].copy())
 
         return pd.concat([var_df, varm_df], axis=1)
 

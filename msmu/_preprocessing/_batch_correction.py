@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
+from .._utils._anndata import _drop_decoy_features, _get_target_feature_mask, _replace_target_columns
 from .._utils._mudata import copy_mudata, get_anndata_mod, get_mudata
 from .._core._provenance import log_provenance
 from .._core._blockdiag import dense_block, is_sparse, to_observed_sparse
@@ -65,6 +66,10 @@ def correct_batch_effect(
     Returns:
         Batch corrected `MuData` object.
 
+    Notes:
+        Decoy features (`.var["decoy"] == 1`) are always left out of the correction and keep their
+        values.
+
     References:
         <a id="ref-colange-2025"></a>
 
@@ -117,6 +122,7 @@ def correct_batch_effect(
         method,
         corrected_arr.shape,
     )
+    corrected_arr = _replace_target_columns(input_arr, corrected_arr, _get_target_feature_mask(adata.var))
 
     # gis / median_center / continuous apply their correction subtractively (``_correct``), so a sparse
     # input keeps its absent-cell pattern -- re-sparsify to recover the memory the densify spent. ComBat
@@ -149,13 +155,18 @@ class BatchCorrector:
         self.layer = layer
         self.category = category
         self.log_transformed = log_transformed
-        self.adata = get_anndata_mod(self.mdata, self.modality)
+        # The correction is estimated from the targets only; the caller writes it into the target
+        # columns and leaves the decoys unchanged.
+        self.adata = _drop_decoy_features(get_anndata_mod(self.mdata, self.modality))
 
-        self.original_arr = self.adata.X if self.layer is None else self.adata.layers[self.layer]
+        original_arr = self.adata.X if self.layer is None else self.adata.layers[self.layer]
         # Batch correction (median/ComBat/lowess) works on a dense array; densify a sparse
         # block-diagonal with NaN for absent cells (0-fill would corrupt the corrections).
-        if is_sparse(self.original_arr):
-            self.original_arr = dense_block(self.original_arr).astype(self.original_arr.dtype)
+        if is_sparse(original_arr):
+            original_arr = dense_block(original_arr).astype(original_arr.dtype)
+        # A view without the decoys hands out an anndata ArrayView, on which np.nanmedian returns
+        # wrong values; work on a plain array.
+        self.original_arr = np.asarray(original_arr)
         self.corrected_arr: np.ndarray | None = None  # placeholder for corrected array
 
     def gis(self, gis_samples: list[str]):

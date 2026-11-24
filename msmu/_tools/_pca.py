@@ -7,6 +7,7 @@ from mudata import MuData
 from sklearn.decomposition import PCA
 from typing import Literal, Any
 
+from .._utils._anndata import _drop_decoy_features
 from .._utils._mudata import copy_mudata, get_anndata_mod
 from .._core._blockdiag import to_dense_df
 from .._core._provenance import log_provenance
@@ -95,6 +96,9 @@ def pca(
     Returns:
         Updated `MuData` object with PCA results.
 
+    Notes:
+        Decoy features (`.var["decoy"] == 1`) are always left out; their loadings are `NaN`.
+
     References:
         <a id="ref-pedregosa-2011"></a>
 
@@ -120,7 +124,7 @@ def pca(
     adata = get_anndata_mod(mdata, modality)
     # to_dense_df restores absent cells as NaN for a sparse .X/layer (a plain DataFrame over
     # the raw sparse matrix crashes, and a densify would poison absent cells with 0).
-    data = to_dense_df(adata, layer=layer)
+    data = to_dense_df(_drop_decoy_features(adata), layer=layer)
     data = data.dropna(axis=1)
 
     # Calculate PCA

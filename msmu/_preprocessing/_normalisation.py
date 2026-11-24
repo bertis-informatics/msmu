@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Callable, Literal, get_args
 
 from .._utils._mudata import copy_mudata, get_anndata_mod
-from .._utils._anndata import _require_columns
+from .._utils._anndata import _get_target_feature_mask, _require_columns
 from .._utils._pandas import split_delimited_strings
 from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
@@ -470,7 +470,8 @@ class PTMProteinAdjuster:
             )
 
         accession_to_group = self._read_accession_to_group()
-        quantified_groups = set(global_adata.var_names)
+        # A decoy protein is never a denominator.
+        quantified_groups = set(global_adata.var_names[_get_target_feature_mask(global_adata.var)])
         global_fasta_accessions = self._read_global_fasta_accessions()
 
         site_accessions = split_delimited_strings(ptm_adata.var[self.accession_column].astype(str), ";")
