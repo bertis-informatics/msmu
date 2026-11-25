@@ -61,6 +61,12 @@ from git tags via setuptools-scm.
   mudata produces. On a 958-run synthetic DIA-NN dataset the DIA tutorial pipeline takes
   about 12 s instead of about 100 s, with a lower peak memory.
 
+### Removed
+
+- **The `mm.dt` decoy-table paths.** `dt.assign(on="decoy")` and the `"<modality>.decoy"` table
+  path of `dt.map`, `dt.replace` and `dt.drop` are gone with `.uns["decoy"]`; decoys are
+  `<modality>.var` rows, and the error says so.
+
 ### Fixed
 
 - **A `.varm` filter judges decoys on their own values.** Decoys had no `.varm` rows, so a

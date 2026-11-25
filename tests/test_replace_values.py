@@ -34,11 +34,10 @@ def test_replace_rules_preserve_missing_and_replay(tmp_path, dtype):
     pd.testing.assert_series_equal(namespace["mdata"]["peptide"].var["peptide_type"], values)
 
 
-def test_replace_on_decoy_table():
+def test_replace_on_the_former_decoy_table_path_points_to_the_var_rows():
     m = md.MuData({"peptide": ad.AnnData(X=np.ones((1, 2)))})
-    m["peptide"].uns["decoy"] = pd.DataFrame({"peptide_type": [True, False]}, index=["d1", "d2"])
-    mm.dt.replace(m, target="peptide.decoy", columns={"peptide_type": {True: "unique", False: "shared"}})
-    assert m["peptide"].uns["decoy"]["peptide_type"].tolist() == ["unique", "shared"]
+    with pytest.raises(ValueError, match="decoys are rows of"):
+        mm.dt.replace(m, target="peptide.decoy", columns={"peptide_type": {True: "unique", False: "shared"}})
 
 
 def test_unmatched_values_and_failed_multi_column_assignment():

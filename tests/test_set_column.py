@@ -8,7 +8,7 @@ import msmu as mm
 
 
 def _table(adata, on):
-    return adata.uns["decoy"] if on == "decoy" else getattr(adata, on)
+    return getattr(adata, on)
 
 
 @pytest.mark.parametrize("values", [
@@ -24,14 +24,13 @@ def _table(adata, on):
               index=["p2", "p1"]),
     pd.Series(["group1"], index=["p1"]),
 ])
-@pytest.mark.parametrize("on", ["var", "obs", "decoy"])
+@pytest.mark.parametrize("on", ["var", "obs"])
 def test_set_column_matches_pandas_and_replays_after_save(tmp_path, values, on):
     source = tmp_path / "source.h5mu"
     md.MuData({"peptide": ad.AnnData(
         X=np.ones((2, 2)),
         obs=pd.DataFrame(index=["p1", "p2"]),
         var=pd.DataFrame(index=["p1", "p2"]),
-        uns={"decoy": pd.DataFrame({"score": [0.5, 0.9]}, index=["p1", "p2"])},
     )}).write_h5mu(source)
     with mm.pv.options(hashing=True):
         mdata = mm.pv.log(mm.read_h5mu)(source)
@@ -56,7 +55,7 @@ def test_set_column_errors_leave_data_unchanged():
     for kwargs, error in [
         ({"values": [1], "on": "var"}, ValueError),
         ({"values": 1, "on": "uns"}, ValueError),
-        ({"values": 1, "on": "decoy"}, ValueError),  # no decoy table in this modality
+        ({"values": 1, "on": "decoy"}, ValueError),  # decoys are .var rows, not a separate table
         ({"values": object(), "on": "var"}, TypeError),
     ]:
         with pytest.raises(error):
