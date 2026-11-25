@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import mudata as md
 
-from .._utils._anndata import _has_quant_values
+from .._utils._anndata import _get_target_feature_mask, _has_quant_values
 from .._utils._mudata import get_anndata_mod
 
 
@@ -55,7 +55,7 @@ class MuDataStatus:
                 label=adata.uns["label"] if "label" in adata.uns else None,
                 aquisition=(adata.uns["acquisition"] if "acquisition" in adata.uns else None),
                 has_purity="purity" in adata.var.columns,
-                has_decoy="decoy" in adata.uns,
+                has_decoy=not _get_target_feature_mask(adata.var).all(),
                 has_var=len(adata.var) > 0,
                 has_quant=_has_quant_values(adata.X),
             ),

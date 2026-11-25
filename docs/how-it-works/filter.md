@@ -91,30 +91,33 @@ mdata = mm.pp.filter(
 )
 ```
 
-Decoys carry no quantification, so they receive `n_missing = 0` and `missing_ratio = 0.0`: a
-"missing at most" filter keeps every decoy and the target/decoy counts behind the q-values stay
-intact, while a filter in the other direction (`ge`/`gt` on missingness) would drop them. The
-columns are a snapshot — recompute after removing samples, since filtering does not update them.
+Decoys are counted from their own quantification, so a missingness filter removes them when the
+engine does not quantify decoys. The columns are a snapshot — recompute after removing samples,
+since filtering does not update them.
 
 ## Contaminants and decoys
 
 Readers record identification status rather than acting on it:
 
-- **Decoys** are separated out of `.var` at read time and kept in `.uns["decoy"]`, where the
-  q-value machinery needs them. A feature or cell filter is applied to them as well, on their
-  own column of the same name, so target and decoy features stay matched.
+- **Decoys** stay in `.var`, marked by `decoy == 1`. Filters apply to them as to targets;
+  quantification analyses and plots leave them out.
 - **Contaminants** stay in `.var` with a `contaminant` flag (`1` / `0`). `msmu` records the flag and
   leaves the decision to you: a contaminant accession can also be a genuine protein of the sample
   (the parsed group keeps both, e.g., `Cont_P07339;P07339`), so whether such a feature should go is
   a protein-level judgment rather than something to drop at the PSM level.
 
-Because decoys are filtered on their own values, the column a `.var` filter uses, or the column
-named like the layer a cell filter uses, must exist in `.uns["decoy"]` too; the filter refuses
-otherwise. Give decoys the column with a recorded edit rather than by hand —
-[`dt.assign`](../reference/dt/assign.md) with `on="decoy"` for a constant, or
-[`dt.map`](../reference/dt/map.md) with `target="<modality>.decoy"` to carry a sample
-annotation over by filename — so the step stays in provenance. A `.varm` table has no decoy
-rows, so with `on="varm"` a decoy is kept only when it shares its name with a passing feature.
+Filter on identification scores before quantification: a quantification filter can remove decoys
+and make the next q-values too small. `include_decoy=False` keeps every decoy through a variable or
+layer filter.
+
+To drop a run from `psm`, remove its identifications on `filename` in `.var`, then its sample in
+`.obs`; an `.obs` filter alone leaves the q-values unchanged. The engine's scores still reflect the
+run, so search again for an exact result.
+
+```python
+mdata = mm.pp.filter(mdata, modality="psm", on="var", column="filename", keep="ne", value="run_A")
+mdata = mm.pp.filter(mdata, modality="psm", on="obs", column="run", keep="ne", value="run_A")
+```
 
 Contaminant markers differ per FASTA (`contam_`, `Cont_`, `CON__`, and each engine's decoy tag in
 front of them), so the reader normalizes every accession to one canonical form
@@ -196,9 +199,7 @@ mdata = mm.pp.apply_filter(
 
 Requested filter names must all exist on the selected axis (either axis for
 `on="all"`). Missing names raise an error; filters are not partially applied.
-Variable filters are applied to decoys through a parallel mask in
-`.uns["decoy_filter"]`, so they must also exist there when decoys are present.
-Applying a subset of filters preserves the other decoy conditions for later calls.
+A stored variable mask covers the decoy rows like the target rows.
 
 Existing stored filter names are not renamed. Newly recorded matrix filters use
 the source-qualified names above; repeating the same condition replaces its mask.

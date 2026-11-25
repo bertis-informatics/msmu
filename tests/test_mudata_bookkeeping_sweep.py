@@ -83,7 +83,11 @@ def _dia_lfq_steps() -> list[tuple[str, callable]]:
         ("log2_transform", lambda m: mm.pp.log2_transform(m, modality="psm")),
         ("normalise", lambda m: mm.pp.normalise(m, modality="psm", method="median")),
         *_summarisation_steps({"top_n": 3, "rank_method": "total_intensity"}, {}),
-        ("dt.drop psm decoy", lambda m: mm.dt.drop(m, target="psm.uns", key="decoy")),
+        # Removes the decoy rows, as the tutorial does to mimic data without decoys.
+        (
+            "filter psm decoys out",
+            lambda m: mm.pp.filter(m, modality="psm", on="var", column="decoy", keep="eq", value=0),
+        ),
     ]
 
 

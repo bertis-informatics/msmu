@@ -117,15 +117,20 @@ def mdata(psm_adata: AnnData, protein_adata: AnnData) -> MuData:
 
 @pytest.fixture
 def filter_mdata() -> MuData:
+    """A `psm` modality of three targets (``v1``-``v3``) followed by three decoys (``d1``-``d3``).
+
+    The decoys are `.var` rows marked by ``decoy == 1``, with scores of their own (5, 25, 30 against
+    the targets' 10, 20, 30), so a condition on ``score`` passes a different set of each.
+    """
     obs = pd.DataFrame(index=["s1", "s2"])
-    var = pd.DataFrame({"score": [10.0, 20.0, 30.0]}, index=["v1", "v2", "v3"])
-    x = pd.DataFrame([[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]], index=obs.index, columns=var.index)
-    adata = _make_adata(
-        x,
-        obs,
-        var,
-        uns={"decoy": pd.DataFrame({"score": [5.0, 25.0, 30.0]}, index=var.index)},
+    var = pd.DataFrame(
+        {"score": [10.0, 20.0, 30.0, 5.0, 25.0, 30.0], "decoy": [0, 0, 0, 1, 1, 1]},
+        index=["v1", "v2", "v3", "d1", "d2", "d3"],
     )
+    x = pd.DataFrame(
+        [[1.0, 2.0, 3.0, 0.5, 1.5, 2.5], [2.0, 3.0, 4.0, 1.0, 2.0, 3.0]], index=obs.index, columns=var.index
+    )
+    adata = _make_adata(x, obs, var)
     return _make_mdata({"psm": adata})
 
 
@@ -133,40 +138,33 @@ def filter_mdata() -> MuData:
 def wide_precursor_mdata() -> MuData:
     """A wide `precursor` modality: observations are runs, variables precursors, scores in layers.
 
-    Precursor ``AAK3`` is identified in ``run1`` only; ``DDK2`` in ``run2`` only. The decoy table keeps
-    the long layout, one row per run and decoy precursor. Its ``PEP`` has the precision of the ``PEP``
-    layer, as in the tables the readers build, so that decoy ``XXK`` ties with target ``DDK`` at 0.04.
+    Precursor ``AAK3`` is identified in ``run1`` only; ``DDK2`` in ``run2`` only. The decoy precursors
+    ``XXK2`` (identified in ``run1``) and ``YYR2`` (in ``run2``) are variables marked by ``decoy == 1``,
+    with their quantification in `.X` and their scores in the same layers as the targets; decoy
+    ``XXK`` ties with target ``DDK`` at a ``PEP`` of 0.04.
     """
     obs = pd.DataFrame(index=["run1", "run2"])
     var = pd.DataFrame(
         {
-            "peptide": ["AAK", "AAK", "CCR", "DDK"],
-            "stripped_peptide": ["AAK", "AAK", "CCR", "DDK"],
-            "proteins": ["P1", "P1", "P2", "P3"],
+            "peptide": ["AAK", "AAK", "CCR", "DDK", "XXK", "YYR"],
+            "stripped_peptide": ["AAK", "AAK", "CCR", "DDK", "XXK", "YYR"],
+            "proteins": ["P1", "P1", "P2", "P3", "decoy_P8", "decoy_P9"],
+            "decoy": [0, 0, 0, 0, 1, 1],
         },
-        index=["AAK2", "AAK3", "CCR2", "DDK2"],
-    )
-    decoy = pd.DataFrame(
-        {
-            "peptide": ["XXK", "YYR"],
-            "stripped_peptide": ["XXK", "YYR"],
-            "proteins": ["P8", "P9"],
-            "filename": ["run1", "run2"],
-            "PEP": np.array([0.04, 0.6], dtype="float32"),
-            "q_value": [0.004, 0.2],
-        },
-        index=["run1.XXK2", "run2.YYR2"],
+        index=["AAK2", "AAK3", "CCR2", "DDK2", "XXK2", "YYR2"],
     )
     adata = _make_adata(
-        np.array([[10.0, 20.0, 30.0, np.nan], [12.0, np.nan, 34.0, 40.0]], dtype="float32"),
+        np.array([[10.0, 20.0, 30.0, np.nan, 5.0, np.nan], [12.0, np.nan, 34.0, 40.0, np.nan, 6.0]], dtype="float32"),
         obs,
         var,
-        uns={"level": "precursor", "label": "label_free", "acquisition": "dia", "decoy": decoy},
+        uns={"level": "precursor", "label": "label_free", "acquisition": "dia"},
     )
     adata.layers["q_value"] = np.array(
-        [[0.001, 0.02, 0.003, np.nan], [0.002, np.nan, 0.5, 0.004]], dtype="float32"
+        [[0.001, 0.02, 0.003, np.nan, 0.004, np.nan], [0.002, np.nan, 0.5, 0.004, np.nan, 0.2]], dtype="float32"
     )
-    adata.layers["PEP"] = np.array([[0.01, 0.2, 0.03, np.nan], [0.02, np.nan, 0.9, 0.04]], dtype="float32")
+    adata.layers["PEP"] = np.array(
+        [[0.01, 0.2, 0.03, np.nan, 0.04, np.nan], [0.02, np.nan, 0.9, 0.04, np.nan, 0.6]], dtype="float32"
+    )
     return _make_mdata({"precursor": adata})
 
 

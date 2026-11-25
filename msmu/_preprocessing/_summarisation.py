@@ -10,7 +10,7 @@ from scipy.sparse.csgraph import connected_components
 
 from ..logging_utils import get_logger
 from .._core._blockdiag import aggregate_features_by_group, dense_block, is_sparse, to_dense_df
-from .._utils._anndata import _require_columns
+from .._utils._anndata import DECOY_COLUMN, _require_columns
 from .._utils._pandas import split_delimited_strings
 from .._utils.fasta import CANONICAL_CONTAMINANT_PREFIX
 from .._utils.peptide import (
@@ -551,8 +551,9 @@ class Scorer:
 
 
 # Columns a rollup carries up only when its input has them: without `PEP` there is no score (and
-# no q-value) to carry, without `count_psm` no count to sum. Every other source column is required.
-OPTIONAL_IDENTIFICATION_SOURCE_COLUMNS: tuple[str, ...] = ("PEP", "count_psm")
+# no q-value) to carry, without `count_psm` no count to sum, without `decoy` every row is a target.
+# Every other source column is required.
+OPTIONAL_IDENTIFICATION_SOURCE_COLUMNS: tuple[str, ...] = ("PEP", "count_psm", DECOY_COLUMN)
 
 
 class Aggregator:
@@ -564,26 +565,22 @@ class Aggregator:
         self,
         identification_df: pd.DataFrame,
         quantification_df: pd.DataFrame,
-        decoy_df: pd.DataFrame | None,
         agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"],
         score_method: Literal["best_pep"],
     ) -> None:
         self._id_df: pd.DataFrame = identification_df.copy()
         self._quant_df: pd.DataFrame = quantification_df.copy()
-        self._decoy_id_df: pd.DataFrame = decoy_df.copy() if decoy_df is not None else pd.DataFrame()
         self._agg_method: Literal["median", "mean", "sum", "median_polish", "directlfq"] = agg_method
         self._score_method: Literal["best_pep"] = score_method
 
         self._id_agg_dict: dict = dict()  # placeholder
         self._col_to_groupby: str = ""  # placeholder
-        self._decoy_agg_dict: dict = dict()  # placeholder
 
     @classmethod
     def peptide(
         cls,
         identification_df,
         quantification_df,
-        decoy_df,
         agg_method,
         score_method,
         protein_col,
@@ -599,7 +596,6 @@ class Aggregator:
         aggregator = cls(
             identification_df,
             quantification_df,
-            decoy_df,
             agg_method,
             score_method,
         )
@@ -611,15 +607,10 @@ class Aggregator:
             "stripped_peptide": ("stripped_peptide", "first"),
             "count_psm": ("peptide", "count"),
             "PEP": ("PEP", Scorer.func(score_method)),
+            DECOY_COLUMN: (DECOY_COLUMN, "first"),
         }
         if not should_count_psm:
             del aggregator._id_agg_dict["count_psm"]
-
-        aggregator._decoy_agg_dict = {
-            aggregator._protein_col: (aggregator._protein_col, "first"),
-            "stripped_peptide": ("stripped_peptide", "first"),
-            "PEP": ("PEP", Scorer.func(score_method)),
-        }
 
         return aggregator
 
@@ -628,7 +619,6 @@ class Aggregator:
         cls,
         identification_df,
         quantification_df,
-        decoy_df,
         agg_method,
         score_method,
         protein_col,
@@ -636,16 +626,15 @@ class Aggregator:
         """
         Create a protein-level aggregator.
         """
-        aggregator = cls(identification_df, quantification_df, decoy_df, agg_method, score_method)
+        aggregator = cls(identification_df, quantification_df, agg_method, score_method)
         aggregator._col_to_groupby = protein_col
         aggregator._id_agg_dict = {
             # "total_psm": "sum",
             "count_psm": ("count_psm", "sum"),
             "count_stripped_peptide": ("stripped_peptide", "nunique"),
             "PEP": ("PEP", Scorer.func(score_method)),
+            DECOY_COLUMN: (DECOY_COLUMN, "first"),
         }
-
-        aggregator._decoy_agg_dict = {"PEP": ("PEP", Scorer.func(score_method))}
 
         return aggregator
 
@@ -659,7 +648,7 @@ class Aggregator:
         """
         Create a PTM site-level aggregator.
         """
-        aggregator = cls(identification_df, quantification_df, None, agg_method, None)
+        aggregator = cls(identification_df, quantification_df, agg_method, None)
         aggregator._col_to_groupby = "protein_site"
         aggregator._id_agg_dict = {
             "count_psm": ("count_psm", "sum"),
@@ -746,9 +735,6 @@ class Aggregator:
         agg_quant_df = pd.DataFrame(aggregated, index=groups, columns=self._quant_df.sample_names)
         return agg_quant_df.rename_axis(index=None)
 
-    def aggregate_decoy(self) -> pd.DataFrame:
-        return self._aggregate_available_columns(self._decoy_id_df, self._decoy_agg_dict)
-
 
 class SummarisationPrep:
     """
@@ -760,13 +746,12 @@ class SummarisationPrep:
         rank_dict (dict): Dictionary specifying ranking criteria.
     """
 
-    def __init__(self, adata: ad.AnnData, col_to_groupby: str, has_decoy: bool) -> None:
+    def __init__(self, adata: ad.AnnData, col_to_groupby: str) -> None:
         self.adata: ad.AnnData = adata.copy()
         self._col_to_groupby = col_to_groupby
 
         self._filter_dict: dict = {}  # {"column_name": (keep, value)} | {"purity": ("gt", 0.7)}
         self._rank_tuple: tuple = ()  # ("method", num_top) | ("max_intensity", 3)
-        self._has_decoy: bool = has_decoy
 
     @property
     def filter_dict(self) -> dict:
@@ -802,14 +787,8 @@ class SummarisationPrep:
             )
         else:
             quantification_df = self.adata.to_df().transpose().copy()
-        if self._has_decoy:
-            decoy_df: pd.DataFrame = self.adata.uns["decoy"].copy()
 
-        return (
-            identification_df,
-            quantification_df,
-            decoy_df if self._has_decoy else None,
-        )
+        return identification_df, quantification_df
 
     def _make_filter_mask(self, id_df: pd.DataFrame):
         filter_indices = pd.Series(False, index=id_df.index)
@@ -854,7 +833,7 @@ class SummarisationPrep:
         return mask_with_nan_quant
 
     def prep(self):
-        identification_df, quantification_df, decoy_df = self.prepare_data_to_summarise()
+        identification_df, quantification_df = self.prepare_data_to_summarise()
 
         # Only the rank mask needs the quant densely (FeatureRanker ranks features by intensity); the
         # column/purity filter is computed from the identification frame and applied sparse-natively
@@ -879,11 +858,7 @@ class SummarisationPrep:
             rank_mask = self._make_rank_mask()
             quantification_df = self._mask_quantification(quantification_df, rank_mask)
 
-        return (
-            identification_df,
-            quantification_df,
-            decoy_df if self._has_decoy else None,
-        )
+        return identification_df, quantification_df
 
 
 def normalise_target_modifications(modification: str | Sequence[str]) -> tuple[str, ...]:
@@ -940,10 +915,10 @@ class PtmSummarisationPrep(SummarisationPrep):
         self._fasta_dict: dict = fasta["Sequence"].to_dict()
         self._col_to_groupby = "ptm_site"
 
-        super().__init__(adata, self._col_to_groupby, has_decoy=False)
+        super().__init__(adata, self._col_to_groupby)
 
     def prep(self):
-        identification_df, quantification_df, _ = self.prepare_data_to_summarise()
+        identification_df, quantification_df = self.prepare_data_to_summarise()
         # PTM sites are aggregated from the peptide modality, which is dense (peptides span samples,
         # so it is not block-diagonal). Densify defensively if a sparse .X is ever passed -- the
         # pd.merge below cannot operate on a SparseQuant.

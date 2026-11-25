@@ -16,9 +16,23 @@ from mudata import MuData
 import msmu as mm
 
 DIANN_REPORT = Path(__file__).resolve().parents[1] / "data" / "diann_dia" / "diann" / "report.parquet"
-PRECURSOR_COMMON_COLUMNS = ["proteins", "peptide", "stripped_peptide", "charge", "peptide_length", "contaminant"]
+PRECURSOR_COMMON_COLUMNS = [
+    "proteins",
+    "peptide",
+    "stripped_peptide",
+    "charge",
+    "peptide_length",
+    "contaminant",
+    "decoy",
+]
 SCORE_COLUMNS = ["q_value", "PEP"]
 FLOAT32_RELATIVE_TOLERANCE = 1e-6
+
+
+def _get_precursor_names(long_var: pd.DataFrame) -> pd.Index:
+    """Precursor names of long variables, which are named "<run>.<precursor>"."""
+    run_names = long_var["filename"].astype(str)
+    return pd.Index([variable_name[len(run_name) + 1 :] for variable_name, run_name in zip(long_var.index, run_names)])
 
 
 def _convert_long_psm_to_wide_precursor(long_mdata: MuData) -> MuData:
@@ -26,10 +40,7 @@ def _convert_long_psm_to_wide_precursor(long_mdata: MuData) -> MuData:
     long_psm = long_mdata["psm"]
     long_var = long_psm.var
     run_names = long_var["filename"].astype(str)
-    # Long variables are named "<run>.<precursor>".
-    precursor_names = pd.Index(
-        [variable_name[len(run_name) + 1 :] for variable_name, run_name in zip(long_psm.var_names, run_names)]
-    )
+    precursor_names = _get_precursor_names(long_var)
     wide_precursor_names = precursor_names.unique()
     run_positions = long_psm.obs_names.get_indexer(run_names)
     precursor_positions = wide_precursor_names.get_indexer(precursor_names)
@@ -60,8 +71,7 @@ def _convert_long_psm_to_wide_precursor(long_mdata: MuData) -> MuData:
     )
     for score_column in SCORE_COLUMNS:
         wide_precursor.layers[score_column] = spread_over_runs(long_var[score_column].to_numpy(dtype="float32"))
-    for uns_key, uns_value in long_psm.uns.items():
-        wide_precursor.uns[uns_key] = uns_value.copy() if isinstance(uns_value, pd.DataFrame) else uns_value
+    wide_precursor.uns.update(long_psm.uns)
 
     return MuData({"precursor": wide_precursor})
 
@@ -100,25 +110,30 @@ def test_wide_precursor_rolls_up_to_the_long_psm_quantification_and_scores(score
     # The threshold removes identifications, and the same ones in both layouts.
     assert long_filtered["psm"].n_vars < long_mdata["psm"].n_vars
     assert int(np.isfinite(wide_filtered["precursor"].layers[score_column]).sum()) == long_filtered["psm"].n_vars
-    assert sorted(wide_filtered["precursor"].uns["decoy"].index) == sorted(long_filtered["psm"].uns["decoy"].index)
+    # The decoy precursors are filtered with the targets, on their own cells, and some fail.
+    wide_decoy_names = wide_filtered["precursor"].var.query("decoy == 1").index
+    long_decoy_names = _get_precursor_names(long_filtered["psm"].var.query("decoy == 1")).unique()
+    assert 0 < len(wide_decoy_names) < (wide_mdata["precursor"].var["decoy"] == 1).sum()
+    assert sorted(wide_decoy_names) == sorted(long_decoy_names)
 
     long_result = _roll_up_to_protein(long_filtered, source_modality="psm")
     wide_result = _roll_up_to_protein(wide_filtered, source_modality="precursor")
 
     _assert_same_quantification(wide_result["peptide"], long_result["peptide"])
     _assert_same_quantification(wide_result["protein"], long_result["protein"])
-    for annotation_column in ("proteins", "stripped_peptide", "protein_group"):
+    for annotation_column in ("proteins", "stripped_peptide", "protein_group", "decoy"):
         assert (
             wide_result["peptide"].var[annotation_column].astype(str).tolist()
             == long_result["peptide"].var[annotation_column].astype(str).tolist()
         )
-    # The best PEP of the layer is the best PEP of the long rows, so the q-values follow.
+    # The best PEP of the layer is the best PEP of the long rows, so the q-values of the targets and
+    # decoys follow.
     for level in ("peptide", "protein"):
+        assert (wide_result[level].var["decoy"] == 1).any()
         for score_column in SCORE_COLUMNS:
             np.testing.assert_array_equal(
                 wide_result[level].var[score_column].to_numpy(), long_result[level].var[score_column].to_numpy()
             )
-        pd.testing.assert_frame_equal(wide_result[level].uns["decoy"], long_result[level].uns["decoy"])
         # A wide variable is a precursor, not an identification, so identifications are not counted.
         assert "count_psm" in long_result[level].var.columns
         assert "count_psm" not in wide_result[level].var.columns

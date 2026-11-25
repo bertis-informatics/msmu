@@ -21,7 +21,7 @@ Protein inference in `msmu` is performed through a series of incremental refinem
 
 A `MuData` that has:
 
-- A `peptide` modality containing `.var["stripped_peptide"]` and `.var["proteins"]` (semicolon-separated accessions per peptide). If decoys exist, they are pulled from `mdata["peptide"].uns["decoy"]`.
+- A `peptide` modality containing `.var["stripped_peptide"]` and `.var["proteins"]` (semicolon-separated accessions per peptide). Decoy peptides (`.var["decoy"] == 1`) are inferred separately.
 
 ## Run protein inference
 
@@ -53,9 +53,9 @@ A `MuData` with:
 
 - `mdata["peptide"].var["protein_group"]`: Newly inferred protein group
 - `mdata["peptide"].var["peptide_type"]`: Peptide type (`unique` or `shared`).
-- Decoys receive the same annotations under `mdata["peptide"].uns["decoy"]`.
+- Decoy peptides get both from their own inference.
 
-Output `MuData` also contains mapping information inside `.uns`
+Output `MuData` also contains mapping information inside `.uns`, for the targets
 
 - `mdata.uns["peptide_map"]`: peptide → protein group mapping.
 - `mdata.uns["protein_map"]`: per-protein mapping with flags for `indistinguishable/subset/subsumable` status.

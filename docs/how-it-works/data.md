@@ -31,7 +31,7 @@ As a general `AnnData` object, each individual modality contains `.X`, `.var`, `
 - `.varm` is a dictionary-like structure to store additional per-feature matrices, such as boolean masks for filtering features.
 - `.obs` is a `DataFrame` containing metadata of samples, such as sample name, condition, replicate number, etc., with `filename` or `channel` as index.
 - `.obsm` is a dictionary-like structure to store additional per-sample matrices, such as PCA or UMAP coordinates.
-- `.uns` is a dictionary-like structure to store unstructured annotations, such as decoy features pulled from search results.
+- `.uns` is a dictionary-like structure to store unstructured annotations, such as the search engine and the labeling method.
 - `.layers` is a dictionary-like structure to store additional per-feature quantification matrices, such as imputed values. Some functions in `msmu` provide options to read from or write to `.layers`.
 
 ![AnnData stores one quantification matrix and its annotations; MuData groups PSM, peptide, and protein modalities.](../assets/anndata-mudata-structure.svg){ width="100%" }
@@ -84,13 +84,14 @@ supply peptide intensities: add quantification with [`io.add_quant`](../referenc
 - Output
     - `mudata`: Data ingested `MuData` object
 - Columns migrated into `mdata["psm"].var`
-    - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q_value`, `contaminant`
+    - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q_value`, `contaminant`, `decoy`
 - `proteins` holds parsed UniProt accessions in one canonical form across every reader,
   `[decoy_][Cont_]<accession>` (e.g., `P07339`, `Cont_P02769`, `decoy_P07339`), and `contaminant`
   flags whether any member of the group carried a contaminant marker. The `decoy_` prefix follows
   the search output's decoy column, not the search engine's decoy tag, so a decoy never shares an
   accession with a target. See [Filter](filter.md#contaminants_and_decoys).
-- Decoy features are isolated from `.var` and stored in `.uns["decoy"]` for later use in FDR calculation.
+- Decoy features stay in `.var`, marked by `decoy == 1`. Files saved before this layout keep them
+  in `.uns["decoy"]`, which is no longer read.
 - Quantification data for **LFQ (DDA)** is stored in `peptide` modality.
 - Raw information from a search tool is stored in `mdata["psm"].varm["search_result"]`
 
@@ -189,6 +190,9 @@ only).
 
 ## Wide precursor input
 
+!!! warning "Experimental"
+    No tool writes this layout yet, and it may change.
+
 The readers lay DIA precursors out long: `psm` has one feature per run and precursor. A file
 written by another tool can bring the same data wide, as a `precursor` modality whose samples are
 runs and whose features are precursors. `msmu` loads such a file with
@@ -201,11 +205,10 @@ matrix and `.var` keeps what the runs have in common:
 | Part | Content |
 | --- | --- |
 | Modality name | `precursor`, in a `MuData` without a `psm` modality |
-| `.obs` / `.var` | runs / precursors, targets only |
+| `.obs` / `.var` | runs / precursors (targets and decoys) |
 | `.X` | quantification; dense, `NaN` (not `0`) where the precursor has no value in the run |
-| `.var` columns | `proteins`, `peptide`, `stripped_peptide`, and any other value shared by the runs |
+| `.var` columns | `proteins`, `peptide`, `stripped_peptide`, `decoy`, and any other value shared by the runs |
 | `.layers["q_value"]`, `.layers["PEP"]` | identification scores per cell; dense, `NaN` where there is no identification |
-| `.uns["decoy"]` | optional; the table the readers build, one row per run and decoy precursor |
 
 The workflow differs from the long one in two places:
 
@@ -214,9 +217,9 @@ The workflow differs from the long one in two places:
   [Filter](filter.md#filtering_cells).
 - **[`to_peptide`](../reference/pp/to_peptide.md) summarizes `precursor` when there is no `psm`**,
   and rejects a `MuData` holding both. The peptide `PEP` is the best value of the `PEP` layer over
-  the peptide's precursors and runs, and q-values are calculated from it as for `psm` when the
-  decoy table is present. Without a decoy table the `PEP` is carried up without q-values; without
-  a `PEP` layer only the quantification is summarized. `count_psm` is not produced.
+  the peptide's precursors and runs, and q-values are calculated from it as for `psm` when decoy
+  precursors are present. Without decoys the `PEP` is carried up without q-values; without a `PEP`
+  layer only the quantification is summarized. `count_psm` is not produced.
 
 ```python
 mdata = mm.read_h5mu("path/to/wide_precursor.h5mu")
@@ -229,11 +232,9 @@ mdata = mm.pp.infer_protein(mdata)
 mdata = mm.pp.to_protein(mdata)
 ```
 
-A decoy table needs the columns `peptide`, `stripped_peptide` and `proteins`, `PEP` for q-values,
-and a column named like every layer a filter uses, because decoys are filtered on their own
-values. Its `PEP` must have the precision of the `PEP` layer: q-values group exactly equal PEPs (see
-[Summarization](summarization.md#identification_q-values_and_tied_peps)), so a target stored as
-`float32` no longer ties with a decoy of the same score stored as `float64`.
+Decoy accessions in `proteins` must differ from the targets' (for example `decoy_`-prefixed, as the
+readers write them); [`infer_protein`](../reference/pp/infer_protein.md) refuses a decoy group named
+like a target group.
 
 ## Returned objects and in-place changes
 

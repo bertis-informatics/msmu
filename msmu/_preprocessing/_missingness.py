@@ -6,6 +6,7 @@ import pandas as pd
 
 from .._core._blockdiag import is_sparse
 from .._core._provenance import log_provenance
+from .._utils._anndata import _get_target_feature_mask
 from .._utils._mudata import copy_mudata, get_anndata_mod
 from ..logging_utils import get_logger
 
@@ -38,7 +39,7 @@ def calculate_missingness(
     modality: str,
     group_obs: str | None = None,
 ) -> md.MuData:
-    """Count missing values per feature and record the counts in ``.var`` (and on the decoys).
+    """Count missing values per feature and record the counts in ``.var``.
 
     Writes ``.var["n_missing"]``, the number of samples without a value for the feature, and
     ``.var["missing_ratio"]``, that count divided by the number of samples. With ``group_obs``, an
@@ -46,10 +47,10 @@ def calculate_missingness(
     so a filter can be set within one group. Existing columns are overwritten: recompute after
     removing samples, because [`apply_filter`][msmu.pp.apply_filter] does not update them.
 
-    Decoys have identifications but no quantification, so a missingness filter has nothing to
-    judge them on. They receive the same columns with ``0`` / ``0.0``, which the usual
-    "missing at most" filters (``le``/``lt``) keep; a filter in the other direction (``ge``/``gt``
-    on missingness) would drop every decoy.
+    Decoy features (`.var["decoy"] == 1`) are counted from their own quantification, as the search
+    engine reports it. An engine that does not quantify decoys (for example Sage label-free) leaves
+    them missing in every sample, so a missingness filter removes them all (a warning says so); to
+    keep them, filter with `include_decoy=False` or after the q-values are calculated.
 
     Parameters:
         mdata: `MuData` with the modality to annotate; a copy is returned.
@@ -59,7 +60,7 @@ def calculate_missingness(
             columns, with a warning.
 
     Returns:
-        A copy of ``mdata`` with the columns added to ``.var`` and to ``.uns["decoy"]`` when present.
+        A copy of ``mdata`` with the columns added to ``.var``.
 
     Examples:
         ```python
@@ -98,12 +99,14 @@ def calculate_missingness(
 
     for name, values in columns.items():
         adata.var[name] = values
-    if "decoy" in adata.uns:
-        # Decoys carry identifications, not quantification, so a missingness filter has nothing to
-        # judge them on. Recording "nothing missing" lets the usual "at most k missing" / "ratio
-        # below p" filters keep every decoy, which keeps the target/decoy counts behind q-values intact.
-        for name in columns:
-            adata.uns["decoy"][name] = 0 if name == "n_missing" else 0.0
+
+    is_decoy_feature = ~_get_target_feature_mask(adata.var)
+    if is_decoy_feature.any() and (n_missing[is_decoy_feature] == adata.n_obs).all():
+        logger.warning(
+            "%s: no decoy has a value in any sample, so a missingness filter would remove every decoy and "
+            "leave none to calculate q-values from. Filter with include_decoy=False or after the q-values.",
+            modality,
+        )
 
     logger.info(
         "%s: %d of %d features have no value in any sample",

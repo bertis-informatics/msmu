@@ -1,7 +1,8 @@
-"""Readers name a decoy from their decoy column, so no decoy shares an accession with a target.
+"""Readers keep decoys as `.var` rows and name them from their decoy column.
 
-DIA-NN does not tag decoy entries: a decoy carries the accession of the target it was made from.
-Before the decoy prefix followed the decoy column, those decoys mapped onto target proteins in
+Decoys stay next to the targets, marked by ``decoy == 1``, so no decoy shares an accession with a
+target. DIA-NN does not tag decoy entries: a decoy carries the accession of the target it was made
+from. Before the decoy prefix followed the decoy column, those decoys mapped onto target proteins in
 ``infer_protein`` and changed the target groups.
 """
 
@@ -21,11 +22,18 @@ DIANN_REPORT = DATA_DIRECTORY / "diann_dia" / "diann" / "report.parquet"
 SAGE_LFQ_DIRECTORY = DATA_DIRECTORY / "sage_lfq" / "sage"
 Q_VALUE_THRESHOLD = 0.01
 DECOY_PREFIX = "decoy_"
+# The DIA-NN tutorial report was searched with --report-decoys.
+DIANN_TUTORIAL_DECOY_COUNT = 31
 
 
 def _accessions(protein_groups: pd.Series) -> set[str]:
     """Every accession in the groups; members are separated by ";" (reader) or "," (inference)."""
     return {accession for group in protein_groups for accession in re.split(r"[;,]", group)}
+
+
+def _split_targets_and_decoys(var: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    is_decoy = var["decoy"].eq(1)
+    return var.loc[~is_decoy], var.loc[is_decoy]
 
 
 def _diann_peptides_with_inferred_proteins(mdata):
@@ -34,11 +42,26 @@ def _diann_peptides_with_inferred_proteins(mdata):
     return mm.pp.infer_protein(mdata)
 
 
+def test_diann_keeps_its_decoys_as_quantified_var_rows():
+    psm = mm.read_diann(identification_file=str(DIANN_REPORT))["psm"]
+
+    assert pd.api.types.is_integer_dtype(psm.var["decoy"])
+    assert set(psm.var["decoy"]) == {0, 1}
+    is_decoy = psm.var["decoy"].eq(1).to_numpy()
+    assert is_decoy.sum() == DIANN_TUTORIAL_DECOY_COUNT
+    # DIA-NN quantifies its decoys: every decoy row has a value in .X, and its raw row in varm.
+    assert (psm.X[:, is_decoy].getnnz(axis=0) > 0).all()
+    assert psm.varm["search_result"].index.equals(psm.var_names)
+    assert psm.varm["search_result"].loc[is_decoy, "Decoy"].eq(1).all()
+    assert "decoy" not in psm.uns
+
+
 def test_diann_decoys_take_the_decoy_prefix_although_the_engine_does_not_tag_them():
     mdata = mm.read_diann(identification_file=str(DIANN_REPORT))
 
-    decoy_accessions = _accessions(mdata["psm"].uns["decoy"]["proteins"])
-    target_accessions = _accessions(mdata["psm"].var["proteins"])
+    target_var, decoy_var = _split_targets_and_decoys(mdata["psm"].var)
+    decoy_accessions = _accessions(decoy_var["proteins"])
+    target_accessions = _accessions(target_var["proteins"])
 
     assert decoy_accessions
     assert all(accession.startswith(DECOY_PREFIX) for accession in decoy_accessions)
@@ -48,13 +71,15 @@ def test_diann_decoys_take_the_decoy_prefix_although_the_engine_does_not_tag_the
 def test_diann_decoys_do_not_change_the_target_protein_groups():
     mdata = _diann_peptides_with_inferred_proteins(mm.read_diann(identification_file=str(DIANN_REPORT)))
     target_only = mm.read_diann(identification_file=str(DIANN_REPORT))
-    del target_only["psm"].uns["decoy"]
+    target_only = mm.pp.filter(target_only, modality="psm", on="var", column="decoy", keep="eq", value=0)
     target_only = _diann_peptides_with_inferred_proteins(target_only)
 
-    decoy_group_accessions = _accessions(mdata["peptide"].uns["decoy"]["protein_group"])
+    target_var, decoy_var = _split_targets_and_decoys(mdata["peptide"].var)
+    decoy_group_accessions = _accessions(decoy_var["protein_group"])
 
+    assert decoy_group_accessions
     assert all(accession.startswith(DECOY_PREFIX) for accession in decoy_group_accessions)
-    pd.testing.assert_series_equal(mdata["peptide"].var["protein_group"], target_only["peptide"].var["protein_group"])
+    pd.testing.assert_series_equal(target_var["protein_group"], target_only["peptide"].var["protein_group"])
 
 
 def test_sage_decoys_take_the_decoy_prefix_in_place_of_the_engine_tag():
@@ -64,8 +89,9 @@ def test_sage_decoys_take_the_decoy_prefix_in_place_of_the_engine_tag():
         label="label_free",
     )
 
-    decoy_accessions = _accessions(mdata["psm"].uns["decoy"]["proteins"])
-    target_accessions = _accessions(mdata["psm"].var["proteins"])
+    target_var, decoy_var = _split_targets_and_decoys(mdata["psm"].var)
+    decoy_accessions = _accessions(decoy_var["proteins"])
+    target_accessions = _accessions(target_var["proteins"])
 
     assert decoy_accessions
     assert all(accession.startswith(DECOY_PREFIX) for accession in decoy_accessions)
@@ -101,5 +127,5 @@ def test_fragpipe_still_recognises_decoys_by_the_tag_in_its_protein_column(tmp_p
 
     mdata = TmtFragPipeReader(identification_file=identification_file, identification_df=identification_df).read()
 
-    assert mdata["psm"].var["proteins"].tolist() == ["P11111"]
-    assert mdata["psm"].uns["decoy"]["proteins"].tolist() == ["decoy_P22222"]
+    assert mdata["psm"].var["proteins"].tolist() == ["P11111", "decoy_P22222"]
+    assert mdata["psm"].var["decoy"].tolist() == [0, 1]

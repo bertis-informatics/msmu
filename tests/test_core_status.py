@@ -73,3 +73,17 @@ def test_mudata_status_exposes_a_precursor_modality_like_psm(wide_precursor_mdat
     assert status.precursor.modality == "precursor"
     assert status.precursor.has_decoy
     assert status.precursor.has_quant
+
+
+@pytest.mark.parametrize(
+    "decoy_flags, has_decoy",
+    [(None, False), ([0, 0], False), ([0, 1], True)],
+    ids=["no_column", "targets", "one_decoy"],
+)
+def test_mudata_status_has_decoy_when_a_var_row_is_a_decoy(decoy_flags, has_decoy):
+    var = pd.DataFrame(index=["f0", "f1"])
+    if decoy_flags is not None:
+        var["decoy"] = decoy_flags
+    adata = AnnData(np.ones((1, 2)), obs=pd.DataFrame(index=["s0"]), var=var)
+
+    assert MuDataStatus(MuData({"psm": adata})).psm.has_decoy is has_decoy

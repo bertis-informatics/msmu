@@ -8,12 +8,14 @@ import scipy.sparse as sp
 
 from .._core._provenance import log_provenance
 from .._utils._mudata import copy_mudata
-from .._core._status import AnnDataFlags, MuDataStatus
-from .._utils._anndata import _require_columns
+from .._utils._anndata import _get_target_feature_mask, _require_columns
 from .._utils._pandas import split_delimited_strings
 from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
+
+# Group names an error message lists before stopping.
+MAX_LISTED_GROUP_NAMES = 5
 
 
 class Mapping(TypedDict):
@@ -39,118 +41,61 @@ def infer_protein(
 
     Returns:
         `MuData` object with updated protein mappings and peptide annotations
+
+    Notes:
+        Targets and decoys (`.var["decoy"] == 1`) are inferred apart, so a decoy peptide never joins
+        a target group. `.uns["peptide_map"]` and `.uns["protein_map"]` describe the targets. A decoy
+        group named like a target group raises `ValueError`, since `to_protein` would merge the two;
+        msmu's readers prevent it by prefixing decoy accessions with `decoy_`.
     """
     logger.info("Starting protein inference")
 
     mdata = copy_mudata(mdata)
-    modality_status = _get_modality_status(mdata, modality)
-    _require_columns(
-        mdata.mod[modality].var,
-        columns=[peptide_colname, protein_colname],
-        context=f"{modality}.var",
-    )
+    if modality not in mdata.mod:
+        raise ValueError(f"Modality '{modality}' not found in MuData.")
+    var = mdata.mod[modality].var
+    _require_columns(var, columns=[peptide_colname, protein_colname], context=f"{modality}.var")
 
-    peptide_map, protein_map = _build_mapping_from_modality(
-        mdata=mdata,
-        modality=modality,
-        modality_status=modality_status,
-        peptide_colname=peptide_colname,
-        protein_colname=protein_colname,
-    )
-
-    # Store mapping information in MuData object
+    is_target_feature = _get_target_feature_mask(var)
+    target_var = var.loc[is_target_feature]
+    peptide_map, protein_map = get_protein_mapping(target_var[peptide_colname], target_var[protein_colname])
     mdata.uns["peptide_map"] = peptide_map
     mdata.uns["protein_map"] = protein_map
-
-    _annotate_modality_with_mapping(
-        mdata=mdata,
-        modality=modality,
-        modality_status=modality_status,
-        peptide_colname=peptide_colname,
-        peptide_map=peptide_map,
+    protein_groups = _map_peptides_to_groups(
+        peptides=target_var[peptide_colname],
+        peptide_to_group=peptide_map.set_index("peptide")["protein_group"],
+        context=f"{modality}.var['{peptide_colname}']",
     )
+
+    if not is_target_feature.all():
+        decoy_var = var.loc[~is_target_feature]
+        decoy_peptide_map, _ = get_protein_mapping(decoy_var[peptide_colname], decoy_var[protein_colname])
+        decoy_groups = _map_peptides_to_groups(
+            peptides=decoy_var[peptide_colname],
+            peptide_to_group=decoy_peptide_map.set_index("peptide")["protein_group"],
+            context=f"decoy rows of {modality}.var['{peptide_colname}']",
+        )
+        _require_distinct_decoy_group_names(protein_groups, decoy_groups, modality)
+        protein_groups = pd.concat([protein_groups, decoy_groups]).reindex(var.index)
+
+    var["protein_group"] = protein_groups
+    var["peptide_type"] = _classify_peptide_type(protein_groups)
 
     return mdata
 
 
-def _get_modality_status(mdata: md.MuData, modality: str) -> AnnDataFlags:
-    """Return cached modality flags with an explicit modality contract."""
-    if modality not in mdata.mod:
-        raise ValueError(f"Modality '{modality}' not found in MuData.")
+def _require_distinct_decoy_group_names(target_groups: pd.Series, decoy_groups: pd.Series, modality: str) -> None:
+    """Refuse decoy protein groups named like a target group, which to_protein would merge into one row.
 
-    mstatus = MuDataStatus(mdata)
-    modality_status = getattr(mstatus, modality, None)
-    if modality_status is None:
-        raise ValueError(f"Could not resolve status flags for modality '{modality}'.")
-
-    return modality_status
-
-
-def _build_mapping_from_modality(
-    mdata: md.MuData,
-    modality: str,
-    modality_status: AnnDataFlags,
-    peptide_colname: str,
-    protein_colname: str,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Build peptide/protein group mappings directly from a modality and its optional decoys."""
-    target_var = mdata.mod[modality].var
-    peptides = target_var[peptide_colname]
-    proteins = target_var[protein_colname]
-
-    if modality_status.has_decoy:
-        decoy_df = _get_decoy_frame(
-            mdata=mdata,
-            modality=modality,
-            required_columns=[peptide_colname, protein_colname],
+    msmu's readers prefix decoy accessions with ``decoy_``; a modality built elsewhere may not.
+    """
+    shared_group_names = sorted(set(target_groups) & set(decoy_groups))
+    if shared_group_names:
+        raise ValueError(
+            f"{len(shared_group_names)} decoy protein groups of {modality} share their name with a target group, "
+            f"for example {shared_group_names[:MAX_LISTED_GROUP_NAMES]}. Give decoy accessions a prefix such as "
+            "'decoy_' (msmu's readers do) so that no decoy is merged into a target protein."
         )
-        peptides = pd.concat([peptides, decoy_df[peptide_colname]], ignore_index=False)
-        proteins = pd.concat([proteins, decoy_df[protein_colname]], ignore_index=False)
-
-    return get_protein_mapping(peptides, proteins)
-
-
-def _get_decoy_frame(
-    mdata: md.MuData,
-    modality: str,
-    required_columns: list[str],
-) -> pd.DataFrame:
-    """Fetch decoy annotations and ensure required columns are present."""
-    if "decoy" not in mdata.mod[modality].uns:
-        raise ValueError(f"{modality}.uns['decoy'] is required but missing.")
-
-    decoy_df = mdata.mod[modality].uns["decoy"]
-    _require_columns(decoy_df, columns=required_columns, context=f"{modality}.uns['decoy']")
-
-    return decoy_df
-
-
-def _annotate_modality_with_mapping(
-    mdata: md.MuData,
-    modality: str,
-    modality_status: AnnDataFlags,
-    peptide_colname: str,
-    peptide_map: pd.DataFrame,
-) -> None:
-    """Apply inferred protein groups and peptide uniqueness to target and decoy features."""
-    peptide_to_group = peptide_map.set_index("peptide")["protein_group"]
-    target_groups = _map_peptides_to_groups(
-        peptides=mdata.mod[modality].var[peptide_colname],
-        peptide_to_group=peptide_to_group,
-        context=f"{modality}.var['{peptide_colname}']",
-    )
-    mdata.mod[modality].var["protein_group"] = target_groups
-    mdata.mod[modality].var["peptide_type"] = _classify_peptide_type(target_groups)
-
-    if modality_status.has_decoy:
-        decoy_df = _get_decoy_frame(mdata=mdata, modality=modality, required_columns=[peptide_colname])
-        decoy_groups = _map_peptides_to_groups(
-            peptides=decoy_df[peptide_colname],
-            peptide_to_group=peptide_to_group,
-            context=f"{modality}.uns['decoy']['{peptide_colname}']",
-        )
-        decoy_df["protein_group"] = decoy_groups
-        decoy_df["peptide_type"] = _classify_peptide_type(decoy_groups)
 
 
 def _map_peptides_to_groups(

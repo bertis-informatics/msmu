@@ -13,11 +13,7 @@ from msmu._preprocessing._infer_protein import (
 from msmu._utils.protein import select_representative
 
 
-def _make_peptide_mdata(
-    *,
-    modality: str = "peptide",
-    include_decoy: bool = False,
-) -> MuData:
+def _make_peptide_mdata(*, modality: str = "peptide") -> MuData:
     obs = pd.DataFrame(index=["s1", "s2"])
     var = pd.DataFrame(
         {
@@ -27,16 +23,17 @@ def _make_peptide_mdata(
         index=["f1", "f2"],
     )
     adata = AnnData(X=np.array([[1.0, 2.0], [3.0, 4.0]]), obs=obs, var=var)
-    if include_decoy:
-        adata.uns["decoy"] = pd.DataFrame(
-            {
-                "stripped_peptide": ["dpep1"],
-                "proteins": ["DP1"],
-            },
-            index=["d1"],
-        )
 
     return MuData({modality: adata})
+
+
+def _make_target_and_decoy_peptide_mdata(peptides: list[str], proteins: list[str], decoy: list[int]) -> MuData:
+    var = pd.DataFrame(
+        {"stripped_peptide": peptides, "proteins": proteins, "decoy": decoy},
+        index=[f"f{position}" for position in range(len(peptides))],
+    )
+    adata = AnnData(X=np.ones((2, len(peptides))), obs=pd.DataFrame(index=["s1", "s2"]), var=var)
+    return MuData({"peptide": adata})
 
 
 def test_select_representative_prefers_swissprot_canonical():
@@ -99,14 +96,43 @@ def test_infer_protein_logs_protein_inference_stats(caplog):
     assert "Removed subsumable: 0" in stdout
 
 
-def test_infer_protein_annotates_decoys():
-    mdata = _make_peptide_mdata(include_decoy=True)
+def test_infer_protein_annotates_decoy_rows_and_maps_only_the_targets():
+    mdata = _make_target_and_decoy_peptide_mdata(
+        peptides=["pep1", "pep2", "dpep1"], proteins=["P1", "P2", "decoy_P1"], decoy=[0, 0, 1]
+    )
 
     out = infer_protein(mdata)
 
-    decoy_df = out.mod["peptide"].uns["decoy"]
-    assert decoy_df["protein_group"].tolist() == ["DP1"]
-    assert decoy_df["peptide_type"].tolist() == ["unique"]
+    var = out.mod["peptide"].var
+    assert var["protein_group"].tolist() == ["P1", "P2", "decoy_P1"]
+    assert var["peptide_type"].tolist() == ["unique", "unique", "unique"]
+    assert sorted(out.uns["peptide_map"]["peptide"]) == ["pep1", "pep2"]
+    assert sorted(out.uns["protein_map"]["initial_protein"]) == ["P1", "P2"]
+
+
+def test_infer_protein_keeps_decoy_groups_apart_from_target_groups():
+    """The decoy flag, not the accession, separates the inferences.
+
+    Here the decoy carries a target accession, as DIA-NN reports it. Inferred together, the decoy
+    peptide would make P2 a subset of P1 and shrink the target group to P1.
+    """
+    mdata = _make_target_and_decoy_peptide_mdata(peptides=["pep1", "dpep1"], proteins=["P1;P2", "P1"], decoy=[0, 1])
+
+    var = infer_protein(mdata).mod["peptide"].var
+
+    assert var["protein_group"].tolist() == ["P1,P2", "P1"]
+    assert var["peptide_type"].tolist() == ["unique", "unique"]
+
+
+def test_infer_protein_refuses_a_decoy_group_named_like_a_target_group():
+    """to_protein groups by name, so the two would become one protein row flagged as a decoy.
+
+    msmu's readers prefix decoy accessions; a modality built elsewhere may carry the target's.
+    """
+    mdata = _make_target_and_decoy_peptide_mdata(peptides=["pep1", "dpep1"], proteins=["P1", "P1"], decoy=[0, 1])
+
+    with pytest.raises(ValueError, match="share their name with a target group"):
+        infer_protein(mdata)
 
 
 def test_infer_protein_missing_modality_raises():

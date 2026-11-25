@@ -123,7 +123,6 @@ def test_aggregator_ignores_stale_feature_categories():
     aggregator = Aggregator.peptide(
         identification_df,
         quantification_df,
-        None,
         "sum",
         "best_pep",
         "proteins",

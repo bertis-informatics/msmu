@@ -1,4 +1,4 @@
-"""``calculate_missingness`` records per-feature missing counts in ``var`` and on the decoys.
+"""``calculate_missingness`` records per-feature missing counts in ``var``, for targets and decoys alike.
 
 The sparse fixture stores one explicit NaN besides the structurally absent cells, so a count that
 only looked at ``nnz`` (or only at stored NaN) would disagree with the dense count.
@@ -29,6 +29,17 @@ EXPECTED_N_MISSING = [0, 1, 2, 4]
 EXPECTED_RATIO_A = [0.0, 0.5, 0.0, 1.0]
 EXPECTED_RATIO_B = [0.0, 0.0, 1.0, 1.0]
 
+DECOY_FEATURES = ["d1", "d2"]
+# d1 has a value in one sample of each group, d2 in none.
+_DECOY_VALUES = np.array(
+    [
+        [5.0, np.nan],  # s1 (A)
+        [np.nan, np.nan],  # s2 (A)
+        [5.0, np.nan],  # s3 (B)
+        [np.nan, np.nan],  # s4 (B)
+    ]
+)
+
 
 def _sparse_with_absent_cells(dense: np.ndarray) -> sp.csr_matrix:
     rows, cols = np.nonzero(~np.isnan(dense))
@@ -39,14 +50,18 @@ def _sparse_with_absent_cells(dense: np.ndarray) -> sp.csr_matrix:
     return matrix.tocsr()
 
 
-def _mdata(x_array, *, decoy: bool = True) -> md.MuData:
+def _mdata(x_array, *, decoy_values: np.ndarray | None = None) -> md.MuData:
+    """The FEATURES, followed by the DECOY_FEATURES (`decoy == 1`) holding ``decoy_values`` when given."""
     obs = pd.DataFrame(
         {"group": pd.Categorical(["A", "A", "B", "B"], categories=["A", "B", "unused"])},
         index=SAMPLES,
     )
-    adata = ad.AnnData(X=x_array, obs=obs, var=pd.DataFrame({"score": [1.0, 2.0, 3.0, 4.0]}, index=FEATURES))
-    if decoy:
-        adata.uns["decoy"] = pd.DataFrame({"score": [0.5, 0.6]}, index=["d1", "d2"])
+    var = pd.DataFrame({"score": [1.0, 2.0, 3.0, 4.0]}, index=FEATURES)
+    if decoy_values is not None:
+        x_array = np.hstack([x_array, decoy_values])
+        decoy_var = pd.DataFrame({"score": [0.5, 0.6], "decoy": 1}, index=DECOY_FEATURES)
+        var = pd.concat([var.assign(decoy=0), decoy_var])
+    adata = ad.AnnData(X=x_array, obs=obs, var=var)
     return md.MuData({"protein": adata})
 
 
@@ -63,22 +78,38 @@ def test_counts_match_between_dense_and_sparse_and_cover_groups(make_x):
     assert "missing_ratio_unused" not in var  # category without samples is skipped
     assert var["score"].tolist() == [1.0, 2.0, 3.0, 4.0]  # existing columns untouched
 
-    decoy = result["protein"].uns["decoy"]
-    assert decoy["n_missing"].tolist() == [0, 0]
-    assert decoy["missing_ratio"].tolist() == [0.0, 0.0]
-    assert decoy["missing_ratio_A"].tolist() == [0.0, 0.0]
-
     # The input is left alone: pp functions return a copy.
     assert "n_missing" not in original["protein"].var
-    assert "n_missing" not in original["protein"].uns["decoy"]
 
 
-def test_filter_on_missingness_drops_empty_features_and_keeps_decoys():
-    mdata = mm.pp.calculate_missingness(_mdata(_VALUES.copy()), modality="protein")
+def test_decoys_are_counted_from_their_own_quantification(caplog):
+    with caplog.at_level("WARNING", logger="msmu"):
+        result = mm.pp.calculate_missingness(
+            _mdata(_VALUES.copy(), decoy_values=_DECOY_VALUES), modality="protein", group_obs="group"
+        )
+
+    decoy_var = result["protein"].var.loc[DECOY_FEATURES]
+    assert decoy_var["n_missing"].tolist() == [2, 4]
+    assert decoy_var["missing_ratio"].tolist() == [0.5, 1.0]
+    assert decoy_var["missing_ratio_A"].tolist() == [0.5, 1.0]
+    assert decoy_var["missing_ratio_B"].tolist() == [0.5, 1.0]
+    assert result["protein"].var.loc[FEATURES, "n_missing"].tolist() == EXPECTED_N_MISSING
+    assert "no decoy has a value" not in caplog.text
+
+
+def test_filter_on_missingness_removes_a_decoy_without_values_like_a_target():
+    mdata = mm.pp.calculate_missingness(_mdata(_VALUES.copy(), decoy_values=_DECOY_VALUES), modality="protein")
     mdata = mm.pp.add_filter(mdata, modality="protein", column="missing_ratio", keep="lt", value=1.0)
     filtered = mm.pp.apply_filter(mdata, modality="protein")
-    assert filtered["protein"].var_names.tolist() == ["v1", "v2", "v3"]
-    assert filtered["protein"].uns["decoy"].index.tolist() == ["d1", "d2"]
+    assert filtered["protein"].var_names.tolist() == ["v1", "v2", "v3", "d1"]
+
+
+def test_warns_when_no_decoy_has_a_value_in_any_sample(caplog):
+    # Sage label-free, for one, does not quantify decoys: a missingness filter would remove them all.
+    unquantified_decoy_values = np.full_like(_DECOY_VALUES, np.nan)
+    with caplog.at_level("WARNING", logger="msmu"):
+        mm.pp.calculate_missingness(_mdata(_VALUES.copy(), decoy_values=unquantified_decoy_values), modality="protein")
+    assert "protein: no decoy has a value in any sample" in caplog.text
 
 
 def test_recomputing_after_removing_samples_overwrites_the_columns():
@@ -90,7 +121,7 @@ def test_recomputing_after_removing_samples_overwrites_the_columns():
 
 
 def test_missing_group_label_counts_only_towards_overall_columns(caplog):
-    mdata = _mdata(_VALUES.copy(), decoy=False)
+    mdata = _mdata(_VALUES.copy())
     mdata["protein"].obs["group"] = pd.Series(["A", "A", "B", None], index=SAMPLES, dtype="object")
     with caplog.at_level("WARNING", logger="msmu"):
         result = mm.pp.calculate_missingness(mdata, modality="protein", group_obs="group")

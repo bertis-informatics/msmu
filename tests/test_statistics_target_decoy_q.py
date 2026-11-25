@@ -11,36 +11,21 @@ def test_compute_fdr_q_bounds():
     assert np.all((q_vals["q_value"] >= 0) & (q_vals["q_value"] <= 1))
 
 
-def test_estimate_q_values():
-    target = pd.DataFrame({"PEP": [1, 3, 4, 6]}, index=["t1", "t2", "t3", "t4"])
-    decoy = pd.DataFrame({"PEP": [2, 5]}, index=["d1", "d2"])
-    target_q, decoy_q = estimate_q_values(target, decoy)
-
-    expected_target = pd.Series(
-        {
-            "t1": 2 / 3,
-            "t2": 2 / 3,
-            "t3": 2 / 3,
-            "t4": 3 / 4,
-        },
-        dtype=float,
-    )
-    expected_decoy = pd.Series(
-        {
-            "d1": 2 / 3,
-            "d2": 3 / 4,
-        },
-        dtype=float,
+def test_estimate_q_values_scores_targets_and_decoys_of_one_table():
+    identifications = pd.DataFrame(
+        {"PEP": [1, 2, 3, 4, 5, 6], "decoy": [0, 1, 0, 0, 1, 0]},
+        index=["t1", "d1", "t2", "t3", "d2", "t4"],
     )
 
-    assert np.allclose(
-        target_q["q_value"].loc[expected_target.index].to_numpy(),
-        expected_target.to_numpy(),
+    with_q = estimate_q_values(identifications)
+
+    expected_q_values = pd.Series(
+        {"t1": 2 / 3, "d1": 2 / 3, "t2": 2 / 3, "t3": 2 / 3, "d2": 3 / 4, "t4": 3 / 4}, dtype=float
     )
-    assert np.allclose(
-        decoy_q["q_value"].loc[expected_decoy.index].to_numpy(),
-        expected_decoy.to_numpy(),
-    )
+    assert with_q.index.equals(identifications.index)
+    np.testing.assert_allclose(with_q["q_value"].to_numpy(), expected_q_values.to_numpy())
+    pd.testing.assert_frame_equal(with_q.drop(columns="q_value"), identifications)
+    assert "q_value" not in identifications
 
 
 def test_tied_pep_is_independent_of_input_order():
@@ -53,20 +38,19 @@ def test_tied_pep_is_independent_of_input_order():
         assert not (actual["q_value"] < 0.3).any()
 
 
-def test_group_boundaries_and_original_target_decoy_indices():
+def test_group_boundaries_and_row_order():
     # Group FDRs: 1/2, 2/3, 2/5. Reverse cumulative minima: 2/5 for every group.
     # The next representable PEP must remain a separate group (FDR 3/5).
-    target = pd.DataFrame({"PEP": [0.3, 0.1, 0.2, 0.1, 0.3]}, index=list("edcba"))
-    decoy = pd.DataFrame({"PEP": [np.nextafter(0.3, 1), 0.2]}, index=["a", "b"])
+    identifications = pd.DataFrame(
+        {"PEP": [0.3, 0.1, 0.2, 0.1, 0.3, np.nextafter(0.3, 1), 0.2], "decoy": [0, 0, 0, 0, 0, 1, 1]},
+        index=["e", "d", "c", "b", "a", "decoy_a", "decoy_b"],
+    )
     for seed in (0, 1, 2):
-        targets = target.sample(frac=1, random_state=seed)
-        decoys = decoy.sample(frac=1, random_state=seed)
-        target_q, decoy_q = estimate_q_values(targets, decoys)
-        assert target_q.index.equals(targets.index)
-        assert decoy_q.index.equals(decoys.index)
-        np.testing.assert_array_equal(target_q["q_value"], [0.4] * 5)
-        np.testing.assert_array_equal(decoy_q.loc[["a", "b"], "q_value"], [0.6, 0.4])
-    assert "q_value" not in target and "q_value" not in decoy
+        shuffled = identifications.sample(frac=1, random_state=seed)
+        with_q = estimate_q_values(shuffled)
+        assert with_q.index.equals(shuffled.index)
+        np.testing.assert_array_equal(with_q.loc[list("edcba"), "q_value"], [0.4] * 5)
+        np.testing.assert_array_equal(with_q.loc[["decoy_a", "decoy_b"], "q_value"], [0.6, 0.4])
 
 
 @pytest.mark.parametrize(

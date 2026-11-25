@@ -96,7 +96,7 @@ def add_quant(
 
     if "peptide" in mdata.mod:
         # A peptide identification layer already exists (e.g., to_peptide was run before
-        # add_quant). Preserve its var/uns -- protein mapping, q-values, decoy -- and only
+        # add_quant). Preserve its var/uns -- protein mapping, q-values, decoy rows -- and only
         # fill the quantification matrix, aligning FlashLFQ intensities onto the existing
         # peptide (var) and sample (obs) axes. Peptides identified but not quantified by
         # FlashLFQ stay NaN; peptides quantified by FlashLFQ but absent from the

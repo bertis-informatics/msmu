@@ -79,7 +79,7 @@ def _clean_scan_tokens():
 
 def _clean_labels():
     labels = [1] * (len(_RUNS) * len(_PEPTIDES))
-    labels[-1] = -1  # one decoy, to exercise decoy separation on both paths
+    labels[-1] = -1  # one decoy, read as a .var row next to the targets
     return labels
 
 

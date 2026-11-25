@@ -14,17 +14,16 @@ import msmu._utils as msmu_utils
 def _identification_only_peptide_mdata() -> md.MuData:
     """A peptide modality carrying identifications but no quant (the state to_peptide leaves
     behind when it runs before add_quant on label-free data). ``CC`` is identified but will
-    not be quantified by FlashLFQ."""
+    not be quantified by FlashLFQ; nor will the decoy peptide ``DD``, as FlashLFQ is given targets only."""
     peptide = ad.AnnData(
-        X=np.full((3, 3), np.nan, dtype=np.float64),
+        X=np.full((3, 4), np.nan, dtype=np.float64),
         obs=pd.DataFrame(index=["s1", "s2", "gis1"]),
         var=pd.DataFrame(
-            {"proteins": ["P1", "P2", "P3"], "q_value": [0.001, 0.002, 0.02]},
-            index=["AA", "BB", "CC"],
+            {"proteins": ["P1", "P2", "P3", "decoy_P4"], "q_value": [0.001, 0.002, 0.02, 0.5], "decoy": [0, 0, 0, 1]},
+            index=["AA", "BB", "CC", "DD"],
         ),
     )
     peptide.uns["level"] = "peptide"
-    peptide.uns["decoy"] = pd.DataFrame({"score": [9.0]}, index=["DECOY1"])
     return md.MuData({"peptide": peptide})
 
 
@@ -72,7 +71,7 @@ def test_add_quant_parses_rounding_midpoints_exactly(
     expected = np.array([[2927.78955078125, 1], [3726.3720703125, 2], [np.nan, 3]], dtype=np.float32)
     np.testing.assert_array_equal(peptide[:, ["AA", "BB"]].X, expected)
     if existing_peptide:
-        assert np.isnan(peptide[:, "CC"].X).all()
+        assert np.isnan(peptide[:, ["CC", "DD"]].X).all()
     if from_url:
         assert downloads == [quant_file]
 
@@ -97,7 +96,7 @@ def test_add_quant_flashlfq_requires_sequence_column(labeled_mdata):
 def test_add_quant_fills_existing_peptide_modality_and_preserves_identification():
     # Regression (BID-134): when a peptide identification layer already exists (to_peptide ran
     # before add_quant), add_quant must NOT overwrite it. It fills quant aligned onto the
-    # existing peptide/sample axes while keeping var (proteins, q_value) and uns (decoy).
+    # existing peptide/sample axes while keeping var (proteins, q_value, decoy rows).
     mdata = _identification_only_peptide_mdata()
     quant = pd.DataFrame(
         {
@@ -112,13 +111,13 @@ def test_add_quant_fills_existing_peptide_modality_and_preserves_identification(
     peptide = out["peptide"]
 
     # identification metadata survives untouched
-    assert list(peptide.var.columns) == ["proteins", "q_value"]
-    assert list(peptide.var["proteins"]) == ["P1", "P2", "P3"]
+    assert list(peptide.var.columns) == ["proteins", "q_value", "decoy"]
+    assert list(peptide.var["proteins"]) == ["P1", "P2", "P3", "decoy_P4"]
+    assert list(peptide.var["decoy"]) == [0, 0, 0, 1]
     assert peptide.uns["level"] == "peptide"
-    assert "decoy" in peptide.uns
 
-    # peptide axis is the identification set: CC kept (identified), ZZ dropped (not identified)
-    assert list(peptide.var_names) == ["AA", "BB", "CC"]
+    # peptide axis is the identification set: CC and decoy DD kept (identified), ZZ dropped (not identified)
+    assert list(peptide.var_names) == ["AA", "BB", "CC", "DD"]
 
     # quant is ingested as float32 (msmu .X convention) regardless of the container's prior dtype
     assert peptide.X.dtype == np.float32

@@ -38,6 +38,16 @@ def test_write_flashlfq_input(tmp_path, psm_mdata_export):
     assert "Protein Accession" in content[0]
 
 
+def test_write_flashlfq_input_leaves_decoys_out(tmp_path, psm_mdata_export):
+    mdata = psm_mdata_export.copy()
+    mdata.mod["psm"].var["decoy"] = [0, 1]
+    output = Path(tmp_path) / "flashlfq.tsv"
+
+    write_flashlfq_input(mdata, output)
+
+    assert pd.read_csv(output, sep="\t")["Base Sequence"].tolist() == ["AA"]
+
+
 def test_write_flashlfq_input_missing_required_column_raises(tmp_path, psm_mdata_export):
     mdata = psm_mdata_export.copy()
     mdata.mod["psm"].var = mdata.mod["psm"].var.drop(columns=["rt"])
@@ -109,31 +119,16 @@ def test_write_pin_writes_expected_schema(tmp_path, psm_mdata_export):
     assert pin_df["PepLen"].tolist() == [2, 2]
 
 
-def test_write_pin_includes_decoy_rows(tmp_path, psm_mdata_export):
+def test_write_pin_labels_decoy_rows_minus_one(tmp_path, psm_mdata_export):
     mdata = _make_pin_ready_mdata(psm_mdata_export)
-    mdata.mod["psm"].uns["decoy"] = pd.DataFrame(
-        {
-            "filename": ["decoy.raw"],
-            "scan_num": [201],
-            "charge": [2],
-            "peptide": ["DD"],
-            "proteins": ["DECOY_P1"],
-            "calcmass": [300.0],
-            "expmass": [301.0],
-            "score": [5.0],
-            "peptide_length": [2],
-            "decoy": [1],
-        },
-        index=["d1"],
-    )
+    mdata.mod["psm"].var["decoy"] = [0, 1]
 
     output = tmp_path / "out.pin"
     assert write_pin(mdata, str(output)) is None
     pin_df = pd.read_csv(output, sep="\t").set_index("SpecId", drop=False)
-    assert pin_df.index.tolist() == ["f1", "f2", "d1"]
-    assert pin_df["Label"].tolist() == [1, 1, -1]
-    assert pin_df.loc["d1", "SpecId"] == "d1"
-    assert pin_df.loc["d1", "XCorr"] == 5.0
+    assert pin_df.index.tolist() == ["f1", "f2"]
+    assert pin_df["Label"].tolist() == [1, -1]
+    assert pin_df.loc["f2", "XCorr"] == 60.0
 
 
 def test_write_pin_missing_required_source_column_raises(tmp_path, psm_mdata_export):
@@ -149,17 +144,6 @@ def test_write_pin_missing_peptide_length_raises(tmp_path, psm_mdata_export):
     mdata.mod["psm"].var = mdata.mod["psm"].var.drop(columns=["peptide_length"])
 
     with pytest.raises(ValueError, match=r"Required columns missing from psm.var: \['peptide_length'\]"):
-        write_pin(mdata, tmp_path / "out.pin")
-
-
-def test_write_pin_missing_required_decoy_column_raises(tmp_path, psm_mdata_export):
-    mdata = _make_pin_ready_mdata(psm_mdata_export)
-    decoy_df = mdata.mod["psm"].var.copy()
-    decoy_df.index = ["d1", "d2"]
-    decoy_df["decoy"] = 1
-    mdata.mod["psm"].uns["decoy"] = decoy_df.drop(columns=["score"])
-
-    with pytest.raises(ValueError, match=r"Required columns missing from psm\.uns\['decoy'\]: \['score'\]"):
         write_pin(mdata, tmp_path / "out.pin")
 
 

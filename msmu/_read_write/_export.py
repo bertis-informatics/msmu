@@ -1,8 +1,9 @@
+import numpy as np
 import pandas as pd
 import mudata as md
 from pathlib import Path
 
-from .._utils._anndata import _require_columns
+from .._utils._anndata import _get_target_feature_mask, _require_columns
 from .._utils._mudata import get_anndata_mod
 from .._core._blockdiag import to_dense_df
 
@@ -14,6 +15,9 @@ def write_flashlfq_input(mdata: md.MuData, filename: str | Path) -> None:
     Parameters:
         mdata: `MuData` object containing the data to export.
         filename: Path to the output FlashLFQ file.
+
+    Notes:
+        Decoy PSMs (`.var["decoy"] == 1`) are left out.
     """
     required_column_dict: dict[str, str] = {
         "filename": "File Name",
@@ -26,7 +30,7 @@ def write_flashlfq_input(mdata: md.MuData, filename: str | Path) -> None:
     }
 
     psm_adata = get_anndata_mod(mdata, "psm")
-    source_df: pd.DataFrame = psm_adata.var.copy()
+    source_df: pd.DataFrame = psm_adata.var.loc[_get_target_feature_mask(psm_adata.var)].copy()
 
     _require_columns(source_df, columns=list(required_column_dict), context="psm.var")
     source_df = source_df[required_column_dict.keys()]
@@ -97,19 +101,10 @@ def write_pin(
     if not isinstance(psm_adata.var, pd.DataFrame):
         raise TypeError("psm_adata.var should be pandas DataFrame")
 
-    target_df = psm_adata.var[pin_source_columns]
-    target_df["decoy"] = 0
-
-    if "decoy" in psm_adata.uns:
-        decoy_df = psm_adata.uns["decoy"].copy()
-        _require_columns(decoy_df, columns=[*pin_source_columns, "decoy"], context="psm.uns['decoy']")
-
-        pin_df = pd.concat([target_df, decoy_df], axis=0)
-    else:
-        pin_df = target_df
+    pin_df = psm_adata.var[pin_source_columns].copy()
     pin_df["SpecId"] = pin_df.index.astype(str)
     pin_df["Spectra"] = pin_df.index.astype(str)
-    pin_df["Label"] = pin_df["decoy"].apply(lambda x: -1 if x == 1 else 1)
+    pin_df["Label"] = np.where(_get_target_feature_mask(psm_adata.var), 1, -1)
     pin_df["ScanNr"] = pin_df["scan_num"].astype(int)
     pin_df["PepLen"] = pin_df["peptide_length"].astype(int)
 
