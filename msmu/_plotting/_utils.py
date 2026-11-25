@@ -427,6 +427,8 @@ def set_color(
     for i, trace in enumerate(fig.data):
         trace_name = getattr(trace, "name", "")
         color_value = group_to_color.get(trace_name)
+        if color_value is None:  # not a group's trace, e.g. the decoys: keeps its own color
+            continue
         if hasattr(trace, "marker"):
             trace.marker.color = color_value  # type: ignore
         if hasattr(trace, "line"):

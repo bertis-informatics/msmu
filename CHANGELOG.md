@@ -26,6 +26,10 @@ from git tags via setuptools-scm.
   and protein `PEP` and q-values equal those of the long `psm` modality and the quantification
   agrees to `float32` precision. Plots label the modality "Precursor". The readers keep the
   long layout.
+- **QC plots can show the decoys.** `plot_id`, `plot_intensity`, `plot_missingness` and `plot_var`
+  take `include_decoy=True` to draw decoys in grey next to the targets: a hatched segment or bar
+  beside each group's, a box or violin beside each group's, or one decoy histogram or curve over
+  the targets'.
 
 ### Changed
 
@@ -45,10 +49,11 @@ from git tags via setuptools-scm.
   column still read it: `mm.utils.parse_uniprot_accession` and `attach_fasta` mark a tagged
   entry `decoy_`, and the FragPipe reader recognises decoys by FragPipe's `rev_` tag.
 - **Analyses of the quantification leave out decoy features.** `pca`, `umap`, `corr`, `run_de`,
-  `to_ptm` and every plot leave out the features whose `.var["decoy"]` is 1, so `run_de` neither
-  tests a decoy nor counts it in the multiple-testing correction. `normalise` and
-  `correct_batch_effect` compute from the targets and leave the decoy values as they were, and
-  `adjust_ptm_by_protein` never takes a decoy protein of the global data as a denominator.
+  `to_ptm` and every plot (unless `include_decoy=True`) leave out the features whose
+  `.var["decoy"]` is 1, so `run_de` neither tests a decoy nor counts it in the multiple-testing
+  correction. `normalise` and `correct_batch_effect` compute from the targets and leave the
+  decoy values as they were, and `adjust_ptm_by_protein` never takes a decoy protein of the
+  global data as a denominator.
 - **Rollups skip the identification columns their input lacks.** `to_peptide`, `to_protein` and
   `to_ptm` raised `KeyError` when `.var` had no `PEP` (or, for `to_protein` and `to_ptm`, no
   `count_psm`). They now summarize without the missing score or count, and skip the q-values

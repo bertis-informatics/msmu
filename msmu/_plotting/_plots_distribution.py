@@ -1,10 +1,22 @@
 """Distribution-oriented plotting functions."""
 
 import mudata as md
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
 from .._utils._anndata import _drop_decoy_features
+from ._decoy import (
+    DECOY_TRACE_NAME,
+    TARGET_TRACE_NAME,
+    add_decoy_distributions,
+    add_decoy_simple_boxes,
+    add_decoy_stacked_bars,
+    color_decoy_curve,
+    resolve_decoy_data,
+    stack_class_frames,
+    style_class_histogram,
+)
 from ._pdata import PlotData
 from ._ptypes import (
     PlotBox,
@@ -18,6 +30,15 @@ from ._ptypes import (
 from ._template import DEFAULT_TEMPLATE
 from ._utils import PlotContext, finalize_figure
 
+# Violins of intensities and annotations: drawn over the data's range, with outliers, box and mean.
+VIOLIN_TRACE_OPTIONS = dict(
+    spanmode="hard",
+    points="suspectedoutliers",
+    marker=dict(line=dict(outlierwidth=0)),
+    box=dict(visible=True),
+    meanline=dict(visible=True),
+)
+
 
 def plot_intensity(
     mdata: md.MuData,
@@ -29,6 +50,7 @@ def plot_intensity(
     template: str = DEFAULT_TEMPLATE,
     bins: int = 30,
     obs_column: str | None = None,
+    include_decoy: bool = False,
     **kwargs: str,
 ) -> go.Figure:
     """Plot intensity distributions for a modality.
@@ -43,6 +65,7 @@ def plot_intensity(
         template: Registered `plotly` template name, normally `"msmu"`.
         bins: Number of histogram bins; ignored by box and violin plots.
         obs_column: Sample identifier in `mdata.obs`. If omitted, uses `.uns["plotting"]["default_obs_column"]`, then `source name`/`source_name`/`sample`/`filename`, then the observation index.
+        include_decoy: Also draw the decoy features (`.var["decoy"] == 1`) in grey: beside each group's box or violin, or, for a histogram, as one decoy histogram over one target histogram of all groups. Default `False` plots targets only.
         kwargs: Additional `plotly` layout options, for example `width=800` or `title_text="QC"`.
 
     Returns:
@@ -71,31 +94,47 @@ def plot_intensity(
         raise ValueError("plot_intensity requires a grouping column.")
 
     title_text = f"{context.modality_label} Intensity Distribution"
+    legend_title_text = f"{context.groupby.capitalize()}"
     data = PlotData(
         context.mdata,
         context.modality,
         layer=context.layer,
         obs_column=context.obs_column,
     )
+    decoy_data = resolve_decoy_data(data, include_decoy)
 
     if ptype in ["hist", "histogram"]:
         xaxis_title = "Intensity (log<sub>2</sub>)"
         yaxis_title = f"Number of {context.modality_label}s"
-        bin_info = data._get_bin_info(data._get_data(), bins)
+        if decoy_data is None:
+            bin_info = data._get_bin_info(data._get_data(), bins)
+            plot_data = data.prep_intensity_hist(context.groupby, context.obs_column, bin_info)
+        else:
+            values_by_class = {
+                TARGET_TRACE_NAME: data.get_finite_values(),
+                DECOY_TRACE_NAME: decoy_data.get_finite_values(),
+            }
+            bin_info = data._get_bin_info(np.concatenate(list(values_by_class.values())), bins)
+            plot_data = PlotData.prep_class_hist(values_by_class, bin_info)
+            legend_title_text = ""
         hovertemplate = f"<b>%{{meta}}</b><br>{xaxis_title}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>{yaxis_title}: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
-            data=data.prep_intensity_hist(context.groupby, context.obs_column, bin_info),
+            data=plot_data,
             x="center",
             y="count",
             name="name",
             hovertemplate=hovertemplate,
         )
         fig = plot.figure()
+        if decoy_data is not None:
+            style_class_histogram(fig)
     elif ptype in ["box", "boxplot", "simple_box", "simplebox"]:
         xaxis_title = f"{context.groupby.capitalize()}"
         yaxis_title = "Intensity (log<sub>2</sub>)"
         plot = PlotSimpleBox(data=data.prep_intensity_simple_box(context.groupby, context.obs_column))
         fig = plot.figure()
+        if decoy_data is not None:
+            add_decoy_simple_boxes(fig, decoy_data.prep_intensity_simple_box(context.groupby, context.obs_column))
     elif ptype in ["vln", "violin"]:
         xaxis_title = f"{context.groupby.capitalize()}"
         yaxis_title = "Intensity (log<sub>2</sub>)"
@@ -105,13 +144,16 @@ def plot_intensity(
             y="_value",
             name=context.groupby,
         )
-        fig = plot.figure(
-            spanmode="hard",
-            points="suspectedoutliers",
-            marker=dict(line=dict(outlierwidth=0)),
-            box=dict(visible=True),
-            meanline=dict(visible=True),
-        )
+        fig = plot.figure(**VIOLIN_TRACE_OPTIONS)
+        if decoy_data is not None:
+            add_decoy_distributions(
+                fig,
+                go.Violin,
+                decoy_data.prep_intensity_bar(context.groupby, context.obs_column),
+                x=context.groupby,
+                y="_value",
+                **VIOLIN_TRACE_OPTIONS,
+            )
     else:
         raise ValueError(f"Unknown plot type: {ptype}, choose from 'hist', 'box', 'vln'")
 
@@ -121,7 +163,7 @@ def plot_intensity(
         yaxis_title=yaxis_title,
         yaxis_tickformat=",d",
         showlegend=True,
-        legend=dict(title_text=f"{context.groupby.capitalize()}"),
+        legend=dict(title_text=legend_title_text),
     )
 
     return finalize_figure(fig, context=context, layout_kwargs=kwargs, apply_color=True)
@@ -132,6 +174,7 @@ def plot_missingness(
     modality: str,
     layer: str | None = None,
     obs_column: str | None = None,
+    include_decoy: bool = False,
     **kwargs: str,
 ) -> go.Figure:
     """Plot the cumulative distribution of feature completeness.
@@ -141,6 +184,7 @@ def plot_missingness(
         modality: Name of the modality to plot, such as `"protein"` or `"psm"`.
         layer: Quantification layer; `None` reads `.X`.
         obs_column: Sample identifier in `mdata.obs`. If omitted, uses `.uns["plotting"]["default_obs_column"]`, then `source name`/`source_name`/`sample`/`filename`, then the observation index.
+        include_decoy: Also draw the curve of the decoy features (`.var["decoy"] == 1`) in grey, next to the targets' one. Default `False` plots targets only.
         kwargs: Additional `plotly` layout options, for example `width=800` or `title_text="QC"`.
 
     Returns:
@@ -169,8 +213,12 @@ def plot_missingness(
     yaxis_title = f"Cumulative proportion of {context.modality_label} (%)"
     hovertemplate = f"Data Completeness ≤ %{{x:.2f}}%<br>{yaxis_title} : %{{y:.2f}}% (%{{meta}})<extra></extra>"
 
+    plot_data = data.prep_missingness_step(context.obs_column)
+    decoy_data = resolve_decoy_data(data, include_decoy)
+    if decoy_data is not None:
+        plot_data = stack_class_frames(plot_data, decoy_data.prep_missingness_step(context.obs_column), name="name")
     plot = PlotScatter(
-        data=data.prep_missingness_step(context.obs_column),
+        data=plot_data,
         x="missingness",
         y="ratio",
         name="name",
@@ -178,6 +226,8 @@ def plot_missingness(
         hovertemplate=hovertemplate,
     )
     fig = plot.figure(mode="lines+markers", line=dict(shape="hv"))
+    if decoy_data is not None:
+        color_decoy_curve(fig)
     fig.update_layout(
         title_text=title_text,
         xaxis_title=xaxis_title,
@@ -249,6 +299,7 @@ def plot_var(
     obs_column: str | None = None,
     ptype: str | None = None,
     bins: int = 30,
+    include_decoy: bool = False,
     **kwargs: str,
 ) -> go.Figure:
     """Plot a feature annotation by group.
@@ -261,6 +312,7 @@ def plot_var(
         obs_column: Sample identifier in `mdata.obs`. If omitted, uses `.uns["plotting"]["default_obs_column"]`, then `source name`/`source_name`/`sample`/`filename`, then the observation index.
         ptype: `"stack"` (aliases `"stackd"`, `"stacked_bar"`), `"box"`, `"simple_box"`/`"simplebox"`, `"vln"`/`"violin"`, or `"hist"`/`"histogram"`. `None` selects box for numeric columns with more than 20 distinct values, otherwise stacked bars.
         bins: Histogram bin count; ignored for other plot types.
+        include_decoy: Also draw the decoy features (`.var["decoy"] == 1`): a hatched bar beside each group's stacked bar, a grey box or violin beside each group's one, or, for a histogram, one decoy histogram over one target histogram that count each feature once. Default `False` plots targets only.
         kwargs: Additional `plotly` layout options, for example `width=800` or `title_text="QC"`.
 
     Returns:
@@ -300,12 +352,14 @@ def plot_var(
     yaxis_title = f"Number of {modality_label}s"
     hovertemplate = f"{column_label}: %{{meta}}<br>Number of {modality_label}s: %{{y:2,d}}<extra></extra>"
 
+    legend_title_text = column_label
     data = PlotData(
         context.mdata,
         context.modality,
         layer=context.layer,
         obs_column=context.obs_column,
     )
+    decoy_data = resolve_decoy_data(data, include_decoy)
     if ptype in ["stack", "stackd", "stacked_bar"]:
         plot_data = data.prep_var_bar(context.groupby, var_column, context.obs_column)
         plot = PlotStackedBar(
@@ -317,6 +371,15 @@ def plot_var(
             hovertemplate=hovertemplate,
         )
         fig = plot.figure()
+        if decoy_data is not None:
+            add_decoy_stacked_bars(
+                fig,
+                decoy_data.prep_var_bar(context.groupby, var_column, context.obs_column),
+                x=context.groupby,
+                y="count",
+                name=var_column,
+                template=context.template,
+            )
     elif ptype in ["box"]:
         plot_data = data.prep_var_box(context.groupby, var_column, obs_column=context.obs_column)
         plot = PlotBox(
@@ -326,10 +389,21 @@ def plot_var(
             name=context.groupby,
         )
         fig = plot.figure(boxpoints="suspectedoutliers")
+        if decoy_data is not None:
+            add_decoy_distributions(
+                fig,
+                go.Box,
+                decoy_data.prep_var_box(context.groupby, var_column, obs_column=context.obs_column),
+                x=context.groupby,
+                y=var_column,
+                boxpoints="suspectedoutliers",
+            )
     elif ptype in ["simple_box", "simplebox"]:
         plot_data = data.prep_var_simple_box(context.groupby, var_column, context.obs_column)
         plot = PlotSimpleBox(data=plot_data)
         fig = plot.figure()
+        if decoy_data is not None:
+            add_decoy_simple_boxes(fig, decoy_data.prep_var_simple_box(context.groupby, var_column, context.obs_column))
     elif ptype in ["vln", "violin"]:
         plot_data = data.prep_var_box(context.groupby, var_column, context.obs_column)
         plot = PlotViolin(
@@ -338,16 +412,28 @@ def plot_var(
             y=var_column,
             name=context.groupby,
         )
-        fig = plot.figure(
-            spanmode="hard",
-            points="suspectedoutliers",
-            marker=dict(line=dict(outlierwidth=0)),
-            box=dict(visible=True),
-            meanline=dict(visible=True),
-        )
+        fig = plot.figure(**VIOLIN_TRACE_OPTIONS)
+        if decoy_data is not None:
+            add_decoy_distributions(
+                fig,
+                go.Violin,
+                decoy_data.prep_var_box(context.groupby, var_column, context.obs_column),
+                x=context.groupby,
+                y=var_column,
+                **VIOLIN_TRACE_OPTIONS,
+            )
     elif ptype in ["hist", "histogram"]:
-        bin_info = data._get_bin_info(data._get_var()[var_column], bins)
-        plot_data = data.prep_var_hist(context.groupby, var_column, context.obs_column, bin_info)
+        if decoy_data is None:
+            bin_info = data._get_bin_info(data._get_var()[var_column], bins)
+            plot_data = data.prep_var_hist(context.groupby, var_column, context.obs_column, bin_info)
+        else:
+            values_by_class = {
+                TARGET_TRACE_NAME: data._get_var()[var_column].dropna().to_numpy(dtype=float),
+                DECOY_TRACE_NAME: decoy_data._get_var()[var_column].dropna().to_numpy(dtype=float),
+            }
+            bin_info = data._get_bin_info(np.concatenate(list(values_by_class.values())), bins)
+            plot_data = PlotData.prep_class_hist(values_by_class, bin_info)
+            legend_title_text = ""
         hovertemplate = f"<b>%{{meta}}</b><br>{column_label}: %{{x}} ± {round(bin_info['width'] / 2, 4)}<br>Number of {modality_label}s: %{{y:2,d}}<extra></extra>"
         plot = PlotHistogram(
             data=plot_data,
@@ -357,6 +443,8 @@ def plot_var(
             hovertemplate=hovertemplate,
         )
         fig = plot.figure()
+        if decoy_data is not None:
+            style_class_histogram(fig)
     else:
         raise ValueError(f"Unknown plot type: {ptype}, choose from 'stack', 'box', 'simplebox', 'vln', 'hist'")
 
@@ -364,7 +452,7 @@ def plot_var(
         title_text=title_text,
         xaxis_title=xaxis_title,
         yaxis_title=yaxis_title,
-        legend=dict(title_text=column_label),
+        legend=dict(title_text=legend_title_text),
     )
 
     return finalize_figure(fig, context=context, layout_kwargs=kwargs)

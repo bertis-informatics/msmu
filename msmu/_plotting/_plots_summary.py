@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .._utils._mudata import get_mudata
+from ._decoy import add_decoy_bar_segments, resolve_decoy_data
 from ._pdata import PlotData
 from ._ptypes import PlotBar
 from ._template import DEFAULT_TEMPLATE
@@ -112,6 +113,7 @@ def plot_id(
     colorby: str | None = None,
     template: str = DEFAULT_TEMPLATE,
     obs_column: str | None = None,
+    include_decoy: bool = False,
     **kwargs: str,
 ) -> go.Figure:
     """Plot the number of identified features per group.
@@ -124,6 +126,7 @@ def plot_id(
         colorby: Observation column used to assign sample colors when `groupby` resolves to `obs_column`; ignored for other groupings. `None` uses the template palette.
         template: Registered `plotly` template name, normally `"msmu"`.
         obs_column: Sample identifier in `mdata.obs`. If omitted, uses `.uns["plotting"]["default_obs_column"]`, then `source name`/`source_name`/`sample`/`filename`, then the observation index.
+        include_decoy: Also count the decoy features (`.var["decoy"] == 1`), as a grey hatched segment on top of each group's bar. Default `False` counts targets only.
         kwargs: Additional `plotly` layout options, for example `width=800` or `title_text="QC"`.
 
     Returns:
@@ -171,6 +174,15 @@ def plot_id(
         text="_count",
     )
     fig = plot.figure()
+    decoy_data = resolve_decoy_data(data, include_decoy)
+    if decoy_data is not None:
+        add_decoy_bar_segments(
+            fig,
+            decoy_data.prep_id_bar(context.groupby, obs_column=context.obs_column),
+            x=context.groupby,
+            y="_count",
+            hovertemplate=hovertemplate,
+        )
     fig.update_layout(
         title_text=title_text,
         xaxis_title=xaxis_title,
