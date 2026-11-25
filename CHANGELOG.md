@@ -35,7 +35,8 @@ from git tags via setuptools-scm.
   `infer_protein` infers them apart and refuses a decoy group named like a target group. Filters
   apply to decoys as to targets and warn when the last decoy goes; `calculate_missingness` counts
   decoys instead of writing `0`. `write_pin` labels rows from `decoy`; `write_flashlfq_input`
-  exports targets only. `.uns["decoy"]` in older files is no longer read.
+  exports targets only. `.uns["decoy"]` in older files is no longer read; rollups on such files
+  skip q-values and say so.
 - **Decoy accessions take the `decoy_` prefix, set from the decoy column.** Readers prefix every
   accession of a row their decoy column marks, so a decoy never shares an accession with a
   target. The prefix used to be `rev_` and came only from a search engine's tag in front of a

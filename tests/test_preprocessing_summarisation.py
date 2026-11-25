@@ -583,6 +583,28 @@ def test_to_peptide_carries_the_pep_of_a_wide_precursor_without_decoys(wide_prec
     assert "Decoy data not found. Skipping q-value calculation." in caplog.text
 
 
+def test_rollups_name_the_former_decoy_table_when_they_skip_q_values(wide_precursor_mdata, caplog):
+    # A file saved by an earlier msmu keeps its decoys in .uns["decoy"] and has no decoy rows.
+    import msmu as mm
+    from mudata import MuData
+
+    precursor = wide_precursor_mdata["precursor"]
+    is_decoy = (precursor.var["decoy"] == 1).to_numpy()
+    saved_earlier = precursor[:, ~is_decoy].copy()
+    saved_earlier.uns["decoy"] = precursor.var.loc[is_decoy].copy()
+
+    with caplog.at_level("WARNING", logger="msmu"):
+        mdata = mm.pp.to_peptide(MuData({"precursor": saved_earlier}))
+    assert "Decoys of 'precursor' are in .uns['decoy']" in caplog.text
+    assert "q_value" not in mdata["peptide"].var.columns
+
+    caplog.clear()
+    mdata["peptide"].uns["decoy"] = pd.DataFrame()
+    with caplog.at_level("WARNING", logger="msmu"):
+        mm.pp.to_protein(mm.pp.infer_protein(mdata))
+    assert "Decoys of 'peptide' are in .uns['decoy']" in caplog.text
+
+
 def test_to_protein_scores_proteins_from_a_wide_precursor(wide_precursor_mdata):
     import msmu as mm
 

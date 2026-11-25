@@ -45,6 +45,8 @@ PSM_MODALITY: str = "psm"
 PRECURSOR_MODALITY: str = "precursor"
 # Name of the posterior error probability, as a `.var` column (`psm`) or as a layer (`precursor`).
 PEP_COLUMN: str = "PEP"
+# `.uns` key under which earlier msmu versions saved a modality's decoys as a separate table.
+LEGACY_DECOY_TABLE_KEY: str = "decoy"
 
 
 @log_provenance
@@ -165,7 +167,9 @@ def to_peptide(
         raise
 
     if calculate_q:
-        ident_df_agg = _add_q_values(ident_df_agg, level_name="Peptide")
+        ident_df_agg = _add_q_values(
+            ident_df_agg, level_name="Peptide", source_adata=adata_to_summarise, source_modality=source_modality
+        )
 
     # Aggregate quantification data
     quant_df_agg = aggregator.aggregate_quantification()
@@ -207,11 +211,21 @@ def to_peptide(
     return mdata
 
 
-def _add_q_values(identification_df: pd.DataFrame, level_name: str) -> pd.DataFrame:
+def _add_q_values(
+    identification_df: pd.DataFrame, level_name: str, source_adata: ad.AnnData, source_modality: str
+) -> pd.DataFrame:
     """Add q-values from the aggregated targets and decoys, or return the table as it is without decoys."""
     is_target_feature = _get_target_feature_mask(identification_df)
     if is_target_feature.all():
-        logger.warning("Decoy data not found. Skipping q-value calculation.")
+        if LEGACY_DECOY_TABLE_KEY in source_adata.uns:
+            logger.warning(
+                "Decoys of '%s' are in .uns['%s'], where earlier msmu versions saved them, and are no longer "
+                "read. Skipping q-value calculation; read the search output again to calculate q-values.",
+                source_modality,
+                LEGACY_DECOY_TABLE_KEY,
+            )
+        else:
+            logger.warning("Decoy data not found. Skipping q-value calculation.")
         return identification_df
     if PEP_COLUMN not in identification_df.columns:
         logger.warning("PEP column not found. Skipping q-value calculation.")
@@ -325,7 +339,9 @@ def to_protein(
     # Aggregate identification
     ident_df_agg = aggregator.aggregate_identification()
     if calculate_q:
-        ident_df_agg = _add_q_values(ident_df_agg, level_name="Protein")
+        ident_df_agg = _add_q_values(
+            ident_df_agg, level_name="Protein", source_adata=adata_to_summarise, source_modality="peptide"
+        )
 
     quant_df_agg = aggregator.aggregate_quantification()
     logger.debug("Aggregated protein quantification shape: %s", quant_df_agg.shape)
