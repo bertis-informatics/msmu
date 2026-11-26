@@ -55,7 +55,7 @@ A `MuData` with:
 - `mdata["peptide"].var["peptide_type"]`: Peptide type (`unique` or `shared`).
 - Decoy peptides get both from their own inference.
 
-Output `MuData` also contains mapping information inside `.uns`, for the targets
+Output `MuData` also contains the target mapping inside `.uns`
 
 - `mdata.uns["peptide_map"]`: peptide → protein group mapping.
 - `mdata.uns["protein_map"]`: per-protein mapping with flags for `indistinguishable/subset/subsumable` status.
