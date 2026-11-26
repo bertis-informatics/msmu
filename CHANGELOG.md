@@ -33,6 +33,9 @@ from git tags via setuptools-scm.
 
 ### Changed
 
+- **`mm.pp.add_filter` and `mm.pp.apply_filter` warn on use.** Both emit a
+  `DeprecationWarning` and otherwise behave as before; use `mm.pp.filter` instead. `to_protein`
+  now removes shared peptides through `filter`, with the same output.
 - **Decoys are `.var` rows next to the targets.** Readers keep decoys in `.var` (`decoy == 1`),
   `.X` and `.varm["search_result"]` instead of `.uns["decoy"]`. Rollups summarize targets and
   decoys together and calculate q-values from both (none without decoys, with a warning).

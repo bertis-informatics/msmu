@@ -18,7 +18,7 @@ from ._summarisation import (
     warn_if_not_log_scale,
 )
 from .._statistics._target_decoy_q import estimate_q_values
-from .._preprocessing._filter import add_filter, apply_filter
+from .._preprocessing._filter import filter as filter_modality
 
 # for type checking only
 import mudata as md
@@ -291,18 +291,13 @@ def to_protein(
     # Handle shared peptides
     # use unique peptides only
     if _shared_peptide == "discard":
-        mdata = add_filter(
+        mdata = filter_modality(
             mdata=original_mdata,
             modality="peptide",
+            on="var",
             column="peptide_type",
             keep="eq",
             value="unique",
-            on="var",
-        )
-        mdata = apply_filter(
-            mdata=mdata,
-            modality="peptide",
-            on="var",
         )
     else:
         mdata = original_mdata

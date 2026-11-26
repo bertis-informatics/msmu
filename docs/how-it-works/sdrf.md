@@ -104,9 +104,8 @@ its match key (a channel that spans 12 fraction rows takes its first), and every
 `MuData`-level `.obs`, `.X`, `.layers`, and `.obsm` move together.
 
 Observations absent from the SDRF — blank or reference channels, typically — are not dropped. They
-follow the matched ones in their original order with `NaN` metadata, and leave through
-[`add_filter()`](../reference/pp/add_filter.md) / [`apply_filter()`](../reference/pp/apply_filter.md)
-as before. Pass `order_obs=False` to keep the reader's order.
+follow the matched ones in their original order with `NaN` metadata, and leave through an `obs`
+[`filter()`](../reference/pp/filter.md). Pass `order_obs=False` to keep the reader's order.
 
 ### Naming samples with `set_index`
 

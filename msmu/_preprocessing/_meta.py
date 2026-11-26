@@ -209,7 +209,7 @@ def apply_sdrf_to_obs(
         order_obs: Reorder every modality's `.obs`, and the global `.obs`, to the SDRF row order: each
             observation takes the position of the first SDRF row carrying its match key, and
             observations absent from the SDRF follow the matched ones in their current order
-            (none is dropped; removing samples stays with [`apply_filter`][msmu.pp.apply_filter]).
+            (none is dropped; samples leave through an `obs` [`filter`][msmu.pp.filter]).
             Default `True`; `False` keeps the reader's order.
 
     Returns:
@@ -316,7 +316,7 @@ def _obs_names_in_sdrf_order(mdata: MuData, sdrf: pd.DataFrame, *, on: str | Non
 
     A key spanning several SDRF rows (fractions, technical replicates) takes its first row.
     Observations absent from the SDRF keep their relative order after every matched one; they are
-    not dropped, since removing samples is ``apply_filter``'s job. The match key is resolved per
+    not dropped, since removing samples is ``filter``'s job. The match key is resolved per
     modality exactly as the projection does, and a key missing from the SDRF is left for the
     projection to report.
     """

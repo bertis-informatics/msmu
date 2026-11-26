@@ -1,7 +1,7 @@
 # Filter
 
-[`msmu.pp.filter`](../reference/pp/filter.md) filters in one call: it evaluates one condition on a
-modality and returns the `MuData` without whatever failed it.
+Filtering in `msmu` is one call, [`msmu.pp.filter`](../reference/pp/filter.md): it evaluates one
+condition on a modality and returns the `MuData` without whatever failed it.
 
 ```python
 mdata = mm.pp.filter(mdata, modality="psm", on="var", column="q_value", keep="lt", value=0.01)
@@ -126,12 +126,13 @@ from the parse. If you do filter on contaminant
 status, filter on the flag rather than matching a marker on the protein string — a string match
 silently stops matching when the search uses a different contaminant FASTA.
 
-## Stored filters
+## Stored filters (deprecated)
 
 [`msmu.pp.add_filter`](../reference/pp/add_filter.md) and
 [`msmu.pp.apply_filter`](../reference/pp/apply_filter.md) split filtering into two steps: the first
 stores a boolean mask as a named filter column, the second applies one or more stored masks.
-They do not filter cells.
+Both still work as described below, and both emit a `DeprecationWarning`; use
+[`filter`](../reference/pp/filter.md) instead. They do not filter cells.
 
 ### Define filters
 

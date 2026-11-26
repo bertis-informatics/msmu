@@ -1,6 +1,7 @@
 from msmu._provenance import get_log
 import io
 import logging
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -712,3 +713,33 @@ def test_filter_workflow_replays_and_generates_script(wide_precursor_mdata, tmp_
     exec(mm.pv.to_script(out, verify=True), namespace)
     assert mm.pv.compute_hash(namespace["mdata"]) == mm.pv.compute_hash(out)
 
+
+def _files_blamed_for_the_filter_deprecation(recorded) -> list[str]:
+    return [warning.filename for warning in recorded if "use msmu.pp.filter instead" in str(warning.message)]
+
+
+def test_add_filter_warns_that_it_is_deprecated_at_the_callers_line(filter_mdata):
+    with pytest.warns(DeprecationWarning, match="add_filter is deprecated; use msmu.pp.filter instead") as recorded:
+        mm.pp.add_filter(filter_mdata, modality="psm", column="score", keep="gt", value=15.0)
+
+    # Python shows a DeprecationWarning by default only when it points at the caller's own code, so it
+    # must not be attributed to the provenance wrapper around the function.
+    assert _files_blamed_for_the_filter_deprecation(recorded) == [__file__]
+
+
+def test_apply_filter_warns_that_it_is_deprecated_at_the_callers_line(filter_mdata):
+    with pytest.warns(DeprecationWarning, match="add_filter is deprecated"):
+        marked = mm.pp.add_filter(filter_mdata, modality="psm", column="score", keep="gt", value=15.0)
+
+    with pytest.warns(DeprecationWarning, match="apply_filter is deprecated; use msmu.pp.filter instead") as recorded:
+        mm.pp.apply_filter(marked, modality="psm")
+
+    assert _files_blamed_for_the_filter_deprecation(recorded) == [__file__]
+
+
+def test_filter_does_not_warn_about_deprecation(filter_mdata):
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        mm.pp.filter(filter_mdata, "psm", "var", "score", "gt", 15.0)
+
+    assert _files_blamed_for_the_filter_deprecation(recorded) == []

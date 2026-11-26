@@ -45,7 +45,7 @@ def calculate_missingness(
     ``.var["missing_ratio"]``, that count divided by the number of samples. With ``group_obs``, an
     `.obs` column of the modality, ``.var["missing_ratio_<level>"]`` is added for every level present,
     so a filter can be set within one group. Existing columns are overwritten: recompute after
-    removing samples, because [`apply_filter`][msmu.pp.apply_filter] does not update them.
+    removing samples, because [`filter`][msmu.pp.filter] does not update them.
 
     Decoy features (`.var["decoy"] == 1`) are counted from their own quantification, as the search
     engine reports it. An engine that does not quantify decoys (for example Sage label-free) leaves
