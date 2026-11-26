@@ -8,116 +8,62 @@ from git tags via setuptools-scm.
 
 ### Added
 
-- **`mm.pp.filter` filters in one call.** It evaluates one condition on a modality and returns
-  the `MuData` without whatever failed it. No mask is stored; the provenance log records the
-  condition. `on` says where the values are and has no default: `.var`, `.obs`, a table in
-  `.varm` or `.obsm`, or a layer holding one value per cell (`on="layers"`). For a layer, the
-  cells failing the condition are emptied in `.X` and in every layer, and the features left
-  without a passing cell are removed; an integer or boolean layer becomes floating-point to
-  hold the emptied cells, and a layer of strings is refused. Decoys are filtered like targets;
-  `include_decoy=False` keeps every decoy through a variable or layer filter.
-- **A wide `precursor` modality from an external file is summarized like `psm` (experimental).**
-  No tool writes this layout yet, and it may change. `to_peptide`
-  summarizes a `precursor` modality (samples are runs, features are precursors, identification
-  scores per cell in the `q_value` and `PEP` layers) when there is no `psm`, and rejects a
-  `MuData` holding both. The peptide `PEP` is the best value of the `PEP` layer over the
-  peptide's precursors and runs, and q-values are calculated from it when decoy precursors are
-  present; `count_psm` is not produced. On the DIA tutorial data laid out wide, the peptide
-  and protein `PEP` and q-values equal those of the long `psm` modality and the quantification
-  agrees to `float32` precision. Plots label the modality "Precursor". The readers keep the
-  long layout.
+- **`mm.pp.filter` filters in one call.** It evaluates one condition on `.var`, `.obs`, a
+  `.varm` or `.obsm` table, or a layer (per cell, `on="layers"`) and removes what fails it;
+  `include_decoy=False` keeps the decoys. The provenance log records the condition.
+- **A wide `precursor` modality is summarized like `psm` (experimental).** `to_peptide` accepts a
+  `precursor` modality from an external file, with identification scores per cell in the
+  `q_value` and `PEP` layers, when there is no `psm`.
 - **QC plots can show the decoys.** `plot_id`, `plot_intensity`, `plot_missingness` and `plot_var`
-  take `include_decoy=True` to draw decoys in grey next to the targets: a hatched segment or bar
-  beside each group's, a box or violin beside each group's, or one decoy histogram or curve over
-  the targets'.
+  take `include_decoy=True` to draw them in grey next to the targets.
 
 ### Changed
 
-- **`mm.pp.add_filter` and `mm.pp.apply_filter` warn on use.** Both emit a
-  `DeprecationWarning` and otherwise behave as before; use `mm.pp.filter` instead. `to_protein`
-  now removes shared peptides through `filter`, with the same output.
-- **Decoys are `.var` rows next to the targets.** Readers keep decoys in `.var` (`decoy == 1`),
-  `.X` and `.varm["search_result"]` instead of `.uns["decoy"]`. Rollups summarize targets and
-  decoys together and calculate q-values from both (none without decoys, with a warning).
-  `infer_protein` infers them apart and refuses a decoy group named like a target group. Filters
-  apply to decoys as to targets and warn when the last decoy goes; `calculate_missingness` counts
-  decoys instead of writing `0`. `write_pin` labels rows from `decoy`; `write_flashlfq_input`
-  exports targets only. `.uns["decoy"]` in older files is no longer read; rollups on such files
-  skip q-values and say so.
-- **Decoy accessions take the `decoy_` prefix, set from the decoy column.** Readers prefix every
-  accession of a row their decoy column marks, so a decoy never shares an accession with a
-  target. The prefix used to be `rev_` and came only from a search engine's tag in front of a
-  UniProt-style entry, so DIA-NN decoys, which carry the accession of the target they were made
-  from, had none. The parser now removes the engine's tag. Inputs without a decoy
-  column still read it: `mm.utils.parse_uniprot_accession` and `attach_fasta` mark a tagged
-  entry `decoy_`, and the FragPipe reader recognises decoys by FragPipe's `rev_` tag.
-- **Analyses of the quantification leave out decoy features.** `pca`, `umap`, `corr`, `run_de`,
-  `to_ptm` and every plot (unless `include_decoy=True`) leave out the features whose
-  `.var["decoy"]` is 1, so `run_de` neither tests a decoy nor counts it in the multiple-testing
-  correction. `normalise` and `correct_batch_effect` compute from the targets and leave the
-  decoy values as they were, and `adjust_ptm_by_protein` never takes a decoy protein of the
-  global data as a denominator.
+- **`mm.pp.add_filter` and `mm.pp.apply_filter` are deprecated.** Both emit a
+  `DeprecationWarning` and otherwise behave as before; use `mm.pp.filter`.
+- **Decoys are `.var` rows next to the targets.** Readers keep them in `.var` (`decoy == 1`)
+  instead of `.uns["decoy"]`, so filters and rollups treat them like targets. `.uns["decoy"]` in
+  older files is no longer read.
+- **Decoy accessions take the `decoy_` prefix, set from the decoy column.** The prefix used to be
+  `rev_`, taken from the search engine's tag, so DIA-NN decoys had none.
+- **Analyses of the quantification leave out decoys.** `pca`, `umap`, `corr`, `run_de`, `to_ptm`
+  and the plots skip decoy features, and `adjust_ptm_by_protein` never divides by a decoy
+  protein. `normalise` and `correct_batch_effect` compute from the targets and leave decoy
+  values unchanged.
 - **Rollups skip the identification columns their input lacks.** `to_peptide`, `to_protein` and
-  `to_ptm` raised `KeyError` when `.var` had no `PEP` (or, for `to_protein` and `to_ptm`, no
-  `count_psm`). They now summarize without the missing score or count, and skip the q-values
-  with a warning.
-- **Processing calls copy without rebuilding the MuData bookkeeping, and finish it before
-  returning.** mudata's `MuData.copy()` rebuilds the MuData-level bookkeeping (global `.var`,
-  modality maps, membership masks) through `update()`, whose cost grows with the number of
-  PSM features and, with pandas 3 string indexes, dominated every step on large DIA data even
-  when the step did not touch the PSM modality. msmu now copies the parts as they are; the
-  calls that insert or replace a modality rebuild the bookkeeping themselves, in the layout
-  mudata produces. On a 958-run synthetic DIA-NN dataset the DIA tutorial pipeline takes
-  about 12 s instead of about 100 s, with a lower peak memory.
+  `to_ptm` summarize without a missing `PEP` or `count_psm` instead of raising `KeyError`, and
+  skip the q-values with a warning.
+- **Copying a `MuData` no longer rebuilds its bookkeeping.** Processing calls copy the parts as
+  they are, and the calls that add or replace a modality rebuild it themselves. Large DIA
+  pipelines run much faster.
 
 ### Removed
 
-- **The `mm.dt` decoy-table paths.** `dt.assign(on="decoy")` and the `"<modality>.decoy"` table
-  path of `dt.map`, `dt.replace` and `dt.drop` are gone with `.uns["decoy"]`; decoys are
-  `<modality>.var` rows, and the error says so.
+- **The `mm.dt` decoy-table paths.** `dt.assign(on="decoy")` and the `"<modality>.decoy"` path of
+  `dt.map`, `dt.replace` and `dt.drop` raise an error pointing to `<modality>.var`.
 
 ### Fixed
 
-- **A `.varm` filter judges decoys on their own values.** Decoys had no `.varm` rows, so a
-  `.varm` filter (for example on DIA-NN's protein q-value in `search_result`) removed every decoy,
-  and the next rollup calculated its q-values without any. On the DIA tutorial data every peptide
-  received the same q-value.
-- **A multi-file DIA-NN read keeps the rows of a file without a `Decoy` column.** Their missing
-  flag matched neither target nor decoy, so those rows disappeared from `.var` and
-  `.varm["search_result"]`; they are now read as targets.
-- **DIA-NN decoys no longer change the target protein groups.** A DIA-NN decoy carried the
-  accession of its target, so `infer_protein` mapped decoy peptides onto target proteins, and a
-  protein that only a decoy peptide distinguished was split out of its group. With the `decoy_`
-  prefix the decoys are inferred apart from the targets. On the DIA tutorial data two target
-  protein groups gain the members the decoys had split off; their quantification and q-values
-  are unchanged.
-- **Replacing a modality leaves the other modalities as they are.** In a `MuData` whose
-  modalities share a feature name, which the readers never produce but a hand-built or external
-  container can, filtering a modality or rebuilding the peptide modality could remove the
-  same-named feature from another modality or reorder another modality's features. The
-  replaced modality is now emptied and the bookkeeping updated before the new one is inserted,
-  so only the bookkeeping is rewritten.
-- **A replaced peptide modality keeps the sample annotations.** When the peptide modality
-  already held quantification (DDA LFQ), `to_peptide` rebuilt it without the `.obs` columns
-  that `apply_sdrf_to_obs` or `add_meta` had attached, so a call that groups by a sample
-  annotation on the peptide modality, such as `normalise(modality="peptide", group_obs=...)`,
-  failed until `to_protein` pushed the columns back. The rebuilt modality now receives the
-  global `.obs` columns, as an added modality already did; `apply_filter`, which replaces the
-  modality the same way, pushes them too, which changes nothing when the modalities already
-  carry the columns. Histories recorded on such data get a different peptide hash from
-  `to_peptide` on.
-- **Workflows resumed from a checkpoint replay with verification.** `to_peptide`,
-  `to_protein` and `to_ptm` returned a `MuData` whose bookkeeping was only finished by the
-  next msmu call. Writing, re-loading, copying or updating that object in between changed its
-  provenance hash, so the next recorded call saw an input no recorded output matched and
-  `pv.replay(verify=True)` refused the history with "Unrecorded data changes". Every call now
-  returns a finished `MuData`.
+- **A `.varm` filter judges decoys on their own values.** It used to remove every decoy, so the
+  next rollup calculated q-values without any.
+- **A multi-file DIA-NN read keeps the rows of a file without a `Decoy` column.** They are read
+  as targets instead of being dropped.
+- **DIA-NN decoys no longer change the target protein groups.** They carried their target's
+  accession, so `infer_protein` split proteins out of target groups.
+- **Replacing a modality leaves the other modalities as they are.** When modalities share a
+  feature name, filtering or rebuilding one modality could remove or reorder that feature in
+  another.
+- **A replaced peptide modality keeps the sample annotations.** `to_peptide` on DDA LFQ data
+  dropped the `.obs` columns attached by `apply_sdrf_to_obs` or `add_meta`. Histories recorded
+  on such data get a different peptide hash from `to_peptide` on.
+- **Workflows resumed from a checkpoint replay with verification.** `to_peptide`, `to_protein`
+  and `to_ptm` return a finished `MuData`, so writing or copying it before the next call no
+  longer breaks `pv.replay(verify=True)`.
 
 The `msmu-v2` hashing policy is unchanged, but the recorded output hashes of `to_peptide`,
-`to_protein` and `to_ptm` now describe the finished object. Replaying a history recorded
-with an earlier version therefore fails its output-hash check at those steps. Use the
-recorded original environment or regenerate the reference with the current version.
-Existing hashes are not rewritten.
+`to_protein` and `to_ptm` now describe the finished object, so replaying a history recorded with
+an earlier version fails its output-hash check at those steps. Use the recorded original
+environment or regenerate the reference with the current version.
 
 ## [0.4.5] - 2026-10-28
 

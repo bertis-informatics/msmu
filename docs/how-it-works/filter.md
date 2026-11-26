@@ -56,10 +56,8 @@ Each call applies one condition; call it again for the next one.
 
 ## Filtering cells
 
-In a wide `precursor` modality (samples are runs, features are precursors; see
-[Data](data.md#wide_precursor_input)) an identification is a cell, not a feature, and its score is
-kept per cell in a layer. A filter on a feature would keep or remove a precursor in every run at
-once, so the condition is evaluated per cell instead:
+In a wide `precursor` modality (see [Data](data.md#wide_precursor_input)) an identification is a
+cell, with its score in a layer, so the condition is evaluated per cell:
 
 ```python
 mdata = mm.pp.filter(
@@ -69,13 +67,8 @@ mdata = mm.pp.filter(
 
 Cells failing the condition are emptied (set to `NaN`) in `.X` and in every layer, and precursors
 left without a passing cell are removed. Samples are kept, and only the numeric comparisons apply.
-
-Every layer is emptied because a failing cell is an identification that is gone, as a removed
-feature is in the long layout. An integer or boolean layer cannot hold `NaN` and becomes a
-floating-point layer. A layer of strings cannot hold an emptied cell in a form an h5mu file
-stores, so the filter refuses a modality that has one. A wide matrix has cells without an
-identification from the start, and only `NaN` marks them: keep per-cell values in
-floating-point layers.
+Integer and boolean layers become floating-point to hold `NaN`; a modality with a layer of strings
+is refused.
 
 ## Missingness
 
@@ -101,111 +94,33 @@ Readers record identification status rather than acting on it:
 
 - **Decoys** stay in `.var`, marked by `decoy == 1`. Filters apply to them as to targets;
   quantification analyses and plots leave them out.
-- **Contaminants** stay in `.var` with a `contaminant` flag (`1` / `0`). `msmu` records the flag and
-  leaves the decision to you: a contaminant accession can also be a genuine protein of the sample
-  (the parsed group keeps both, e.g., `Cont_P07339;P07339`), so whether such a feature should go is
-  a protein-level judgment rather than something to drop at the PSM level.
+- **Contaminants** stay in `.var` with a `contaminant` flag (`1` / `0`). Whether to remove them is
+  left to you: a contaminant accession can also be a genuine protein of the sample (e.g.,
+  `Cont_P07339;P07339`).
 
-Filter on identification scores before quantification: a quantification filter can remove decoys
-and make the next q-values too small. `include_decoy=False` keeps every decoy through a variable or
-layer filter.
+Filter on identification scores before quantification, since a quantification filter can remove
+decoys and make the next q-values too small. `include_decoy=False` keeps every decoy through a
+variable or layer filter.
 
-To drop a run from `psm`, remove its identifications on `filename` in `.var`, then its sample in
-`.obs`; an `.obs` filter alone leaves the q-values unchanged. The engine's scores still reflect the
-run, so search again for an exact result.
+To drop a run from `psm`, remove its identifications (`filename` in `.var`), then its sample
+(`.obs`); an `.obs` filter alone keeps the identifications. For an exact result, search again
+without the run.
 
 ```python
 mdata = mm.pp.filter(mdata, modality="psm", on="var", column="filename", keep="ne", value="run_A")
 mdata = mm.pp.filter(mdata, modality="psm", on="obs", column="run", keep="ne", value="run_A")
 ```
 
-Contaminant markers differ per FASTA (`contam_`, `Cont_`, `CON__`, and each engine's decoy tag in
-front of them), so the reader normalizes every accession to one canonical form
-`[decoy_][Cont_]<accession>`, takes `decoy_` from the decoy column and sets the contaminant flag
-from the parse. If you do filter on contaminant
-status, filter on the flag rather than matching a marker on the protein string — a string match
-silently stops matching when the search uses a different contaminant FASTA.
+Readers write every accession as `[decoy_][Cont_]<accession>`, whatever markers the FASTA used.
+To filter on contaminant status, use the flag rather than a marker in the protein string.
 
 ## Stored filters (deprecated)
 
-[`msmu.pp.add_filter`](../reference/pp/add_filter.md) and
-[`msmu.pp.apply_filter`](../reference/pp/apply_filter.md) split filtering into two steps: the first
-stores a boolean mask as a named filter column, the second applies one or more stored masks.
-Both still work as described below, and both emit a `DeprecationWarning`; use
+[`add_filter`](../reference/pp/add_filter.md) stores a condition as a boolean mask in
+`.varm["filter"]` or `.obsm["filter"]`, and [`apply_filter`](../reference/pp/apply_filter.md)
+removes what the stored masks reject. Both still work and emit a `DeprecationWarning`; use
 [`filter`](../reference/pp/filter.md) instead. They do not filter cells.
 
-### Define filters
-
-[`add_filter()`](../reference/pp/add_filter.md) supports multiple sources via `on`:
-
-- `on="var"`: read `column` from `.var`, store mask in `.varm["filter"]`
-- `on="obs"`: read `column` from `.obs`, store mask in `.obsm["filter"]`
-- `on="varm"`: read `column` from `.varm[key]`, store mask in `.varm["filter"]`
-- `on="obsm"`: read `column` from `.obsm[key]`, store mask in `.obsm["filter"]`
-
-Use `name` to give a filter a short, explicit identifier:
-
-```python
-mdata = mm.pp.add_filter(
-    mdata, modality="psm", on="varm", key="qc",
-    column="score", keep="gt", value=0.01, name="qc_score",
-)
-mdata = mm.pp.apply_filter(mdata, modality="psm", columns=["qc_score"])
-```
-
-Names must be nonblank strings without `/` so their definitions can be saved in
-HDF5. Explicit names are shared across the modality's observation and feature filters.
-The source, column, operator, and value are recorded in
-`adata.uns["filter_conditions"][name]`. Reusing a name with the same condition
-recomputes its mask; a different condition raises an error. An existing mask
-without a recorded definition cannot be overwritten with an explicit name.
-
-When `name` is omitted, stored filter column names follow this pattern:
-`{column}_{keep}_{value}` for `obs` and `var`. For matrix sources, the name
-also includes the source and key, for example `varm['qc'].score_gt_15.0`.
-Use that full name when selecting matrix filters with `columns`.
-
-Missing masks introduced by concatenating datasets remain unapplied to rows where
-that filter was not recorded.
-
-### Apply filters
-
-[`apply_filter()`](../reference/pp/apply_filter.md) controls target axis with `on`:
-
-- `on="all"` (default): apply both `.varm["filter"]` and `.obsm["filter"]`
-- `on="var"`: apply only `.varm["filter"]`
-- `on="obs"`: apply only `.obsm["filter"]`
-- `columns=[...]` (optional): apply only selected filter columns by name
-
-When `on="all"` and one side does not have a stored filter table, that axis is
-skipped. A warning is printed if neither side has filters. When `on="var"` or `on="obs"` and the requested
-filter table is missing, an error is raised. Invalid `on` values also raise an error.
-
-The function also prints which filter columns are applied. The provenance logger records
-the successful call in `mdata.uns["_log"]`, but does not capture printed output.
-
-```python
-mdata = mm.pp.apply_filter(mdata, modality="psm", on="all")
-
-# apply only selected filters
-mdata = mm.pp.apply_filter(
-    mdata,
-    modality="psm",
-    on="var",
-    columns=["q_value_lt_0.01"],
-)
-```
-
-### Validation and compatibility
-
-Requested filter names must all exist on the selected axis (either axis for
-`on="all"`). Missing names raise an error; filters are not partially applied.
-A stored variable mask covers the decoy rows like the target rows.
-
-Existing stored filter names are not renamed. Newly recorded matrix filters use
-the source-qualified names above; repeating the same condition replaces its mask.
-Old workflows that regenerate matrix filters using the former names, relied on
-missing values passing, or requested nonexistent columns may no longer replay
-unchanged. Verified replay can report a hash mismatch, and explicit old matrix
-filter names can raise an error. Re-record those workflows with the current API;
-do not disable verification to hide a changed result.
+A mask is named `{column}_{keep}_{value}` unless `name` is given; matrix sources add the source
+and key, for example `varm['qc'].score_gt_15.0`. Workflows recorded with older matrix filter
+names may not replay unchanged: re-record them rather than disabling verification.

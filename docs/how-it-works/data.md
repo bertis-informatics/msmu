@@ -87,11 +87,10 @@ supply peptide intensities: add quantification with [`io.add_quant`](../referenc
     - `filename`, `peptide`(modified), `stripped_peptide`, `scan_num`, `proteins`, `missed_cleavages`, `peptide_length`, `charge`, `PEP`, `q_value`, `contaminant`, `decoy`
 - `proteins` holds parsed UniProt accessions in one canonical form across every reader,
   `[decoy_][Cont_]<accession>` (e.g., `P07339`, `Cont_P02769`, `decoy_P07339`), and `contaminant`
-  flags whether any member of the group carried a contaminant marker. The `decoy_` prefix follows
-  the search output's decoy column, not the search engine's decoy tag, so a decoy never shares an
-  accession with a target. See [Filter](filter.md#contaminants_and_decoys).
-- Decoy features stay in `.var`, marked by `decoy == 1`. Files saved before this layout keep them
-  in `.uns["decoy"]`, which is no longer read.
+  flags whether any member of the group carried a contaminant marker. `decoy_` is set from the
+  decoy column. See [Filter](filter.md#contaminants_and_decoys).
+- Decoy features stay in `.var`, marked by `decoy == 1`; `.uns["decoy"]` in older files is no
+  longer read.
 - Quantification data for **LFQ (DDA)** is stored in `peptide` modality.
 - Raw information from a search tool is stored in `mdata["psm"].varm["search_result"]`
 
@@ -193,14 +192,10 @@ only).
 !!! warning "Experimental"
     No tool writes this layout yet, and it may change.
 
-The readers lay DIA precursors out long: `psm` has one feature per run and precursor. A file
-written by another tool can bring the same data wide, as a `precursor` modality whose samples are
-runs and whose features are precursors. `msmu` loads such a file with
-[`read_h5mu`](../reference/read_h5mu.md) and processes the modality as it is; its own readers do
-not produce this layout.
-
-An identification is one cell here, so what differs between the runs of a precursor sits in a
-matrix and `.var` keeps what the runs have in common:
+The readers lay DIA precursors out long (`psm`, one feature per run and precursor). A file written
+by another tool can bring them wide instead, as a `precursor` modality with runs as samples and
+precursors as features, loaded with [`read_h5mu`](../reference/read_h5mu.md). Per-run values sit
+in matrices and `.var` keeps what the runs share:
 
 | Part | Content |
 | --- | --- |
@@ -213,13 +208,11 @@ matrix and `.var` keeps what the runs have in common:
 The workflow differs from the long one in two places:
 
 - **A score filter is a cell filter.** [`filter`](../reference/pp/filter.md) with `on="layers"`
-  empties the cells failing the condition and removes the precursors left without one; see
+  empties failing cells and removes the precursors left without one; see
   [Filter](filter.md#filtering_cells).
-- **[`to_peptide`](../reference/pp/to_peptide.md) summarizes `precursor` when there is no `psm`**,
-  and rejects a `MuData` holding both. The peptide `PEP` is the best value of the `PEP` layer over
-  the peptide's precursors and runs, and q-values are calculated from it as for `psm` when decoy
-  precursors are present. Without decoys the `PEP` is carried up without q-values; without a `PEP`
-  layer only the quantification is summarized. `count_psm` is not produced.
+- **[`to_peptide`](../reference/pp/to_peptide.md) summarizes `precursor` when there is no `psm`.**
+  The peptide `PEP` is the best value of the `PEP` layer over the peptide's precursors and runs,
+  and q-values follow when decoys are present. `count_psm` is not produced.
 
 ```python
 mdata = mm.read_h5mu("path/to/wide_precursor.h5mu")
@@ -232,9 +225,8 @@ mdata = mm.pp.infer_protein(mdata)
 mdata = mm.pp.to_protein(mdata)
 ```
 
-Decoy accessions in `proteins` must differ from the targets' (for example `decoy_`-prefixed, as the
-readers write them); [`infer_protein`](../reference/pp/infer_protein.md) refuses a decoy group named
-like a target group.
+Decoy accessions in `proteins` must differ from the targets' (e.g., `decoy_`-prefixed);
+[`infer_protein`](../reference/pp/infer_protein.md) refuses a decoy group named like a target group.
 
 ## Returned objects and in-place changes
 
