@@ -71,6 +71,8 @@ local_scheme = "no-local-version"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --nbval-lax --nbval-current-env"
+# add_filter and apply_filter are deprecated but still tested; their own warning is asserted where it matters.
+filterwarnings = ["ignore:(add_filter|apply_filter) is deprecated:DeprecationWarning"]
 
 [tool.ruff]
 target-version = "py311"

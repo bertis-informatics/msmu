@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import warnings
 from typing import Literal
 
 import numpy as np
@@ -14,8 +16,20 @@ from ..logging_utils import get_logger
 
 logger = get_logger(__name__)
 
+# A deprecation warning is attributed to the first frame outside msmu's own files, so it points at
+# the caller's line however many frames the provenance decorator puts in between.
+_MSMU_PACKAGE_DIRECTORY = os.path.join(os.path.dirname(os.path.dirname(__file__)), "")
+
 # numpy dtype kinds of a string matrix: object (as an h5mu file returns strings), unicode and bytes.
 _STRING_DTYPE_KINDS = frozenset("OUS")
+
+
+def _warn_deprecated_filter_function(function_name: str) -> None:
+    warnings.warn(
+        f"{function_name} is deprecated; use msmu.pp.filter instead.",
+        DeprecationWarning,
+        skip_file_prefixes=(_MSMU_PACKAGE_DIRECTORY,),
+    )
 
 
 @log_provenance
@@ -31,6 +45,8 @@ def add_filter(
     name: str | None = None,
 ) -> MuData:
     """
+    Deprecated; use [`filter`][msmu.pp.filter], which evaluates the condition and filters in one call.
+
     Adds a filter to the specified modality in the `MuData` object based on the given condition.
 
     Missing source values never pass, including for negated conditions. Matrix
@@ -51,7 +67,11 @@ def add_filter(
 
     Returns:
         `MuData` object with the added filter.
+
+    Notes:
+        Calling this function emits `DeprecationWarning`.
     """
+    _warn_deprecated_filter_function("add_filter")
 
     if name is not None and (not isinstance(name, str) or not name.strip() or "/" in name):
         raise ValueError("name must be a nonblank string without slashes")
@@ -175,6 +195,8 @@ def apply_filter(
     columns: list[str] | None = None,
 ) -> MuData:
     """
+    Deprecated; use [`filter`][msmu.pp.filter], which evaluates the condition and filters in one call.
+
     Applies the filter to the specified modality in the `MuData` object.
 
     Parameters:
@@ -190,7 +212,12 @@ def apply_filter(
 
     Returns:
         `MuData` object with the filter applied.
+
+    Notes:
+        Calling this function emits `DeprecationWarning`.
     """
+    _warn_deprecated_filter_function("apply_filter")
+
     if on not in {"all", "var", "obs"}:
         raise ValueError(f"Unknown filter axis: {on}")
 

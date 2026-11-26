@@ -672,3 +672,30 @@ def test_rollups_run_without_pep_and_count_columns():
     assert protein.var["decoy"].tolist() == [0, 0, 0, 1]
     np.testing.assert_array_equal(protein.X, [[2.0, 5.0, 7.0, 9.0]])
 
+
+def test_to_protein_drops_shared_peptides_without_the_deprecated_filter_functions():
+    import warnings
+
+    import msmu as mm
+    from anndata import AnnData
+    from mudata import MuData
+
+    peptides = ["AA", "BB", "CC"]
+    identifications = pd.DataFrame(
+        {"peptide": peptides, "stripped_peptide": peptides, "proteins": ["P1", "P2", "P1;P2"]},
+        index=[f"psm_{position}" for position in range(3)],
+    )
+    psm = AnnData(X=np.array([[1.0, 3.0, 5.0]]), obs=pd.DataFrame(index=["sample"]), var=identifications)
+    mdata = mm.pp.infer_protein(mm.pp.to_peptide(MuData({"psm": psm})))
+    assert mdata["peptide"].var["peptide_type"].tolist() == ["unique", "unique", "shared"]
+
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        mdata = mm.pp.to_protein(mdata)
+
+    assert not [warning for warning in recorded if "use msmu.pp.filter instead" in str(warning.message)]
+    assert mdata["protein"].var_names.tolist() == ["P1", "P2"]
+    np.testing.assert_array_equal(mdata["protein"].X, [[1.0, 3.0]])
+    # The shared peptide is left out of the rollup only; the peptide modality keeps it and gets no mask.
+    assert mdata["peptide"].n_vars == 3
+    assert "filter" not in mdata["peptide"].varm
