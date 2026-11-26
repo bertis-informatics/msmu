@@ -7,7 +7,7 @@ import pandas as pd
 from anndata import AnnData
 from mudata import MuData
 
-from .._utils._anndata import _get_target_feature_mask
+from .._utils._anndata import DECOY_COLUMN, _get_target_feature_mask
 from .._utils._mudata import copy_mudata, get_anndata_mod, replace_modality
 from .._core._provenance import log_provenance
 from ..logging_utils import get_logger
@@ -355,7 +355,9 @@ def filter(
         filtered_adata = _filter_cells_by_layer(adata, modality, column, keep, value, include_decoy)
     else:
         filtered_adata = _filter_axis_by_column(adata, modality, column, keep, value, on, key, include_decoy)
-    _warn_if_every_decoy_removed(adata, filtered_adata, modality)
+    is_condition_on_decoy_column = on == "var" and column == DECOY_COLUMN
+    if not is_condition_on_decoy_column:  # removing the decoys on purpose needs no warning
+        _warn_if_every_decoy_removed(adata, filtered_adata, modality)
 
     return replace_modality(mdata, modality, filtered_adata)
 

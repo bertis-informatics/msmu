@@ -555,9 +555,18 @@ def test_filter_warns_when_it_removes_the_last_decoy(filter_mdata, caplog):
     mm.pp.filter(filter_mdata, "psm", "var", "score", "lt", 25.0)
     assert "removed every decoy" not in caplog.text
 
-    targets_only = mm.pp.filter(filter_mdata, "psm", "var", "decoy", "eq", 0)
-    assert targets_only["psm"].var_names.tolist() == ["v1", "v2", "v3"]
+    only_v2 = mm.pp.filter(filter_mdata, "psm", "var", "score", "eq", 20.0)
+    assert only_v2["psm"].var_names.tolist() == ["v2"]
     assert "The filter removed every decoy of psm" in caplog.text
+
+
+def test_filter_on_the_decoy_column_removes_the_decoys_without_a_warning(filter_mdata, caplog):
+    caplog.set_level(logging.WARNING, logger="msmu")
+
+    targets_only = mm.pp.filter(filter_mdata, "psm", "var", "decoy", "eq", 0)
+
+    assert targets_only["psm"].var_names.tolist() == ["v1", "v2", "v3"]
+    assert "removed every decoy" not in caplog.text
 
 
 def test_apply_filter_warns_when_it_removes_the_last_decoy(filter_mdata, caplog):

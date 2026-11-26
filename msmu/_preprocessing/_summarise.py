@@ -47,6 +47,8 @@ PRECURSOR_MODALITY: str = "precursor"
 PEP_COLUMN: str = "PEP"
 # `.uns` key under which earlier msmu versions saved a modality's decoys as a separate table.
 LEGACY_DECOY_TABLE_KEY: str = "decoy"
+# q-value under which the rollups report how many targets are identified.
+REPORTED_Q_VALUE_THRESHOLD: float = 0.01
 
 
 @log_provenance
@@ -234,10 +236,11 @@ def _add_q_values(
     identification_with_q = estimate_q_values(identification_df)
     target_q_values = identification_with_q.loc[is_target_feature, "q_value"]
     logger.info(
-        "%s-level identifications: %d (%d at 1%% FDR)",
+        "%s-level identifications: %d (%d at %g%% FDR)",
         level_name,
         len(target_q_values),
-        int((target_q_values < 0.01).sum()),
+        int((target_q_values < REPORTED_Q_VALUE_THRESHOLD).sum()),
+        REPORTED_Q_VALUE_THRESHOLD * 100,
     )
     return identification_with_q
 
