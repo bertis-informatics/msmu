@@ -14,20 +14,33 @@ from git tags via setuptools-scm.
   `.varm` or `.obsm`, or a layer holding one value per cell (`on="layers"`). For a layer, the
   cells failing the condition are emptied in `.X` and in every layer, and the features left
   without a passing cell are removed; an integer or boolean layer becomes floating-point to
-  hold the emptied cells, and a layer of strings is refused. Decoys in `.uns["decoy"]` are
-  filtered on their own column of the same name.
-- **A wide `precursor` modality from an external file is summarized like `psm`.** `to_peptide`
+  hold the emptied cells, and a layer of strings is refused. Decoys are filtered like targets;
+  `include_decoy=False` keeps every decoy through a variable or layer filter.
+- **A wide `precursor` modality from an external file is summarized like `psm` (experimental).**
+  No tool writes this layout yet, and it may change. `to_peptide`
   summarizes a `precursor` modality (samples are runs, features are precursors, identification
   scores per cell in the `q_value` and `PEP` layers) when there is no `psm`, and rejects a
   `MuData` holding both. The peptide `PEP` is the best value of the `PEP` layer over the
-  peptide's precursors and runs, and q-values are calculated from it when the decoy table is
+  peptide's precursors and runs, and q-values are calculated from it when decoy precursors are
   present; `count_psm` is not produced. On the DIA tutorial data laid out wide, the peptide
   and protein `PEP` and q-values equal those of the long `psm` modality and the quantification
   agrees to `float32` precision. Plots label the modality "Precursor". The readers keep the
   long layout.
+- **QC plots can show the decoys.** `plot_id`, `plot_intensity`, `plot_missingness` and `plot_var`
+  take `include_decoy=True` to draw decoys in grey next to the targets: a hatched segment or bar
+  beside each group's, a box or violin beside each group's, or one decoy histogram or curve over
+  the targets'.
 
 ### Changed
 
+- **Decoys are `.var` rows next to the targets.** Readers keep decoys in `.var` (`decoy == 1`),
+  `.X` and `.varm["search_result"]` instead of `.uns["decoy"]`. Rollups summarize targets and
+  decoys together and calculate q-values from both (none without decoys, with a warning).
+  `infer_protein` infers them apart and refuses a decoy group named like a target group. Filters
+  apply to decoys as to targets and warn when the last decoy goes; `calculate_missingness` counts
+  decoys instead of writing `0`. `write_pin` labels rows from `decoy`; `write_flashlfq_input`
+  exports targets only. `.uns["decoy"]` in older files is no longer read; rollups on such files
+  skip q-values and say so.
 - **Decoy accessions take the `decoy_` prefix, set from the decoy column.** Readers prefix every
   accession of a row their decoy column marks, so a decoy never shares an accession with a
   target. The prefix used to be `rev_` and came only from a search engine's tag in front of a
@@ -36,12 +49,11 @@ from git tags via setuptools-scm.
   column still read it: `mm.utils.parse_uniprot_accession` and `attach_fasta` mark a tagged
   entry `decoy_`, and the FragPipe reader recognises decoys by FragPipe's `rev_` tag.
 - **Analyses of the quantification leave out decoy features.** `pca`, `umap`, `corr`, `run_de`,
-  `to_ptm` and every plot leave out the features whose `.var["decoy"]` is 1, so `run_de` neither
-  tests a decoy nor counts it in the multiple-testing correction. `normalise` and
-  `correct_batch_effect` compute from the targets and leave the decoy values as they were, and
-  `adjust_ptm_by_protein` never takes a decoy protein of the global data as a denominator. The
-  readers still keep decoys in `.uns["decoy"]`, so results do not change; this prepares for
-  decoys stored as `.var` rows next to the targets.
+  `to_ptm` and every plot (unless `include_decoy=True`) leave out the features whose
+  `.var["decoy"]` is 1, so `run_de` neither tests a decoy nor counts it in the multiple-testing
+  correction. `normalise` and `correct_batch_effect` compute from the targets and leave the
+  decoy values as they were, and `adjust_ptm_by_protein` never takes a decoy protein of the
+  global data as a denominator.
 - **Rollups skip the identification columns their input lacks.** `to_peptide`, `to_protein` and
   `to_ptm` raised `KeyError` when `.var` had no `PEP` (or, for `to_protein` and `to_ptm`, no
   `count_psm`). They now summarize without the missing score or count, and skip the q-values
@@ -55,8 +67,21 @@ from git tags via setuptools-scm.
   mudata produces. On a 958-run synthetic DIA-NN dataset the DIA tutorial pipeline takes
   about 12 s instead of about 100 s, with a lower peak memory.
 
+### Removed
+
+- **The `mm.dt` decoy-table paths.** `dt.assign(on="decoy")` and the `"<modality>.decoy"` table
+  path of `dt.map`, `dt.replace` and `dt.drop` are gone with `.uns["decoy"]`; decoys are
+  `<modality>.var` rows, and the error says so.
+
 ### Fixed
 
+- **A `.varm` filter judges decoys on their own values.** Decoys had no `.varm` rows, so a
+  `.varm` filter (for example on DIA-NN's protein q-value in `search_result`) removed every decoy,
+  and the next rollup calculated its q-values without any. On the DIA tutorial data every peptide
+  received the same q-value.
+- **A multi-file DIA-NN read keeps the rows of a file without a `Decoy` column.** Their missing
+  flag matched neither target nor decoy, so those rows disappeared from `.var` and
+  `.varm["search_result"]`; they are now read as targets.
 - **DIA-NN decoys no longer change the target protein groups.** A DIA-NN decoy carried the
   accession of its target, so `infer_protein` mapped decoy peptides onto target proteins, and a
   protein that only a decoy peptide distinguished was split out of its group. With the `decoy_`

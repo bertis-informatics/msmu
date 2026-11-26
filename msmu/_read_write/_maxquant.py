@@ -53,7 +53,6 @@ class MaxQuantReader(SearchResultReader):
             quantification_df=None,
             quantification_level="psm",
             ident_quant_merged=True,
-            has_decoy=True,
         )
 
         self.used_feature_cols.extend(

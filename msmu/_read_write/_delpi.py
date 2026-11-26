@@ -33,7 +33,6 @@ class DelpiReader(SearchResultReader):
             quantification_df=None,
             quantification_level="precursor",
             ident_quant_merged=True,
-            has_decoy=True,
         )
 
         self._cols_to_stringify: list[str] = []

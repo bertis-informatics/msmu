@@ -49,29 +49,36 @@ def test_mapping_and_saved_replay(tmp_path, target_index):
     pd.testing.assert_frame_equal(namespace["mdata"]["peptide"].var, expected)
 
 
-def test_map_onto_decoy_table_and_saved_replay(tmp_path):
-    # The tutorial case: a sample annotation keyed by filename, carried onto the decoy table so
-    # that a variable filter on it can also be applied to decoys.
-    psm = ad.AnnData(X=np.ones((2, 2)), obs=pd.DataFrame({"cell": ["C10", "SVEC"]}, index=["f1", "f2"]))
-    psm.var["filename"] = ["f1", "f2"]
-    psm.uns["decoy"] = pd.DataFrame({"filename": ["f2", "f1", "f3"]}, index=["d1", "d2", "d3"])
+def test_map_onto_var_reaches_the_decoy_rows_and_saved_replay(tmp_path):
+    # The tutorial case: a sample annotation keyed by filename, carried onto .var, whose decoy rows
+    # receive it like the targets.
+    psm = ad.AnnData(
+        X=np.ones((2, 3)),
+        obs=pd.DataFrame({"cell": ["C10", "SVEC"]}, index=["f1", "f2"]),
+        var=pd.DataFrame({"filename": ["f2", "f1", "f3"], "decoy": [0, 1, 1]}, index=["t1", "d1", "d2"]),
+    )
     original = tmp_path / "input.h5mu"
     md.MuData({"psm": psm}).write_h5mu(original)
     with mm.pv.options(hashing=True):
         m = mm.pv.log(mm.read_h5mu)(original)
-        mm.dt.map(m, source="psm.obs", target="psm.decoy", source_index=None, target_index="filename",
+        mm.dt.map(m, source="psm.obs", target="psm.var", source_index=None, target_index="filename",
                   columns={"cell": "cell"})
-    decoy = m["psm"].uns["decoy"]
-    assert decoy["cell"].iloc[:2].tolist() == ["SVEC", "C10"]
-    assert pd.isna(decoy["cell"].iloc[2])
-    expected = decoy.copy()
+    var = m["psm"].var
+    assert var["cell"].iloc[:2].tolist() == ["SVEC", "C10"]
+    assert pd.isna(var["cell"].iloc[2])
+    expected = var.copy()
     saved = tmp_path / "result.h5mu"
     m.write_h5mu(saved)
     history = mm.pv.get_log(md.read_h5mu(saved))
-    pd.testing.assert_frame_equal(mm.pv.replay(history)["psm"].uns["decoy"], expected)
+    pd.testing.assert_frame_equal(mm.pv.replay(history)["psm"].var, expected)
     namespace = {}
     exec(mm.pv.to_script(history), namespace)
-    pd.testing.assert_frame_equal(namespace["mdata"]["psm"].uns["decoy"], expected)
+    pd.testing.assert_frame_equal(namespace["mdata"]["psm"].var, expected)
+
+
+def test_map_from_the_former_decoy_table_path_points_to_the_var_rows():
+    with pytest.raises(ValueError, match="decoys are rows of"):
+        mm.dt.map(data(), source="psm.decoy", target="peptide.var", columns={"group": "protein_group"})
 
 
 def test_default_source_index_and_overlapping_columns():

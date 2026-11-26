@@ -15,7 +15,6 @@ class DummyReader(SearchResultReader):
         *,
         ident_quant_merged: bool = False,
         quant_level: str | None = None,
-        has_decoy: bool = True,
     ):
         super().__init__()
         self._identification_df = identification_df
@@ -44,7 +43,6 @@ class DummyReader(SearchResultReader):
             quantification_df=quant_df,
             quantification_level=quant_level,
             ident_quant_merged=ident_quant_merged,
-            has_decoy=has_decoy,
         )
 
     def _import_search_results(self) -> dict:
@@ -94,21 +92,41 @@ def test_stringify_cols_casts_to_str(identification_df: pd.DataFrame):
     assert out["ScanNum"].map(type).eq(str).all()
 
 
-def test_make_mudata_input_feature_only(identification_df: pd.DataFrame):
-    reader = DummyReader(identification_df, quant_df=None, quant_level=None, has_decoy=True)
+def test_make_mudata_input_keeps_decoys_next_to_the_targets(identification_df: pd.DataFrame):
+    reader = DummyReader(identification_df, quant_df=None, quant_level=None)
     mudata_input = reader._make_mudata_input()
-    assert mudata_input.norm_identification_df.index.tolist() == ["file1.raw.1"]
-    assert mudata_input.decoy_df is not None
+    identifications = mudata_input.norm_identification_df
+    assert identifications.index.tolist() == ["file1.raw.1", "file2.raw.2"]
+    assert identifications["decoy"].tolist() == [0, 1]
+    # Only the decoy row takes the decoy prefix; the row name stays as the engine gives it.
+    assert identifications["proteins"].tolist() == ["P1", "decoy_P2"]
+    assert mudata_input.raw_identification_df.index.tolist() == ["file1.raw.1", "file2.raw.2"]
     assert mudata_input.norm_quant_df is None
 
 
 def test_build_mudata_feature_only(identification_df: pd.DataFrame):
-    reader = DummyReader(identification_df, quant_df=None, quant_level=None, has_decoy=True)
+    reader = DummyReader(identification_df, quant_df=None, quant_level=None)
     mudata_input = reader._make_mudata_input()
     mdata = reader._build_mudata(mudata_input)
     assert "psm" in mdata.mod
-    assert mdata.mod["psm"].var.index.tolist() == ["file1.raw.1"]
-    assert "decoy" in mdata.mod["psm"].uns
+    assert mdata.mod["psm"].var.index.tolist() == ["file1.raw.1", "file2.raw.2"]
+    assert mdata.mod["psm"].varm["search_result"].index.tolist() == ["file1.raw.1", "file2.raw.2"]
+    assert "decoy" not in mdata.mod["psm"].uns
+
+
+@pytest.mark.parametrize(
+    "engine_decoy_flags", [[False, True, False], [0.0, 1.0, None]], ids=["boolean", "float_with_missing"]
+)
+def test_reader_stores_the_decoy_flag_as_integers_and_a_missing_flag_as_a_target(
+    identification_df: pd.DataFrame, engine_decoy_flags
+):
+    three_rows = pd.concat([identification_df, identification_df.iloc[[0]].assign(ScanNum=3)], ignore_index=True)
+    three_rows["Decoy"] = pd.Series(engine_decoy_flags, dtype=object)
+
+    identifications = DummyReader(three_rows)._make_mudata_input().norm_identification_df
+
+    assert identifications["decoy"].tolist() == [0, 1, 0]
+    assert pd.api.types.is_integer_dtype(identifications["decoy"])
 
 
 def test_build_mudata_with_quantification(identification_df: pd.DataFrame):
@@ -123,9 +141,10 @@ def test_build_mudata_with_quantification(identification_df: pd.DataFrame):
         identification_df,
         quant_df=quant_df,
         quant_level="psm",
-        has_decoy=True,
     )
     mudata_input = reader._make_mudata_input()
     mdata = reader._build_mudata(mudata_input)
-    assert mdata.mod["psm"].X.shape == (2, 1)
+    assert mdata.mod["psm"].X.shape == (2, 2)
     assert np.isnan(mdata.mod["psm"].X[1, 0])
+    # The decoy PSM keeps its quantification.
+    np.testing.assert_array_equal(mdata.mod["psm"].X[:, 1], [2.0, 3.0])

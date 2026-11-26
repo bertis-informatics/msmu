@@ -52,7 +52,7 @@ Any two non-`NaN` values of a protein are therefore on one scale, and their diff
 
 ## Identification q-values and tied PEPs
 
-With `calculate_q=True` and decoy information available, [`to_peptide()`](../reference/pp/to_peptide.md) and
+With `calculate_q=True` and decoys in `.var`, [`to_peptide()`](../reference/pp/to_peptide.md) and
 [`to_protein()`](../reference/pp/to_protein.md) use the same target–decoy calculation. Exactly equal PEP values
 form one group; distinct PEP values are never rounded together. Groups are
 ordered by increasing PEP, and cumulative target (`T`) and decoy (`D`) counts
@@ -88,7 +88,7 @@ and returns
 - `MuData` with `peptide` level modality
 
 This step aggregates PSMs and their quantification values by `peptide` (non-redundant modified peptide).
-Peptide-level PEP is calculated with `best_pep` method by default and peptide-level q-values are computed using a conservative approach when decoy information is available.
+Peptide-level PEP is calculated with `best_pep` method by default and peptide-level q-values are computed using a conservative approach when decoy features are present.
 For a `precursor` modality the scores are read from its `PEP` layer: the best value over the peptide's precursors and runs.
 
 For quantification aggregation, the default method is `median`, and an optional `top_n` argument can be used to restrict aggregation using top N (e.g., top 3) features within each peptide. Feature ranking is based on `median_intensity` unless specified otherwise. Only the column-wise reductions (`median`, `mean`, `sum`) are available at the peptide level; the matrix rollups belong to the protein step (see [Aggregation methods](#aggregation_methods)).

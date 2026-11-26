@@ -3,7 +3,7 @@ import warnings
 import anndata as ad
 import pandas as pd
 
-from .._utils._anndata import _drop_decoy_features
+from .._utils._anndata import _drop_decoy_features, _get_target_feature_mask
 from .._utils._mudata import add_modality, copy_mudata, get_anndata_mod, replace_modality
 from .._core._provenance import log_provenance
 from .._core._status import MuDataStatus
@@ -45,6 +45,10 @@ PSM_MODALITY: str = "psm"
 PRECURSOR_MODALITY: str = "precursor"
 # Name of the posterior error probability, as a `.var` column (`psm`) or as a layer (`precursor`).
 PEP_COLUMN: str = "PEP"
+# `.uns` key under which earlier msmu versions saved a modality's decoys as a separate table.
+LEGACY_DECOY_TABLE_KEY: str = "decoy"
+# q-value under which the rollups report how many targets are identified.
+REPORTED_Q_VALUE_THRESHOLD: float = 0.01
 
 
 @log_provenance
@@ -63,10 +67,14 @@ def to_peptide(
     (observations = runs, variables = precursors, one identification per run and precursor). A
     `MuData` holding both `psm` and `precursor` is rejected.
 
+    Decoy features (`.var["decoy"] == 1`) are summarized with the targets into decoy peptides, and
+    q-values are calculated from the targets and decoys together. Without decoys no q-values are
+    calculated.
+
     A `precursor` source keeps its identification scores per run in layers. The peptide `PEP` is the
     best value of the `PEP` layer over the peptide's precursors and runs, and q-values are calculated
-    from it as for `psm`, when the decoy table is present. Without a `PEP` layer only the
-    quantification is summarized. `count_psm` is not produced.
+    from it as for `psm`. Without a `PEP` layer only the quantification is summarized. `count_psm` is
+    not produced.
 
     Usage:
         mdata = mm.pp.to_peptide(
@@ -108,9 +116,7 @@ def to_peptide(
     _protein_col: str = "proteins"
 
     # Preparation
-    summarisation_prep = SummarisationPrep(
-        adata_to_summarise, col_to_groupby=_peptide_col, has_decoy=source_status.has_decoy
-    )
+    summarisation_prep = SummarisationPrep(adata_to_summarise, col_to_groupby=_peptide_col)
 
     # Filtering for TMT purity in peptide quantification
     if source_status.label == "tmt":
@@ -130,12 +136,11 @@ def to_peptide(
             top_n,
         )  # e.g., ("total_intensity", 3)
 
-    identification_df, quantification_df, decoy_df = summarisation_prep.prep()
+    identification_df, quantification_df = summarisation_prep.prep()
     logger.debug(
-        "Prepared peptide summarisation inputs: ident=%s quant=%s decoy=%s",
+        "Prepared peptide summarisation inputs: ident=%s quant=%s",
         identification_df.shape,
         quantification_df.shape,
-        None if decoy_df is None else decoy_df.shape,
     )
 
     # Aggregation
@@ -149,7 +154,6 @@ def to_peptide(
     aggregator = Aggregator.peptide(
         identification_df=identification_df,
         quantification_df=quantification_df,
-        decoy_df=decoy_df,
         agg_method=agg_method,
         score_method=score_method,
         protein_col=_protein_col,
@@ -164,28 +168,10 @@ def to_peptide(
         logger.error("var is empty in %s modality. Cannot aggregate identification data.", source_modality)
         raise
 
-    # Aggregate decoy data if present
-    if source_status.has_decoy:
-        decoy_df_agg = aggregator.aggregate_decoy()
-    else:
-        logger.warning("Decoy data not found. Skipping decoy aggregation.")
-
-    # q-value calculation
     if calculate_q:
-        if source_status.has_decoy is False:
-            logger.warning("Decoy data not found. Skipping q-value calculation.")
-        elif PEP_COLUMN not in ident_df_agg.columns or PEP_COLUMN not in decoy_df_agg.columns:
-            logger.warning("PEP column not found in identification or decoy data. Skipping q-value calculation.")
-        else:
-            ident_df_agg, decoy_df_agg = estimate_q_values(
-                identification_df=ident_df_agg,
-                decoy_df=decoy_df_agg,
-            )
-            logger.info(
-                "Peptide-level identifications: %d (%d at 1%% FDR)",
-                len(ident_df_agg),
-                int((ident_df_agg["q_value"] < 0.01).sum()),
-            )
+        ident_df_agg = _add_q_values(
+            ident_df_agg, level_name="Peptide", source_adata=adata_to_summarise, source_modality=source_modality
+        )
 
     # Aggregate quantification data
     quant_df_agg = aggregator.aggregate_quantification()
@@ -224,10 +210,39 @@ def to_peptide(
     peptide_mod = get_anndata_mod(mdata, "peptide")
     peptide_mod.uns["level"] = "peptide"
 
-    if source_status.has_decoy:
-        peptide_mod.uns["decoy"] = decoy_df_agg
-
     return mdata
+
+
+def _add_q_values(
+    identification_df: pd.DataFrame, level_name: str, source_adata: ad.AnnData, source_modality: str
+) -> pd.DataFrame:
+    """Add q-values from the aggregated targets and decoys, or return the table as it is without decoys."""
+    is_target_feature = _get_target_feature_mask(identification_df)
+    if is_target_feature.all():
+        if LEGACY_DECOY_TABLE_KEY in source_adata.uns:
+            logger.warning(
+                "Decoys of '%s' are in .uns['%s'], where earlier msmu versions saved them, and are no longer "
+                "read. Skipping q-value calculation; read the search output again to calculate q-values.",
+                source_modality,
+                LEGACY_DECOY_TABLE_KEY,
+            )
+        else:
+            logger.warning("Decoy data not found. Skipping q-value calculation.")
+        return identification_df
+    if PEP_COLUMN not in identification_df.columns:
+        logger.warning("PEP column not found. Skipping q-value calculation.")
+        return identification_df
+
+    identification_with_q = estimate_q_values(identification_df)
+    target_q_values = identification_with_q.loc[is_target_feature, "q_value"]
+    logger.info(
+        "%s-level identifications: %d (%d at %g%% FDR)",
+        level_name,
+        len(target_q_values),
+        int((target_q_values < REPORTED_Q_VALUE_THRESHOLD).sum()),
+        REPORTED_Q_VALUE_THRESHOLD * 100,
+    )
+    return identification_with_q
 
 
 def _resolve_peptide_source_modality(mdata: md.MuData) -> str:
@@ -271,7 +286,6 @@ def to_protein(
     """
     original_mdata = copy_mudata(mdata)
 
-    mstatus = MuDataStatus(original_mdata)
     _protein_col: str = "protein_group"
 
     # Handle shared peptides
@@ -299,11 +313,7 @@ def to_protein(
         logger.debug("Using layer '%s' for protein summarisation.", layer)
 
     # Preparation
-    summarisation_prep = SummarisationPrep(
-        adata=adata_to_summarise,
-        col_to_groupby=_protein_col,
-        has_decoy=mstatus.peptide.has_decoy,
-    )
+    summarisation_prep = SummarisationPrep(adata=adata_to_summarise, col_to_groupby=_protein_col)
 
     # Ranking for top_n features
     if top_n is not None:
@@ -312,12 +322,11 @@ def to_protein(
             top_n,
         )  # e.g ("total_intensity", 3)
 
-    identification_df, quantification_df, decoy_df = summarisation_prep.prep()
+    identification_df, quantification_df = summarisation_prep.prep()
     logger.debug(
-        "Prepared protein summarisation inputs: ident=%s quant=%s decoy=%s",
+        "Prepared protein summarisation inputs: ident=%s quant=%s",
         identification_df.shape,
         quantification_df.shape,
-        None if decoy_df is None else decoy_df.shape,
     )
 
     # Aggregation
@@ -325,7 +334,6 @@ def to_protein(
     aggregator = Aggregator.protein(
         identification_df=identification_df,
         quantification_df=quantification_df,
-        decoy_df=decoy_df,
         agg_method=agg_method,
         score_method=score_method,
         protein_col=_protein_col,
@@ -333,27 +341,10 @@ def to_protein(
 
     # Aggregate identification
     ident_df_agg = aggregator.aggregate_identification()
-    if mstatus.peptide.has_decoy:
-        agg_decoy_df = aggregator.aggregate_decoy()
-    else:
-        logger.warning("Decoy data not found. Skipping decoy aggregation.")
-
-    # q-value calculation
     if calculate_q:
-        if mstatus.peptide.has_decoy is False:
-            logger.warning("Decoy data not found. Skipping q-value calculation.")
-        elif PEP_COLUMN not in ident_df_agg.columns or PEP_COLUMN not in agg_decoy_df.columns:
-            logger.warning("PEP column not found in identification or decoy data. Skipping q-value calculation.")
-        else:
-            ident_df_agg, agg_decoy_df = estimate_q_values(
-                identification_df=ident_df_agg,
-                decoy_df=agg_decoy_df,
-            )
-            logger.info(
-                "Protein-level identifications: %d (%d at 1%% FDR)",
-                len(ident_df_agg),
-                int((ident_df_agg["q_value"] < 0.01).sum()),
-            )
+        ident_df_agg = _add_q_values(
+            ident_df_agg, level_name="Protein", source_adata=adata_to_summarise, source_modality="peptide"
+        )
 
     quant_df_agg = aggregator.aggregate_quantification()
     logger.debug("Aggregated protein quantification shape: %s", quant_df_agg.shape)
@@ -368,9 +359,6 @@ def to_protein(
     mdata = add_modality(mdata=original_mdata, adata=protein_adata, mod_name="protein")
     protein_mod = get_anndata_mod(mdata, "protein")
     protein_mod.uns["level"] = "protein"
-
-    if mstatus.peptide.has_decoy:
-        protein_mod.uns["decoy"] = agg_decoy_df
 
     return mdata
 

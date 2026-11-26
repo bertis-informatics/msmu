@@ -36,7 +36,6 @@ class DiannReader(SearchResultReader):
             quantification_df=None,
             quantification_level="precursor",
             ident_quant_merged=True,
-            has_decoy=False,
         )
 
         self.used_feature_cols.extend(
@@ -119,14 +118,13 @@ class DiannReader(SearchResultReader):
         equivalent ``count("[KR]") - count("[KR]P")``; accession parsing is deduplicated via
         ``replace_strict`` over unique protein-id strings.
         """
-        # mbr / decoy flags computed on the polars frame (they select the q-value column to rename).
+        # The mbr flag is computed on the polars frame (it selects the q-value column to rename).
         # Cast Lib.Q.Value before summing: a non-MBR run can leave it entirely empty, which polars
         # types as String (nothing to infer) and would crash .sum(); cast-to-float sums all-null to
         # 0 -> mbr False, matching pandas.
         self._mbr = identification_df.select(pl.col("Lib.Q.Value").cast(pl.Float64, strict=False).sum()).item() != 0
-        self.search_settings.has_decoy = ("Decoy" in identification_df.columns) and bool(
-            identification_df.select(pl.col("Decoy").cast(pl.Boolean).any()).item()
-        )
+        # DIA-NN reports decoys only when run with --report-decoys.
+        has_decoy_column = "Decoy" in identification_df.columns
         q_value_source = "Lib.Q.Value" if self._mbr else "Global.Q.Value"
 
         uniq = identification_df.select("Protein.Ids").unique().to_series().to_list()
@@ -150,10 +148,10 @@ class DiannReader(SearchResultReader):
             pl.col("Precursor.Id"),  # for _make_unique_index (dropped at subset)
             pl.col(q_value_source),  # -> q_value
         ]
-        if self.search_settings.has_decoy:
+        if has_decoy_column:
             exprs.append(pl.col("Decoy"))  # -> decoy
         feature_df = identification_df.select(exprs).to_pandas()
-        if not self.search_settings.has_decoy:
+        if not has_decoy_column:
             feature_df["decoy"] = 0
         return feature_df
 

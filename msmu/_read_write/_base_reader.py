@@ -16,6 +16,7 @@ from ..logging_utils import get_logger
 from .._core._blockdiag import SparseQuantFrame
 from .._core._sources import is_url, open_source
 from .._core._tabular import read_delimited
+from .._utils._anndata import DECOY_COLUMN
 from .._utils.fasta import add_decoy_prefix
 from .._utils.peptide import (
     _calc_exp_mz,
@@ -61,7 +62,6 @@ class SearchResultSettings:
     quantification_df: pd.DataFrame | None
     quantification_level: Literal["psm", "precursor", "peptide", "protein"] | None
     ident_quant_merged: bool
-    has_decoy: bool = True
 
 
 @dataclass
@@ -79,7 +79,6 @@ class MuDataInput:
     raw_identification_df: pd.DataFrame
     norm_identification_df: pd.DataFrame
     norm_quant_df: pd.DataFrame | None
-    decoy_df: pd.DataFrame | None
 
 
 class SearchResultDataFrameConverter:
@@ -376,60 +375,50 @@ class SearchResultReader:
         else:
             quantification_df = raw_dict["quantification"] if self.search_settings.quantification is not None else None
 
-        if self.search_settings.has_decoy and "decoy" not in self.used_feature_cols:
-            self.used_feature_cols.append("decoy")
+        # Decoys stay in the feature table next to the targets, marked by the decoy column.
+        if DECOY_COLUMN not in self.used_feature_cols:
+            self.used_feature_cols.append(DECOY_COLUMN)
 
         used_feature_cols = list(dict.fromkeys(self.used_feature_cols))
-        norm_identification_df = norm_identification_df.loc[:, used_feature_cols]
-
-        target_mask = np.ones(len(norm_identification_df), dtype=bool)
-
-        if self.search_settings.has_decoy:
-            if "decoy" not in norm_identification_df.columns:
-                logger.error("Decoy column is expected but not found in the identification DataFrame.")
-                raise ValueError("Decoy column is expected but not found in the identification DataFrame.")
-            else:
-                target_df, decoy_df = self._separate_decoy_df(norm_identification_df)
-                target_mask = norm_identification_df["decoy"].eq(0).to_numpy()
-                logger.debug("Decoy entries separated: %s", decoy_df.shape)
-        else:
-            target_df = norm_identification_df.copy()
-            decoy_df = None
+        norm_identification_df = self._mark_decoy_features(norm_identification_df.loc[:, used_feature_cols])
 
         if self._drop_search_result:
             # Keep only index alignment when raw search_result is not stored.
-            raw_identification_df = pd.DataFrame(index=target_df.index)
+            raw_identification_df = pd.DataFrame(index=norm_identification_df.index)
         else:
             # The raw frame is stored in varm, which must be pandas. It is always a polars frame
             # here (the transforms consumed it as polars) -- convert once at this seam.
             raw_identification_df = raw_identification_df.to_pandas()
             raw_identification_df = raw_identification_df.copy()
+            # Raw and normalized rows are in strict positional sync.
             raw_identification_df.index = norm_identification_df.index
-            # Keep raw and normalized rows in strict positional sync.
-            raw_identification_df = raw_identification_df.iloc[target_mask, :].copy()
 
         norm_quant_df = self._normalise_quantification_df(quantification_df) if quantification_df is not None else None
 
         mudata_input: MuDataInput = MuDataInput(
             raw_identification_df=raw_identification_df,  # varm["search_result"]
-            norm_identification_df=target_df,  # var
+            norm_identification_df=norm_identification_df,  # var
             norm_quant_df=norm_quant_df,  # X
-            decoy_df=decoy_df,  # decoy entries
         )
 
         return mudata_input
 
-    def _separate_decoy_df(self, norm_identification_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        if "decoy" not in norm_identification_df.columns:
-            raise ValueError("Decoy column not found in identification DataFrame.")
+    @staticmethod
+    def _mark_decoy_features(norm_identification_df: pd.DataFrame) -> pd.DataFrame:
+        """Store the decoy column as 0/1 and prefix the accessions of the decoy rows.
 
-        decoy_df = norm_identification_df[norm_identification_df["decoy"] == 1].copy()
-        target_df = norm_identification_df[norm_identification_df["decoy"] == 0].copy()
+        Engines give the flag as integers, floats or booleans. A missing flag, from a file without
+        the engine's decoy column in a multi-file read, counts as a target.
+        """
+        is_decoy = norm_identification_df[DECOY_COLUMN].eq(1).fillna(False).to_numpy(dtype=bool)
+        norm_identification_df[DECOY_COLUMN] = is_decoy.astype(int)
         # The decoy column decides the name: an engine that does not tag decoy entries, such as
         # DIA-NN, would otherwise give a decoy the accession of its target.
-        decoy_df["proteins"] = decoy_df["proteins"].map(add_decoy_prefix, na_action="ignore")
+        norm_identification_df.loc[is_decoy, "proteins"] = norm_identification_df.loc[is_decoy, "proteins"].map(
+            add_decoy_prefix, na_action="ignore"
+        )
 
-        return target_df, decoy_df
+        return norm_identification_df
 
     def _update_default_adata_uns(self, adata: ad.AnnData) -> ad.AnnData:
         adata.uns.update(
@@ -482,8 +471,6 @@ class SearchResultReader:
                 mod_adata.varm["search_result"] = mudata_input.raw_identification_df.loc[common_index, :]
 
             mod_adata = self._update_default_adata_uns(mod_adata)
-            if mudata_input.decoy_df is not None:
-                mod_adata.uns["decoy"] = mudata_input.decoy_df
 
             if self.search_settings.quantification_level in ["psm", "precursor"]:
                 adata_dict["psm"] = mod_adata
@@ -501,8 +488,6 @@ class SearchResultReader:
             if not self._drop_search_result:
                 mod_adata.varm["search_result"] = mudata_input.raw_identification_df
             mod_adata = self._update_default_adata_uns(mod_adata)
-            if mudata_input.decoy_df is not None:
-                mod_adata.uns["decoy"] = mudata_input.decoy_df
 
             adata_dict["psm"] = mod_adata
 
@@ -518,7 +503,6 @@ class SearchResultReader:
             if not self._drop_search_result:
                 feat_adata.varm["search_result"] = mudata_input.raw_identification_df
             feat_adata = self._update_default_adata_uns(feat_adata)
-            feat_adata.uns["decoy"] = mudata_input.decoy_df
 
             if self.search_settings.identification_level in ["psm", "precursor"]:
                 adata_dict["psm"] = feat_adata

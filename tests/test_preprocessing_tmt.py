@@ -178,10 +178,10 @@ def test_summarisation_prep_purity_filter_keeps_sparse():
 
     mdata, fmap = _make_tmt_psm_mdata()
     adata = mm.pp.split_tmt(mdata, fmap).mod["psm"]
-    prep = SummarisationPrep(adata, col_to_groupby="peptide", has_decoy=False)
+    prep = SummarisationPrep(adata, col_to_groupby="peptide")
     prep.filter_dict = {"purity": ("gt", 0.7)}
 
-    _, quantification_df, _ = prep.prep()
+    _, quantification_df = prep.prep()
     assert isinstance(quantification_df, SparseQuant), "purity filter must keep the block-diagonal sparse"
 
 

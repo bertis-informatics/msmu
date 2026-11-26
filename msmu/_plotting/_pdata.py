@@ -2,14 +2,14 @@
 Module for preparing plotting data from MuData objects.
 """
 
-from typing import cast
+from typing import Literal, cast
 
 from anndata import AnnData
 from mudata import MuData
 import numpy as np
 import pandas as pd
 
-from .._utils._anndata import _drop_decoy_features
+from .._utils._anndata import _drop_decoy_features, _get_target_feature_mask
 from .._utils._mudata import get_anndata_mod
 from .._core._blockdiag import to_dense_df
 from ..logging_utils import get_logger
@@ -18,32 +18,63 @@ from ._utils import BinInfo, get_bin_info, is_resolved_obs_groupby, obsm_embeddi
 logger = get_logger(__name__)
 
 
+FeatureClass = Literal["target", "decoy"]
+
+
 class PlotData:
     def __init__(
         self,
         mdata: MuData,
         modality: str,
         layer: str | None = None,
+        feature_class: FeatureClass = "target",
+        is_quantified: bool | None = None,
         **kwargs: str,
     ):
         """
         Prepares MuData observations, variables, and derived summaries for plotting.
 
-        Decoy features (`.var["decoy"] == 1`) are left out of every plot.
+        The data covers the target features (`.var["decoy"] != 1`) unless `feature_class` is
+        `"decoy"`; see `for_decoys`.
 
         Parameters:
             mdata: MuData object containing observations and variables.
             modality: Modality key for accessing the appropriate AnnData object.
+            feature_class: Features to cover, `"target"` or `"decoy"`.
+            is_quantified: Whether counts come from the quantification rather than the annotation;
+                `None` decides from the covered features' values.
             **kwargs: Optional arguments including `obs_column` preference.
         """
         self.mdata = mdata
         self.modality = modality
         self.layer = layer
+        self.feature_class = feature_class
+        self.is_quantified = is_quantified
         self.kwargs = kwargs
 
-    @staticmethod
-    def _has_quantification(data: pd.DataFrame) -> bool:
-        """Return whether the matrix contains any quantified values."""
+    def has_decoy_features(self) -> bool:
+        """Return whether the modality has decoy features."""
+        return not _get_target_feature_mask(get_anndata_mod(self.mdata, self.modality).var).all()
+
+    def for_decoys(self) -> "PlotData":
+        """Return the same plot data over the decoy features.
+
+        The decoys count from the quantification exactly when the targets do, so decoys without
+        values count as absent rather than switching the plot to annotation counts.
+        """
+        return PlotData(
+            self.mdata,
+            self.modality,
+            layer=self.layer,
+            feature_class="decoy",
+            is_quantified=self._has_quantification(self._get_data()),
+            **self.kwargs,
+        )
+
+    def _has_quantification(self, data: pd.DataFrame) -> bool:
+        """Return whether counts come from the quantification: the given value, or any quantified value in `data`."""
+        if self.is_quantified is not None:
+            return self.is_quantified
         return bool(np.nansum(data) != 0)
 
     @staticmethod
@@ -164,9 +195,12 @@ class PlotData:
 
         return key, groupby
 
-    def _get_target_adata(self) -> AnnData:
-        """Return the current modality without its decoy features."""
-        return _drop_decoy_features(get_anndata_mod(self.mdata, self.modality))
+    def _get_feature_adata(self) -> AnnData:
+        """Return the current modality restricted to the covered features (targets or decoys)."""
+        adata = get_anndata_mod(self.mdata, self.modality)
+        if self.feature_class == "target":
+            return _drop_decoy_features(adata)
+        return adata[:, ~_get_target_feature_mask(adata.var)]
 
     def _get_data(self) -> pd.DataFrame:
         """
@@ -175,7 +209,7 @@ class PlotData:
         Returns:
             Copy of the modality's data matrix as a DataFrame.
         """
-        adata = self._get_target_adata().copy()
+        adata = self._get_feature_adata().copy()
 
         if self.layer is not None and self.layer not in adata.layers:
             raise ValueError(f"Layer '{self.layer}' not found in modality '{self.modality}'.")
@@ -192,7 +226,7 @@ class PlotData:
         Returns:
             Copy of the modality's `var` table.
         """
-        var_df = cast(pd.DataFrame, self._get_target_adata().var.copy())
+        var_df = cast(pd.DataFrame, self._get_feature_adata().var.copy())
 
         if groupby and groupby in var_df.columns:
             if not isinstance(var_df[groupby].dtype, pd.CategoricalDtype):
@@ -213,7 +247,7 @@ class PlotData:
             Concatenated `var` and selected varm DataFrame.
         """
         var_df: pd.DataFrame = self._get_var()
-        varm_df: pd.DataFrame = pd.DataFrame(self._get_target_adata().varm[column].copy())
+        varm_df: pd.DataFrame = pd.DataFrame(self._get_feature_adata().varm[column].copy())
 
         return pd.concat([var_df, varm_df], axis=1)
 
@@ -484,7 +518,7 @@ class PlotData:
         var_df = self._get_var(groupby=groupby_column if groupby_type == "var" else None)
         orig_df = self._get_data()
 
-        if np.nansum(orig_df) == 0 or groupby_type == "var":
+        if not self._has_quantification(orig_df) or groupby_type == "var":
             prep_df = var_df[groupby].value_counts().reset_index()
         else:
             melt_df = orig_df.notna().groupby(obs_df[groupby], observed=True).any().T
@@ -528,6 +562,40 @@ class PlotData:
             group_categories=obs_df[groupby].unique(),
             bin_info=bin_info,
             denominator=join_df.shape[0],
+        )
+
+    def get_finite_values(self) -> np.ndarray:
+        """Return the finite quantified values of the covered features, one per feature and observation."""
+        values = self._get_data().to_numpy(dtype=float).ravel()
+        return values[np.isfinite(values)]
+
+    @classmethod
+    def prep_class_hist(cls, values_by_class: dict[str, np.ndarray], bin_info: BinInfo) -> pd.DataFrame:
+        """
+        Calculates one histogram per feature class (target, decoy) over shared bins.
+
+        Parameters:
+            values_by_class: Values of each class, keyed by the trace name in drawing order.
+            bin_info: Precomputed bin metadata for binning.
+
+        Returns:
+            Histogram counts and frequencies per class and bin.
+        """
+        bin_counts_by_class = {
+            class_name: pd.cut(
+                pd.Series(values, dtype=float),
+                bins=bin_info["edges"],
+                labels=bin_info["labels"],
+                include_lowest=True,
+            ).value_counts(sort=False)
+            for class_name, values in values_by_class.items()
+        }
+        grouped = pd.DataFrame(bin_counts_by_class).T
+        return cls._build_binned_frame(
+            grouped,
+            group_categories=list(values_by_class),
+            bin_info=bin_info,
+            denominator=int(grouped.to_numpy().sum()),
         )
 
     def prep_intensity_bar(

@@ -40,7 +40,6 @@ class SageReader(SearchResultReader):
             quantification_df=quantification_df,
             quantification_level=None,
             ident_quant_merged=False,
-            has_decoy=True,
         )
         self._feature_rename_dict: dict = {
             "peptide_len": "peptide_length",

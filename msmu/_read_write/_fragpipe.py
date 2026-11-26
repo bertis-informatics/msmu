@@ -168,8 +168,6 @@ class FragPipeReader(SearchResultReader):
             pl.col("observed mass"),  # -> expmass
             pl.col("Hyperscore"),  # -> score
         )
-        if out.select(pl.col("decoy").sum()).item() == 0:
-            self.search_settings.has_decoy = False
         return out.to_pandas()
 
 

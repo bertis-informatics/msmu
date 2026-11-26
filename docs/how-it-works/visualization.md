@@ -17,6 +17,7 @@
 Per-plot optional arguments:
 
 - `bins`: histogram bin count for [`plot_intensity`](../reference/pl/plot_intensity.md) and [`plot_var`](../reference/pl/plot_var.md).
+- `include_decoy`: draw the decoys in grey next to the targets in [`plot_id`](../reference/pl/plot_id.md), [`plot_intensity`](../reference/pl/plot_intensity.md), [`plot_missingness`](../reference/pl/plot_missingness.md) and [`plot_var`](../reference/pl/plot_var.md). Plots show targets only by default.
 - `pcs`: which principal components to draw in [`plot_pca`](../reference/pl/plot_pca.md), default `(1, 2)`.
 - `key`: `.obsm` key holding the embedding, default `X_pca` / `X_umap`.
 - `subset`, `subset_column`: restrict [`plot_upset`](../reference/pl/plot_upset.md) to one group of samples — it keeps the observations whose `subset_column` value in `.obs` equals `subset`.

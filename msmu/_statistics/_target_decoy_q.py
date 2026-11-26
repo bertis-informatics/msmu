@@ -1,47 +1,27 @@
 import pandas as pd
 
+from .._utils._anndata import _get_target_feature_mask
 
-def estimate_q_values(identification_df: pd.DataFrame, decoy_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+
+def estimate_q_values(identification_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Estimate q-values for target and decoy identifications using target-decoy competition.
+    Estimate q-values by target-decoy competition over the rows of one table.
 
     Parameters:
-        identification_df: DataFrame containing target identifications with 'PEP' column.
-        decoy_df: DataFrame containing decoy identifications with 'PEP' column.
+        identification_df: DataFrame with a 'PEP' column and a 'decoy' column (1 for decoys).
 
     Returns:
-        identification_with_q
-        decoy_with_q
+        A copy of ``identification_df`` with a 'q_value' column for every row, targets and decoys.
     """
-    target_decoy = concat_target_decoy(identification_df, decoy_df)
+    target_decoy = pd.DataFrame(
+        {"PEP": identification_df["PEP"].to_numpy(), "is_decoy": ~_get_target_feature_mask(identification_df)},
+        index=identification_df.index,
+    )
 
-    q_vals = compute_fdr_q(target_decoy)
+    identification_with_q = identification_df.copy()
+    identification_with_q["q_value"] = compute_fdr_q(target_decoy)["q_value"].to_numpy()
 
-    identification_df, decoy_df = retrieve_target_decoy_with_q_values(identification_df, decoy_df, q_vals)
-
-    return identification_df, decoy_df
-
-
-def concat_target_decoy(identification_df: pd.DataFrame, decoy_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Concatenate target and decoy DataFrames with an 'is_decoy' column.
-
-    Parameters:
-        identification_df: DataFrame containing target identifications.
-        decoy_df: DataFrame containing decoy identifications.
-
-    Returns:
-        Concatenated DataFrame with 'is_decoy' column.
-    """
-    identification_df = identification_df.copy()
-    decoy_df = decoy_df.copy()
-
-    identification_df["is_decoy"] = 0
-    decoy_df["is_decoy"] = 1
-
-    combined_df = pd.concat([identification_df, decoy_df], ignore_index=False)
-
-    return combined_df
+    return identification_with_q
 
 
 def compute_fdr_q(target_decoy: pd.DataFrame) -> pd.DataFrame:
@@ -73,27 +53,3 @@ def compute_fdr_q(target_decoy: pd.DataFrame) -> pd.DataFrame:
     result = target_decoy[["is_decoy"]].copy()
     result["q_value"] = target_decoy["PEP"].map(group_q)
     return result
-
-
-def retrieve_target_decoy_with_q_values(
-    identification_df: pd.DataFrame, decoy_df: pd.DataFrame, q_vals: pd.DataFrame
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Retrieve target and decoy DataFrames with assigned q-values.
-
-    Parameters:
-        identification_df: DataFrame containing target identifications.
-        decoy_df: DataFrame containing decoy identifications.
-        q_vals: DataFrame with 'is_decoy' and 'q_value' columns.
-
-    Returns:
-        identification_with_q
-        decoy_with_q
-    """
-    identification_with_q = identification_df.copy()
-    decoy_with_q = decoy_df.copy()
-
-    identification_with_q["q_value"] = q_vals["q_value"][q_vals["is_decoy"] == 0]
-    decoy_with_q["q_value"] = q_vals["q_value"][q_vals["is_decoy"] == 1]
-
-    return identification_with_q, decoy_with_q
