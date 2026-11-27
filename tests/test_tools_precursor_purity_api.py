@@ -94,3 +94,41 @@ def test_precursor_purity_from_mudata_missing_required_columns_raises():
 
     with pytest.raises(ValueError, match=r"Required columns missing from psm.var: \['scan_num'\]"):
         CalculatorWithoutOpenMSInit.from_mudata(mdata)
+
+
+@pytest.mark.parametrize("file_name", ["MSK_run01", "sample_L"])
+def test_purity_scan_selection_keeps_file_names_with_mzml_letters_at_the_ends(tmp_path, file_name):
+    """``str.strip(".mzML")`` cut leading or trailing m/z/M/L letters, so no scan matched the file."""
+    mzml_path = tmp_path / f"{file_name}.mzML"
+    mzml_path.touch()
+    psm_var = pd.DataFrame(
+        {"filename": [file_name, file_name, "other"], "scan_num": [3, 5, 7]},
+        index=[f"{file_name}.3", f"{file_name}.5", "other.7"],
+    )
+    mdata = MuData({"psm": AnnData(X=np.ones((1, 3)), obs=pd.DataFrame(index=["s1"]), var=psm_var)})
+    calculator = _pyopenms.PrecursorPurityCalculator.from_mudata(mdata)
+    calculator.mzml = mzml_path
+
+    assert calculator._get_ms2_spectra_indices_from_mdata() == [2, 4]
+
+
+def test_compute_precursor_isolation_purity_attaches_purity_for_a_file_name_starting_with_m(monkeypatch):
+    class FakePrecursorPurityCalculator:
+        mzml = None
+
+        @classmethod
+        def from_mudata(cls, mdata, tolerance=20.0, unit_ppm=True):
+            return cls()
+
+        def calculate_precursor_isolation_purities(self):
+            return pd.DataFrame({"filename": ["MSK_run1.mzML"] * 2, "scan_num": [1, 2], "purity": [0.8, 0.9]})
+
+    monkeypatch.setattr(_pyopenms, "PrecursorPurityCalculator", FakePrecursorPurityCalculator)
+    psm_var = pd.DataFrame(
+        {"filename": ["MSK_run1", "MSK_run1"], "scan_num": [1, 2]}, index=["MSK_run1.1", "MSK_run1.2"]
+    )
+    mdata = MuData({"psm": AnnData(X=np.ones((1, 2)), obs=pd.DataFrame(index=["s1"]), var=psm_var)})
+
+    result = mm.tl.compute_precursor_isolation_purity(mdata, mzml_paths=["/data/MSK_run1.mzML"])
+
+    assert result["psm"].var["purity"].tolist() == [0.8, 0.9]

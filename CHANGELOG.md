@@ -44,6 +44,9 @@ from git tags via setuptools-scm.
 
 ### Fixed
 
+- **`compute_precursor_isolation_purity` keeps every mzML file name.** The extension was removed
+  with `str.strip`, which also cut leading or trailing `m`, `z`, `M` and `L` letters, so files
+  such as `MSK_run01.mzML` got no purity at all.
 - **`select_repr_protein` handles decoy protein groups.** A decoy group is ranked on the
   accessions it was made from and keeps the `decoy_` prefix; a protein missing from the attached
   FASTA raises an error that names it.
