@@ -234,7 +234,9 @@ def _map_fasta(protein_group: str, fasta_meta: pd.DataFrame, category: str) -> s
     for group in groups:
         members = group.split(",")
         transformed_members = [fasta_meta[category].get(member, None) for member in members]
-        transformed_groups.append(",".join(set(filter(None, transformed_members))))
+        # dict.fromkeys drops duplicates in member order; a set would order them by string hash,
+        # which changes between runs.
+        transformed_groups.append(",".join(dict.fromkeys(filter(None, transformed_members))))
 
     return ";".join(transformed_groups)
 

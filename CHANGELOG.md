@@ -44,6 +44,11 @@ from git tags via setuptools-scm.
 
 ### Fixed
 
+- **`select_repr_protein` handles decoy protein groups.** A decoy group is ranked on the
+  accessions it was made from and keeps the `decoy_` prefix; a protein missing from the attached
+  FASTA raises an error that names it.
+- **`map_fasta` keeps the member order.** Values within a group follow the group's members
+  instead of string-hash order, which changed between runs.
 - **A `.varm` filter judges decoys on their own values.** It used to remove every decoy, so the
   next rollup calculated q-values without any.
 - **A multi-file DIA-NN read keeps the rows of a file without a `Decoy` column.** They are read
