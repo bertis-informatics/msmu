@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -137,10 +140,30 @@ def test_split_uniprot_fasta_entry_fallback():
 
 def test_map_fasta_maps_groups():
     fasta_meta = pd.DataFrame({"Gene": {"P1": "G1", "P2": "G2"}})
-    mapped = _map_fasta("P1,P2;P2", fasta_meta, "Gene")
-    first_group, second_group = mapped.split(";")
-    assert set(first_group.split(",")) == {"G1", "G2"}
-    assert second_group == "G2"
+    mapped = _map_fasta("P2,P1,P2;P2", fasta_meta, "Gene")
+    assert mapped == "G2,G1;G2"
+
+
+def test_map_fasta_order_does_not_depend_on_the_hash_seed():
+    """A set ordered the genes by string hash, so the mapped value changed with PYTHONHASHSEED."""
+    gene_names = [f"GENE{number}" for number in range(8)]
+    mapping_script = (
+        "import pandas as pd; from msmu._utils.fasta import _map_fasta; "
+        f"genes = {gene_names!r}; "
+        "fasta_meta = pd.DataFrame({'Gene': {f'P{number}': gene for number, gene in enumerate(genes)}}); "
+        "print(_map_fasta(','.join(fasta_meta.index), fasta_meta, 'Gene'))"
+    )
+    mapped_by_seed = {
+        seed: subprocess.run(
+            [sys.executable, "-c", mapping_script],
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        for seed in ("0", "1", "2", "3")
+    }
+    assert set(mapped_by_seed.values()) == {",".join(gene_names)}
 
 
 def test_attach_and_map_fasta(tmp_path, mdata):
