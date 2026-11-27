@@ -10,7 +10,7 @@ from msmu._preprocessing._infer_protein import (
     _make_protein_map,
     infer_protein,
 )
-from msmu._utils.protein import select_representative
+from msmu._utils.protein import select_repr_protein, select_representative
 
 
 def _make_peptide_mdata(*, modality: str = "peptide") -> MuData:
@@ -37,22 +37,53 @@ def _make_target_and_decoy_peptide_mdata(peptides: list[str], proteins: list[str
 
 
 def test_select_representative_prefers_swissprot_canonical():
-    protein_group = "P1,P2;P3"
-    protein_info = {"P1": "sp_P1", "P2": "sp_P2-2", "P3": "tr_P3"}
-    assert select_representative(protein_group, protein_info) == "P1"
+    entry_type_by_accession = {"P1": "sp", "P2-2": "sp", "P3": "tr"}
+    assert select_representative("P1,P2-2;P3", entry_type_by_accession) == "P1"
+
+
+def test_select_representative_falls_back_to_isoform_then_trembl():
+    entry_type_by_accession = {"P2-2": "sp", "P3": "tr"}
+    assert select_representative("P3,P2-2", entry_type_by_accession) == "P2-2"
+    assert select_representative("P3", entry_type_by_accession) == "P3"
 
 
 def test_select_representative_uses_contaminant_behavior():
-    protein_group = "C1"
-    protein_info = {"C1": "contam_sp_Cont_C1"}
-    assert select_representative(protein_group, protein_info) == "Cont_C1"
+    assert select_representative("Cont_C1", {"Cont_C1": "contam_sp"}) == "Cont_C1"
 
 
 def test_select_representative_ranks_contaminant_below_swissprot():
     """A Hao-style contaminant carries the ``sp`` database tag, so it must not outrank a target."""
-    protein_group = "C1,P1"
-    protein_info = {"C1": "sp_Cont_C1", "P1": "sp_P1"}
-    assert select_representative(protein_group, protein_info) == "P1"
+    assert select_representative("Cont_C1,P1", {"Cont_C1": "sp", "P1": "sp"}) == "P1"
+
+
+def test_select_representative_ranks_a_decoy_group_on_its_target_accessions():
+    entry_type_by_accession = {"P1": "tr", "P2": "sp"}
+    assert select_representative("decoy_P1,decoy_P2", entry_type_by_accession) == "decoy_P2"
+
+
+def test_select_representative_names_the_proteins_missing_from_the_fasta():
+    with pytest.raises(ValueError, match=r"\['Cont_C9'\].*search"):
+        select_representative("P1,Cont_C9", {"P1": "sp"})
+
+
+def test_select_repr_protein_selects_for_target_and_decoy_rows():
+    protein_adata = AnnData(
+        X=np.ones((1, 2)),
+        obs=pd.DataFrame(index=["s1"]),
+        var=pd.DataFrame({"decoy": [0, 1]}, index=["P1,P2", "decoy_P1,decoy_P2"]),
+    )
+    mdata = MuData({"protein": protein_adata})
+    mdata.uns["protein_info"] = pd.DataFrame({"Entry Type": ["tr", "sp"]}, index=["P1", "P2"])
+
+    selected = select_repr_protein(mdata, modality="protein")
+
+    assert selected["protein"].var["repr_protein"].tolist() == ["P2", "decoy_P2"]
+
+
+def test_select_repr_protein_without_protein_info_raises_value_error():
+    protein_adata = AnnData(X=np.ones((1, 1)), obs=pd.DataFrame(index=["s1"]), var=pd.DataFrame(index=["P1"]))
+    with pytest.raises(ValueError, match="attach_fasta"):
+        select_repr_protein(MuData({"protein": protein_adata}), modality="protein")
 
 
 def test_make_peptide_map_groups():

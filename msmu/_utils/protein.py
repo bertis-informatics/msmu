@@ -1,17 +1,18 @@
 import re
+from collections.abc import Mapping
 
 from .._core._provenance import log_provenance
 from ._mudata import copy_mudata
 from .._core._status import MuDataStatus
-from .fasta import CANONICAL_CONTAMINANT_PREFIX
+from .fasta import CANONICAL_CONTAMINANT_PREFIX, CANONICAL_DECOY_PREFIX
 from ._anndata import _resolve_accession_column
-from ..logging_utils import get_logger
 
 # for type hints
 import mudata as md
 
-
-logger = get_logger(__name__)
+SWISSPROT_ENTRY_TYPE = "sp"
+TREMBL_ENTRY_TYPE = "tr"
+ISOFORM_SEPARATOR = "-"
 
 
 @log_provenance
@@ -32,72 +33,74 @@ def select_repr_protein(mdata: md.MuData, modality: str) -> md.MuData:
     mstatus = MuDataStatus(mdata)
 
     if modality not in mstatus.mod_names:
-        logger.error(f"{modality} modality not found in MuData object.")
-        raise
-    elif "protein_info" not in mdata.uns:
-        logger.error("protein_info not found in mdata.uns.")
-        raise
+        raise ValueError(f"{modality} modality not found in MuData object.")
+    if "protein_info" not in mdata.uns:
+        raise ValueError("protein_info not found in mdata.uns; attach a FASTA with mm.utils.attach_fasta first.")
+
+    # An entry without a database tag counts as Swiss-Prot.
+    entry_type_by_accession = mdata.uns["protein_info"]["Entry Type"].replace("", SWISSPROT_ENTRY_TYPE).to_dict()
+
+    if modality == "protein":
+        mdata.mod["protein"].var["repr_protein"] = mdata.mod["protein"].var.index.map(
+            lambda x: select_representative(x, entry_type_by_accession)
+        )
     else:
-        protein_info = mdata.uns["protein_info"].copy()
-        protein_info.loc[protein_info["Entry Type"] == "", "Entry Type"] = "sp"
-        protein_info["concated_accession"] = protein_info["Entry Type"] + "_" + protein_info.index
-        protein_info = protein_info[["concated_accession"]]
+        accession_column = _resolve_accession_column(mdata.mod[modality].var, context=f"{modality}.var")
+        mdata.mod[modality].var["repr_protein"] = (
+            mdata.mod[modality].var[accession_column].apply(lambda x: select_representative(x, entry_type_by_accession))
+        )
 
-        protein_info_dict = protein_info.to_dict(orient="dict")["concated_accession"]
-
-        if modality == "protein":
-            mdata.mod["protein"].var["repr_protein"] = mdata.mod["protein"].var.index.map(
-                lambda x: select_representative(x, protein_info_dict)
-            )
-        else:
-            accession_column = _resolve_accession_column(mdata.mod[modality].var, context=f"{modality}.var")
-            mdata.mod[modality].var["repr_protein"] = (
-                mdata.mod[modality].var[accession_column].apply(lambda x: select_representative(x, protein_info_dict))
-            )
-
-        return mdata
+    return mdata
 
 
-def select_representative(protein_group: str, protein_info: dict[str, str]) -> str:
+def select_representative(protein_group: str, entry_type_by_accession: Mapping[str, str]) -> str:
     """
     Select canonical protein from protein list based on priority.
     canonical > swissprot > trembl > contam
 
+    A decoy member (``decoy_``-prefixed) takes the entry type of the accession it was made from.
+
     Args:
         protein_group: semicolon or comma-separated proteins (uniprot entries)
-        protein_info: mapping from accession to annotated identifier (e.g., sp_*, tr_*, *_Cont_*)
+        entry_type_by_accession: FASTA entry type (``sp``, ``tr``) per accession
 
     Returns:
-        canonical protein group
+        the members of the highest-ranked tier, comma-separated
+
+    Raises:
+        ValueError: A member is not in the FASTA, i.e. the attached FASTA is not the search FASTA.
     """
     protein_list = re.split(";|,", protein_group)
-    concated_protein_list: list[str] = [protein_info[k] for k in protein_list]
+    accession_list = [protein.removeprefix(CANONICAL_DECOY_PREFIX) for protein in protein_list]
+    missing_proteins = [
+        protein for protein, accession in zip(protein_list, accession_list) if accession not in entry_type_by_accession
+    ]
+    if missing_proteins:
+        raise ValueError(
+            f"Proteins {missing_proteins} are not in mdata.uns['protein_info']; "
+            "attach the FASTA used for the search with mm.utils.attach_fasta."
+        )
 
     # Contaminants rank last whatever their database tag says: with the Hao Lab convention the
     # marker sits inside the accession ("sp|Cont_P1|..."), so they would otherwise be picked up
-    # by the swissprot branches below.
-    contam_ls = [prot for prot in concated_protein_list if CANONICAL_CONTAMINANT_PREFIX in prot]
-    ranked_protein_list = [prot for prot in concated_protein_list if prot not in contam_ls]
-
-    swissprot_canon_ls = [prot for prot in ranked_protein_list if prot.startswith("sp") and "-" not in prot]
-    if swissprot_canon_ls:
-        return ",".join(swissprot_canon_ls).replace("sp_", "")
-
-    swissprot_ls = [prot for prot in ranked_protein_list if prot.startswith("sp")]
-    if swissprot_ls:
-        return ",".join(swissprot_ls).replace("sp_", "")
-
-    trembl_ls = [prot for prot in ranked_protein_list if prot.startswith("tr")]
-    if trembl_ls:
-        return ",".join(trembl_ls).replace("tr_", "")
-
-    if contam_ls:
-        return ",".join(_strip_entry_type_prefix(prot) for prot in contam_ls)
-
+    # by the swissprot tiers below.
+    contaminant_proteins = [protein for protein in protein_list if CANONICAL_CONTAMINANT_PREFIX in protein]
+    ranked_proteins = [
+        (protein, entry_type_by_accession[accession])
+        for protein, accession in zip(protein_list, accession_list)
+        if protein not in contaminant_proteins
+    ]
+    tiers = (
+        [
+            protein
+            for protein, entry_type in ranked_proteins
+            if entry_type.startswith(SWISSPROT_ENTRY_TYPE) and ISOFORM_SEPARATOR not in protein
+        ],
+        [protein for protein, entry_type in ranked_proteins if entry_type.startswith(SWISSPROT_ENTRY_TYPE)],
+        [protein for protein, entry_type in ranked_proteins if entry_type.startswith(TREMBL_ENTRY_TYPE)],
+        contaminant_proteins,
+    )
+    for tier in tiers:
+        if tier:
+            return ",".join(tier)
     return ""
-
-
-def _strip_entry_type_prefix(annotated_identifier: str) -> str:
-    """Drop the leading ``<entry type>_`` from an annotated identifier ("contam_sp_Cont_P1")."""
-    marker_position = annotated_identifier.find(CANONICAL_CONTAMINANT_PREFIX)
-    return annotated_identifier[marker_position:] if marker_position != -1 else annotated_identifier
