@@ -20,6 +20,9 @@ import plotly.graph_objects as go
 if TYPE_CHECKING:
     import pyopenms as oms
 
+# An mzML file is named after psm.var["filename"] plus this extension.
+MZML_EXTENSION = ".mzML"
+
 
 def _load_pyopenms():
     """Import pyopenms on use: it takes ~2.5 s to import and only the purity tools need it."""
@@ -55,7 +58,7 @@ class PurityResult:
     @property
     def _dummy_mdata(self) -> md.MuData:
         purity_df = self.to_df()
-        purity_df.index = purity_df["filename"].str.strip(".mzML") + purity_df["scan_num"].astype(str)
+        purity_df.index = purity_df["filename"].str.removesuffix(MZML_EXTENSION) + purity_df["scan_num"].astype(str)
 
         purity_adata = ad.AnnData(purity_df[["purity"]].T, var=purity_df)
         purity_mdata = md.MuData({"psm": purity_adata})
@@ -207,7 +210,9 @@ class PrecursorPurityCalculator:
 
     def _get_ms2_spectra_indices_from_mdata(self) -> list[int]:
         ms2_spectra: list[int] = (
-            self._var_df.loc[self._var_df["filename"] == self.mzml.name.strip(".mzML"), "scan_num"].astype(int).tolist()
+            self._var_df.loc[self._var_df["filename"] == self.mzml.name.removesuffix(MZML_EXTENSION), "scan_num"]
+            .astype(int)
+            .tolist()
         )
         ms2_spectra = [i - 1 for i in ms2_spectra]
         return ms2_spectra
@@ -367,7 +372,7 @@ def compute_precursor_isolation_purity(
     )
     file_dict: dict = dict()
     for file in mdata.mod["psm"].var["filename"].unique():
-        full_mzml = [x for x in mzml_paths if Path(x).name == f"{file}.mzML"]
+        full_mzml = [x for x in mzml_paths if Path(x).name == f"{file}{MZML_EXTENSION}"]
         if not full_mzml:
             raise ValueError(f"File {file} not found in provided mzML paths.")
         if len(full_mzml) > 1:
@@ -393,9 +398,12 @@ def compute_precursor_isolation_purity(
     )
 
     purity_result_df = purity_result.to_df()
-    purity_result_df["index"] = purity_result_df["filename"].astype(str).str.strip("mzML") + purity_result_df[
-        "scan_num"
-    ].astype(str)
+    # Same "<filename>.<scan>" index as psm.var, so the purities align by name.
+    purity_result_df["index"] = (
+        purity_result_df["filename"].astype(str).str.removesuffix(MZML_EXTENSION)
+        + "."
+        + purity_result_df["scan_num"].astype(str)
+    )
     purity_result_df = purity_result_df.set_index("index", drop=True)
     purity_result_df = purity_result_df.rename_axis(None)
     purity_result_df["scan_num"] = purity_result_df["scan_num"].astype(int)
